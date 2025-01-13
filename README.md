@@ -4,18 +4,18 @@ _Client Side Installation_
 
 1. Open Terminal Window
 2. Run the following commands
-   i. cd client
-   ii. npm install
-   iii. npm run dev
+   1. cd client
+   2. npm install
+   3. npm run dev
 
 _Server Side Installation Process_
 
 1. Open Terminal Window
 2. Run the following commands
-   i. cd server\n
-   ii. pip install virtualenv
-   iii. python3.11 -m venv env
-   iv. env\Scripts\activate
-   v. pip install -r reqirements.txt
-   vi. uvicorn main:app --reload
+   1. cd server
+   2. pip install virtualenv
+   3. python3.11 -m venv env
+   4. env\Scripts\activate
+   5. pip install -r reqirements.txt
+   6. uvicorn main:app --reload
 3. Server will be running
