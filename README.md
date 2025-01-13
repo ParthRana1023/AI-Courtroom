@@ -12,7 +12,7 @@ _Server Side Installation Process_
 
 1. Open Terminal Window
 2. Run the following commands
-   i. cd server
+   i. cd server\n
    ii. pip install virtualenv
    iii. python3.11 -m venv env
    iv. env\Scripts\activate
