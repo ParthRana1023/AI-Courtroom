@@ -4,3 +4,4 @@ pydantic
 python-jose
 argon2-cffi
 motor
+python-dotenv

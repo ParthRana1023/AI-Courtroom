@@ -3,9 +3,12 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const Login = ({ setToken }) => {
-  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [formData, setFormData] = useState({
+    username_or_email: "",
+    password: "",
+  });
   const [message, setMessage] = useState("");
-  const navigate = useNavigate(); // For navigation
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -18,23 +21,24 @@ const Login = ({ setToken }) => {
       const response = await axios.post(
         "http://localhost:8000/auth/login",
         {
-          username_or_email: formData.username_or_email, // Accepts username or email
+          username_or_email: formData.username_or_email,
           password: formData.password,
         },
         {
-          headers: { "Content-Type": "application/json" }, // Set correct headers
+          headers: { "Content-Type": "application/json" },
         }
       );
-      setToken(response.data.access_token); // Save the token
+      setToken(response.data.access_token);
+      localStorage.setItem("token", response.data.access_token);
       setMessage("Login successful!");
-      navigate("/chat"); // Navigate to the Chat page
+      navigate("/chat");
     } catch (error) {
       setMessage(error.response?.data?.detail || "Login failed!");
     }
   };
 
   const handleRegister = () => {
-    navigate("/register"); // Navigate to the Register page
+    navigate("/register");
   };
 
   return (

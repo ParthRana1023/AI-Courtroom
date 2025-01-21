@@ -1,11 +1,19 @@
 from fastapi import FastAPI
-from routes.auth import auth_router  # Import the auth routes
+from routes.auth import auth_router
+from routes.chat import chat_router
 from fastapi.middleware.cors import CORSMiddleware
+from database.db_connection import mongodb
+from contextlib import asynccontextmanager
 
-# Create the FastAPI app
-app = FastAPI()
+app = FastAPI(
+    lifespan=asynccontextmanager(lambda app: manage_db_connection())
+)
 
-# Add CORS middleware to allow requests from different origins (e.g., React frontend)
+async def manage_db_connection():
+    await mongodb.connect()
+    yield
+    await mongodb.close()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Replace "*" with your frontend URL for better security
@@ -14,8 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include the authentication routes with the /auth prefix
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(chat_router, prefix="/chat", tags=["Chat"])
 
 @app.get("/")
 def root():
