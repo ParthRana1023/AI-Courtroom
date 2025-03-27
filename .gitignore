@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+
+# IDEs
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+
+# Coverage and tests
+.pytest_cache/
+
+# Project specific
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Testing Folder
+tests/
