@@ -26,3 +26,6 @@ __pycache__/
 
 # Testing Folder
 tests/
+
+# Environment files - will match .env in any directory
+**/.env
