@@ -109,25 +109,11 @@ export function RegisterForm() {
 
     try {
       const { confirmPassword, ...userData } = values
-
-      // Format the date to ISO format (YYYY-MM-DD)
-      const formattedData = {
-        ...userData,
-        date_of_birth: new Date(userData.date_of_birth).toISOString().split("T")[0],
-        // Format phone number to remove any non-digit characters
-        phone_number: userData.phone_number.replace(/\D/g, ""),
-      }
-
-      console.log("Submitting registration with formatted data:", {
-        ...formattedData,
-        password: "********", // Mask password in logs
-      })
-
-      await registerUser(formattedData)
+      await registerUser(userData)
       router.push("/login?registered=true")
     } catch (err: any) {
-      console.error("Registration submission error:", err)
       setError(err.message || "Failed to register. Please try again.")
+      console.error(err)
     } finally {
       setIsLoading(false)
     }

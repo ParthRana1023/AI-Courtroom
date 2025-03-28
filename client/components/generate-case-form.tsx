@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2 } from "lucide-react"
 
 // Update the form schema to match backend requirements
+
 const formSchema = z.object({
   sections_involved: z
     .string()
@@ -31,7 +32,6 @@ const formSchema = z.object({
       message: "Section numbers must be comma-separated numbers",
     },
   ),
-  caseDescription: z.string().optional(),
 })
 
 export function GenerateCaseForm() {
@@ -45,7 +45,6 @@ export function GenerateCaseForm() {
     defaultValues: {
       sections_involved: "3",
       section_numbers: "",
-      caseDescription: "",
     },
   })
 
@@ -59,18 +58,15 @@ export function GenerateCaseForm() {
         : []
 
       const caseData = {
-        sections_involved: values.sections_involved,
+        sections_involved: Number.parseInt(values.sections_involved, 10),
         section_numbers: sectionNumbers,
-        description: values.caseDescription || undefined,
       }
-
-      console.log("Generating case with data:", caseData)
 
       const newCase = await generateCase(caseData)
       router.push(`/dashboard/cases/${newCase.id}`)
     } catch (err: any) {
-      console.error("Case generation error:", err)
       setError(err.message || "Failed to generate case. Please try again.")
+      console.error(err)
     } finally {
       setIsLoading(false)
     }
@@ -85,6 +81,7 @@ export function GenerateCaseForm() {
       )}
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* Update the form field names in the JSX */}
           <FormField
             control={form.control}
             name="sections_involved"

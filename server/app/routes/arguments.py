@@ -74,26 +74,68 @@ async def submit_argument(
         })
 
     await case.save()
+
+    return {"counter_argument": counter}
+
+
+@router.post("/{case_cnr}/closing-statement")
+async def submit_closing_statement(
+    case_cnr: str,
+    role: str = Body(...),
+    statement: str = Body(...),
+    current_user: User = Depends(get_current_user),
+    rate_limited: None = Depends(rate_limiter)
+):
+    case = await Case.find_one(Case.cnr == case_cnr)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
     
-    # Check if both sides have at least one argument to generate verdict
-    # Modify the verdict generation condition to:
-    if (
-        sum(1 for arg in case.plaintiff_arguments if arg["type"] == "user") >= 1
-        and sum(1 for arg in case.defendant_arguments if arg["type"] == "user") >= 1
-        and not case.verdict
-    ):
-        # Generate verdict only when both sides have user arguments
-        user_args = [
-            arg["content"] for arg in case.plaintiff_arguments + case.defendant_arguments 
-            if arg["type"] == "user"
-        ]
-        counter_args = [
-            arg["content"] for arg in case.plaintiff_arguments + case.defendant_arguments 
-            if arg["type"] == "counter"
-        ]
-        
-        case.verdict = await generate_verdict(user_args, counter_args)
-        case.status = CaseStatus.RESOLVED  # Move status update here
-        await case.save()
+    if role not in ["plaintiff", "defendant"]:
+        raise HTTPException(status_code=400, detail="Invalid role specified")
+
+    # Check if user has participated in this case with the specified role
+    existing_roles = set()
+    for arg in case.plaintiff_arguments:
+        if str(arg.get("user_id")) == str(current_user.id):
+            existing_roles.add("plaintiff")
+    for arg in case.defendant_arguments:
+        if str(arg.get("user_id")) == str(current_user.id):
+            existing_roles.add("defendant")
+
+    if role not in existing_roles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You must have previously participated as {role} to submit a closing statement"
+        )
     
-    return {"counter_argument": counter, "verdict": case.verdict}
+    # Add closing statement to the appropriate side
+    if role == "plaintiff":
+        case.plaintiff_arguments.append({
+            "type": "closing",
+            "content": statement,
+            "user_id": current_user.id
+        })
+    else:
+        case.defendant_arguments.append({
+            "type": "closing",
+            "content": statement,
+            "user_id": current_user.id
+        })
+    
+    await case.save()
+    
+    # Generate verdict using all arguments from both sides
+    user_args = [
+        arg["content"] for arg in case.plaintiff_arguments + case.defendant_arguments 
+        if arg["type"] in ["user", "closing"]
+    ]
+    counter_args = [
+        arg["content"] for arg in case.plaintiff_arguments + case.defendant_arguments 
+        if arg["type"] == "counter"
+    ]
+    
+    case.verdict = await generate_verdict(user_args, counter_args)
+    case.status = CaseStatus.RESOLVED
+    await case.save()
+    
+    return {"verdict": case.verdict}

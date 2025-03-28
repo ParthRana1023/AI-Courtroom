@@ -4,18 +4,18 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Gavel, Home } from "lucide-react"
+import { Gavel, User } from "lucide-react"
 
 const navItems = [
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    icon: Home,
-  },
   {
     title: "Cases",
     href: "/dashboard/cases",
     icon: Gavel,
+  },
+  {
+    title: "User Profile",
+    href: "/dashboard/profile",
+    icon: User,
   },
 ]
 
@@ -27,8 +27,11 @@ export function DashboardNav() {
       {navItems.map((item) => (
         <Button
           key={item.href}
-          variant={pathname === item.href ? "secondary" : "ghost"}
-          className={cn("justify-start", pathname === item.href && "bg-secondary")}
+          variant={pathname === item.href || pathname.startsWith(`${item.href}/`) ? "secondary" : "ghost"}
+          className={cn(
+            "justify-start",
+            (pathname === item.href || pathname.startsWith(`${item.href}/`)) && "bg-secondary",
+          )}
           asChild
         >
           <Link href={item.href}>

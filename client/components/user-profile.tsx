@@ -2,42 +2,46 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { getUserProfile } from "@/lib/api"
+import { Skeleton } from "@/components/ui/skeleton"
+import { getUserProfile, logout } from "@/lib/api"
+import { LogOut } from "lucide-react"
 
 export function UserProfile() {
   const router = useRouter()
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const fetchProfile = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      // Check if user is authenticated
-      const token = localStorage.getItem("auth_token")
-      if (!token) {
-        console.log("No auth token found, redirecting to login")
-        router.push("/login")
-        return
-      }
-
-      const data = await getUserProfile()
-      setProfile(data)
-    } catch (err: any) {
-      setError(err.message || "Failed to load profile. Please try again.")
-      console.error("Error in fetchProfile:", err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const data = await getUserProfile()
+        setProfile(data)
+      } catch (err) {
+        setError("Failed to load profile. Please try again.")
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchProfile()
-  }, [router])
+  }, [])
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await logout()
+      router.push("/login")
+    } catch (error) {
+      console.error("Logout failed:", error)
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -63,10 +67,7 @@ export function UserProfile() {
           <CardDescription>Your personal information</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center text-center">
-            <p className="text-red-500 mb-4">{error}</p>
-            <Button onClick={fetchProfile}>Retry</Button>
-          </div>
+          <p className="text-red-500">{error}</p>
         </CardContent>
       </Card>
     )
@@ -100,6 +101,12 @@ export function UserProfile() {
           </div>
         </div>
       </CardContent>
+      <CardFooter>
+        <Button variant="outline" className="w-full" onClick={handleLogout} disabled={isLoggingOut}>
+          <LogOut className="mr-2 h-4 w-4" />
+          {isLoggingOut ? "Logging out..." : "Log out"}
+        </Button>
+      </CardFooter>
     </Card>
   )
 }

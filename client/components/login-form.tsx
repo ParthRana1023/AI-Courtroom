@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
@@ -10,8 +10,8 @@ import { login } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -22,8 +22,12 @@ const formSchema = z.object({
 
 export function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Check if user was redirected from registration
+  const registered = searchParams.get("registered") === "true"
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -38,11 +42,18 @@ export function LoginForm() {
     setError(null)
 
     try {
-      await login(values.email, values.password)
-      router.push("/dashboard")
+      const response = await login(values.email, values.password)
+
+      // Make sure we have a token before redirecting
+      if (response && localStorage.getItem("auth_token")) {
+        // Redirect to cases tab instead of dashboard
+        router.replace("/dashboard/cases")
+      } else {
+        setError("Authentication failed. Please try again.")
+      }
     } catch (err: any) {
+      console.error("Login error in form:", err)
       setError(err.message || "Failed to login. Please try again.")
-      console.error(err)
     } finally {
       setIsLoading(false)
     }
@@ -50,11 +61,22 @@ export function LoginForm() {
 
   return (
     <div className="space-y-6">
+      {registered && (
+        <Alert className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-900">
+          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+          <AlertTitle>Registration Successful</AlertTitle>
+          <AlertDescription>Your account has been created. Please log in with your credentials.</AlertDescription>
+        </Alert>
+      )}
+
       {error && (
         <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Login Failed</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField

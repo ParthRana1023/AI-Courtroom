@@ -8,41 +8,26 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Skeleton } from "@/components/ui/skeleton"
 import { Gavel, ArrowRight } from "lucide-react"
 
-// Add import for useRouter
-import { useRouter } from "next/navigation"
-
-// Update the CaseList component to handle authentication
 export function CaseList() {
-  const router = useRouter()
   const [cases, setCases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchCases = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      // Check if user is authenticated
-      const token = localStorage.getItem("auth_token")
-      if (!token) {
-        console.log("No auth token found, redirecting to login")
-        router.push("/login")
-        return
-      }
-
-      const data = await getCases()
-      setCases(data)
-    } catch (err: any) {
-      setError(err.message || "Failed to load cases. Please try again.")
-      console.error("Error in fetchCases:", err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
+    const fetchCases = async () => {
+      try {
+        const data = await getCases()
+        setCases(data)
+      } catch (err) {
+        setError("Failed to load cases. Please try again.")
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchCases()
-  }, [router])
+  }, [])
 
   if (loading) {
     return (
@@ -69,9 +54,8 @@ export function CaseList() {
   if (error) {
     return (
       <Card>
-        <CardContent className="pt-6 flex flex-col items-center justify-center text-center">
-          <p className="text-red-500 mb-4">{error}</p>
-          <Button onClick={fetchCases}>Retry</Button>
+        <CardContent className="pt-6">
+          <p className="text-red-500">{error}</p>
         </CardContent>
       </Card>
     )

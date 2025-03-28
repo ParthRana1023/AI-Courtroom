@@ -1,17 +1,25 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { z } from "zod"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { generateCase } from "@/lib/api"
-import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { generateCase } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   numSections: z
@@ -22,13 +30,13 @@ const formSchema = z.object({
     }),
   sectionNumbers: z.string().refine(
     (val) => {
-      if (!val.trim()) return true
-      const sections = val.split(",").map((s) => s.trim())
-      return sections.every((s) => !isNaN(Number.parseInt(s, 10)))
+      if (!val.trim()) return true;
+      const sections = val.split(",").map((s) => s.trim());
+      return sections.every((s) => !isNaN(Number.parseInt(s, 10)));
     },
     {
       message: "Section numbers must be comma-separated numbers",
-    },
+    }
   ),
   caseDescription: z
     .string()
@@ -36,44 +44,46 @@ const formSchema = z.object({
       message: "Description must be at least 10 characters",
     })
     .optional(),
-})
+});
 
 export function GenerateCaseForm() {
-  const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      numSections: "3",
+      numSections: 3,
       sectionNumbers: "",
       caseDescription: "",
     },
-  })
+  });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
       const sectionNumbers = values.sectionNumbers
-        ? values.sectionNumbers.split(",").map((s) => Number.parseInt(s.trim(), 10))
-        : []
+        ? values.sectionNumbers
+            .split(",")
+            .map((s) => Number.parseInt(s.trim(), 10))
+        : [];
 
       const caseData = {
-        numSections: Number.parseInt(values.numSections, 10),
+        numSections: values.numSections,
         sectionNumbers,
         description: values.caseDescription,
-      }
+      };
 
-      const newCase = await generateCase(caseData)
-      router.push(`/dashboard/cases/${newCase.id}`)
+      const newCase = await generateCase(caseData);
+      router.push(`/dashboard/cases/${newCase.id}`);
     } catch (err: any) {
-      setError(err.message || "Failed to generate case. Please try again.")
-      console.error(err)
+      setError(err.message || "Failed to generate case. Please try again.");
+      console.error(err);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
@@ -95,7 +105,9 @@ export function GenerateCaseForm() {
                 <FormControl>
                   <Input type="number" min="1" max="10" {...field} />
                 </FormControl>
-                <FormDescription>Enter the number of sections for the case (1-10)</FormDescription>
+                <FormDescription>
+                  Enter the number of sections for the case (1-10)
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -109,7 +121,9 @@ export function GenerateCaseForm() {
                 <FormControl>
                   <Input placeholder="1, 2, 3" {...field} />
                 </FormControl>
-                <FormDescription>Enter specific section numbers separated by commas</FormDescription>
+                <FormDescription>
+                  Enter specific section numbers separated by commas
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -121,9 +135,15 @@ export function GenerateCaseForm() {
               <FormItem>
                 <FormLabel>Case Description (Optional)</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Enter a description for the case..." className="resize-none" {...field} />
+                  <Textarea
+                    placeholder="Enter a description for the case..."
+                    className="resize-none"
+                    {...field}
+                  />
                 </FormControl>
-                <FormDescription>Provide additional context for the case</FormDescription>
+                <FormDescription>
+                  Provide additional context for the case
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -141,6 +161,5 @@ export function GenerateCaseForm() {
         </form>
       </Form>
     </div>
-  )
+  );
 }
-

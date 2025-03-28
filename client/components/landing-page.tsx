@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function LandingPage() {
   return (
@@ -8,7 +9,8 @@ export function LandingPage() {
         <Link href="/" className="flex items-center justify-center">
           <h1 className="text-2xl font-bold">AI Courtroom Simulation</h1>
         </Link>
-        <nav className="ml-auto flex gap-4 sm:gap-6">
+        <nav className="ml-auto flex gap-4 sm:gap-6 items-center">
+          <ThemeToggle />
           <Link href="/login" className="text-sm font-medium hover:underline">
             Login
           </Link>
