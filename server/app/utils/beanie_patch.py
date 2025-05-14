@@ -6,7 +6,8 @@ from pydantic import GetCoreSchemaHandler
 
 def patch_beanie():
     """Comprehensive patch for Beanie's ObjectID handling"""
-    def custom_pydantic_object_id_schema(
+    # Define the function that will become the class method
+    def get_pydantic_core_schema(
         cls: Type[Any], 
         source: Type[Any],
         handler: GetCoreSchemaHandler,
@@ -19,7 +20,11 @@ def patch_beanie():
 
     # Apply patch with proper error handling
     try:
-        PydanticObjectId.__get_pydantic_core_schema__ = classmethod(custom_pydantic_object_id_schema)
+        # Set the function as a method on the class
+        setattr(PydanticObjectId, "__get_pydantic_core_schema__", get_pydantic_core_schema)
+        # Then make it a class method
+        setattr(PydanticObjectId, "__get_pydantic_core_schema__", 
+                classmethod(getattr(PydanticObjectId, "__get_pydantic_core_schema__")))
     except Exception as e:
         print(f"Failed to patch Beanie: {str(e)}")
         raise

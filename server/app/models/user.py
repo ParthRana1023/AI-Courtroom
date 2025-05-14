@@ -1,6 +1,6 @@
 # app/models/user.py
 from beanie import Document
-from pydantic import ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import date  # Change from datetime
 
 class User(Document):
@@ -15,3 +15,7 @@ class User(Document):
 
     class Settings:
         name = "users"
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str

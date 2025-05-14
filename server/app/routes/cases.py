@@ -1,5 +1,7 @@
 # app/routes/cases.py
-from typing import Union
+from datetime import datetime
+from time import timezone
+from typing import List, Union
 from fastapi import APIRouter, Depends, HTTPException, status
 from beanie import PydanticObjectId
 from app.models.case import Case
@@ -10,20 +12,87 @@ from app.models.user import User
 
 router = APIRouter(tags=["cases"])
 
-@router.get("", response_model=list[CaseOut])
-async def list_cases():
-    return await Case.find_all().to_list()
+@router.get("", response_model=List[dict])
+async def list_cases(current_user: User = Depends(get_current_user)):
+    """List all cases for the current user"""
+    cases = await Case.find(Case.user_id == current_user.id).to_list()
+    
+    return [
+        {
+            "id": str(case.id),            
+            "cnr": case.cnr,
+            "title": case.title,
+            "created_at": case.created_at,
+            "status": case.status,
+        }
+        for case in cases
+    ]
 
-@router.get("/{case_identifier}")
-async def get_case(case_identifier: Union[str, PydanticObjectId]):
-    if isinstance(case_identifier, str):
-        case = await Case.find_one(Case.cnr == case_identifier)
-    else:
-        case = await Case.get(case_identifier)
+@router.get("/{cnr}")
+async def get_case(
+    cnr: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get a specific case by CNR"""
+    case = await Case.find_one(Case.cnr == cnr)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    # Check if the case belongs to the current user
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403, 
+            detail="You don't have permission to access this case"
+        )
+    
+    # Return case data with fields directly in the response
+    return {
+        "cnr": case.cnr,
+        "status": case.status,
+        "title": case.title,  # Title is now directly in the Case model
+        "case_number": case.case_number if hasattr(case, 'case_number') else None,
+        "court": case.court if hasattr(case, 'court') else None,
+        "case_text": case.details,  # Include the raw markdown text
+        "plaintiff_arguments": case.plaintiff_arguments,
+        "defendant_arguments": case.defendant_arguments,
+        "verdict": case.verdict,
+        "created_at": case.created_at
+    }
+
+@router.get("/{case_identifier}/history")
+async def get_case_history(
+    case_identifier: str,
+    current_user: User = Depends(get_current_user)
+):
+    # First find the case using the same logic as in get_case
+    case = await Case.find_one(Case.cnr == case_identifier)
+    
+    if not case:
+        try:
+            if len(case_identifier) == 24:
+                obj_id = PydanticObjectId(case_identifier)
+                case = await Case.get(obj_id)
+        except:
+            pass
     
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
-    return case
+    
+    # Check if the case belongs to the current user
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403, 
+            detail="You don't have permission to access this case"
+        )
+    
+    # Prepare the history response
+    history = {
+        "plaintiff_arguments": case.plaintiff_arguments,
+        "defendant_arguments": case.defendant_arguments,
+        "verdict": case.verdict
+    }
+    
+    return history
 
 @router.post("/generate", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
 async def generate_new_case(
@@ -34,6 +103,15 @@ async def generate_new_case(
         case_data.sections_involved,
         case_data.section_numbers
     )
+    # Add the user_id to the case
+    generated_case["user_id"] = current_user.id
     case = Case(**generated_case)
     await case.insert()
-    return case
+    
+    # Convert ObjectId fields to strings before returning
+    case_dict = case.model_dump()
+    case_dict["id"] = str(case.id)
+    case_dict["user_id"] = str(case.user_id)
+    
+    # Return the dictionary instead of the model
+    return case_dict

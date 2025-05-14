@@ -1,7 +1,7 @@
 # app/config.py
 import os
-from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     mongodb_url: str = "mongodb://localhost:27017"
@@ -10,9 +10,19 @@ class Settings(BaseSettings):
     secret_key: str = "secret"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+    extended_token_expire_days: int = 7
     testing: bool = False
-
-    model_config = ConfigDict(env_file=".env")
+    openai_api_key: Optional[str] = None # Add OpenAI API key
+    
+    # Email settings
+    email_sender: str = "noreply@aicourtroom.com"
+    email_username: str = ""
+    email_password: str = ""
+    smtp_server: str = "smtp.example.com"
+    smtp_port: int = 587
+    
+    # Use SettingsConfigDict instead of ConfigDict
+    model_config = SettingsConfigDict(env_file=".env")
 
     @property
     def current_db_name(self) -> str:

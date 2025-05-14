@@ -1,36 +1,153 @@
-# app/routes/auth.py
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from jose import jwt
-from datetime import datetime, timedelta
+from fastapi import APIRouter, HTTPException, status, Depends,Form, Request
 from app.schemas.user import UserCreate, UserOut
-from app.services.auth import create_user, authenticate_user
-from app.dependencies import get_current_user
-from app.config import settings
 from app.models.user import User
+from app.models.user import TokenResponse  # This should work now
+from app.services.auth import create_user, create_access_token, ph
+from app.services.auth import VerifyMismatchError  # Add this import
+from app.services.otp import verify_otp, create_otp
+from app.config import settings
+from datetime import timedelta
+import motor.motor_asyncio
+from pydantic import EmailStr
+from app.models.otp import RegistrationVerifyRequest, LoginVerifyRequest
+from app.dependencies import get_current_user
+from app.schemas.contact import ContactRequest
+from app.services.email import send_contact_email
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(tags=["Authentication"])
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate):
-    return await create_user(user_data)
+@router.post("/register/initiate")
+async def initiate_registration(user_data: UserCreate):
+    # Add duplicate check
+    existing_user = await User.find_one(User.email == user_data.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+    
+    # Generate and send OTP
+    await create_otp(user_data.email, is_registration=True)
+    
+    # Store user data temporarily (you might want to use Redis or a similar solution for this)
+    # For simplicity, we'll return a success message and expect the client to send the data again
+    return {"message": "OTP sent to your email for verification"}
 
-@router.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await authenticate_user(form_data.username, form_data.password)
+@router.post("/register/verify", status_code=status.HTTP_201_CREATED, response_model=UserOut)
+async def verify_registration(data: RegistrationVerifyRequest):
+    # Verify OTP
+    is_valid = await verify_otp(data.user_data.email, data.otp, is_registration=True)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OTP"
+        )
+    
+    # Delete the OTP after successful verification
+    client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongodb_url)
+    db = client[settings.current_db_name]
+    await db.get_collection("otp").delete_one({"email": data.user_data.email, "otp": data.otp})
+    
+    # Create the user
+    try:
+        user = await create_user(data.user_data)
+        return user
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating user: {str(e)}"
+        )
+
+@router.post("/login/initiate")
+async def initiate_login(
+    login_data: dict
+):
+    email = login_data.get("email")
+    password = login_data.get("password")
+    # Check if user exists and verify password
+    user = await User.find_one(User.email == email)
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email not registered"
         )
-    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    access_token = jwt.encode(
-        {"sub": user.email, "exp": datetime.utcnow() + access_token_expires},
-        settings.secret_key,
-        algorithm=settings.algorithm
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    # Verify password
+    try:
+        ph.verify(user.password_hash, password)
+    except VerifyMismatchError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    
+    # Generate and send OTP
+    await create_otp(email, is_registration=False)
+    
+    return {"message": "OTP sent to your email for verification"}
+
+@router.post("/login/verify", response_model=TokenResponse)
+async def verify_login(request: Request):
+    try:
+        # Parse the request body manually
+        request_data = await request.json()
+        # Create LoginVerifyRequest object from the parsed data
+        data = LoginVerifyRequest(**request_data)
+        
+        # Verify OTP
+        is_valid = await verify_otp(data.email, data.otp, is_registration=False)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired OTP"
+            )
+        
+        # Delete the OTP after successful verification
+        client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongodb_url)
+        db = client[settings.current_db_name]
+        await db.get_collection("otp").delete_one({"email": data.email, "otp": data.otp})
+        
+        # Get the user
+        user = await User.find_one(User.email == data.email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User not found"
+            )
+        
+        # Create access token
+        access_token_expires = timedelta(
+            days=settings.extended_token_expire_days if data.remember_me 
+            else 0,
+            minutes=settings.access_token_expire_minutes
+        )
+        
+        access_token = create_access_token(
+            data={"sub": str(user.id)},
+            expires_delta=access_token_expires
+        )
+        
+        return {"access_token": access_token, "token_type": "bearer"}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid request format: {str(e)}"
+        )
 
 @router.get("/profile", response_model=UserOut)
 async def profile(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.post("/submit", status_code=status.HTTP_200_OK)
+async def submit_contact_form(contact_data: ContactRequest):
+    """Submit contact form data"""
+    try:
+        await send_contact_email(contact_data)
+        return {"message": "Your message has been sent successfully"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send message: {str(e)}"
+        )

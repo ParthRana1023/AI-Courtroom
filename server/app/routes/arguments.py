@@ -7,11 +7,13 @@ from app.services.llm.lawyer import generate_counter_argument
 from app.services.llm.judge import generate_verdict
 from app.utils.rate_limiter import RateLimiter
 from app.models.user import User
+from datetime import datetime, timezone
 
 router = APIRouter(tags=["arguments"])
 
 rate_limiter = RateLimiter(5, 60)  # 5 requests per minute
 
+# Update the submit_argument function
 @router.post("/{case_cnr}/arguments")
 async def submit_argument(
     case_cnr: str,
@@ -24,37 +26,107 @@ async def submit_argument(
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     
+    # Check if the case belongs to the current user
+    # Convert both IDs to strings for proper comparison
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403, 
+            detail="You don't have permission to access this case"
+        )
+    
     if role not in ["plaintiff", "defendant"]:
         raise HTTPException(status_code=400, detail="Invalid role specified")
 
-    # Check existing user role in this case
-    existing_roles = set()
-    for arg in case.plaintiff_arguments:
-        if str(arg.get("user_id")) == str(current_user.id):
-            existing_roles.add("plaintiff")
-    for arg in case.defendant_arguments:
-        if str(arg.get("user_id")) == str(current_user.id):
-            existing_roles.add("defendant")
+    # Check if this is the first argument submission
+    if not case.plaintiff_arguments and not case.defendant_arguments:
+        # First argument must be from plaintiff
+        if role != "plaintiff":
+            # If user (defendant) submits the first argument:
+            # 1. AI generates plaintiff's opening statement
+            plaintiff_opening_statement = await generate_counter_argument("Opening statement for the plaintiff")
+            case.plaintiff_arguments.append({
+                "type": "opening",
+                "content": plaintiff_opening_statement,
+                "user_id": None,  # LLM-generated
+                "timestamp": datetime.now(timezone.utc)
+            })
 
-    if existing_roles and role not in existing_roles:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Cannot switch roles. Previously participated as {', '.join(existing_roles)}"
-        )
-    else:
-        # First submission - track user ID with role
-        if role == "plaintiff":
+            # 2. User's submitted argument is recorded as the defendant's opening statement
+            defendant_opening_statement_content = argument
+            case.defendant_arguments.append({
+                "type": "opening", # Defendant's first statement is an opening statement
+                "content": defendant_opening_statement_content,
+                "user_id": current_user.id,
+                "timestamp": datetime.now(timezone.utc)
+            })
+
+            # 3. AI (as plaintiff) generates a counter-argument to the defendant's opening statement
+            ai_plaintiff_counter_to_defendant_opening = await generate_counter_argument(defendant_opening_statement_content)
+            case.plaintiff_arguments.append({
+                "type": "counter",
+                "content": ai_plaintiff_counter_to_defendant_opening,
+                "user_id": None, # LLM-generated
+                "timestamp": datetime.now(timezone.utc)
+            })
+
+            # Update case status
+            if case.status == CaseStatus.NOT_STARTED:
+                case.status = CaseStatus.ACTIVE
+
+            await case.save()
+            # Return both AI plaintiff opening and AI plaintiff counter
+            return {
+                "plaintiff_opening_statement": plaintiff_opening_statement,
+                "ai_plaintiff_counter_argument": ai_plaintiff_counter_to_defendant_opening
+            }
+        else:
+            # User is plaintiff, proceed normally with first argument
             case.plaintiff_arguments.append({
                 "type": "user",
                 "content": argument,
-                "user_id": current_user.id
+                "user_id": current_user.id,
+                "timestamp": datetime.now(timezone.utc)
             })
+    elif not case.plaintiff_arguments and role == "defendant":
+        # Defendant cannot submit before plaintiff
+        raise HTTPException(
+            status_code=400,
+            detail="The plaintiff must submit the first argument"
+        )
+    else:
+        # Check if user has participated in this case with the specified role
+        existing_roles = set()
+        for arg in case.plaintiff_arguments:
+            if str(arg.get("user_id")) == str(current_user.id):
+                existing_roles.add("plaintiff")
+        for arg in case.defendant_arguments:
+            if str(arg.get("user_id")) == str(current_user.id):
+                existing_roles.add("defendant")
+
+        if existing_roles and role not in existing_roles:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Cannot switch roles. Previously participated as {', '.join(existing_roles)}"
+            )
         else:
-            case.defendant_arguments.append({
-                "type": "user",
-                "content": argument,
-                "user_id": current_user.id
-            })
+            # Not first submission - track user ID with role
+            # Check if current_user.id is not None before adding it
+            user_id = current_user.id if current_user.id is not None else ""
+            
+            if role == "plaintiff":
+                case.plaintiff_arguments.append({
+                    "type": "user",
+                    "content": argument,
+                    "user_id": user_id,
+                    "timestamp": datetime.now(timezone.utc)
+                })
+            else:
+                case.defendant_arguments.append({
+                    "type": "user",
+                    "content": argument,
+                    "user_id": user_id,
+                    "timestamp": datetime.now(timezone.utc)
+                })
 
     # Generate counter-argument for opposing side
     counter = await generate_counter_argument(argument)
@@ -62,15 +134,26 @@ async def submit_argument(
     if case.status == CaseStatus.NOT_STARTED:
         case.status = CaseStatus.ACTIVE
     
-    if role == "plaintiff":
+    # If this is the first plaintiff argument (from user), generate defendant opening
+    if len(case.plaintiff_arguments) == 1 and len(case.defendant_arguments) == 0 and role == "plaintiff":
+        case.defendant_arguments.append({
+            "type": "opening",
+            "content": counter,
+            "user_id": None,  # LLM-generated
+            "timestamp": datetime.now(timezone.utc)
+        })
+    # Otherwise add counter argument to appropriate side
+    elif role == "plaintiff":
         case.defendant_arguments.append({
             "type": "counter",
-            "content": counter
+            "content": counter,
+            "timestamp": datetime.now(timezone.utc)
         })
     else:
         case.plaintiff_arguments.append({
             "type": "counter",
-            "content": counter
+            "content": counter,
+            "timestamp": datetime.now(timezone.utc)
         })
 
     await case.save()
@@ -78,6 +161,7 @@ async def submit_argument(
     return {"counter_argument": counter}
 
 
+# Update the submit_closing_statement function similarly
 @router.post("/{case_cnr}/closing-statement")
 async def submit_closing_statement(
     case_cnr: str,
@@ -89,6 +173,14 @@ async def submit_closing_statement(
     case = await Case.find_one(Case.cnr == case_cnr)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
+    
+    # Check if the case belongs to the current user
+    # Convert both IDs to strings for proper comparison
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403, 
+            detail="You don't have permission to access this case"
+        )
     
     if role not in ["plaintiff", "defendant"]:
         raise HTTPException(status_code=400, detail="Invalid role specified")
@@ -109,28 +201,34 @@ async def submit_closing_statement(
         )
     
     # Add closing statement to the appropriate side
+    # Check if current_user.id is not None before adding it
+    user_id = current_user.id if current_user.id is not None else ""
+    
     if role == "plaintiff":
         case.plaintiff_arguments.append({
             "type": "closing",
             "content": statement,
-            "user_id": current_user.id
+            "user_id": user_id,
+            "timestamp": datetime.now(timezone.utc)
         })
     else:
         case.defendant_arguments.append({
             "type": "closing",
             "content": statement,
-            "user_id": current_user.id
+            "user_id": user_id,
+            "timestamp": datetime.now(timezone.utc)
         })
     
     await case.save()
     
     # Generate verdict using all arguments from both sides
+    # Ensure we're only extracting string content for the verdict generation
     user_args = [
-        arg["content"] for arg in case.plaintiff_arguments + case.defendant_arguments 
+        str(arg["content"]) for arg in case.plaintiff_arguments + case.defendant_arguments 
         if arg["type"] in ["user", "closing"]
     ]
     counter_args = [
-        arg["content"] for arg in case.plaintiff_arguments + case.defendant_arguments 
+        str(arg["content"]) for arg in case.plaintiff_arguments + case.defendant_arguments 
         if arg["type"] == "counter"
     ]
     

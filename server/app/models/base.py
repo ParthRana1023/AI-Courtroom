@@ -1,0 +1,24 @@
+from pydantic import BaseModel, Field
+from beanie import Document
+from typing import Optional, Any
+from beanie.odm.fields import PydanticObjectId
+
+class PyObjectId(str):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        if not isinstance(v, (str, PydanticObjectId)):
+            raise TypeError('ObjectId required')
+        return str(v)
+
+class BaseDBModel(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    
+    class Config:
+        json_encoders = {
+            PydanticObjectId: str
+        }
+        populate_by_name = True

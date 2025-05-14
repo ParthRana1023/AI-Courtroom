@@ -1,6 +1,8 @@
 # app/schemas/case.py
 from beanie import PydanticObjectId
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import List, Dict, Union, Optional, Any
+from datetime import datetime
 from app.models.case import CaseStatus
 
 class CaseBase(BaseModel):
@@ -11,12 +13,22 @@ class CaseCreate(BaseModel):
     sections_involved: int
     section_numbers: list[int]
 
-class CaseOut(BaseModel):
-    id: PydanticObjectId
-    cnr: str
-    details: str
-    status: CaseStatus  # Add this
-    verdict: str | None = None
+class ArgumentOut(BaseModel):
+    type: str
+    content: str
+    user_id: Optional[Any] = None  # Use Any to accept any type of value
+    timestamp: Optional[datetime] = None  # Add timestamp field to track when argument was submitted
 
-    class ConfigDict:
-        json_encoders = {PydanticObjectId: str}
+class CaseOut(BaseModel):
+    id: str
+    cnr: str
+    title: str = ""  # Title field directly in the schema
+    status: CaseStatus
+    user_id: str
+    plaintiff_arguments: List[ArgumentOut] = []
+    defendant_arguments: List[ArgumentOut] = []
+    verdict: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True
+    }

@@ -1,239 +1,267 @@
-"use client"
+import axios, { type AxiosError } from "axios";
 
-import axios from "axios"
-import { useEffect, useState } from "react"
-
-// Create axios instance with base URL from environment variable
+// Create axios instance with base URL from environment variables
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "https://api.example.com",
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
   headers: {
     "Content-Type": "application/json",
   },
-})
+});
 
-// Add request interceptor to include auth token
+// Add request interceptor to include auth token in requests
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("auth_token")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    // Try to get token from localStorage first, then from cookie
+    let token = null;
+
+    if (typeof window !== "undefined") {
+      token = localStorage.getItem("token");
+
+      // If token not in localStorage, try to get from cookie
+      if (!token) {
+        const cookies = document.cookie.split(";");
+        const tokenCookie = cookies.find((cookie) =>
+          cookie.trim().startsWith("token=")
+        );
+        if (tokenCookie) {
+          token = tokenCookie.split("=")[1];
+        }
+      }
+
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
-    return config
+
+    return config;
   },
-  (error) => Promise.reject(error),
-)
+  (error) => Promise.reject(error)
+);
 
 // Add response interceptor to handle common errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Handle 401 Unauthorized errors
-    if (error.response && error.response.status === 401) {
-      localStorage.removeItem("auth_token")
-      window.location.href = "/login"
+  (error: AxiosError) => {
+    // Handle unauthorized errors (401)
+    if (error.response?.status === 401) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token");
+        document.cookie =
+          "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        window.location.href = "/login";
+      }
     }
-    return Promise.reject(error)
+    return Promise.reject(error);
+  }
+);
+
+// Helper function to set token in both localStorage and cookie
+const setAuthToken = (token: string, rememberMe = false) => {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("token", token);
+
+    // Set cookie with appropriate expiration
+    const expirationDays = rememberMe ? 7 : 1;
+    const date = new Date();
+    date.setTime(date.getTime() + expirationDays * 24 * 60 * 60 * 1000);
+    document.cookie = `token=${token}; path=/; expires=${date.toUTCString()}; SameSite=Strict`;
+  }
+};
+
+// Auth API calls
+export const authAPI = {
+  register: async (userData: any) => {
+    try {
+      const response = await api.post("/auth/register/initiate", userData);
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
   },
-)
 
-// Authentication functions
-export async function register(userData: any) {
-  try {
-    const response = await api.post("/auth/register", userData)
-    return response.data
-  } catch (error: any) {
-    if (error.response?.data?.detail) {
-      throw new Error(error.response.data.detail)
+  verifyRegistration: async (data: any) => {
+    try {
+      const response = await api.post("/auth/register/verify", data);
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
     }
-    throw new Error(error.response?.data?.message || "Registration failed. Please try again.")
-  }
-}
+  },
 
-// Completely revised login function with improved error handling
-export async function login(email: string, password: string) {
-  try {
-    // Backend expects OAuth2 format with username/password
-    const formData = new FormData()
-    formData.append("username", email) // Backend uses username field for email
-    formData.append("password", password)
-
-    // Log the request for debugging (remove in production)
-    console.log("Login request:", { username: email, password: "***" })
-
-    const response = await api.post("/auth/login", formData, {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-    })
-
-    // Log the response for debugging (remove in production)
-    console.log("Login response:", response.data)
-
-    // Make sure we have a token before storing it
-    if (response.data && response.data.access_token) {
-      localStorage.setItem("auth_token", response.data.access_token)
-      return response.data
-    } else {
-      // If we get a response but no token, log it and throw a specific error
-      console.error("No access token in response:", response.data)
-      throw new Error("Authentication failed: No access token received")
+  login: async (loginData: any) => {
+    try {
+      const response = await api.post("/auth/login/initiate", loginData);
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
     }
-  } catch (error: any) {
-    // Log the full error for debugging
-    console.error("Login error:", error)
+  },
 
-    // Handle different error scenarios with specific messages
-    if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
-      console.error("Error response data:", error.response.data)
-      console.error("Error response status:", error.response.status)
-
-      // Handle specific status codes
-      if (error.response.status === 401) {
-        throw new Error("Invalid email or password")
+  verifyLogin: async (data: any) => {
+    try {
+      const response = await api.post("/auth/login/verify", data);
+      if (response.data.access_token) {
+        // Set token in both localStorage and cookie
+        setAuthToken(response.data.access_token, data.remember_me);
       }
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
 
-      if (error.response.status === 422) {
-        throw new Error("Validation error: Please check your input")
+  getProfile: async () => {
+    try {
+      const response = await api.get("/auth/profile");
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+
+  logout: () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      window.location.href = "/";
+    }
+  },
+
+  // Check if user is authenticated
+  isAuthenticated: () => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("token");
+      if (token) return true;
+
+      // Check cookies as fallback
+      const cookies = document.cookie.split(";");
+      const tokenCookie = cookies.find((cookie) =>
+        cookie.trim().startsWith("token=")
+      );
+      return !!tokenCookie;
+    }
+    return false;
+  },
+};
+
+// Case API calls
+export const caseAPI = {
+  listCases: async () => {
+    try {
+      // Use the configured api instance instead of axios directly
+      const response = await api.get("/cases");
+      console.log("API response status:", response.status);
+      console.log("API response data:", response.data);
+
+      // Make sure we're returning the actual array of cases
+      // The backend might be wrapping the cases in an object
+      if (response.data && response.data.cases) {
+        return response.data.cases;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      } else {
+        console.error("Unexpected API response format:", response.data);
+        return []; // Return empty array instead of undefined
       }
-
-      // Extract error message from different possible response formats
-      const errorMessage =
-        error.response.data?.detail ||
-        error.response.data?.message ||
-        error.response.data?.error_description ||
-        (typeof error.response.data === "string" ? error.response.data : null)
-
-      if (errorMessage) {
-        throw new Error(`Login failed: ${errorMessage}`)
-      }
-    } else if (error.request) {
-      // The request was made but no response was received
-      console.error("No response received:", error.request)
-      throw new Error("No response from server. Please check your internet connection.")
+    } catch (error) {
+      console.error("Error in listCases API call:", error);
+      // Re-throw the error so it can be caught by the component
+      throw error;
     }
+  },
 
-    // For any other errors
-    throw new Error(error.message || "Login failed. Please try again.")
+  getCase: async (cnr: string) => {
+    try {
+      const response = await api.get(`/cases/${cnr}`);
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+
+  getCaseHistory: async (caseId: string) => {
+    try {
+      const response = await api.get(`/cases/${caseId}/history`);
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+
+  generateCase: async (caseData: any) => {
+    try {
+      const response = await api.post("/cases/generate", caseData);
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+};
+
+// Argument API calls
+export const argumentAPI = {
+  submitArgument: async (caseCnr: string, role: string, argument: string) => {
+    try {
+      const response = await api.post(`/cases/${caseCnr}/arguments`, {
+        role,
+        argument,
+      });
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+
+  submitClosingStatement: async (
+    caseCnr: string,
+    role: string,
+    statement: string
+  ) => {
+    try {
+      const response = await api.post(`/cases/${caseCnr}/closing-statement`, {
+        role,
+        statement,
+      });
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+};
+
+// Contact API calls
+export const contactAPI = {
+  submitContactForm: async (contactData: any) => {
+    try {
+      const response = await api.post("/submit", contactData);
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+};
+
+// Error handling helper
+function handleApiError(error: any) {
+  if (axios.isAxiosError(error)) {
+    const serverError = error as AxiosError;
+    if (serverError && serverError.response) {
+      console.error("API Error:", serverError.response.data);
+    }
+  } else {
+    console.error("Unexpected error:", error);
   }
 }
 
-export async function logout() {
-  try {
-    // No logout endpoint in the backend, just remove the token
-    localStorage.removeItem("auth_token")
-  } catch (error) {
-    console.error("Logout error:", error)
-    // Still remove token even if API call fails
-    localStorage.removeItem("auth_token")
-  }
-}
-
-// User profile functions
-export async function getUserProfile() {
-  try {
-    const response = await api.get("/auth/profile")
-    return response.data
-  } catch (error: any) {
-    if (error.response?.data?.detail) {
-      throw new Error(error.response.data.detail)
-    }
-    throw new Error(error.response?.data?.message || "Failed to fetch user profile.")
-  }
-}
-
-// Case management functions
-export async function getCases() {
-  try {
-    const response = await api.get("/cases")
-    return response.data
-  } catch (error: any) {
-    if (error.response?.data?.detail) {
-      throw new Error(error.response.data.detail)
-    }
-    throw new Error(error.response?.data?.message || "Failed to fetch cases.")
-  }
-}
-
-export async function getCaseDetails(caseId: string) {
-  try {
-    const response = await api.get(`/cases/${caseId}`)
-    return response.data
-  } catch (error: any) {
-    if (error.response?.data?.detail) {
-      throw new Error(error.response.data.detail)
-    }
-    throw new Error(error.response?.data?.message || "Failed to fetch case details.")
-  }
-}
-
-export async function generateCase(caseData: any) {
-  try {
-    const response = await api.post("/cases/generate", {
-      sections_involved: caseData.numSections,
-      section_numbers: caseData.sectionNumbers || [],
-    })
-    return response.data
-  } catch (error: any) {
-    if (error.response?.data?.detail) {
-      throw new Error(error.response.data.detail)
-    }
-    throw new Error(error.response?.data?.message || "Failed to generate case.")
-  }
-}
-
-// Argument submission functions
-export async function submitArgument(caseId: string, role: string, argument: string) {
-  try {
-    const response = await api.post(`/arguments/${caseId}/arguments`, {
-      role,
-      argument,
-    })
-
-    // Format the response to match what our frontend expects
-    return {
-      response: response.data.counter_argument,
-      isVerdict: !!response.data.verdict,
-      isComplete: !!response.data.verdict,
-    }
-  } catch (error: any) {
-    if (error.response?.data?.detail) {
-      throw new Error(error.response.data.detail)
-    }
-    throw new Error(error.response?.data?.message || "Failed to submit argument.")
-  }
-}
-
-// Custom hook for user data
-export function useUser() {
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem("auth_token")
-        if (!token) {
-          setLoading(false)
-          return
-        }
-
-        const data = await getUserProfile()
-        setUser(data)
-      } catch (err) {
-        setError("Failed to fetch user data")
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchUser()
-  }, [])
-
-  return { user, loading, error }
-}
-
-export default api
+export default api;

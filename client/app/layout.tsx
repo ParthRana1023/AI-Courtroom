@@ -1,34 +1,33 @@
 import type React from "react"
-import { ThemeProvider } from "@/components/theme-provider"
-import "./globals.css"
+import type { Metadata } from "next"
 import { Inter } from "next/font/google"
+import "./globals.css"
+import { AuthProvider } from "@/contexts/auth-context"
+import { ThemeProvider } from "@/components/theme-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
-  title: "AI Courtroom Simulation",
-  description: "A simulation of an AI-powered courtroom for legal arguments",
+export const metadata: Metadata = {
+  title: "AI Courtroom",
+  description: "AI-powered courtroom simulation for legal proceedings",
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode
-}) {
+}>) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-          storageKey="ai-courtroom-theme"
-        >
-          {children}
+        <ThemeProvider defaultTheme="system" storageKey="ai-courtroom-theme">
+          <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
       </body>
     </html>
   )
 }
 
+
+import './globals.css'

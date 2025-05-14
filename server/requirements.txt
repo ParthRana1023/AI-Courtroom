@@ -11,7 +11,13 @@ pytest-asyncio>=0.18.0
 httpx
 pydantic-settings
 pydantic
-pydantic[email]
 python-multipart
-pydantic-core
 pymongo
+nest_asyncio
+passlib>=1.7.4
+email-validator>=2.0.0
+secure-smtplib
+langchain-community
+langchain-openai
+pipdeptree
+python-dotenv
