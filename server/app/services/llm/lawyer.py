@@ -1,29 +1,84 @@
 # app/services/llm/lawyer.py
-import random
+import logging
+from typing import Optional, Dict, Any, List
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.output_parsers import StrOutputParser
+from app.utils.llm import llm
 
-async def generate_counter_argument(argument: str) -> str:
-    """
-    Generate a counter argument based on the provided argument.
-    In a real implementation, this would use an LLM API.
-    
-    If argument is 'Opening statement for the plaintiff', it will generate
-    a plaintiff opening statement instead of a counter argument.
-    """
-    # Check if we need to generate a plaintiff opening statement
-    if argument == "Opening statement for the plaintiff":
-        # Plaintiff opening statement templates with more legal context
-        plaintiff_templates = [
-            "Your Honor, esteemed members of the court, I stand before you representing the plaintiff in this matter. The evidence will clearly demonstrate that my client's rights have been violated, and we seek appropriate remedies under the law. The facts of this case are clear and compelling, and we are confident that justice will prevail. Thank you for your attention to this important matter.",
-            "May it please the court, I represent the plaintiff in this case. We will present evidence showing that the defendant's actions have caused significant harm to my client. The law is clear on this matter, and we will demonstrate that the defendant has failed to meet their legal obligations. We seek fair compensation and justice for the damages incurred.",
-            "Your Honor and members of the court, as counsel for the plaintiff, I will demonstrate through evidence and testimony that the defendant has violated statutory provisions that protect my client's rights. The timeline of events and documentation we will present clearly establish liability, and we respectfully request appropriate relief as provided by law."
+logger = logging.getLogger(__name__)
+
+async def generate_counter_argument(history: str, user_input: str, ai_role: str = None, case_details: str = None) -> str:
+    try:
+        template = '''You are playing the role of the {ai_role}'s lawyer in an Indian Court of Law, here is the case uptil now:
+        {history}
+
+        The defendant user has responded with the query: {user_input}
+
+        Give your next arguments, and strictly adhere to the facts: {case}
+
+        The user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them, do not be too polite.
+        '''
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system",template),
+            MessagesPlaceholder(variable_name="history"),
+            ("user",user_input)
         ]
-        return random.choice(plaintiff_templates)
-    
-    # Regular counter argument templates with more variety and generic legal context
-    counter_templates = [
-        "Your Honor, esteemed members of the court, I stand before you representing the defendant in this matter. The plaintiff's claims lack merit and supporting evidence. We will demonstrate that my client has acted in accordance with all legal obligations and responsibilities. The evidence will show that the allegations brought forth are unfounded, and we respectfully request the court to dismiss these claims.",
-        "May it please the court, as counsel for the defendant, I must firmly refute the allegations presented by the plaintiff. The facts of this case, when properly examined, will show that my client has not violated any legal duty. We will present evidence that contradicts the plaintiff's narrative and establishes that no liability exists in this matter.",
-        "Your Honor and members of the court, the defendant categorically denies the claims brought by the plaintiff. We will present evidence showing that the plaintiff's interpretation of events is flawed and that their legal arguments do not apply to the circumstances of this case. The burden of proof rests with the plaintiff, and they have failed to meet this burden."
-    ]
-    
-    return random.choice(counter_templates)
+        ) 
+
+        chain = prompt | llm | StrOutputParser()
+
+        response = chain.invoke({
+            "ai_role": ai_role,
+            "history": history,
+            "user_input": user_input,
+            "case": case_details,
+            "user_role": "plaintiff" if ai_role == "defendant" else "defendant"
+        })
+        
+        return response
+    except Exception as e:
+        logger.error(f"Error generating counter argument: {str(e)}")
+        return "I apologize, but I'm unable to generate a counter argument at this time. Please try again later."
+
+async def opening_statement(ai_role: str, case_details: str) -> str:
+    try:
+        template = '''You are an Indian lawyer from the {ai_role}'s side, and you require to give an opening statement of 100 words regarding the case using this information: {case}
+        '''
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system",template)
+        ])
+
+        chain = prompt | llm | StrOutputParser()
+
+        response = chain.invoke({
+            'ai_role' : ai_role,
+            'case' : case_details
+        })
+        return response
+    except Exception as e:
+        logger.error(f"Error generating opening statement: {str(e)}")
+        return "I apologize, but I'm unable to generate an opening statement at this time. Please try again later."
+
+async def closing_statement(history: str, ai_role: str) -> str:
+    try:
+        template = '''You are an Indian lawyer from the {ai_role}'s side, and you require to give a closing statement of 100 words regarding the case using this information: {history}
+
+        Remember to reiterate key points from your side of the argument, try to include a highlight the evidence supporting your client's position
+        '''
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system",template)
+        ])
+
+        chain = prompt | llm | StrOutputParser()
+
+        response = chain.invoke({
+            'ai_role' : ai_role,
+            'history' : history
+        })
+        return response
+    except Exception as e:
+        logger.error(f"Error generating closing statement: {str(e)}")
+        return "I apologize, but I'm unable to generate a closing statement at this time. Please try again later."

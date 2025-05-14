@@ -6,7 +6,7 @@ import { use } from "react"; // Add this import
 import Navigation from "@/components/navigation";
 import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus } from "@/types";
-import MarkdownIt from "markdown-it"; // Replaced ReactMarkdown
+import MarkdownRenderer from "@/components/markdown-renderer";
 
 export default function CaseDetails({ params }: { params: { cnr: string } }) {
   const router = useRouter();
@@ -17,13 +17,6 @@ export default function CaseDetails({ params }: { params: { cnr: string } }) {
   // Unwrap params using React.use()
   const unwrappedParams = use(params);
   const cnr = unwrappedParams.cnr;
-
-  // Initialize markdown-it with custom configuration
-  const md = new MarkdownIt({
-    html: true, // Enable HTML tags in source
-    typographer: true, // Enable some language-neutral replacement + quotes beautification
-    quotes: "\"\"''",
-  });
 
   useEffect(() => {
     const fetchCaseDetails = async () => {
@@ -138,126 +131,14 @@ export default function CaseDetails({ params }: { params: { cnr: string } }) {
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">{caseData.title}</h2>
             <div className="grid grid-cols-1 gap-4 mb-4">
-              <div
-                className="bg-[#f8f8f0] p-6 rounded-md shadow-md border border-gray-300 legal-document"
-                style={{
-                  backgroundImage:
-                    "repeating-linear-gradient(#f8f8f0, #f8f8f0 22px, #e8e8e0 23px)",
-                }}
-              >
+              <div className="rounded-md shadow-md border border-gray-300">
                 {caseData.case_text ? (
-                  <div className="prose prose-lg max-w-none font-serif">
-                    <style jsx global>{`
-                      .legal-document {
-                        font-family: "Courier New", Courier, monospace;
-                        line-height: 1.5;
-                        color: #1a1a1a;
-                        padding: 2rem;
-                        letter-spacing: 0.05rem;
-                      }
-                      .legal-document pre {
-                        white-space: pre-wrap;
-                        font-family: inherit;
-                        background: none;
-                        padding: 0;
-                        margin: 2rem 0;
-                      }
-                      .legal-document p {
-                        margin-bottom: 1.8rem;
-                        text-align: left;
-                        font-size: 1rem;
-                        text-indent: 0;
-                        line-height: 1.6;
-                      }
-                      .legal-document p:first-of-type {
-                        text-indent: 0;
-                      }
-                      .legal-document strong {
-                        font-weight: normal;
-                        text-decoration: underline;
-                        color: #000;
-                      }
-                      .legal-document code {
-                        font-family: inherit;
-                        background: none;
-                        padding: 0;
-                      }
-                      .legal-document h1 {
-                        text-align: center;
-                        margin: 2.5rem 0 2rem;
-                        font-size: 1.5rem;
-                        font-weight: normal;
-                        color: #000;
-                        letter-spacing: 0.1rem;
-                        text-transform: uppercase;
-                      }
-                      .legal-document h2 {
-                        text-align: center;
-                        margin: 2.25rem 0 1.75rem;
-                        font-size: 1.25rem;
-                        font-weight: normal;
-                        color: #000;
-                        letter-spacing: 0.05rem;
-                      }
-                      .legal-document h3 {
-                        margin: 2rem 0 1.5rem;
-                        font-size: 1.125rem;
-                        font-weight: normal;
-                        color: #000;
-                        text-transform: uppercase;
-                        letter-spacing: 0.05rem;
-                      }
-                      .legal-document ul,
-                      .legal-document ol {
-                        margin: 1.8rem 0;
-                        padding-left: 2.5rem;
-                      }
-                      .legal-document li {
-                        margin-bottom: 0.75rem;
-                        line-height: 1.7;
-                      }
-                      .legal-document blockquote {
-                        margin: 2rem 3rem;
-                        padding: 1rem 1.5rem;
-                        border-left: none;
-                        border-top: 1px solid #000;
-                        border-bottom: 1px solid #000;
-                        font-style: normal;
-                        color: #333;
-                        background-color: transparent;
-                      }
-                      /* Ensure proper markdown rendering */
-                      .legal-document .prose {
-                        max-width: none;
-                      }
-                      .legal-document .prose strong {
-                        font-weight: bold;
-                        text-decoration: underline;
-                        color: #000;
-                      }
-                      .legal-document .prose em {
-                        font-style: normal;
-                        text-decoration: underline;
-                      }
-                      .legal-document .prose a {
-                        color: #000;
-                        text-decoration: underline;
-                        text-decoration-thickness: 1px;
-                        text-decoration-style: dotted;
-                      }
-                      .legal-document .prose a:hover {
-                        color: #444;
-                      }
-                    `}</style>
-                    {/* Use markdown-it to render HTML */}
-                    <div
-                      dangerouslySetInnerHTML={{
-                        __html: md.render(caseData.case_text),
-                      }}
-                    />
-                  </div>
+                  <MarkdownRenderer
+                    markdown={caseData.case_text || ""}
+                    className="prose prose-lg max-w-none font-serif"
+                  />
                 ) : (
-                  <p className="text-gray-500 italic">
+                  <p className="text-gray-500 italic p-6">
                     No case details available.
                   </p>
                 )}

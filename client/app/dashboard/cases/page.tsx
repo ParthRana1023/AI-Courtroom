@@ -148,10 +148,7 @@ export default function CasesListing() {
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {caseItem.details?.case_number || "N/A"}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          CNR: {caseItem.cnr || "N/A"}
+                          {caseItem.cnr}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -173,7 +170,9 @@ export default function CasesListing() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {caseItem.details?.date_filed || "N/A"}
+                        {caseItem.created_at
+                          ? new Date(caseItem.created_at).toLocaleDateString()
+                          : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <Link

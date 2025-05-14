@@ -1,7 +1,6 @@
 # app/services/llm/case_generation.py
 import random
 import string
-import re
 from app.utils.llm import llm  # Import the llm instance
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -43,11 +42,11 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         **COURT DETAILS & CASE NUMBER:**
         - Start with: `**IN THE [Specify Court Name and Jurisdiction, e.g., HIGH COURT OF DELHI AT NEW DELHI]**`
         - Follow with: `**CASE NO.: [Invent a standardized case number, e.g., W.P.(Crl.) 1234/2024]**`
-        - Optionally include: `**CNR Number: [Invent a CNR Number, e.g., DLCT01-001234-2024]**`
+        - Optionally include: `**CNR Number: [Invent a CNR Number, e.g., DLCT010012342024]**`
         - Note: Use real-world Indian locations.
 
         **IN THE MATTER OF:**
-        - `**[Detailed Title of the Case, e.g., State vs. Accused Name(s) OR Petitioner Name vs. Respondent Name(s)]**`
+        - `**[Title of the Case, e.g., State vs. Accused Name(s) OR Petitioner Name vs. Respondent Name(s)]**`
         - This section should clearly state the nature of the case.
 
         **BETWEEN:**

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { use } from "react"; // Add this import
 import Navigation from "@/components/navigation";
 import { caseAPI, argumentAPI } from "@/lib/api";
+import { rateLimitAPI, RateLimitInfo } from "@/lib/api/rateLimitAPI";
 import { type Case, CaseStatus, type Argument } from "@/types";
 
 export default function Courtroom({ params }: { params: { cnr: string } }) {
@@ -29,6 +30,8 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
   const [currentRole, setCurrentRole] = useState<string>(role);
   const [showClosingButton, setShowClosingButton] = useState(false);
   const [counterArgument, setCounterArgument] = useState<string | null>(null);
+  const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -88,6 +91,9 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
           // Use detected role or default to plaintiff if no participation yet
           setCurrentRole(detectedRole || "plaintiff");
         }
+
+        // Fetch rate limit information
+        await fetchRateLimitInfo();
       } catch (error) {
         setError("Failed to load case details. Please try again later.");
         console.error("Error fetching case details:", error);
@@ -98,6 +104,40 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
 
     fetchCaseDetails();
   }, [cnr, role]);
+
+  // Fetch rate limit information and update countdown timer
+  const fetchRateLimitInfo = async () => {
+    try {
+      const limitInfo = await rateLimitAPI.getArgumentRateLimit();
+      setRateLimit(limitInfo);
+
+      if (limitInfo.seconds_until_next) {
+        setTimeRemaining(Math.ceil(limitInfo.seconds_until_next));
+      } else {
+        setTimeRemaining(null);
+      }
+    } catch (error) {
+      console.error("Error fetching rate limit info:", error);
+    }
+  };
+
+  // Update countdown timer every second
+  useEffect(() => {
+    if (timeRemaining === null || timeRemaining <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev === null || prev <= 1) {
+          // Refresh rate limit info when timer reaches zero
+          fetchRateLimitInfo();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeRemaining]);
 
   useEffect(() => {
     // Scroll to bottom of chat when new messages arrive
@@ -239,6 +279,9 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
       // Refresh case data to get updated status
       const updatedCase = await caseAPI.getCase(cnr); // Changed from params.cnr
       setCaseData(updatedCase);
+
+      // Refresh rate limit information
+      await fetchRateLimitInfo();
     } catch (error: any) {
       console.error("Error submitting argument:", error);
       if (error.response?.status === 403 && error.response?.data?.detail) {
@@ -329,6 +372,9 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
       // Refresh case data to get updated status
       const updatedCase = await caseAPI.getCase(cnr); // Changed from params.cnr
       setCaseData(updatedCase);
+
+      // Refresh rate limit information
+      await fetchRateLimitInfo();
     } catch (error: any) {
       console.error("Error submitting closing statement:", error);
       if (error.response?.data?.detail) {
@@ -430,9 +476,13 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
           <div className="mb-6">
             <h2 className="text-xl font-semibold mb-2">{caseData.title}</h2>
             <p className="text-gray-600">
-              <span className="font-medium">Case Number:</span>{" "}
-              {caseData.case_number} |
-              <span className="font-medium ml-2">CNR:</span> {caseData.cnr}
+              <span className="font-medium">Case Number:</span> {caseData.cnr}
+            </p>
+            <p className="text-gray-600">
+              <span className="font-medium">Date Filed:</span>{" "}
+              {caseData.created_at
+                ? new Date(caseData.created_at).toLocaleDateString()
+                : "N/A"}
             </p>
             <p className="text-gray-600">
               <span className="font-medium">Court:</span> {caseData.court}
@@ -543,6 +593,60 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
           {/* Input area */}
           {caseData.status !== CaseStatus.RESOLVED && (
             <div className="mt-4">
+              {/* Rate limit information */}
+              {rateLimit && (
+                <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                    <div>
+                      <span className="font-medium text-gray-700">
+                        Daily argument limit:
+                      </span>{" "}
+                      <span
+                        className={`${
+                          rateLimit.remaining_attempts === 0
+                            ? "text-red-600 font-medium"
+                            : "text-gray-900"
+                        }`}
+                      >
+                        {rateLimit.remaining_attempts} of{" "}
+                        {rateLimit.max_attempts} remaining
+                      </span>
+                    </div>
+
+                    {timeRemaining !== null && timeRemaining > 0 ? (
+                      <div className="mt-2 sm:mt-0 flex items-center">
+                        <div className="text-orange-600 font-medium flex items-center">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 mr-1"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          <span>Next submission in: </span>
+                          <span className="ml-1 bg-orange-100 text-orange-800 px-2 py-1 rounded font-mono">
+                            {Math.floor(timeRemaining / 60)}:
+                            {(timeRemaining % 60).toString().padStart(2, "0")}
+                          </span>
+                        </div>
+                      </div>
+                    ) : rateLimit.remaining_attempts === 0 ? (
+                      <div className="mt-2 sm:mt-0">
+                        <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm">
+                          Daily limit reached
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
               <div className="flex flex-col space-y-2">
                 <textarea
                   value={argument}
@@ -551,13 +655,20 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
                     showClosingButton ? "closing statement" : "argument"
                   }...`}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 h-32"
-                  disabled={isSubmitting}
+                  disabled={
+                    isSubmitting ||
+                    (timeRemaining !== null && timeRemaining > 0)
+                  }
                 />
                 <div className="flex justify-end">
                   <div className="flex space-x-2">
                     <button
                       onClick={handleSubmitArgument}
-                      disabled={isSubmitting || !argument.trim()}
+                      disabled={
+                        isSubmitting ||
+                        !argument.trim() ||
+                        (timeRemaining !== null && timeRemaining > 0)
+                      }
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md transition-colors disabled:opacity-50"
                     >
                       {isSubmitting ? "Submitting..." : "Submit Argument"}
@@ -566,7 +677,11 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
                     {showClosingButton && (
                       <button
                         onClick={handleSubmitClosingStatement}
-                        disabled={isSubmitting || !argument.trim()}
+                        disabled={
+                          isSubmitting ||
+                          !argument.trim() ||
+                          (timeRemaining !== null && timeRemaining > 0)
+                        }
                         className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md transition-colors disabled:opacity-50"
                       >
                         {isSubmitting
