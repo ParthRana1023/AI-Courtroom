@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { use } from "react"; // Add this import
 import Navigation from "@/components/navigation";
 import { caseAPI, argumentAPI } from "@/lib/api";
-import { rateLimitAPI, RateLimitInfo } from "@/lib/api/rateLimitAPI";
+import { rateLimitAPI, type RateLimitInfo } from "@/lib/rateLimitAPI";
 import { type Case, CaseStatus, type Argument } from "@/types";
+import MarkdownRenderer from "@/components/markdown-renderer";
+import { X } from "lucide-react";
 
 export default function Courtroom({ params }: { params: { cnr: string } }) {
   const router = useRouter();
@@ -32,8 +34,12 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
   const [counterArgument, setCounterArgument] = useState<string | null>(null);
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(384); // Default width (96 * 4 = 384px)
+  const [isResizing, setIsResizing] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const resizeDividerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchCaseDetails = async () => {
@@ -146,6 +152,41 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
     }
   }, [caseHistory, counterArgument]);
 
+  // Handle sidebar resizing
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+
+      // Calculate new width based on mouse position
+      // Window width - mouse X position from right side of screen
+      const newWidth = window.innerWidth - e.clientX;
+
+      // Set minimum and maximum width constraints
+      const minWidth = 300;
+      const maxWidth = Math.min(600, window.innerWidth * 0.8);
+
+      if (newWidth >= minWidth && newWidth <= maxWidth) {
+        setSidebarWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    // Add event listeners when resizing is active
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+
+    // Clean up event listeners
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
+
   const handleSubmitArgument = async () => {
     if (!argument.trim()) return;
 
@@ -220,8 +261,12 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
           timestamp: userArgumentTimestamp,
         });
 
-        // If AI Defendant provides a counter-argument
-        if (response.counter_argument) {
+        // Check if there was an error generating the counter argument
+        if (response.error) {
+          // Display error as an alert instead of storing it as an argument
+          setError(response.error);
+        } else if (response.counter_argument) {
+          // If AI Defendant provides a counter-argument
           updatedHistory.defendant_arguments.push({
             type: "counter",
             content: response.counter_argument,
@@ -240,9 +285,12 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
           timestamp: userArgumentTimestamp,
         });
 
-        // If AI Plaintiff provides a counter-argument
-        // Assuming backend sends 'counter_argument' for AI plaintiff's response in subsequent turns
-        if (response.counter_argument) {
+        // Check if there was an error generating the counter argument
+        if (response.error) {
+          // Display error as an alert instead of storing it as an argument
+          setError(response.error);
+        } else if (response.counter_argument) {
+          // If AI Plaintiff provides a counter-argument
           updatedHistory.plaintiff_arguments.push({
             type: "counter",
             content: response.counter_argument,
@@ -282,6 +330,14 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
 
       // Refresh rate limit information
       await fetchRateLimitInfo();
+
+      // Update the remaining attempts counter
+      if (rateLimit) {
+        setRateLimit({
+          ...rateLimit,
+          remaining_attempts: Math.max(0, rateLimit.remaining_attempts - 1),
+        });
+      }
     } catch (error: any) {
       console.error("Error submitting argument:", error);
       if (error.response?.status === 403 && error.response?.data?.detail) {
@@ -375,6 +431,14 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
 
       // Refresh rate limit information
       await fetchRateLimitInfo();
+
+      // Update the remaining attempts counter
+      if (rateLimit) {
+        setRateLimit({
+          ...rateLimit,
+          remaining_attempts: Math.max(0, rateLimit.remaining_attempts - 1),
+        });
+      }
     } catch (error: any) {
       console.error("Error submitting closing statement:", error);
       if (error.response?.data?.detail) {
@@ -451,7 +515,15 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
       <div className="flex-grow container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Courtroom</h1>
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold">Courtroom</h1>
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="ml-4 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                View Case Details
+              </button>
+            </div>
             <div className="flex items-center">
               <span
                 className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -696,6 +768,92 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
           )}
         </div>
       </div>
+
+      {/* Case Details Sidebar */}
+      <div
+        className={`fixed inset-y-0 right-0 z-50 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+        style={{ width: `${sidebarWidth}px` }}
+      >
+        {/* Resize handle */}
+        <div
+          ref={resizeDividerRef}
+          className={`absolute inset-y-0 left-0 w-1 hover:w-2 transition-all ${
+            isResizing ? "bg-blue-500 w-2" : "bg-gray-300"
+          } cursor-col-resize`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+        />
+
+        <div className="h-full flex flex-col">
+          <div className="flex justify-between items-center p-4 border-b border-gray-200">
+            <h2 className="text-xl font-bold">Case Details</h2>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="text-gray-500 hover:text-gray-700 focus:outline-none"
+              aria-label="Close sidebar"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          <div className="flex-grow overflow-y-auto p-4 space-y-4">
+            <div>
+              <h3 className="font-medium text-gray-700">Case Title</h3>
+              <p className="text-gray-900">{caseData.title}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-700">Case Number (CNR)</h3>
+              <p className="text-gray-900">{caseData.cnr}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-700">Court</h3>
+              <p className="text-gray-900">{caseData.court || "N/A"}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-700">Date Filed</h3>
+              <p className="text-gray-900">
+                {caseData.created_at
+                  ? new Date(caseData.created_at).toLocaleDateString()
+                  : "N/A"}
+              </p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-700">Status</h3>
+              <p className="text-gray-900">{caseData.status}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-700">Case Details</h3>
+              {caseData.case_text ? (
+                <div className="mt-2 border border-gray-200 rounded-md p-4 bg-gray-50">
+                  <MarkdownRenderer
+                    markdown={caseData.case_text}
+                    className="prose prose-sm max-w-none font-serif"
+                  />
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">
+                  No case details available.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Overlay for mobile - closes sidebar when clicked */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Overlay when resizing is active */}
+      {isResizing && <div className="fixed inset-0 z-40 cursor-col-resize" />}
     </div>
   );
 }

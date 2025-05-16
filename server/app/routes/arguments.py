@@ -192,7 +192,16 @@ async def submit_argument(
         case.status = CaseStatus.CLOSED
     else:
         # Generate counter-argument for opposing side
-        counter = await generate_counter_argument(history, argument, ai_role, case.details)
+        try:
+            counter = await generate_counter_argument(history, argument, ai_role, case.details)
+            # Check if the response is the error message from the LLM service
+            if counter.startswith("I apologize, but I'm unable to generate a counter argument"):
+                # Return the error message without storing it as an argument
+                return {"error": counter}
+        except Exception as e:
+            # Handle any exceptions during counter argument generation
+            error_message = f"Error generating counter argument: {str(e)}"
+            return {"error": "I apologize, but I'm unable to generate a counter argument at this time. Please try again later."}
 
     if case.status == CaseStatus.NOT_STARTED:
         case.status = CaseStatus.ACTIVE

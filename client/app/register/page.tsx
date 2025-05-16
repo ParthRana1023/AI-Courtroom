@@ -1,18 +1,18 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { useAuth } from "@/contexts/auth-context"
-import Navigation from "@/components/navigation"
-import type { RegisterFormData } from "@/types"
-import { User, Mail, Phone, Calendar, Lock, AlertCircle } from "lucide-react"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/contexts/auth-context";
+import Navigation from "@/components/navigation";
+import type { RegisterFormData } from "@/types";
+import { User, Mail, Phone, Calendar, Lock, AlertCircle } from "lucide-react";
 
 export default function Register() {
-  const { register, verifyRegistration } = useAuth()
-  const router = useRouter()
+  const { register, verifyRegistration } = useAuth();
+  const router = useRouter();
   const [formData, setFormData] = useState<RegisterFormData>({
     first_name: "",
     last_name: "",
@@ -20,81 +20,89 @@ export default function Register() {
     phone_number: "",
     email: "",
     password: "",
-  })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isOtpSent, setIsOtpSent] = useState(false)
-  const [otp, setOtp] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {}
+    const newErrors: Record<string, string> = {};
 
-    if (!formData.first_name) newErrors.first_name = "First name is required"
-    if (!formData.last_name) newErrors.last_name = "Last name is required"
-    if (!formData.date_of_birth) newErrors.date_of_birth = "Date of birth is required"
-    if (!formData.phone_number) newErrors.phone_number = "Phone number is required"
-    if (!/^\d{10}$/.test(formData.phone_number)) newErrors.phone_number = "Phone number must be 10 digits"
+    if (!formData.first_name) newErrors.first_name = "First name is required";
+    if (!formData.last_name) newErrors.last_name = "Last name is required";
+    if (!formData.date_of_birth)
+      newErrors.date_of_birth = "Date of birth is required";
+    if (!formData.phone_number)
+      newErrors.phone_number = "Phone number is required";
+    if (!/^\d{10}$/.test(formData.phone_number))
+      newErrors.phone_number = "Phone number must be 10 digits";
 
-    if (!formData.email) newErrors.email = "Email is required"
-    if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Email is invalid"
+    if (!formData.email) newErrors.email = "Email is required";
+    if (!/\S+@\S+\.\S+/.test(formData.email))
+      newErrors.email = "Email is invalid";
 
-    if (!formData.password) newErrors.password = "Password is required"
-    if (formData.password.length < 8) newErrors.password = "Password must be at least 8 characters"
-    if (!/\d/.test(formData.password)) newErrors.password = "Password must contain at least 1 digit"
-    if (!/[a-zA-Z]/.test(formData.password)) newErrors.password = "Password must contain at least 1 letter"
-    if (!/[@$!%*#?&]/.test(formData.password)) newErrors.password = "Password must contain at least 1 special character"
+    if (!formData.password) newErrors.password = "Password is required";
+    if (formData.password.length < 8)
+      newErrors.password = "Password must be at least 8 characters";
+    if (!/\d/.test(formData.password))
+      newErrors.password = "Password must contain at least 1 digit";
+    if (!/[a-zA-Z]/.test(formData.password))
+      newErrors.password = "Password must contain at least 1 letter";
+    if (!/[@$!%*#?&]/.test(formData.password))
+      newErrors.password = "Password must contain at least 1 special character";
 
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (!validateForm()) return
+    if (!validateForm()) return;
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      await register(formData)
-      setIsOtpSent(true)
+      await register(formData);
+      setIsOtpSent(true);
     } catch (error: any) {
       if (error.response?.data?.detail) {
-        setErrors({ form: error.response.data.detail })
+        setErrors({ form: error.response.data.detail });
       } else {
-        setErrors({ form: "Registration failed. Please try again." })
+        setErrors({ form: "Registration failed. Please try again." });
       }
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!otp) {
-      setErrors({ otp: "OTP is required" })
-      return
+      setErrors({ otp: "OTP is required" });
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      await verifyRegistration(formData, otp)
-      router.push("/login")
+      await verifyRegistration(formData, otp);
+      router.push("/login");
     } catch (error: any) {
       if (error.response?.data?.detail) {
-        setErrors({ otp: error.response.data.detail })
+        setErrors({ otp: error.response.data.detail });
       } else {
-        setErrors({ otp: "OTP verification failed. Please try again." })
+        setErrors({ otp: "OTP verification failed. Please try again." });
       }
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100">
@@ -103,9 +111,13 @@ export default function Register() {
       <div className="flex-grow flex items-center justify-center p-6">
         <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg p-8 border border-gray-100">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800">{isOtpSent ? "Verify OTP" : "Create Account"}</h1>
+            <h1 className="text-3xl font-bold text-gray-800">
+              {isOtpSent ? "Verify OTP" : "Create Account"}
+            </h1>
             <p className="text-gray-600 mt-2">
-              {isOtpSent ? "Enter the code sent to your email" : "Join the AI Courtroom simulation"}
+              {isOtpSent
+                ? "Enter the code sent to your email"
+                : "Join the AI Courtroom simulation"}
             </p>
           </div>
 
@@ -120,7 +132,10 @@ export default function Register() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="first_name"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     First Name
                   </label>
                   <div className="relative">
@@ -137,11 +152,18 @@ export default function Register() {
                       placeholder="John"
                     />
                   </div>
-                  {errors.first_name && <p className="mt-1 text-sm text-red-600">{errors.first_name}</p>}
+                  {errors.first_name && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.first_name}
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="last_name"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Last Name
                   </label>
                   <div className="relative">
@@ -158,13 +180,20 @@ export default function Register() {
                       placeholder="Doe"
                     />
                   </div>
-                  {errors.last_name && <p className="mt-1 text-sm text-red-600">{errors.last_name}</p>}
+                  {errors.last_name && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.last_name}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="date_of_birth" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="date_of_birth"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Date of Birth
                   </label>
                   <div className="relative">
@@ -180,11 +209,18 @@ export default function Register() {
                       className="pl-10 block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
-                  {errors.date_of_birth && <p className="mt-1 text-sm text-red-600">{errors.date_of_birth}</p>}
+                  {errors.date_of_birth && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.date_of_birth}
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="phone_number"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Phone Number
                   </label>
                   <div className="relative">
@@ -201,12 +237,19 @@ export default function Register() {
                       placeholder="1234567890"
                     />
                   </div>
-                  {errors.phone_number && <p className="mt-1 text-sm text-red-600">{errors.phone_number}</p>}
+                  {errors.phone_number && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.phone_number}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Email Address
                 </label>
                 <div className="relative">
@@ -223,11 +266,16 @@ export default function Register() {
                     placeholder="you@example.com"
                   />
                 </div>
-                {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
+                {errors.email && (
+                  <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                )}
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Password
                 </label>
                 <div className="relative">
@@ -244,7 +292,9 @@ export default function Register() {
                     placeholder="••••••••"
                   />
                 </div>
-                {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+                {errors.password && (
+                  <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                )}
               </div>
 
               <button
@@ -258,7 +308,10 @@ export default function Register() {
               <div className="text-center">
                 <p className="text-sm text-gray-600">
                   Already have an account?{" "}
-                  <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+                  <Link
+                    href="/login"
+                    className="font-medium text-blue-600 hover:text-blue-500"
+                  >
                     Sign in
                   </Link>
                 </p>
@@ -266,8 +319,20 @@ export default function Register() {
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+                <Mail className="h-5 w-5 mr-2" />
+                <span>
+                  We've sent a verification code to{" "}
+                  <strong>{formData.email}</strong>. Please check your email
+                  inbox.
+                </span>
+              </div>
+
               <div>
-                <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="otp"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   One-Time Password
                 </label>
                 <input
@@ -279,20 +344,31 @@ export default function Register() {
                   className="block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter OTP"
                 />
-                {errors.otp && <p className="mt-1 text-sm text-red-600">{errors.otp}</p>}
+                {errors.otp && (
+                  <p className="mt-1 text-sm text-red-600">{errors.otp}</p>
+                )}
               </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
-              >
-                {isLoading ? "Verifying..." : "Verify OTP"}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  type="button"
+                  onClick={() => setIsOtpSent(false)}
+                  className="flex-1 flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                >
+                  {isLoading ? "Verifying..." : "Verify OTP"}
+                </button>
+              </div>
             </form>
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }

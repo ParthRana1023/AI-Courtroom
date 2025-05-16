@@ -175,12 +175,33 @@ export default function CasesListing() {
                           : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Link
-                          href={`/dashboard/cases/${caseItem.cnr}`}
-                          className="text-blue-600 hover:text-blue-900 mr-4"
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (
+                              confirm(
+                                "Are you sure you want to delete this case?"
+                              )
+                            ) {
+                              caseAPI
+                                .deleteCase(caseItem.cnr)
+                                .then(() => {
+                                  setCases(
+                                    cases.filter((c) => c.cnr !== caseItem.cnr)
+                                  );
+                                })
+                                .catch((error) => {
+                                  console.error("Error deleting case:", error);
+                                  alert(
+                                    "Failed to delete case. Please try again."
+                                  );
+                                });
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-900"
                         >
-                          View
-                        </Link>
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))}

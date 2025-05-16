@@ -12,8 +12,6 @@ async def generate_counter_argument(history: str, user_input: str, ai_role: str 
         template = '''You are playing the role of the {ai_role}'s lawyer in an Indian Court of Law, here is the case uptil now:
         {history}
 
-        The defendant user has responded with the query: {user_input}
-
         Give your next arguments, and strictly adhere to the facts: {case}
 
         The user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them, do not be too polite.
@@ -21,17 +19,14 @@ async def generate_counter_argument(history: str, user_input: str, ai_role: str 
         
         prompt = ChatPromptTemplate.from_messages([
             ("system",template),
-            MessagesPlaceholder(variable_name="history"),
             ("user",user_input)
-        ]
-        ) 
+        ]) 
 
         chain = prompt | llm | StrOutputParser()
 
         response = chain.invoke({
             "ai_role": ai_role,
             "history": history,
-            "user_input": user_input,
             "case": case_details,
             "user_role": "plaintiff" if ai_role == "defendant" else "defendant"
         })

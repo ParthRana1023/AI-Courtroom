@@ -1,5 +1,5 @@
 // API service for rate limit information
-import { fetchWithAuth } from "./fetchWithAuth";
+import { fetchWithAuth } from "./api";
 
 export interface RateLimitInfo {
   remaining_attempts: number;
@@ -8,11 +8,8 @@ export interface RateLimitInfo {
 }
 
 export const rateLimitAPI = {
-  /**
-   * Get the current rate limit information for argument submissions
-   */
   getArgumentRateLimit: async (): Promise<RateLimitInfo> => {
-    const response = await fetchWithAuth("/api/arguments/limit");
+    const response = await fetchWithAuth("arguments/limit");
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || "Failed to get rate limit information");
