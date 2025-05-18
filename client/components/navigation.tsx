@@ -4,7 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { Home, User, FileText, Phone, LogOut, Menu, X } from "lucide-react";
+import {
+  Home,
+  User,
+  FileText,
+  Phone,
+  LogOut,
+  Menu,
+  X,
+  Settings,
+} from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 
 export default function Navigation() {
@@ -13,7 +22,7 @@ export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <nav className="bg-black dark:bg-zinc-900 text-white shadow-lg">
+    <nav className="bg-black dark:bg-zinc-900 text-white shadow-lg sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo and Main Navigation Links */}
@@ -60,6 +69,17 @@ export default function Navigation() {
                   >
                     <Phone className="h-4 w-4 mr-1" />
                     <span>Contact Us</span>
+                  </Link>
+                  <Link
+                    href="/settings"
+                    className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
+                      pathname === "/settings"
+                        ? "bg-zinc-800 text-white"
+                        : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                    }`}
+                  >
+                    <Settings className="h-4 w-4 mr-1" />
+                    <span>Settings</span>
                   </Link>
                 </div>
               )}
@@ -171,6 +191,18 @@ export default function Navigation() {
               >
                 <Phone className="h-4 w-4 mr-2" />
                 <span>Contact Us</span>
+              </Link>
+              <Link
+                href="/settings"
+                className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${
+                  pathname === "/settings"
+                    ? "bg-zinc-800 text-white"
+                    : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                }`}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                <span>Settings</span>
               </Link>
               <button
                 onClick={() => {

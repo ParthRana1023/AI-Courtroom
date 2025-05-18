@@ -6,12 +6,15 @@ import Link from "next/link";
 import Navigation from "@/components/navigation";
 import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus } from "@/types";
+import { useToast } from "@/hooks/use-toast";
+import { Toaster } from "@/components/ui/toaster";
 
 export default function CasesListing() {
   const router = useRouter();
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchCases = async () => {
@@ -75,16 +78,17 @@ export default function CasesListing() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation />
+      <Toaster />
 
       <div className="flex-grow container mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-md p-6 border border-zinc-200 dark:border-zinc-800">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">My Cases</h1>
             <button
               onClick={() => router.push("/dashboard/generate-case")} // Updated path to match your project structure
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
+              className="px-4 py-2 bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-800 text-white font-medium rounded-lg"
             >
-              New Case
+              Generate New Case
             </button>
           </div>
 
@@ -95,7 +99,7 @@ export default function CasesListing() {
               </p>
               <button
                 onClick={() => router.push("/dashboard/generate-case")} // Updated path to match your project structure
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-800 text-white font-medium rounded-lg"
               >
                 Create Your First Case
               </button>
@@ -103,60 +107,60 @@ export default function CasesListing() {
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-zinc-800">
                   <tr>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
                       Case Number
                     </th>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
                       Title
                     </th>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
                       Status
                     </th>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
                       Date Filed
                     </th>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-200 dark:divide-zinc-800">
                   {cases.map((caseItem) => (
                     <tr
                       key={caseItem.cnr}
-                      className="hover:bg-gray-50 cursor-pointer"
+                      className="hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
                       onClick={() =>
                         router.push(`/dashboard/cases/${caseItem.cnr}`)
                       }
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="text-sm font-medium text-gray-900">
                           {caseItem.cnr}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-center">
                         <div className="text-sm text-gray-900">
                           {caseItem.title || "Untitled Case"}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span
                           className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             caseItem.status === CaseStatus.ACTIVE
@@ -169,12 +173,12 @@ export default function CasesListing() {
                           {caseItem.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                         {caseItem.created_at
                           ? new Date(caseItem.created_at).toLocaleDateString()
                           : "N/A"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -189,16 +193,25 @@ export default function CasesListing() {
                                   setCases(
                                     cases.filter((c) => c.cnr !== caseItem.cnr)
                                   );
+                                  toast({
+                                    title: "Case Deleted",
+                                    description:
+                                      "The case has been successfully deleted.",
+                                    variant: "default",
+                                  });
                                 })
                                 .catch((error) => {
                                   console.error("Error deleting case:", error);
-                                  alert(
-                                    "Failed to delete case. Please try again."
-                                  );
+                                  toast({
+                                    title: "Error",
+                                    description:
+                                      "Failed to delete case. Please try again.",
+                                    variant: "destructive",
+                                  });
                                 });
                             }
                           }}
-                          className="text-red-600 hover:text-red-900"
+                          className="px-3 py-1 bg-red-600 dark:bg-red-700 hover:bg-red-700 dark:hover:bg-red-800 text-white font-medium rounded-md transition-colors"
                         >
                           Delete
                         </button>

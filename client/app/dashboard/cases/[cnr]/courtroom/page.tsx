@@ -3,12 +3,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { use } from "react"; // Add this import
+import SettingsAwareTextArea from "@/components/settings-aware-textarea";
 import Navigation from "@/components/navigation";
 import { caseAPI, argumentAPI } from "@/lib/api";
 import { rateLimitAPI, type RateLimitInfo } from "@/lib/rateLimitAPI";
 import { type Case, CaseStatus, type Argument } from "@/types";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import { X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function Courtroom({ params }: { params: { cnr: string } }) {
   const router = useRouter();
@@ -37,6 +44,7 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(384); // Default width (96 * 4 = 384px)
   const [isResizing, setIsResizing] = useState(false);
+  const [verdictDialogOpen, setVerdictDialogOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const resizeDividerRef = useRef<HTMLDivElement>(null);
@@ -523,6 +531,14 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
               >
                 View Case Details
               </button>
+              {caseHistory.verdict && (
+                <button
+                  onClick={() => setVerdictDialogOpen(true)}
+                  className="ml-4 px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  View Verdict
+                </button>
+              )}
             </div>
             <div className="flex items-center">
               <span
@@ -621,7 +637,9 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
                     >
                       <div
                         className={`max-w-[75%] rounded-lg p-3 ${
-                          isUser
+                          isUser ||
+                          (arg.user_id === "current-user" &&
+                            arg.type === "closing")
                             ? "bg-blue-100 text-blue-900"
                             : "bg-gray-200 text-gray-900"
                         }`}
@@ -644,26 +662,14 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
                   );
                 })}
 
-              {/* Verdict (if available) */}
-              {caseHistory.verdict && (
-                <div className="flex justify-center my-6">
-                  <div className="max-w-[90%] bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-green-800 mb-2">
-                      Final Verdict
-                    </h3>
-                    <p className="whitespace-pre-wrap text-green-900">
-                      {caseHistory.verdict}
-                    </p>
-                  </div>
-                </div>
-              )}
+              {/* Verdict is now shown in a popup dialog */}
 
               <div ref={messagesEndRef} />
             </div>
           </div>
 
-          {/* Input area */}
-          {caseData.status !== CaseStatus.RESOLVED && (
+          {/* Input area - only show if case is not resolved */}
+          {caseData.status !== CaseStatus.RESOLVED && !caseHistory.verdict && (
             <div className="mt-4">
               {/* Rate limit information */}
               {rateLimit && (
@@ -720,9 +726,10 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
                 </div>
               )}
               <div className="flex flex-col space-y-2">
-                <textarea
+                <SettingsAwareTextArea
                   value={argument}
-                  onChange={(e) => setArgument(e.target.value)}
+                  onChange={setArgument}
+                  onSubmit={handleSubmitArgument}
                   placeholder={`Enter your ${
                     showClosingButton ? "closing statement" : "argument"
                   }...`}
@@ -854,6 +861,22 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
 
       {/* Overlay when resizing is active */}
       {isResizing && <div className="fixed inset-0 z-40 cursor-col-resize" />}
+
+      {/* Verdict Dialog */}
+      <Dialog open={verdictDialogOpen} onOpenChange={setVerdictDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-green-800">
+              Final Verdict
+            </DialogTitle>
+          </DialogHeader>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
+            <p className="whitespace-pre-wrap text-green-900">
+              {caseHistory?.verdict}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

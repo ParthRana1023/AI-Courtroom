@@ -59,6 +59,28 @@ async def get_case(
         "created_at": case.created_at
     }
 
+@router.delete("/{cnr}")
+async def delete_case(
+    cnr: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a specific case by CNR"""
+    case = await Case.find_one(Case.cnr == cnr)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    # Check if the case belongs to the current user
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403, 
+            detail="You don't have permission to delete this case"
+        )
+    
+    # Delete the case
+    await case.delete()
+    
+    return {"message": "Case deleted successfully"}
+
 @router.get("/{case_identifier}/history")
 async def get_case_history(
     case_identifier: str,

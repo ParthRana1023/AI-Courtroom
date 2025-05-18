@@ -105,11 +105,11 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100 dark:from-zinc-900 dark:to-zinc-950">
       <Navigation />
 
       <div className="flex-grow flex items-center justify-center p-6">
-        <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg p-8 border border-gray-100">
+        <div className="w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-gray-100 dark:border-zinc-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800">
               {isOtpSent ? "Verify OTP" : "Create Account"}
@@ -122,7 +122,7 @@ export default function Register() {
           </div>
 
           {errors.form && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6 flex items-center">
               <AlertCircle className="h-5 w-5 mr-2" />
               <span>{errors.form}</span>
             </div>
@@ -319,7 +319,7 @@ export default function Register() {
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-lg mb-6 flex items-center">
                 <Mail className="h-5 w-5 mr-2" />
                 <span>
                   We've sent a verification code to{" "}
@@ -353,7 +353,7 @@ export default function Register() {
                 <button
                   type="button"
                   onClick={() => setIsOtpSent(false)}
-                  className="flex-1 flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                  className="flex-1 flex justify-center py-3 px-4 border border-gray-300 dark:border-zinc-700 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                 >
                   Back
                 </button>

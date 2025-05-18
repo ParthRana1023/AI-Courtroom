@@ -97,13 +97,16 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     code: ({ inline, className, children, ...props }: any) => {
       if (inline) {
         return (
-          <code className="bg-gray-100 px-1 rounded break-words" {...props}>
+          <code
+            className="bg-gray-100 dark:bg-zinc-800 px-1 rounded break-words text-gray-800 dark:text-zinc-200"
+            {...props}
+          >
             {children}
           </code>
         );
       }
       return (
-        <pre className="bg-gray-100 p-4 rounded my-4 whitespace-pre-wrap break-words overflow-x-hidden">
+        <pre className="bg-gray-100 dark:bg-zinc-800 p-4 rounded my-4 whitespace-pre-wrap break-words overflow-x-hidden text-gray-800 dark:text-zinc-200">
           <code
             className={`${className} break-words whitespace-pre-wrap`}
             {...props}
@@ -123,7 +126,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   };
 
   return (
-    <div className="legal-document bg-amber-50 p-6 rounded-md shadow-md overflow-hidden">
+    <div className="legal-document bg-amber-50 dark:bg-zinc-800 p-6 rounded-md shadow-md overflow-hidden dark:text-zinc-200">
       <div
         className={`${className} max-w-full break-words whitespace-pre-wrap overflow-x-hidden`}
       >

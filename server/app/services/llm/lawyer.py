@@ -1,7 +1,6 @@
 # app/services/llm/lawyer.py
 import logging
-from typing import Optional, Dict, Any, List
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.utils.llm import llm
 

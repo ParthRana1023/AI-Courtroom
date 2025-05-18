@@ -332,7 +332,8 @@ async def submit_closing_statement(
         if arg["type"] == "counter"
     ]
     
-    case.verdict = await generate_verdict(user_args, counter_args)
+    # Pass the case description to the verdict generator
+    case.verdict = await generate_verdict(user_args, counter_args, case.description)
     case.status = CaseStatus.RESOLVED
     await case.save()
     

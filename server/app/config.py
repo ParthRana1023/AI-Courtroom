@@ -12,13 +12,13 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     extended_token_expire_days: int = 7
     testing: bool = False
-    openai_api_key: Optional[str] = None # Add OpenAI API key
+    groq_api_key: Optional[str] = None
     
     # Email settings
     email_sender: str = "noreply@aicourtroom.com"
     email_username: str = ""
     email_password: str = ""
-    smtp_server: str = "smtp.example.com"
+    smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 587
     
     # Use SettingsConfigDict instead of ConfigDict
