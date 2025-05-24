@@ -204,16 +204,6 @@ export const caseAPI = {
       throw error;
     }
   },
-
-  deleteCase: async (cnr: string) => {
-    try {
-      const response = await api.delete(`/cases/${cnr}`);
-      return response.data;
-    } catch (error) {
-      handleApiError(error);
-      throw error;
-    }
-  },
 };
 
 // Argument API calls
@@ -273,48 +263,5 @@ function handleApiError(error: any) {
     console.error("Unexpected error:", error);
   }
 }
-
-// Helper function for authenticated fetch requests
-export const fetchWithAuth = async (
-  endpoint: string,
-  options: RequestInit = {}
-) => {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const url = `${baseUrl}/${endpoint}`;
-
-  // Get token from localStorage or cookie
-  let token = null;
-  if (typeof window !== "undefined") {
-    token = localStorage.getItem("token");
-
-    if (!token) {
-      const cookies = document.cookie.split(";");
-      const tokenCookie = cookies.find((cookie) =>
-        cookie.trim().startsWith("token=")
-      );
-      if (tokenCookie) {
-        token = tokenCookie.split("=")[1];
-      }
-    }
-  }
-
-  // Set headers with authorization token
-  const headers = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  // Merge options with headers
-  const fetchOptions = {
-    ...options,
-    headers,
-  };
-
-  return fetch(url, fetchOptions);
-};
 
 export default api;

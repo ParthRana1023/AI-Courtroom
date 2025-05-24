@@ -2,11 +2,9 @@ import type React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import "@/styles/text-size.css";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SettingsProvider } from "@/contexts/settings-context";
-import TextSizeProvider from "@/components/text-size-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,11 +23,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider defaultTheme="system" storageKey="ai-courtroom-theme">
-          <AuthProvider>
-            <SettingsProvider>
-              <TextSizeProvider>{children}</TextSizeProvider>
-            </SettingsProvider>
-          </AuthProvider>
+          <SettingsProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </SettingsProvider>
         </ThemeProvider>
       </body>
     </html>

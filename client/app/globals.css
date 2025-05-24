@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import custom code highlighting styles */
-@import "../styles/code-highlight.css";
-
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 255, 255, 255;
@@ -19,11 +16,7 @@
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-    to bottom,
-    rgb(var(--background-start-rgb)),
-    rgb(var(--background-end-rgb))
-  );
+  background: linear-gradient(to bottom, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
   min-height: 100vh;
 }
 
@@ -146,44 +139,6 @@ body {
 
   button {
     @apply focus:ring-offset-white;
-  }
-
-  /* Fix dark mode background and text contrast issues */
-  .dark .bg-white {
-    @apply bg-zinc-900 text-zinc-100;
-  }
-
-  .dark .bg-gray-50,
-  .dark .bg-gray-100,
-  .dark .bg-zinc-50,
-  .dark .bg-amber-50 {
-    @apply bg-zinc-800 text-zinc-100;
-  }
-
-  .dark .bg-gray-200 {
-    @apply bg-zinc-700 text-zinc-100;
-  }
-
-  .dark .text-gray-700,
-  .dark .text-gray-800 {
-    @apply text-zinc-300;
-  }
-
-  .dark .border-gray-100,
-  .dark .border-gray-200,
-  .dark .border-gray-300 {
-    @apply border-zinc-700;
-  }
-
-  /* Fix light mode text on dark backgrounds */
-  .bg-zinc-800,
-  .bg-zinc-900,
-  .bg-gray-800,
-  .bg-gray-900,
-  .bg-black,
-  .bg-primary,
-  .bg-destructive {
-    @apply text-white;
   }
 }
 

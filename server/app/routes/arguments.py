@@ -1,6 +1,5 @@
 # app/routes/arguments.py
 from fastapi import APIRouter, Body, Depends, HTTPException
-from beanie import PydanticObjectId
 from app.models.case import Case, CaseStatus
 from app.dependencies import get_current_user
 from app.services.llm.lawyer import generate_counter_argument, opening_statement, closing_statement
@@ -8,6 +7,7 @@ from app.services.llm.judge import generate_verdict
 from app.utils.rate_limiter import RateLimiter
 from app.models.user import User
 from datetime import datetime, timezone
+from app.utils.rate_limiter import rate_limiter
 
 router = APIRouter(tags=["arguments"])
 

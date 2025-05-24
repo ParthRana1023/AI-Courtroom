@@ -3,19 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { use } from "react"; // Add this import
-import SettingsAwareTextArea from "@/components/settings-aware-textarea";
 import Navigation from "@/components/navigation";
 import { caseAPI, argumentAPI } from "@/lib/api";
-import { rateLimitAPI, type RateLimitInfo } from "@/lib/rateLimitAPI";
+import { rateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
 import { type Case, CaseStatus, type Argument } from "@/types";
-import MarkdownRenderer from "@/components/markdown-renderer";
-import { X } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 export default function Courtroom({ params }: { params: { cnr: string } }) {
   const router = useRouter();
@@ -41,13 +32,8 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
   const [counterArgument, setCounterArgument] = useState<string | null>(null);
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(384); // Default width (96 * 4 = 384px)
-  const [isResizing, setIsResizing] = useState(false);
-  const [verdictDialogOpen, setVerdictDialogOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const resizeDividerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchCaseDetails = async () => {
@@ -160,41 +146,6 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
     }
   }, [caseHistory, counterArgument]);
 
-  // Handle sidebar resizing
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      // Calculate new width based on mouse position
-      // Window width - mouse X position from right side of screen
-      const newWidth = window.innerWidth - e.clientX;
-
-      // Set minimum and maximum width constraints
-      const minWidth = 300;
-      const maxWidth = Math.min(600, window.innerWidth * 0.8);
-
-      if (newWidth >= minWidth && newWidth <= maxWidth) {
-        setSidebarWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    // Add event listeners when resizing is active
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    }
-
-    // Clean up event listeners
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isResizing]);
-
   const handleSubmitArgument = async () => {
     if (!argument.trim()) return;
 
@@ -248,144 +199,113 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
           timestamp: userArgumentTimestamp,
         });
 
-        // If AI Plaintiff provides an immediate counter-argument to the defendant's first response
-        if (response.ai_plaintiff_counter_argument) {
-          // Assuming this key exists in API response for this scenario
+        // Add AI Counter-Argument (Plaintiff)
+        if (response.plaintiff_counter_argument) {
           updatedHistory.plaintiff_arguments.push({
             type: "counter",
-            content: response.ai_plaintiff_counter_argument,
+            content: response.plaintiff_counter_argument,
             user_id: null,
             timestamp: aiCounterArgumentTimestamp.toISOString(),
           });
         }
       }
-      // Scenario 2: User is Plaintiff
-      else if (currentRole === "plaintiff") {
+
+      // Scenario 2: User is Plaintiff, and it's the first turn (AI Defendant makes opening statement)
+      else if (
+        currentRole === "plaintiff" &&
+        (response.defendant_opening_statement || response.defendant_opening)
+      ) {
+        const openingStatement =
+          response.defendant_opening_statement || response.defendant_opening;
+
+        // Add AI Defendant's opening statement
+        // Ensure this timestamp is slightly before the user's argument for correct ordering
+        const defendantOpeningTimestamp = new Date(
+          new Date(userArgumentTimestamp).getTime() - 1000
+        ).toISOString();
+        updatedHistory.defendant_arguments.push({
+          type: "opening",
+          content: openingStatement,
+          user_id: null,
+          timestamp: defendantOpeningTimestamp,
+        });
+
         // Add User (Plaintiff)'s argument
         updatedHistory.plaintiff_arguments.push({
           type: "user",
           content: argument,
-          user_id: "current-user", // Replace with actual user ID
+          user_id: "current-user", // Replace with actual user ID if available
           timestamp: userArgumentTimestamp,
         });
 
-        // Check if there was an error generating the counter argument
-        if (response.error) {
-          // Display error as an alert instead of storing it as an argument
-          setError(response.error);
-        } else if (response.counter_argument) {
-          // If AI Defendant provides a counter-argument
+        // Add AI Counter-Argument (Defendant)
+        if (response.defendant_counter_argument) {
           updatedHistory.defendant_arguments.push({
             type: "counter",
-            content: response.counter_argument,
+            content: response.defendant_counter_argument,
             user_id: null,
             timestamp: aiCounterArgumentTimestamp.toISOString(),
           });
         }
       }
-      // Scenario 3: User is Defendant (not the first turn, i.e., no AI plaintiff opening statement)
-      else if (currentRole === "defendant") {
-        // Add User (Defendant)'s argument
-        updatedHistory.defendant_arguments.push({
-          type: "user",
-          content: argument,
-          user_id: "current-user", // Replace with actual user ID
-          timestamp: userArgumentTimestamp,
-        });
 
-        // Check if there was an error generating the counter argument
-        if (response.error) {
-          // Display error as an alert instead of storing it as an argument
-          setError(response.error);
-        } else if (response.counter_argument) {
-          // If AI Plaintiff provides a counter-argument
+      // Scenario 3: Subsequent turns (User submits argument, AI responds with counter-argument)
+      else {
+        // Add User's argument based on their role
+        if (currentRole === "plaintiff") {
           updatedHistory.plaintiff_arguments.push({
-            type: "counter",
-            content: response.counter_argument,
-            user_id: null,
-            timestamp: aiCounterArgumentTimestamp.toISOString(),
+            type: "user",
+            content: argument,
+            user_id: "current-user", // Replace with actual user ID if available
+            timestamp: userArgumentTimestamp,
           });
+          // Add AI Counter-Argument (Defendant)
+          if (response.defendant_counter_argument) {
+            updatedHistory.defendant_arguments.push({
+              type: "counter",
+              content: response.defendant_counter_argument,
+              user_id: null,
+              timestamp: aiCounterArgumentTimestamp.toISOString(),
+            });
+          }
+        } else if (currentRole === "defendant") {
+          updatedHistory.defendant_arguments.push({
+            type: "user",
+            content: argument,
+            user_id: "current-user", // Replace with actual user ID if available
+            timestamp: userArgumentTimestamp,
+          });
+          // Add AI Counter-Argument (Plaintiff)
+          if (response.plaintiff_counter_argument) {
+            updatedHistory.plaintiff_arguments.push({
+              type: "counter",
+              content: response.plaintiff_counter_argument,
+              user_id: null,
+              timestamp: aiCounterArgumentTimestamp.toISOString(),
+            });
+          }
         }
       }
 
+      // Update case history state
       setCaseHistory(updatedHistory);
 
-      // Update showClosingButton logic based on the new history
-      const userPlaintiffArgs = updatedHistory.plaintiff_arguments.filter(
-        (arg) => arg.type === "user" && arg.user_id === "current-user"
-      ).length;
-      const userDefendantArgs = updatedHistory.defendant_arguments.filter(
-        (arg) => arg.type === "user" && arg.user_id === "current-user"
-      ).length;
-      setShowClosingButton(userPlaintiffArgs + userDefendantArgs >= 3);
-
-      // Check if we should show the closing statement button
-      const userArguments =
-        caseHistory!.plaintiff_arguments.filter((arg) => arg.type === "user")
-          .length +
-        caseHistory!.defendant_arguments.filter((arg) => arg.type === "user")
-          .length;
-
-      setShowClosingButton(userArguments >= 3);
-
-      // Clear the input
+      // Clear the argument input field
       setArgument("");
-      setCounterArgument(null);
 
-      // Refresh case data to get updated status
-      const updatedCase = await caseAPI.getCase(cnr); // Changed from params.cnr
-      setCaseData(updatedCase);
-
-      // Refresh rate limit information
+      // Fetch updated rate limit information after successful submission
       await fetchRateLimitInfo();
 
-      // Update the remaining attempts counter
-      if (rateLimit) {
-        setRateLimit({
-          ...rateLimit,
-          remaining_attempts: Math.max(0, rateLimit.remaining_attempts - 1),
-        });
-      }
-    } catch (error: any) {
+      // Check if closing statement button should be shown
+      const userArguments =
+        updatedHistory.plaintiff_arguments.filter((arg) => arg.type === "user")
+          .length +
+        updatedHistory.defendant_arguments.filter((arg) => arg.type === "user")
+          .length;
+      setShowClosingButton(userArguments >= 3);
+    } catch (error) {
       console.error("Error submitting argument:", error);
-      if (error.response?.status === 403 && error.response?.data?.detail) {
-        // Handle role switching error specifically
-        if (error.response.data.detail.includes("Cannot switch roles")) {
-          setError(
-            "You cannot switch roles in this case. Please continue with your current role."
-          );
-
-          // Refresh case details to ensure we have the correct role
-          try {
-            const history = await caseAPI.getCaseHistory(cnr);
-
-            // Determine correct role based on previous participation
-            const participatedAsPlaintiff = history.plaintiff_arguments.some(
-              (arg) => arg.user_id && arg.type === "user"
-            );
-
-            const participatedAsDefendant = history.defendant_arguments.some(
-              (arg) => arg.user_id && arg.type === "user"
-            );
-
-            if (participatedAsPlaintiff) {
-              setCurrentRole("plaintiff");
-            } else if (participatedAsDefendant) {
-              setCurrentRole("defendant");
-            }
-
-            setCaseHistory(history);
-          } catch (refreshError) {
-            console.error("Error refreshing case history:", refreshError);
-          }
-        } else {
-          setError(error.response.data.detail);
-        }
-      } else if (error.response?.data?.detail) {
-        setError(error.response.data.detail);
-      } else {
-        setError("Failed to submit argument. Please try again.");
-      }
+      setError("Failed to submit argument. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -439,14 +359,6 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
 
       // Refresh rate limit information
       await fetchRateLimitInfo();
-
-      // Update the remaining attempts counter
-      if (rateLimit) {
-        setRateLimit({
-          ...rateLimit,
-          remaining_attempts: Math.max(0, rateLimit.remaining_attempts - 1),
-        });
-      }
     } catch (error: any) {
       console.error("Error submitting closing statement:", error);
       if (error.response?.data?.detail) {
@@ -523,23 +435,7 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
       <div className="flex-grow container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold">Courtroom</h1>
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="ml-4 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                View Case Details
-              </button>
-              {caseHistory.verdict && (
-                <button
-                  onClick={() => setVerdictDialogOpen(true)}
-                  className="ml-4 px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                >
-                  View Verdict
-                </button>
-              )}
-            </div>
+            <h1 className="text-2xl font-bold">Courtroom</h1>
             <div className="flex items-center">
               <span
                 className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -637,9 +533,7 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
                     >
                       <div
                         className={`max-w-[75%] rounded-lg p-3 ${
-                          isUser ||
-                          (arg.user_id === "current-user" &&
-                            arg.type === "closing")
+                          isUser
                             ? "bg-blue-100 text-blue-900"
                             : "bg-gray-200 text-gray-900"
                         }`}
@@ -662,14 +556,26 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
                   );
                 })}
 
-              {/* Verdict is now shown in a popup dialog */}
+              {/* Verdict (if available) */}
+              {caseHistory.verdict && (
+                <div className="flex justify-center my-6">
+                  <div className="max-w-[90%] bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-green-800 mb-2">
+                      Final Verdict
+                    </h3>
+                    <p className="whitespace-pre-wrap text-green-900">
+                      {caseHistory.verdict}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div ref={messagesEndRef} />
             </div>
           </div>
 
-          {/* Input area - only show if case is not resolved */}
-          {caseData.status !== CaseStatus.RESOLVED && !caseHistory.verdict && (
+          {/* Input area */}
+          {caseData.status !== CaseStatus.RESOLVED && (
             <div className="mt-4">
               {/* Rate limit information */}
               {rateLimit && (
@@ -726,10 +632,9 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
                 </div>
               )}
               <div className="flex flex-col space-y-2">
-                <SettingsAwareTextArea
+                <textarea
                   value={argument}
-                  onChange={setArgument}
-                  onSubmit={handleSubmitArgument}
+                  onChange={(e) => setArgument(e.target.value)}
                   placeholder={`Enter your ${
                     showClosingButton ? "closing statement" : "argument"
                   }...`}
@@ -775,108 +680,6 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
           )}
         </div>
       </div>
-
-      {/* Case Details Sidebar */}
-      <div
-        className={`fixed inset-y-0 right-0 z-50 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-        style={{ width: `${sidebarWidth}px` }}
-      >
-        {/* Resize handle */}
-        <div
-          ref={resizeDividerRef}
-          className={`absolute inset-y-0 left-0 w-1 hover:w-2 transition-all ${
-            isResizing ? "bg-blue-500 w-2" : "bg-gray-300"
-          } cursor-col-resize`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setIsResizing(true);
-          }}
-        />
-
-        <div className="h-full flex flex-col">
-          <div className="flex justify-between items-center p-4 border-b border-gray-200">
-            <h2 className="text-xl font-bold">Case Details</h2>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="text-gray-500 hover:text-gray-700 focus:outline-none"
-              aria-label="Close sidebar"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-
-          <div className="flex-grow overflow-y-auto p-4 space-y-4">
-            <div>
-              <h3 className="font-medium text-gray-700">Case Title</h3>
-              <p className="text-gray-900">{caseData.title}</p>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-700">Case Number (CNR)</h3>
-              <p className="text-gray-900">{caseData.cnr}</p>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-700">Court</h3>
-              <p className="text-gray-900">{caseData.court || "N/A"}</p>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-700">Date Filed</h3>
-              <p className="text-gray-900">
-                {caseData.created_at
-                  ? new Date(caseData.created_at).toLocaleDateString()
-                  : "N/A"}
-              </p>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-700">Status</h3>
-              <p className="text-gray-900">{caseData.status}</p>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-700">Case Details</h3>
-              {caseData.case_text ? (
-                <div className="mt-2 border border-gray-200 rounded-md p-4 bg-gray-50">
-                  <MarkdownRenderer
-                    markdown={caseData.case_text}
-                    className="prose prose-sm max-w-none font-serif"
-                  />
-                </div>
-              ) : (
-                <p className="text-gray-500 italic">
-                  No case details available.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Overlay for mobile - closes sidebar when clicked */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Overlay when resizing is active */}
-      {isResizing && <div className="fixed inset-0 z-40 cursor-col-resize" />}
-
-      {/* Verdict Dialog */}
-      <Dialog open={verdictDialogOpen} onOpenChange={setVerdictDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-green-800">
-              Final Verdict
-            </DialogTitle>
-          </DialogHeader>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
-            <p className="whitespace-pre-wrap text-green-900">
-              {caseHistory?.verdict}
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

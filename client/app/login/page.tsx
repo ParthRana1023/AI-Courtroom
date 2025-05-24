@@ -238,15 +238,6 @@ export default function Login() {
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-6">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-lg mb-6 flex items-center">
-                <Mail className="h-5 w-5 mr-2" />
-                <span>
-                  We've sent a verification code to{" "}
-                  <strong>{formData.email}</strong>. Please check your email
-                  inbox.
-                </span>
-              </div>
-
               <div>
                 <label
                   htmlFor="otp"
@@ -270,29 +261,20 @@ export default function Login() {
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button
-                  type="button"
-                  onClick={() => setIsOtpSent(false)}
-                  className="flex-1 flex justify-center py-3 px-4 border border-zinc-300 dark:border-zinc-700 rounded-lg shadow-sm text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 transition-colors"
-                >
-                  Back
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-black dark:bg-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 disabled:opacity-50 transition-colors"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                      <span>Verifying...</span>
-                    </>
-                  ) : (
-                    "Verify OTP"
-                  )}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-black dark:bg-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 disabled:opacity-50 transition-colors"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="animate-spin h-5 w-5 mr-2" />
+                    <span>Verifying...</span>
+                  </>
+                ) : (
+                  "Verify OTP"
+                )}
+              </button>
             </form>
           )}
         </div>
