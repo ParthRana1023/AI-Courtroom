@@ -333,7 +333,7 @@ async def submit_closing_statement(
     ]
     
     # Pass the case description to the verdict generator
-    case.verdict = await generate_verdict(user_args, counter_args, case.description)
+    case.verdict = await generate_verdict(user_args, counter_args, case.details)
     case.status = CaseStatus.RESOLVED
     await case.save()
     
