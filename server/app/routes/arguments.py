@@ -4,9 +4,8 @@ from app.models.case import Case, CaseStatus
 from app.dependencies import get_current_user
 from app.services.llm.lawyer import generate_counter_argument, opening_statement, closing_statement
 from app.services.llm.judge import generate_verdict
-from app.utils.rate_limiter import RateLimiter
 from app.models.user import User
-from datetime import datetime, timezone
+from datetime import datetime
 from app.utils.rate_limiter import rate_limiter
 from datetime import datetime
 import pytz
@@ -27,9 +26,7 @@ async def submit_argument(
     case = await Case.find_one(Case.cnr == case_cnr)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
-    
-    # Check if the case belongs to the current user
-    # Convert both IDs to strings for proper comparison
+
     if str(case.user_id) != str(current_user.id):
         raise HTTPException(
             status_code=403, 
@@ -39,13 +36,20 @@ async def submit_argument(
     if role not in ["plaintiff", "defendant"]:
         raise HTTPException(status_code=400, detail="Invalid role specified")
 
+    print(f"[DEBUG] submit_argument called for case {case_cnr}, role {role}, argument length {len(argument)}")
+    print(f"[DEBUG] Current arguments: Plaintiff={len(case.plaintiff_arguments)}, Defendant={len(case.defendant_arguments)}")
+
     # Check if this is the first argument submission
     if not case.plaintiff_arguments and not case.defendant_arguments:
+        print("[DEBUG] Case has no arguments yet.")
         # First argument must be from plaintiff
         if role != "plaintiff":
+            print("[DEBUG] User is defendant, submitting first argument.")
             # If user (defendant) submits the first argument:
             # 1. AI generates plaintiff's opening statement
+            print("[DEBUG] Calling opening_statement for plaintiff...")
             plaintiff_opening_statement = await opening_statement("plaintiff", case.details, role)
+            print(f"[DEBUG] opening_statement returned: {plaintiff_opening_statement[:100]}...") # Log first 100 chars
             case.plaintiff_arguments.append({
                 "type": "opening",
                 "content": plaintiff_opening_statement,
@@ -66,7 +70,9 @@ async def submit_argument(
             history = f"Defendant: {defendant_opening_statement_content}\n"
             
             # 3. AI (as plaintiff) generates a counter-argument to the defendant's opening statement
+            print("[DEBUG] Calling generate_counter_argument for plaintiff...")
             ai_plaintiff_counter_to_defendant_opening = await generate_counter_argument(history, defendant_opening_statement_content, "plaintiff", case.details)
+            print(f"[DEBUG] generate_counter_argument returned: {ai_plaintiff_counter_to_defendant_opening[:100]}...") # Log first 100 chars
             case.plaintiff_arguments.append({
                 "type": "counter",
                 "content": ai_plaintiff_counter_to_defendant_opening,
@@ -77,9 +83,14 @@ async def submit_argument(
             # Update case status
             if case.status == CaseStatus.NOT_STARTED:
                 case.status = CaseStatus.ACTIVE
+                print(f"[DEBUG] Case status updated to {case.status}")
 
+            print("[DEBUG] Saving case...")
             await case.save()
+            print("[DEBUG] Case saved.")
+
             # Return both AI plaintiff opening and AI plaintiff counter
+            print("[DEBUG] Returning response with AI arguments.")
             return {
                 "ai_opening_statement": plaintiff_opening_statement,
                 "ai_opening_role": "plaintiff",
@@ -87,6 +98,7 @@ async def submit_argument(
                 "ai_counter_role": "plaintiff"
             }
         else:
+            print("[DEBUG] User is plaintiff, submitting first argument.")
             # User is plaintiff, proceed normally with first argument
             case.plaintiff_arguments.append(ArgumentItem(
                 type="user",
@@ -94,13 +106,16 @@ async def submit_argument(
                 user_id=current_user.id,
                 timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
             ))
+            print("[DEBUG] Plaintiff argument appended.")
     elif not case.plaintiff_arguments and role == "defendant":
+        print("[DEBUG] Defendant submitting before plaintiff.")
         # Defendant cannot submit before plaintiff
         raise HTTPException(
             status_code=400,
             detail="The plaintiff must submit the first argument"
         )
     else:
+        print("[DEBUG] Case already has arguments.")
         # Check if user has participated in this case with the specified role
         existing_roles = set()
         for arg in case.plaintiff_arguments:
@@ -111,11 +126,13 @@ async def submit_argument(
                 existing_roles.add("defendant")
 
         if existing_roles and role not in existing_roles:
+            print(f"[DEBUG] Role conflict: User previously participated as {', '.join(existing_roles)}, attempting to submit as {role}.")
             raise HTTPException(
                 status_code=403,
                 detail=f"Cannot switch roles. Previously participated as {', '.join(existing_roles)}"
             )
         else:
+            print(f"[DEBUG] User submitting as {role} in an ongoing case.")
             # Not first submission - track user ID with role
             # Check if current_user.id is not None before adding it
             user_id = current_user.id if current_user.id is not None else ""
@@ -127,6 +144,7 @@ async def submit_argument(
                     user_id=user_id,
                     timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
                 ))
+                print("[DEBUG] Plaintiff argument appended.")
             else:
                 case.defendant_arguments.append(ArgumentItem(
                     type="user",
@@ -134,6 +152,7 @@ async def submit_argument(
                     user_id=user_id,
                     timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
                 ))
+                print("[DEBUG] Defendant argument appended.")
 
     # Prepare history for counter-argument generation
     history = ""
@@ -187,6 +206,7 @@ async def submit_argument(
     
     # Check if this is a closing statement
     if is_closing:
+        print("[DEBUG] Handling closing statement.")
         # Record user's closing statement
         if role == "plaintiff":
             case.plaintiff_arguments.append(ArgumentItem(
@@ -414,7 +434,17 @@ async def submit_closing_statement(
     case.status = CaseStatus.RESOLVED
     await case.save()
     
-    return {
+    response_data = {
         "verdict": case.verdict,
         "ai_closing_statement": ai_closing
     }
+
+    # Include AI opening statement and counter-argument if they were generated
+    if ai_opening_statement_content:
+        response_data["ai_opening_statement"] = ai_opening_statement_content
+        response_data["ai_opening_role"] = "plaintiff" # Assuming AI opening is always for plaintiff
+    if ai_counter_argument_content:
+        response_data["ai_counter_argument"] = ai_counter_argument_content
+        response_data["ai_counter_role"] = "plaintiff" # Assuming AI counter is always for plaintiff
+
+    return response_data

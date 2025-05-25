@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { use } from "react"; // Add this import
+import { use } from "react";
 import Navigation from "@/components/navigation";
 import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus } from "@/types";
@@ -34,8 +34,16 @@ export default function CaseDetails({ params }: { params: { cnr: string } }) {
     fetchCaseDetails();
   }, [cnr]); // Use cnr in dependency array instead of params.cnr
 
-  const handleRoleSelection = (role: string) => {
-    router.push(`/dashboard/cases/${cnr}/courtroom?role=${role}`);
+  const handleRoleSelection = async (role: string) => {
+    try {
+      // Update case status to ACTIVE
+      await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
+      router.push(`/dashboard/cases/${cnr}/courtroom?role=${role}`);
+    } catch (error) {
+      console.error("Error updating case status:", error);
+      // Optionally show an error message to the user
+      setError("Failed to start case. Please try again.");
+    }
   };
 
   const handleToCourtroom = () => {

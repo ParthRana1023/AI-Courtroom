@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-
 import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus } from "@/types";
 

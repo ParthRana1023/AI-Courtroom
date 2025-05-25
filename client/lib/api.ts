@@ -198,6 +198,16 @@ export const caseAPI = {
     }
   },
 
+  updateCaseStatus: async (cnr: string, status: string) => {
+    try {
+      const response = await api.put(`/cases/${cnr}/status`, { status });
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+
   generateCase: async (caseData: any) => {
     try {
       const response = await api.post("/cases/generate", caseData);

@@ -1,10 +1,8 @@
 # app/routes/cases.py
-from datetime import datetime
-from time import timezone
-from typing import List, Union
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from beanie import PydanticObjectId
-from app.models.case import Case
+from app.models.case import Case, CaseStatus
 from app.schemas.case import CaseCreate, CaseOut
 from app.dependencies import get_current_user
 from app.services.llm.case_generation import generate_case
@@ -61,6 +59,39 @@ async def get_case(
         "verdict": case_dict["verdict"],
         "created_at": case_dict["created_at"]
     }
+
+@router.put("/{cnr}/status")
+async def update_case_status(
+    cnr: str,
+    status_update: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Update the status of a specific case by CNR"""
+    case = await Case.find_one(Case.cnr == cnr)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Check if the case belongs to the current user
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to update this case"
+        )
+
+    # Update the status
+    new_status = status_update.get("status")
+    if not new_status:
+        raise HTTPException(status_code=400, detail="Status not provided")
+
+    # Validate the new status against allowed CaseStatus values
+    # Assuming CaseStatus enum is imported or defined elsewhere
+    if new_status not in [e.value for e in CaseStatus]:
+         raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
+
+    case.status = new_status
+    await case.save()
+
+    return {"message": "Case status updated successfully", "new_status": case.status}
 
 @router.delete("/{cnr}")
 async def delete_case(

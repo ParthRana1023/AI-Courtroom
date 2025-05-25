@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { use } from "react"; // Add this import
+import { use } from "react";
 import Navigation from "@/components/navigation";
 import { caseAPI, argumentAPI } from "@/lib/api";
 import { rateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
@@ -21,12 +21,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
-import { CaseDetails } from "@/components/case-details";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import MarkdownRenderer from "@/components/markdown-renderer";
 
@@ -118,6 +112,11 @@ export default function Courtroom({
         } else {
           // Use detected role or default to plaintiff if no participation yet
           setCurrentRole(detectedRole || "plaintiff");
+        }
+
+        // Lock role if case is NOT_STARTED and role is provided in URL
+        if (data.status === CaseStatus.NOT_STARTED && role) {
+          setCurrentRole(role);
         }
 
         // Fetch rate limit information
@@ -257,22 +256,23 @@ export default function Courtroom({
         }
       }
 
-      // Update case history state
+      // Update the state with the new history
       setCaseHistory(updatedHistory);
 
-      // Clear the argument input field
+      setIsSubmitting(false);
       setArgument("");
 
-      // Fetch updated rate limit information after successful submission
-      await fetchRateLimitInfo();
+      // Refresh rate limit info after successful submission
+      fetchRateLimitInfo();
 
       // Check if closing statement button should be shown
-      const userArguments =
+      const totalUserArguments =
         updatedHistory.plaintiff_arguments.filter((arg) => arg.type === "user")
           .length +
         updatedHistory.defendant_arguments.filter((arg) => arg.type === "user")
           .length;
-      setShowClosingButton(userArguments >= 3);
+
+      setShowClosingButton(totalUserArguments >= 3);
     } catch (error) {
       console.error("Error submitting argument:", error);
       setError("Failed to submit argument. Please try again.");
@@ -687,8 +687,16 @@ export default function Courtroom({
                         </svg>
                         <span>Next submission in: </span>
                         <span className="ml-1 bg-orange-100 text-orange-800 px-2 py-1 rounded font-mono">
-                          {Math.floor(timeRemaining / 60)}:
-                          {(timeRemaining % 60).toString().padStart(2, "0")}
+                          {/* Format timeRemaining in HH:MM:SS */}
+                          {`${Math.floor(timeRemaining / 3600)
+                            .toString()
+                            .padStart(2, "0")}:${Math.floor(
+                            (timeRemaining % 3600) / 60
+                          )
+                            .toString()
+                            .padStart(2, "0")}:${(timeRemaining % 60)
+                            .toString()
+                            .padStart(2, "0")}`}
                         </span>
                       </div>
                     </div>
