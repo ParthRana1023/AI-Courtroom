@@ -45,18 +45,21 @@ async def get_case(
             detail="You don't have permission to access this case"
         )
     
+    # Use model_dump(mode='json') to handle serialization of ObjectIds
+    case_dict = case.model_dump(mode='json')
+
     # Return case data with fields directly in the response
     return {
-        "cnr": case.cnr,
-        "status": case.status,
-        "title": case.title,  # Title is now directly in the Case model
-        "case_number": case.case_number if hasattr(case, 'case_number') else None,
-        "court": case.court if hasattr(case, 'court') else None,
-        "case_text": case.details,  # Include the raw markdown text
-        "plaintiff_arguments": case.plaintiff_arguments,
-        "defendant_arguments": case.defendant_arguments,
-        "verdict": case.verdict,
-        "created_at": case.created_at
+        "cnr": case_dict["cnr"],
+        "status": case_dict["status"],
+        "title": case_dict["title"],  # Title is now directly in the Case model
+        "case_number": case_dict.get('case_number'),
+        "court": case_dict.get('court'),
+        "case_text": case_dict["details"],  # Include the raw markdown text
+        "plaintiff_arguments": case_dict["plaintiff_arguments"],
+        "defendant_arguments": case_dict["defendant_arguments"],
+        "verdict": case_dict["verdict"],
+        "created_at": case_dict["created_at"]
     }
 
 @router.delete("/{cnr}")

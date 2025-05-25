@@ -2,6 +2,7 @@
 import random
 import string
 from datetime import datetime, timedelta, timezone
+import pytz
 from app.models.otp import OTP
 from app.services.email import send_otp_email
 import motor.motor_asyncio
@@ -19,14 +20,18 @@ async def create_otp(email: str, is_registration: bool = True) -> str:
     await OTP.find(OTP.email == email).delete()
     
     # Generate new OTP
-    otp_code = generate_otp()
-    expiry = datetime.now(timezone.utc) + timedelta(minutes=10)
+    otp_code = generate_otp();
+    # Calculate expiry time in IST and convert to UTC for storage
+    ist_offset = timedelta(hours=5, minutes=30)
+    ist_timezone = timezone(ist_offset)
+    expiry_ist = datetime.now(ist_timezone) + timedelta(minutes=settings.access_token_expire_minutes)
+    expiry_utc = expiry_ist.astimezone(pytz.utc)
     
-    # Store OTP in database
+    # Store OTP in database (UTC time)
     otp = OTP(
         email=email,
         otp=otp_code,
-        expiry=expiry,
+        expiry=expiry_utc,
         is_registration=is_registration
     )
     await otp.insert()
@@ -62,18 +67,39 @@ async def verify_otp(email: str, otp_code: str, is_registration: Optional[bool] 
         print(f"Direct MongoDB query result: {otp_doc_dict is not None}")
         
         if otp_doc_dict:
-            # Check if OTP is expired - ensure both datetimes are timezone-aware
+            # Check if OTP is expired - ensure both datetimes are timezone-aware and compare in UTC
             expiry_time = otp_doc_dict["expiry"]
-            current_time = datetime.now(timezone.utc)
+            current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+
+            print(f"Debug: expiry_time (from DB): {expiry_time} (tzinfo: {expiry_time.tzinfo})")
+            print(f"Debug: current_time (IST): {current_time} (tzinfo: {current_time.tzinfo})")
             
-            # Convert naive datetime to aware if needed
+            # Check if OTP is expired - ensure both datetimes are timezone-aware and compare in UTC
+            expiry_time = otp_doc_dict["expiry"]
+            current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+
+            print(f"Debug: expiry_time (from DB): {expiry_time} (tzinfo: {expiry_time.tzinfo})")
+            print(f"Debug: current_time (IST): {current_time} (tzinfo: {current_time.tzinfo})")
+            
+            # If expiry_time is naive, assume it's UTC (as intended by create_otp) and make it UTC-aware
             if expiry_time.tzinfo is None:
-                expiry_time = expiry_time.replace(tzinfo=timezone.utc)
-                
-            if expiry_time < current_time:
-                print(f"OTP expired: {expiry_time} < {current_time}")
-                # Delete expired OTP
-                await collection.delete_one({"_id": otp_doc_dict["_id"]})
+                print("Debug: expiry_time is naive, localizing as UTC")
+                expiry_time_utc = pytz.utc.localize(expiry_time)
+            else:
+                # If it's already timezone-aware, convert it to UTC
+                expiry_time_utc = expiry_time.astimezone(pytz.utc)
+
+            # Convert current time to UTC for reliable comparison
+            current_time_utc = current_time.astimezone(pytz.utc)
+            
+            print(f"Debug: expiry_time_utc: {expiry_time_utc}")
+            print(f"Debug: current_time_utc: {current_time_utc}")
+            print(f"Debug: Comparison result (expiry_time_utc < current_time_utc): {expiry_time_utc < current_time_utc}")
+
+            if expiry_time_utc < current_time_utc:
+                print(f"OTP expired: {expiry_time} < {current_time} (UTC: {expiry_time_utc} < {current_time_utc})")
+                # Delete all OTPs for this email to ensure a fresh one is required
+                await collection.delete_many({"email": email})
                 return False
             
             # Important: Don't delete the OTP here, let the caller handle deletion
@@ -99,18 +125,39 @@ async def verify_otp(email: str, otp_code: str, is_registration: Optional[bool] 
         if not otp_doc:
             return False
         
-        # Check if OTP is expired - ensure both datetimes are timezone-aware
+        # Check if OTP is expired - ensure both datetimes are timezone-aware and compare in UTC
         expiry_time = otp_doc.expiry
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+
+        print(f"Debug: expiry_time (from DB): {expiry_time} (tzinfo: {expiry_time.tzinfo})")
+        print(f"Debug: current_time (IST): {current_time} (tzinfo: {current_time.tzinfo})")
         
-        # Convert naive datetime to aware if needed
+        # Check if OTP is expired - ensure both datetimes are timezone-aware and compare in UTC
+        expiry_time = otp_doc.expiry
+        current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+
+        print(f"Debug: expiry_time (from DB): {expiry_time} (tzinfo: {expiry_time.tzinfo})")
+        print(f"Debug: current_time (IST): {current_time} (tzinfo: {current_time.tzinfo})")
+        
+        # If expiry_time is naive, assume it's UTC (as intended by create_otp) and make it UTC-aware
         if expiry_time.tzinfo is None:
-            expiry_time = expiry_time.replace(tzinfo=timezone.utc)
+            print("Debug: expiry_time is naive, localizing as UTC")
+            expiry_time_utc = pytz.utc.localize(expiry_time)
+        else:
+            # If it's already timezone-aware, convert it to UTC
+            expiry_time_utc = expiry_time.astimezone(pytz.utc)
             
-        if expiry_time < current_time:
-            print(f"OTP expired: {expiry_time} < {current_time}")
-            # Delete expired OTP
-            await otp_doc.delete()
+        # Convert current time to UTC for reliable comparison
+        current_time_utc = current_time.astimezone(pytz.utc);
+
+        print(f"Debug: expiry_time_utc: {expiry_time_utc}")
+        print(f"Debug: current_time_utc: {current_time_utc}")
+        print(f"Debug: Comparison result (expiry_time_utc < current_time_utc): {expiry_time_utc < current_time_utc}")
+
+        if expiry_time_utc < current_time_utc:
+            print(f"OTP expired: {expiry_time} < {current_time} (UTC: {expiry_time_utc} < {current_time_utc})")
+            # Delete all OTPs for this email to ensure a fresh one is required
+            await OTP.find(OTP.email == email).delete()
             return False
         
         # Important: Don't delete the OTP here, let the caller handle deletion

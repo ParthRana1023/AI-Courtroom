@@ -44,13 +44,10 @@ export default function CaseDetails({ params }: { params: { cnr: string } }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Navigation />
-        <div className="flex-grow flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="mt-4">Loading case details...</p>
-          </div>
+      <div className="flex-grow flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4">Loading case details...</p>
         </div>
       </div>
     );

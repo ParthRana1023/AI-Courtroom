@@ -35,9 +35,11 @@ async def generate_counter_argument(history: str, user_input: str, ai_role: str 
         logger.error(f"Error generating counter argument: {str(e)}")
         return "I apologize, but I'm unable to generate a counter argument at this time. Please try again later."
 
-async def opening_statement(ai_role: str, case_details: str) -> str:
+async def opening_statement(ai_role: str, case_details: str, user_input: str,) -> str:
     try:
-        template = '''You are an Indian lawyer from the {ai_role}'s side, and you require to give an opening statement of 100 words regarding the case using this information: {case}
+        template = '''You are an Indian lawyer from the {ai_role}'s side, 
+        Give an opening statement in brief regarding the case using this information: {case}
+        The user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them, do not be too polite.
         '''
         
         prompt = ChatPromptTemplate.from_messages([
@@ -48,7 +50,8 @@ async def opening_statement(ai_role: str, case_details: str) -> str:
 
         response = chain.invoke({
             'ai_role' : ai_role,
-            'case' : case_details
+            'case' : case_details,
+            'user_role': user_input
         })
         return response
     except Exception as e:

@@ -8,11 +8,11 @@ from app.utils.rate_limiter import RateLimiter
 from app.models.user import User
 from datetime import datetime, timezone
 from app.utils.rate_limiter import rate_limiter
+from datetime import datetime
+import pytz
+from app.models.case import ArgumentItem
 
 router = APIRouter(tags=["arguments"])
-
-# 10 arguments per day (86400 seconds)
-rate_limiter = RateLimiter(10, 86400)
 
 # Update the submit_argument function
 @router.post("/{case_cnr}/arguments")
@@ -45,12 +45,12 @@ async def submit_argument(
         if role != "plaintiff":
             # If user (defendant) submits the first argument:
             # 1. AI generates plaintiff's opening statement
-            plaintiff_opening_statement = await opening_statement("plaintiff", case.details)
+            plaintiff_opening_statement = await opening_statement("plaintiff", case.details, role)
             case.plaintiff_arguments.append({
                 "type": "opening",
                 "content": plaintiff_opening_statement,
                 "user_id": None,  # LLM-generated
-                "timestamp": datetime.now(timezone.utc)
+                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
             })
 
             # 2. User's submitted argument is recorded as the defendant's opening statement
@@ -59,7 +59,7 @@ async def submit_argument(
                 "type": "opening", # Defendant's first statement is an opening statement
                 "content": defendant_opening_statement_content,
                 "user_id": current_user.id,
-                "timestamp": datetime.now(timezone.utc)
+                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
             })
 
             # Prepare history for counter-argument
@@ -71,7 +71,7 @@ async def submit_argument(
                 "type": "counter",
                 "content": ai_plaintiff_counter_to_defendant_opening,
                 "user_id": None, # LLM-generated
-                "timestamp": datetime.now(timezone.utc)
+                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
             })
 
             # Update case status
@@ -81,17 +81,19 @@ async def submit_argument(
             await case.save()
             # Return both AI plaintiff opening and AI plaintiff counter
             return {
-                "plaintiff_opening_statement": plaintiff_opening_statement,
-                "ai_plaintiff_counter_argument": ai_plaintiff_counter_to_defendant_opening
+                "ai_opening_statement": plaintiff_opening_statement,
+                "ai_opening_role": "plaintiff",
+                "ai_counter_argument": ai_plaintiff_counter_to_defendant_opening,
+                "ai_counter_role": "plaintiff"
             }
         else:
             # User is plaintiff, proceed normally with first argument
-            case.plaintiff_arguments.append({
-                "type": "user",
-                "content": argument,
-                "user_id": current_user.id,
-                "timestamp": datetime.now(timezone.utc)
-            })
+            case.plaintiff_arguments.append(ArgumentItem(
+                type="user",
+                content=argument,
+                user_id=current_user.id,
+                timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+            ))
     elif not case.plaintiff_arguments and role == "defendant":
         # Defendant cannot submit before plaintiff
         raise HTTPException(
@@ -102,10 +104,10 @@ async def submit_argument(
         # Check if user has participated in this case with the specified role
         existing_roles = set()
         for arg in case.plaintiff_arguments:
-            if str(arg.get("user_id")) == str(current_user.id):
+            if arg.user_id is not None and str(arg.user_id) == str(current_user.id):
                 existing_roles.add("plaintiff")
         for arg in case.defendant_arguments:
-            if str(arg.get("user_id")) == str(current_user.id):
+            if arg.user_id is not None and str(arg.user_id) == str(current_user.id):
                 existing_roles.add("defendant")
 
         if existing_roles and role not in existing_roles:
@@ -119,34 +121,66 @@ async def submit_argument(
             user_id = current_user.id if current_user.id is not None else ""
             
             if role == "plaintiff":
-                case.plaintiff_arguments.append({
-                    "type": "user",
-                    "content": argument,
-                    "user_id": user_id,
-                    "timestamp": datetime.now(timezone.utc)
-                })
+                case.plaintiff_arguments.append(ArgumentItem(
+                    type="user",
+                    content=argument,
+                    user_id=user_id,
+                    timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+                ))
             else:
-                case.defendant_arguments.append({
-                    "type": "user",
-                    "content": argument,
-                    "user_id": user_id,
-                    "timestamp": datetime.now(timezone.utc)
-                })
+                case.defendant_arguments.append(ArgumentItem(
+                    type="user",
+                    content=argument,
+                    user_id=user_id,
+                    timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+                ))
 
     # Prepare history for counter-argument generation
     history = ""
     if role == "plaintiff":
         # If user is plaintiff, include all previous arguments as history
         for arg in case.plaintiff_arguments:
-            history += f"Plaintiff: {arg.get('content')}\n"
+            # Handle both dictionary and ArgumentItem types for backward compatibility
+            content = None
+            if isinstance(arg, dict):
+                content = arg.get('content')
+            elif isinstance(arg, ArgumentItem):
+                content = arg.content
+
+            if content is not None:
+                history += f"Plaintiff: {content}\n"
         for arg in case.defendant_arguments:
-            history += f"Defendant: {arg.get('content')}\n"
+            # Handle both dictionary and ArgumentItem types for backward compatibility
+            content = None
+            if isinstance(arg, dict):
+                content = arg.get('content')
+            elif isinstance(arg, ArgumentItem):
+                content = arg.content
+
+            if content is not None:
+                history += f"Defendant: {content}\n"
     else:
         # If user is defendant, include all previous arguments as history
         for arg in case.defendant_arguments:
-            history += f"Defendant: {arg.get('content')}\n"
+            # Handle both dictionary and ArgumentItem types for backward compatibility
+            content = None
+            if isinstance(arg, dict):
+                content = arg.get('content')
+            elif isinstance(arg, ArgumentItem):
+                content = arg.content
+
+            if content is not None:
+                history += f"Defendant: {content}\n"
         for arg in case.plaintiff_arguments:
-            history += f"Plaintiff: {arg.get('content')}\n"
+            # Handle both dictionary and ArgumentItem types for backward compatibility
+            content = None
+            if isinstance(arg, dict):
+                content = arg.get('content')
+            elif isinstance(arg, ArgumentItem):
+                content = arg.content
+
+            if content is not None:
+                history += f"Plaintiff: {content}\n"
     
     # Determine AI role based on user's role
     ai_role = "defendant" if role == "plaintiff" else "plaintiff"
@@ -155,19 +189,19 @@ async def submit_argument(
     if is_closing:
         # Record user's closing statement
         if role == "plaintiff":
-            case.plaintiff_arguments.append({
-                "type": "closing",
-                "content": argument,
-                "user_id": current_user.id,
-                "timestamp": datetime.now(timezone.utc)
-            })
+            case.plaintiff_arguments.append(ArgumentItem(
+                type="closing",
+                content=argument,
+                user_id=current_user.id,
+                timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+            ))
         else:
-            case.defendant_arguments.append({
-                "type": "closing",
-                "content": argument,
-                "user_id": current_user.id,
-                "timestamp": datetime.now(timezone.utc)
-            })
+            case.defendant_arguments.append(ArgumentItem(
+                type="closing",
+                content=argument,
+                user_id=current_user.id,
+                timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+            ))
         
         # Generate AI's closing statement
         counter = await closing_statement(history, ai_role)
@@ -178,14 +212,14 @@ async def submit_argument(
                 "type": "closing",
                 "content": counter,
                 "user_id": None,  # LLM-generated
-                "timestamp": datetime.now(timezone.utc)
+                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
             })
         else:
             case.plaintiff_arguments.append({
                 "type": "closing",
                 "content": counter,
                 "user_id": None,  # LLM-generated
-                "timestamp": datetime.now(timezone.utc)
+                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
             })
         
         # Update case status to CLOSED
@@ -212,25 +246,36 @@ async def submit_argument(
             "type": "opening",
             "content": counter,
             "user_id": None,  # LLM-generated
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
         })
     # Otherwise add counter argument to appropriate side
     elif role == "plaintiff":
         case.defendant_arguments.append({
             "type": "counter",
             "content": counter,
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
         })
     else:
         case.plaintiff_arguments.append({
             "type": "counter",
             "content": counter,
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
         })
 
     await case.save()
 
-    return {"counter_argument": counter}
+    # Standardize response for AI-generated arguments
+    response_data = {}
+    if len(case.plaintiff_arguments) == 1 and len(case.defendant_arguments) == 1 and role == "plaintiff" and case.defendant_arguments[0].get("type") == "opening" and case.defendant_arguments[0].get("user_id") is None:
+        # This was the AI defendant's opening statement generated because plaintiff submitted first
+        response_data["ai_opening_statement"] = counter
+        response_data["ai_opening_role"] = "defendant"
+    else:
+        # This is a regular counter-argument
+        response_data["ai_counter_argument"] = counter
+        response_data["ai_counter_role"] = ai_role # ai_role is 'defendant' if user is 'plaintiff', and vice-versa
+
+    return response_data
 
 
 @router.post("/{case_cnr}/closing-statement")
@@ -259,10 +304,14 @@ async def submit_closing_statement(
     # Check if user has participated in this case with the specified role
     existing_roles = set()
     for arg in case.plaintiff_arguments:
-        if str(arg.get("user_id")) == str(current_user.id):
+        # Handle both dictionary and ArgumentItem types for backward compatibility
+        arg_user_id = arg.get('user_id') if isinstance(arg, dict) else getattr(arg, 'user_id', None)
+        if arg_user_id is not None and str(arg_user_id) == str(current_user.id):
             existing_roles.add("plaintiff")
     for arg in case.defendant_arguments:
-        if str(arg.get("user_id")) == str(current_user.id):
+        # Handle both dictionary and ArgumentItem types for backward compatibility
+        arg_user_id = arg.get('user_id') if isinstance(arg, dict) else getattr(arg, 'user_id', None)
+        if arg_user_id is not None and str(arg_user_id) == str(current_user.id):
             existing_roles.add("defendant")
 
     if role not in existing_roles:
@@ -276,28 +325,54 @@ async def submit_closing_statement(
     user_id = current_user.id if current_user.id is not None else ""
     
     if role == "plaintiff":
-        case.plaintiff_arguments.append({
-            "type": "closing",
-            "content": statement,
-            "user_id": user_id,
-            "timestamp": datetime.now(timezone.utc)
-        })
+        case.plaintiff_arguments.append(ArgumentItem(
+            type="closing",
+            content=statement,
+            user_id=user_id,
+            timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+        ))
     else:
-        case.defendant_arguments.append({
-            "type": "closing",
-            "content": statement,
-            "user_id": user_id,
-            "timestamp": datetime.now(timezone.utc)
-        })
+        case.defendant_arguments.append(ArgumentItem(
+            type="closing",
+            content=statement,
+            user_id=user_id,
+            timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+        ))
     
     await case.save()
     
     # Prepare history for AI closing statement
     history = ""
     for arg in case.plaintiff_arguments:
-        history += f"Plaintiff: {arg.get('content')}\n"
+        # Handle both dictionary and ArgumentItem types for backward compatibility
+        content = None
+        if isinstance(arg, ArgumentItem):
+            content = arg.content
+            arg_type = arg.type
+        elif isinstance(arg, dict):
+            content = arg.get('content')
+            arg_type = arg.get('type')
+
+        if content is not None:
+            if arg_type == 'plaintiff':
+                history += f"Plaintiff: {content}\n"
+            elif arg_type == 'defendant':
+                history += f"Defendant: {content}\n"
     for arg in case.defendant_arguments:
-        history += f"Defendant: {arg.get('content')}\n"
+        # Handle both dictionary and ArgumentItem types for backward compatibility
+        content = None
+        if isinstance(arg, ArgumentItem):
+            content = arg.content
+            arg_type = arg.type
+        elif isinstance(arg, dict):
+            content = arg.get('content')
+            arg_type = arg.get('type')
+
+        if content is not None:
+            if arg_type == 'plaintiff':
+                history += f"Plaintiff: {content}\n"
+            elif arg_type == 'defendant':
+                history += f"Defendant: {content}\n"
     
     # Determine AI role based on user's role (opposite side)
     ai_role = "defendant" if role == "plaintiff" else "plaintiff"
@@ -311,25 +386,27 @@ async def submit_closing_statement(
             "type": "closing",
             "content": ai_closing,
             "user_id": None,  # LLM-generated
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
         })
     else:
         case.plaintiff_arguments.append({
             "type": "closing",
             "content": ai_closing,
             "user_id": None,  # LLM-generated
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
         })
     
     # Generate verdict using all arguments from both sides
     # Ensure we're only extracting string content for the verdict generation
     user_args = [
-        str(arg["content"]) for arg in case.plaintiff_arguments + case.defendant_arguments 
-        if arg["type"] in ["user", "closing"]
+        str(arg.content) if isinstance(arg, ArgumentItem) else str(arg["content"])
+        for arg in case.plaintiff_arguments + case.defendant_arguments 
+        if (isinstance(arg, ArgumentItem) and arg.type in ["user", "closing"]) or (isinstance(arg, dict) and arg.get("type") in ["user", "closing"])
     ]
     counter_args = [
-        str(arg["content"]) for arg in case.plaintiff_arguments + case.defendant_arguments 
-        if arg["type"] == "counter"
+        str(arg.content) if isinstance(arg, ArgumentItem) else str(arg["content"])
+        for arg in case.plaintiff_arguments + case.defendant_arguments 
+        if (isinstance(arg, ArgumentItem) and arg.type == "counter") or (isinstance(arg, dict) and arg.get("type") == "counter")
     ]
     
     # Pass the case description to the verdict generator

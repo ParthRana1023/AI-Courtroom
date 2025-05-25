@@ -21,3 +21,4 @@ class LoginVerifyRequest(BaseModel):
     email: EmailStr
     otp: str
     remember_me: bool = False
+    redirect_path: str | None = None # Add optional redirect_path

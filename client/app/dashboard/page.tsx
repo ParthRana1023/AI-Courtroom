@@ -303,13 +303,6 @@ export default function Dashboard() {
                     <p className="text-zinc-500 dark:text-zinc-400 italic">
                       No active cases found.
                     </p>
-                    <Link
-                      href="/dashboard/generate-case"
-                      className="mt-4 inline-flex items-center text-zinc-900 dark:text-zinc-100 hover:text-zinc-700 dark:hover:text-zinc-300"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      <span>Generate your first case</span>
-                    </Link>
                   </div>
                 )}
               </div>

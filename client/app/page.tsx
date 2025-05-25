@@ -1,8 +1,11 @@
 import Link from "next/link";
+import Navigation from "@/components/navigation";
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-screen flex flex-col pt-16">
+      <Navigation />
+
       <div className="flex-grow flex flex-col items-center justify-center p-6 md:p-24 text-center">
         <h1 className="text-4xl md:text-6xl font-bold mb-6">
           AI Courtroom Simulation

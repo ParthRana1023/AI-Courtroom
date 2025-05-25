@@ -93,6 +93,8 @@ export const authAPI = {
   login: async (loginData: any) => {
     try {
       const response = await api.post("/auth/login/initiate", loginData);
+      // Remove the immediate call to verifyLogin
+      // await authAPI.verifyLogin({ ...response.data, remember_me: remember });
       return response.data;
     } catch (error) {
       handleApiError(error);
@@ -102,6 +104,7 @@ export const authAPI = {
 
   verifyLogin: async (data: any) => {
     try {
+      console.log("Data received by authAPI.verifyLogin:", data);
       const response = await api.post("/auth/login/verify", data);
       if (response.data.access_token) {
         // Set token in both localStorage and cookie
@@ -204,6 +207,16 @@ export const caseAPI = {
       throw error;
     }
   },
+
+  deleteCase: async (cnr: string) => {
+    try {
+      const response = await api.delete(`/cases/${cnr}`);
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
 };
 
 // Argument API calls
@@ -258,6 +271,15 @@ function handleApiError(error: any) {
     const serverError = error as AxiosError;
     if (serverError && serverError.response) {
       console.error("API Error:", serverError.response.data);
+      console.error("API Error Status:", serverError.response.status);
+      console.error("API Error Headers:", serverError.response.headers);
+      console.error("API Error Config:", serverError.config);
+    } else if (serverError.request) {
+      // The request was made but no response was received
+      console.error("API Error: No response received", serverError.request);
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error("API Error:", serverError.message);
     }
   } else {
     console.error("Unexpected error:", error);

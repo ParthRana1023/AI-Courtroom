@@ -22,7 +22,7 @@ export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <nav className="bg-black dark:bg-zinc-900 text-white shadow-lg">
+    <nav className="bg-black dark:bg-zinc-900 text-white shadow-lg fixed top-0 left-0 right-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo and Main Navigation Links */}
@@ -56,7 +56,7 @@ export default function Navigation() {
                     }`}
                   >
                     <Home className="h-4 w-4 mr-1" />
-                    <span>Dashboard</span>
+                    <span>Profile</span>
                   </Link>
 
                   <Link
@@ -88,7 +88,7 @@ export default function Navigation() {
 
           {/* Right Side - Auth Links */}
           <div className="hidden md:flex items-center space-x-4">
-            <ThemeToggle />
+            {/* <ThemeToggle /> */}
 
             {isAuthenticated ? (
               <div className="flex items-center">

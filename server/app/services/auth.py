@@ -5,9 +5,10 @@ from fastapi import HTTPException, status
 from app.models.user import User
 from app.models.otp import OTP
 from app.schemas.user import UserCreate, UserOut
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
-from jose import jwt
+import pytz
+from jose import JWTError, jwt
 from app.config import settings
 from app.services.otp import verify_otp
 
@@ -51,9 +52,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create a new JWT access token"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(pytz.timezone('Asia/Kolkata')) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = datetime.now(pytz.timezone('Asia/Kolkata')) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt

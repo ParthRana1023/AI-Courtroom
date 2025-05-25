@@ -116,11 +116,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ) => {
     setIsLoading(true);
     try {
-      const response = await authAPI.verifyLogin({
+      const dataToSend = {
         email,
         otp,
         remember_me: rememberMe,
-      });
+      };
+      console.log("Sending data to authAPI.verifyLogin:", dataToSend);
+      const response = await authAPI.verifyLogin(dataToSend);
       const userData = await authAPI.getProfile();
 
       // Set authentication state

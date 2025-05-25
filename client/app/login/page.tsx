@@ -35,8 +35,13 @@ export default function Login() {
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
       router.push(redirectPath);
+      // Reset OTP state if authenticated while OTP form is visible
+      if (isOtpSent) {
+        setIsOtpSent(false);
+        setOtp("");
+      }
     }
-  }, [isAuthenticated, authLoading, router, redirectPath]);
+  }, [isAuthenticated, authLoading, router, redirectPath, isOtpSent]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -83,7 +88,8 @@ export default function Login() {
 
     setIsLoading(true);
     try {
-      await verifyLogin(formData.email, otp, rememberMe, redirectPath);
+      // Pass email, otp, and rememberMe as separate arguments
+      await verifyLogin(formData.email, otp, rememberMe);
       // Redirect is handled in the auth context
     } catch (error: any) {
       if (error.response?.data?.detail) {

@@ -1,18 +1,25 @@
-# app/models/case.py
-from typing import Dict, List, Optional, Union, Any
-from beanie import Document, PydanticObjectId
-from pydantic import Field, ConfigDict
+from typing import List, Optional
+from pydantic import Field, BaseModel
+from pydantic_mongo import PydanticObjectId
+from datetime import datetime
+import pytz
 from enum import Enum
-from datetime import datetime, timezone
-from typing import Optional, List
+from beanie import Document
 
 def get_current_datetime():
-    return datetime.now(timezone.utc)
-    
+    return datetime.now(pytz.timezone('Asia/Kolkata'))
+
 class CaseStatus(str, Enum):
     NOT_STARTED = "not started"
     ACTIVE = "active"
     RESOLVED = "resolved"
+
+# Define a model for the items within the argument lists
+class ArgumentItem(BaseModel):
+    type: str
+    content: str
+    user_id: Optional[PydanticObjectId] = Field(None, description="ID of the user who added this argument, optional")
+    timestamp: datetime = Field(default_factory=get_current_datetime)
 
 class Case(Document):
     cnr: str = Field(..., min_length=16, max_length=16)
@@ -21,11 +28,11 @@ class Case(Document):
     created_at: datetime = Field(default_factory=get_current_datetime)
     status: CaseStatus = Field(default=CaseStatus.NOT_STARTED)
     user_id: PydanticObjectId = Field(..., description="ID of the user who owns this case")
-    plaintiff_arguments: List[Dict[str, Union[str, PydanticObjectId, datetime]]] = Field(
+    plaintiff_arguments: List[ArgumentItem] = Field(
         default_factory=list,
         description="Contains arguments with 'type', 'content', 'user_id', and 'timestamp'"
     )
-    defendant_arguments: List[Dict[str, Union[str, PydanticObjectId, datetime]]] = Field(
+    defendant_arguments: List[ArgumentItem] = Field(
         default_factory=list,
         description="Contains arguments with 'type', 'content', 'user_id', and 'timestamp'"
     )

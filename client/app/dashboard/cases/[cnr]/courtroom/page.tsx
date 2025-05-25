@@ -7,15 +7,39 @@ import Navigation from "@/components/navigation";
 import { caseAPI, argumentAPI } from "@/lib/api";
 import { rateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
 import { type Case, CaseStatus, type Argument } from "@/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import { CaseDetails } from "@/components/case-details";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import MarkdownRenderer from "@/components/markdown-renderer";
 
-export default function Courtroom({ params }: { params: { cnr: string } }) {
+export default function Courtroom({
+  params,
+}: {
+  params: Promise<{ cnr: string }>;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const role = searchParams.get("role") || "";
 
-  // Unwrap params using React.use()
-  const unwrappedParams = use(params);
-  const cnr = (unwrappedParams as { cnr: string }).cnr;
+  const { cnr } = use(params);
 
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [caseHistory, setCaseHistory] = useState<{
@@ -32,6 +56,8 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
   const [counterArgument, setCounterArgument] = useState<string | null>(null);
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [showVerdict, setShowVerdict] = useState(false);
+  const [showCaseDetails, setShowCaseDetails] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -47,10 +73,12 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
 
         // Determine if we should show the closing statement button
         const userArguments =
-          history.plaintiff_arguments.filter((arg) => arg.type === "user")
-            .length +
-          history.defendant_arguments.filter((arg) => arg.type === "user")
-            .length;
+          history.plaintiff_arguments.filter(
+            (arg: Argument) => arg.type === "user"
+          ).length +
+          history.defendant_arguments.filter(
+            (arg: Argument) => arg.type === "user"
+          ).length;
 
         setShowClosingButton(userArguments >= 3);
 
@@ -60,12 +88,12 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
 
         // Check if user has participated as plaintiff
         const participatedAsPlaintiff = history.plaintiff_arguments.some(
-          (arg) => arg.user_id && arg.type === "user"
+          (arg: Argument) => arg.user_id && arg.type === "user"
         );
 
         // Check if user has participated as defendant
         const participatedAsDefendant = history.defendant_arguments.some(
-          (arg) => arg.user_id && arg.type === "user"
+          (arg: Argument) => arg.user_id && arg.type === "user"
         );
 
         if (participatedAsPlaintiff) {
@@ -155,7 +183,7 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
         cnr,
         currentRole,
         argument
-      ); // Changed from params.cnr
+      );
 
       // Initialize updatedHistory once, ensuring arrays are properly initialized
       const updatedHistory = {
@@ -171,119 +199,61 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
         aiCounterArgumentTimestamp.getSeconds() + 1
       );
 
-      // Scenario 1: User is Defendant, and it's the first turn (AI Plaintiff makes opening statement)
-      if (
-        currentRole === "defendant" &&
-        (response.plaintiff_opening_statement || response.plaintiff_opening)
-      ) {
-        const openingStatement =
-          response.plaintiff_opening_statement || response.plaintiff_opening;
-
-        // Add AI Plaintiff's opening statement
-        // Ensure this timestamp is slightly before the user's argument for correct ordering
-        const plaintiffOpeningTimestamp = new Date(
-          new Date(userArgumentTimestamp).getTime() - 1000
-        ).toISOString();
-        updatedHistory.plaintiff_arguments.push({
-          type: "opening",
-          content: openingStatement,
-          user_id: null,
-          timestamp: plaintiffOpeningTimestamp,
-        });
-
-        // Add User (Defendant)'s argument
-        updatedHistory.defendant_arguments.push({
-          type: "user",
-          content: argument,
-          user_id: "current-user", // Replace with actual user ID if available
-          timestamp: userArgumentTimestamp,
-        });
-
-        // Add AI Counter-Argument (Plaintiff)
-        if (response.plaintiff_counter_argument) {
-          updatedHistory.plaintiff_arguments.push({
-            type: "counter",
-            content: response.plaintiff_counter_argument,
-            user_id: null,
-            timestamp: aiCounterArgumentTimestamp.toISOString(),
-          });
-        }
-      }
-
-      // Scenario 2: User is Plaintiff, and it's the first turn (AI Defendant makes opening statement)
-      else if (
-        currentRole === "plaintiff" &&
-        (response.defendant_opening_statement || response.defendant_opening)
-      ) {
-        const openingStatement =
-          response.defendant_opening_statement || response.defendant_opening;
-
-        // Add AI Defendant's opening statement
-        // Ensure this timestamp is slightly before the user's argument for correct ordering
-        const defendantOpeningTimestamp = new Date(
-          new Date(userArgumentTimestamp).getTime() - 1000
-        ).toISOString();
-        updatedHistory.defendant_arguments.push({
-          type: "opening",
-          content: openingStatement,
-          user_id: null,
-          timestamp: defendantOpeningTimestamp,
-        });
-
-        // Add User (Plaintiff)'s argument
+      // Add User's argument based on their role
+      if (currentRole === "plaintiff") {
         updatedHistory.plaintiff_arguments.push({
           type: "user",
           content: argument,
           user_id: "current-user", // Replace with actual user ID if available
           timestamp: userArgumentTimestamp,
         });
+      } else if (currentRole === "defendant") {
+        updatedHistory.defendant_arguments.push({
+          type: "user",
+          content: argument,
+          user_id: "current-user", // Replace with actual user ID if available
+          timestamp: userArgumentTimestamp,
+        });
+      }
 
-        // Add AI Counter-Argument (Defendant)
-        if (response.defendant_counter_argument) {
-          updatedHistory.defendant_arguments.push({
-            type: "counter",
-            content: response.defendant_counter_argument,
+      // Add AI Opening Statement if present in the response
+      if (response.ai_opening_statement && response.ai_opening_role) {
+        const aiOpeningTimestamp = new Date(
+          new Date(userArgumentTimestamp).getTime() - 1000 // Ensure AI opening is before user's argument
+        ).toISOString();
+        if (response.ai_opening_role === "plaintiff") {
+          updatedHistory.plaintiff_arguments.push({
+            type: "opening",
+            content: response.ai_opening_statement,
             user_id: null,
-            timestamp: aiCounterArgumentTimestamp.toISOString(),
+            timestamp: aiOpeningTimestamp,
+          });
+        } else if (response.ai_opening_role === "defendant") {
+          updatedHistory.defendant_arguments.push({
+            type: "opening",
+            content: response.ai_opening_statement,
+            user_id: null,
+            timestamp: aiOpeningTimestamp,
           });
         }
       }
 
-      // Scenario 3: Subsequent turns (User submits argument, AI responds with counter-argument)
-      else {
-        // Add User's argument based on their role
-        if (currentRole === "plaintiff") {
+      // Add AI Counter-Argument if present in the response
+      if (response.ai_counter_argument && response.ai_counter_role) {
+        if (response.ai_counter_role === "plaintiff") {
           updatedHistory.plaintiff_arguments.push({
-            type: "user",
-            content: argument,
-            user_id: "current-user", // Replace with actual user ID if available
-            timestamp: userArgumentTimestamp,
+            type: "counter",
+            content: response.ai_counter_argument,
+            user_id: null,
+            timestamp: aiCounterArgumentTimestamp.toISOString(),
           });
-          // Add AI Counter-Argument (Defendant)
-          if (response.defendant_counter_argument) {
-            updatedHistory.defendant_arguments.push({
-              type: "counter",
-              content: response.defendant_counter_argument,
-              user_id: null,
-              timestamp: aiCounterArgumentTimestamp.toISOString(),
-            });
-          }
-        } else if (currentRole === "defendant") {
+        } else if (response.ai_counter_role === "defendant") {
           updatedHistory.defendant_arguments.push({
-            type: "user",
-            content: argument,
-            user_id: "current-user", // Replace with actual user ID if available
-            timestamp: userArgumentTimestamp,
+            type: "counter",
+            content: response.ai_counter_argument,
+            user_id: null,
+            timestamp: aiCounterArgumentTimestamp.toISOString(),
           });
-          // Add AI Counter-Argument (Plaintiff)
-          if (response.plaintiff_counter_argument) {
-            updatedHistory.plaintiff_arguments.push({
-              type: "counter",
-              content: response.plaintiff_counter_argument,
-              user_id: null,
-              timestamp: aiCounterArgumentTimestamp.toISOString(),
-            });
-          }
         }
       }
 
@@ -320,7 +290,7 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
         cnr,
         currentRole,
         argument
-      ); // Changed from params.cnr
+      );
 
       // Update the UI with the closing statement and verdict
       const updatedHistory = { ...caseHistory! };
@@ -348,13 +318,14 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
 
       if (response.verdict) {
         updatedHistory.verdict = response.verdict;
+        setShowVerdict(true);
       }
 
       setCaseHistory(updatedHistory);
       setArgument("");
 
       // Refresh case data to get updated status
-      const updatedCase = await caseAPI.getCase(cnr); // Changed from params.cnr
+      const updatedCase = await caseAPI.getCase(cnr);
       setCaseData(updatedCase);
 
       // Refresh rate limit information
@@ -373,13 +344,10 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Navigation />
-        <div className="flex-grow flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="mt-4">Loading courtroom...</p>
-          </div>
+      <div className="flex-grow flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4">Loading courtroom...</p>
         </div>
       </div>
     );
@@ -429,256 +397,357 @@ export default function Courtroom({ params }: { params: { cnr: string } }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="flex flex-col min-h-screen">
       <Navigation />
+      <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+        <div className="flex items-center justify-between space-x-4">
+          <h2 className="text-3xl font-bold tracking-tight">Courtroom</h2>
+          <div className="flex items-center space-x-2">
+            <Drawer open={showCaseDetails} onOpenChange={setShowCaseDetails}>
+              <DrawerTrigger asChild>
+                <Button variant="outline">View Case Details</Button>
+              </DrawerTrigger>
+              <DrawerContent className="h-[80vh]">
+                <DrawerHeader className="pb-4 border-b">
+                  <DrawerTitle>Case Details</DrawerTitle>
+                </DrawerHeader>
+                <ScrollArea className="h-[calc(100vh-10rem)]">
+                  <div className="p-6">
+                    <div className="mb-8">
+                      <h2 className="text-xl font-semibold mb-4">
+                        {caseData.title}
+                      </h2>
+                      <div className="flex flex-wrap gap-4 mb-4">
+                        <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                          Case #{caseData.cnr}
+                        </span>
+                        <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                          Filed{" "}
+                          {new Date(caseData.created_at).toLocaleDateString()}
+                        </span>
+                        {caseData.court && (
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                            {caseData.court}
+                          </span>
+                        )}
+                      </div>
 
-      <div className="flex-grow container mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Courtroom</h1>
-            <div className="flex items-center">
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  caseData.status === CaseStatus.ACTIVE
-                    ? "bg-green-100 text-green-800"
-                    : caseData.status === CaseStatus.RESOLVED
-                    ? "bg-gray-100 text-gray-800"
-                    : "bg-yellow-100 text-yellow-800"
-                }`}
-              >
-                {caseData.status}
-              </span>
-              <button
-                onClick={() => router.back()}
-                className="ml-4 px-3 py-1 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Back
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">{caseData.title}</h2>
-            <p className="text-gray-600">
-              <span className="font-medium">Case Number:</span> {caseData.cnr}
-            </p>
-            <p className="text-gray-600">
-              <span className="font-medium">Date Filed:</span>{" "}
-              {caseData.created_at
-                ? new Date(caseData.created_at).toLocaleDateString()
-                : "N/A"}
-            </p>
-            <p className="text-gray-600">
-              <span className="font-medium">Court:</span> {caseData.court}
-            </p>
-            {currentRole && (
-              <div className="mt-2">
-                <span className="font-medium">Your Role:</span>{" "}
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    currentRole === "plaintiff"
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
-                >
-                  {currentRole === "plaintiff"
-                    ? "Plaintiff Lawyer"
-                    : "Defendant Lawyer"}
-                </span>
-              </div>
+                      <div className="rounded-md shadow-md border border-gray-300">
+                        {caseData.case_text ? (
+                          <div className="p-6">
+                            <MarkdownRenderer
+                              markdown={caseData.case_text}
+                              className="prose prose-lg max-w-none font-serif dark:prose-invert"
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-gray-500 italic p-6">
+                            No case details available.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </ScrollArea>
+              </DrawerContent>
+            </Drawer>
+            {caseData?.status === CaseStatus.RESOLVED && (
+              <Button variant="secondary" onClick={() => setShowVerdict(true)}>
+                View Verdict
+              </Button>
             )}
           </div>
+        </div>
 
-          <div className="mb-6 bg-gray-50 rounded-lg p-4 h-[400px] overflow-y-auto">
-            {/* Chat messages */}
-            <div className="space-y-4">
-              {/* Combine and sort plaintiff and defendant arguments chronologically */}
-              {[
-                ...caseHistory.plaintiff_arguments,
-                ...caseHistory.defendant_arguments,
-              ]
-                .sort((a, b) => {
-                  // Sort by timestamp to display in chronological order
-                  if (a.timestamp && b.timestamp) {
-                    return (
-                      new Date(a.timestamp).getTime() -
-                      new Date(b.timestamp).getTime()
-                    );
-                  }
-                  // Fallback to type-based sorting if timestamps are missing
-                  const typeOrder = {
-                    opening: 0,
-                    user: 1,
-                    counter: 1,
-                    closing: 2,
-                  };
-                  return (
-                    (typeOrder as any)[a.type] - (typeOrder as any)[b.type]
-                  );
-                })
-                .map((arg, index) => {
-                  const isPlaintiff =
-                    caseHistory.plaintiff_arguments.includes(arg);
-                  const role = isPlaintiff ? "plaintiff" : "defendant";
-                  const isUser =
-                    arg.user_id === "current-user" ||
-                    (currentRole === role && arg.type === "user");
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                caseData.status === CaseStatus.ACTIVE
+                  ? "bg-green-100 text-green-800"
+                  : caseData.status === CaseStatus.RESOLVED
+                  ? "bg-gray-100 text-gray-800"
+                  : "bg-yellow-100 text-yellow-800"
+              }`}
+            >
+              {caseData.status}
+            </span>
+            {currentRole && (
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  currentRole === "plaintiff"
+                    ? "bg-blue-100 text-blue-800"
+                    : "bg-purple-100 text-purple-800"
+                }`}
+              >
+                {currentRole === "plaintiff"
+                  ? "Plaintiff Lawyer"
+                  : "Defendant Lawyer"}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => router.back()}
+            className="px-3 py-1 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Back
+          </button>
+        </div>
 
-                  return (
-                    <div
-                      key={index}
-                      className={`flex ${
-                        isUser ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-[75%] rounded-lg p-3 ${
-                          isUser
-                            ? "bg-blue-100 text-blue-900"
-                            : "bg-gray-200 text-gray-900"
-                        }`}
-                      >
-                        <div className="text-xs font-medium mb-1 flex justify-between">
-                          <span>
-                            {isPlaintiff ? "Plaintiff" : "Defendant"}{" "}
-                            {arg.type === "opening" && "(Opening Statement)"}
-                            {arg.type === "closing" && "(Closing Statement)"}
-                          </span>
-                          {arg.timestamp && (
-                            <span className="text-xs text-gray-500 ml-2">
-                              {new Date(arg.timestamp).toLocaleString()}
-                            </span>
-                          )}
-                        </div>
-                        <p className="whitespace-pre-wrap">{arg.content}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-
-              {/* Verdict (if available) */}
-              {caseHistory.verdict && (
-                <div className="flex justify-center my-6">
-                  <div className="max-w-[90%] bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-green-800 mb-2">
-                      Final Verdict
-                    </h3>
-                    <p className="whitespace-pre-wrap text-green-900">
-                      {caseHistory.verdict}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">{caseData.title}</h2>
+            <div className="text-sm text-gray-500">
+              Case #{caseData.cnr} • Filed{" "}
+              {new Date(caseData.created_at).toLocaleDateString()}
             </div>
           </div>
+        </div>
 
-          {/* Input area */}
-          {caseData.status !== CaseStatus.RESOLVED && (
-            <div className="mt-4">
-              {/* Rate limit information */}
-              {rateLimit && (
-                <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-                    <div>
-                      <span className="font-medium text-gray-700">
-                        Daily argument limit:
-                      </span>{" "}
-                      <span
-                        className={`${
-                          rateLimit.remaining_attempts === 0
-                            ? "text-red-600 font-medium"
-                            : "text-gray-900"
-                        }`}
-                      >
-                        {rateLimit.remaining_attempts} of{" "}
-                        {rateLimit.max_attempts} remaining
-                      </span>
-                    </div>
+        <div className="mb-6 bg-gray-50 rounded-lg p-4 h-[400px] overflow-y-auto">
+          <div className="flex justify-between items-center gap-4 mb-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowCaseDetails(true)}
+              className="whitespace-nowrap"
+            >
+              View Case Details
+            </Button>
+            {caseData?.status === CaseStatus.RESOLVED &&
+              caseHistory?.verdict && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowVerdict(true)}
+                  className="whitespace-nowrap"
+                >
+                  View Verdict
+                </Button>
+              )}
+          </div>
+          {/* Chat messages */}
+          <div className="space-y-4">
+            {/* Combine and sort plaintiff and defendant arguments chronologically */}
+            {[
+              ...caseHistory.plaintiff_arguments,
+              ...caseHistory.defendant_arguments,
+            ]
+              .sort((a, b) => {
+                // Sort by timestamp to display in chronological order
+                if (a.timestamp && b.timestamp) {
+                  return (
+                    new Date(a.timestamp).getTime() -
+                    new Date(b.timestamp).getTime()
+                  );
+                }
+                // Fallback to type-based sorting if timestamps are missing
+                const typeOrder = {
+                  opening: 0,
+                  user: 1,
+                  counter: 1,
+                  closing: 2,
+                };
+                return (typeOrder as any)[a.type] - (typeOrder as any)[b.type];
+              })
+              .map((arg, index) => {
+                const isPlaintiff =
+                  caseHistory.plaintiff_arguments.includes(arg);
+                const role = isPlaintiff ? "plaintiff" : "defendant";
+                const isUser =
+                  arg.user_id === "current-user" ||
+                  (currentRole === role && arg.type === "user");
 
-                    {timeRemaining !== null && timeRemaining > 0 ? (
-                      <div className="mt-2 sm:mt-0 flex items-center">
-                        <div className="text-orange-600 font-medium flex items-center">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 mr-1"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                          <span>Next submission in: </span>
-                          <span className="ml-1 bg-orange-100 text-orange-800 px-2 py-1 rounded font-mono">
-                            {Math.floor(timeRemaining / 60)}:
-                            {(timeRemaining % 60).toString().padStart(2, "0")}
-                          </span>
-                        </div>
-                      </div>
-                    ) : rateLimit.remaining_attempts === 0 ? (
-                      <div className="mt-2 sm:mt-0">
-                        <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm">
-                          Daily limit reached
+                return (
+                  <div
+                    key={index}
+                    className={`flex ${
+                      isUser ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[75%] rounded-lg p-3 ${
+                        isUser
+                          ? "bg-blue-500 text-white"
+                          : "bg-gray-200 text-gray-900"
+                      }`}
+                    >
+                      <div className="text-xs font-medium mb-1 flex justify-between">
+                        <span>
+                          {isPlaintiff ? "Plaintiff" : "Defendant"}{" "}
+                          {arg.type === "opening" && "(Opening Statement)"}
+                          {arg.type === "closing" && "(Closing Statement)"}
                         </span>
+                        {arg.timestamp && (
+                          <span className="text-xs text-gray-500 ml-2">
+                            {new Date(arg.timestamp).toLocaleString()}
+                          </span>
+                        )}
                       </div>
-                    ) : null}
+                      <p className="whitespace-pre-wrap">{arg.content}</p>
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* Verdict Dialog */}
+            <Dialog
+              open={showVerdict && !!caseHistory?.verdict}
+              onOpenChange={setShowVerdict}
+            >
+              <DialogContent className="max-w-3xl max-h-[90vh] p-0">
+                <DialogHeader className="px-6 py-4 border-b">
+                  <DialogTitle className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-1 h-8 bg-green-500 rounded"></div>
+                      <div className="max-w-md">
+                        <h2 className="text-xl font-bold truncate">
+                          Final Verdict
+                        </h2>
+                        <p className="text-sm text-gray-500 mt-1 truncate">
+                          Case #{caseData.cnr} • {caseData.title}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      Verdict Passed
+                    </span>
+                  </DialogTitle>
+                </DialogHeader>
+                <ScrollArea className="max-h-[calc(90vh-12rem)]">
+                  <div className="px-6 py-4">
+                    <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-inner overflow-hidden">
+                      <div className="p-6">
+                        <MarkdownRenderer
+                          markdown={caseHistory?.verdict || ""}
+                          className="prose prose-lg max-w-none font-serif prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </ScrollArea>
+                <div className="px-6 py-4 border-t bg-gray-50 dark:bg-zinc-900">
+                  <div className="flex items-center justify-between text-sm text-gray-500">
+                    <div className="flex items-center">
+                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                      Verdict passed on{" "}
+                      {new Date(caseData.created_at).toLocaleDateString()}
+                    </div>
+                    {caseData.court && (
+                      <div className="flex items-center text-gray-500">
+                        <span>{caseData.court}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-              <div className="flex flex-col space-y-2">
-                <textarea
-                  value={argument}
-                  onChange={(e) => setArgument(e.target.value)}
-                  placeholder={`Enter your ${
-                    showClosingButton ? "closing statement" : "argument"
-                  }...`}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 h-32"
-                  disabled={
-                    isSubmitting ||
-                    (timeRemaining !== null && timeRemaining > 0)
-                  }
-                />
-                <div className="flex justify-end">
-                  <div className="flex space-x-2">
+              </DialogContent>
+            </Dialog>
+
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Input area */}
+        {caseData.status !== CaseStatus.RESOLVED && (
+          <div className="mt-4">
+            {/* Rate limit information */}
+            {rateLimit && (
+              <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                  <div>
+                    <span className="font-medium text-gray-700">
+                      Daily argument limit:
+                    </span>{" "}
+                    <span
+                      className={`${
+                        rateLimit.remaining_attempts === 0
+                          ? "text-red-600 font-medium"
+                          : "text-gray-900"
+                      }`}
+                    >
+                      {rateLimit.remaining_attempts} of {rateLimit.max_attempts}{" "}
+                      remaining
+                    </span>
+                  </div>
+
+                  {timeRemaining !== null && timeRemaining > 0 ? (
+                    <div className="mt-2 sm:mt-0 flex items-center">
+                      <div className="text-orange-600 font-medium flex items-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4 mr-1"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span>Next submission in: </span>
+                        <span className="ml-1 bg-orange-100 text-orange-800 px-2 py-1 rounded font-mono">
+                          {Math.floor(timeRemaining / 60)}:
+                          {(timeRemaining % 60).toString().padStart(2, "0")}
+                        </span>
+                      </div>
+                    </div>
+                  ) : rateLimit.remaining_attempts === 0 ? (
+                    <div className="mt-2 sm:mt-0">
+                      <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm">
+                        Daily limit reached
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-col space-y-2">
+              <textarea
+                value={argument}
+                onChange={(e) => setArgument(e.target.value)}
+                placeholder={`Enter your ${
+                  showClosingButton ? "closing statement" : "argument"
+                }...`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 h-32"
+                disabled={
+                  isSubmitting || (timeRemaining !== null && timeRemaining > 0)
+                }
+              />
+              <div className="flex justify-end">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={handleSubmitArgument}
+                    disabled={
+                      isSubmitting ||
+                      !argument.trim() ||
+                      (timeRemaining !== null && timeRemaining > 0)
+                    }
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit Argument"}
+                  </button>
+
+                  {showClosingButton && (
                     <button
-                      onClick={handleSubmitArgument}
+                      onClick={handleSubmitClosingStatement}
                       disabled={
                         isSubmitting ||
                         !argument.trim() ||
                         (timeRemaining !== null && timeRemaining > 0)
                       }
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md transition-colors disabled:opacity-50"
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md transition-colors disabled:opacity-50"
                     >
-                      {isSubmitting ? "Submitting..." : "Submit Argument"}
+                      {isSubmitting
+                        ? "Submitting..."
+                        : "Submit Closing Statement"}
                     </button>
-
-                    {showClosingButton && (
-                      <button
-                        onClick={handleSubmitClosingStatement}
-                        disabled={
-                          isSubmitting ||
-                          !argument.trim() ||
-                          (timeRemaining !== null && timeRemaining > 0)
-                        }
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md transition-colors disabled:opacity-50"
-                      >
-                        {isSubmitting
-                          ? "Submitting..."
-                          : "Submit Closing Statement"}
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

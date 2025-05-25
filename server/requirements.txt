@@ -11,6 +11,7 @@ pytest-asyncio
 pytest-html
 httpx
 pydantic-settings
+pydantic_mongo
 pydantic
 python-multipart
 pymongo
