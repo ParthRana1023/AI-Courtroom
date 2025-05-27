@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # AI Courtroom Simulation
 
 AI Courtroom is an interactive legal simulation platform that leverages artificial intelligence to create realistic courtroom experiences. Users can submit legal arguments, receive AI-generated counter-arguments, and get verdicts based on advanced AI analysis.
@@ -130,3 +131,44 @@ AI Courtroom is an interactive legal simulation platform that leverages artifici
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+=======
+<h1 align="center" id="title">AI Courtroom</h1>
+
+<h2>🛠️ Installation Steps:</h2>
+
+<p>1. Client Side Setup</p>
+
+```
+cd client
+```
+
+<p>2. Install Packages</p>
+
+```
+npm i
+```
+
+<p>3. Run the Client</p>
+
+```
+npm run dev
+```
+
+<p>4. Server side setup</p>
+
+```
+cd server
+```
+
+<p>5. Install Python Libraries</p>
+
+```
+pip install -r requirements.txt
+```
+
+<p>6. Start the server</p>
+
+```
+uvicorn app.main:app --reload
+```
+>>>>>>> 31951aa90ae35004dec90421259d72e0de8be742
