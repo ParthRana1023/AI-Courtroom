@@ -29,7 +29,7 @@ cd server
 <p>5. Install Python Libraries</p>
 
 ```
-pipip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 <p>6. Start the server</p>
