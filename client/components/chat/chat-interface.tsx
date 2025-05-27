@@ -5,11 +5,12 @@ import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { submitArgument } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import SettingsAwareTextArea from "@/components/settings-aware-textarea";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getCurrentTimestamp } from "@/lib/datetime";
 
 interface ChatMessage {
   id: string;
@@ -40,7 +41,7 @@ export function ChatInterface({ caseId, role, caseData }: ChatInterfaceProps) {
         content: `Welcome to the ${
           role === "defendant" ? "Defendant" : "Plaintiff"
         } argument submission. Please provide your arguments based on the case details.`,
-        timestamp: new Date(),
+        timestamp: getCurrentTimestamp(),
       },
     ]);
   }, [role]);
@@ -58,7 +59,7 @@ export function ChatInterface({ caseId, role, caseData }: ChatInterfaceProps) {
       id: Date.now().toString(),
       role: "user",
       content: input,
-      timestamp: new Date(),
+      timestamp: getCurrentTimestamp(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -73,7 +74,7 @@ export function ChatInterface({ caseId, role, caseData }: ChatInterfaceProps) {
         id: `ai-${Date.now()}`,
         role: response.isVerdict ? "judge" : "ai",
         content: response.response,
-        timestamp: new Date(),
+        timestamp: getCurrentTimestamp(),
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -91,7 +92,7 @@ export function ChatInterface({ caseId, role, caseData }: ChatInterfaceProps) {
         role: "ai",
         content:
           "There was an error processing your argument. Please try again.",
-        timestamp: new Date(),
+        timestamp: getCurrentTimestamp(),
       };
 
       setMessages((prev) => [...prev, errorMessage]);
@@ -178,9 +179,10 @@ export function ChatInterface({ caseId, role, caseData }: ChatInterfaceProps) {
 
       <div className="border-t p-4">
         <form onSubmit={handleSubmit} className="flex gap-2">
-          <Textarea
+          <SettingsAwareTextArea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={setInput}
+            onSubmit={handleSubmit}
             placeholder={
               isComplete ? "Argument phase complete" : "Type your argument..."
             }

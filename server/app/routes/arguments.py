@@ -8,7 +8,7 @@ from app.models.user import User
 from datetime import datetime
 from app.utils.rate_limiter import rate_limiter
 from datetime import datetime
-import pytz
+from app.utils.datetime import get_current_datetime
 from app.models.case import ArgumentItem
 
 router = APIRouter(tags=["arguments"])
@@ -54,7 +54,7 @@ async def submit_argument(
                 "type": "opening",
                 "content": plaintiff_opening_statement,
                 "user_id": None,  # LLM-generated
-                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+                "timestamp": get_current_datetime()
             })
 
             # 2. User's submitted argument is recorded as the defendant's opening statement
@@ -63,7 +63,7 @@ async def submit_argument(
                 "type": "opening", # Defendant's first statement is an opening statement
                 "content": defendant_opening_statement_content,
                 "user_id": current_user.id,
-                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+                "timestamp": get_current_datetime()
             })
 
             # Prepare history for counter-argument
@@ -77,7 +77,7 @@ async def submit_argument(
                 "type": "counter",
                 "content": ai_plaintiff_counter_to_defendant_opening,
                 "user_id": None, # LLM-generated
-                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+                "timestamp": get_current_datetime()
             })
 
             # Update case status
@@ -104,7 +104,7 @@ async def submit_argument(
                 type="user",
                 content=argument,
                 user_id=current_user.id,
-                timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+                timestamp=get_current_datetime()
             ))
             print("[DEBUG] Plaintiff argument appended.")
     elif not case.plaintiff_arguments and role == "defendant":
@@ -142,7 +142,7 @@ async def submit_argument(
                     type="user",
                     content=argument,
                     user_id=user_id,
-                    timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+                    timestamp=get_current_datetime()
                 ))
                 print("[DEBUG] Plaintiff argument appended.")
             else:
@@ -150,7 +150,7 @@ async def submit_argument(
                     type="user",
                     content=argument,
                     user_id=user_id,
-                    timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+                    timestamp=get_current_datetime()
                 ))
                 print("[DEBUG] Defendant argument appended.")
 
@@ -213,14 +213,14 @@ async def submit_argument(
                 type="closing",
                 content=argument,
                 user_id=current_user.id,
-                timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+                timestamp=get_current_datetime()
             ))
         else:
             case.defendant_arguments.append(ArgumentItem(
                 type="closing",
                 content=argument,
                 user_id=current_user.id,
-                timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+                timestamp=get_current_datetime()
             ))
         
         # Generate AI's closing statement
@@ -232,14 +232,14 @@ async def submit_argument(
                 "type": "closing",
                 "content": counter,
                 "user_id": None,  # LLM-generated
-                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+                "timestamp": get_current_datetime()
             })
         else:
             case.plaintiff_arguments.append({
                 "type": "closing",
                 "content": counter,
                 "user_id": None,  # LLM-generated
-                "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+                "timestamp": get_current_datetime()
             })
         
         # Update case status to CLOSED
@@ -266,27 +266,27 @@ async def submit_argument(
             "type": "opening",
             "content": counter,
             "user_id": None,  # LLM-generated
-            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+            "timestamp": get_current_datetime()
         })
     # Otherwise add counter argument to appropriate side
     elif role == "plaintiff":
         case.defendant_arguments.append({
             "type": "counter",
             "content": counter,
-            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+            "timestamp": get_current_datetime()
         })
     else:
         case.plaintiff_arguments.append({
             "type": "counter",
             "content": counter,
-            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+            "timestamp": get_current_datetime()
         })
 
     await case.save()
 
     # Standardize response for AI-generated arguments
     response_data = {}
-    if len(case.plaintiff_arguments) == 1 and len(case.defendant_arguments) == 1 and role == "plaintiff" and case.defendant_arguments[0].get("type") == "opening" and case.defendant_arguments[0].get("user_id") is None:
+    if len(case.plaintiff_arguments) == 1 and len(case.defendant_arguments) == 1 and role == "plaintiff" and case.defendant_arguments[0].type == "opening" and case.defendant_arguments[0].user_id is None:
         # This was the AI defendant's opening statement generated because plaintiff submitted first
         response_data["ai_opening_statement"] = counter
         response_data["ai_opening_role"] = "defendant"
@@ -349,14 +349,14 @@ async def submit_closing_statement(
             type="closing",
             content=statement,
             user_id=user_id,
-            timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+            timestamp=get_current_datetime()
         ))
     else:
         case.defendant_arguments.append(ArgumentItem(
             type="closing",
             content=statement,
             user_id=user_id,
-            timestamp=datetime.now(pytz.timezone('Asia/Kolkata'))
+            timestamp=get_current_datetime()
         ))
     
     await case.save()
@@ -406,14 +406,14 @@ async def submit_closing_statement(
             "type": "closing",
             "content": ai_closing,
             "user_id": None,  # LLM-generated
-            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+            "timestamp": get_current_datetime()
         })
     else:
         case.plaintiff_arguments.append({
             "type": "closing",
             "content": ai_closing,
             "user_id": None,  # LLM-generated
-            "timestamp": datetime.now(pytz.timezone('Asia/Kolkata'))
+            "timestamp": get_current_datetime()
         })
     
     # Generate verdict using all arguments from both sides
@@ -433,6 +433,9 @@ async def submit_closing_statement(
     case.verdict = await generate_verdict(user_args, counter_args, case.details)
     case.status = CaseStatus.RESOLVED
     await case.save()
+
+    ai_opening_statement_content = None
+    ai_counter_argument_content = None
     
     response_data = {
         "verdict": case.verdict,

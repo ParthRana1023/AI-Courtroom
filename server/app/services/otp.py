@@ -1,13 +1,13 @@
 # app/services/otp.py
 import random
 import string
-from datetime import datetime, timedelta, timezone
 import pytz
 from app.models.otp import OTP
 from app.services.email import send_otp_email
 import motor.motor_asyncio
 from app.config import settings
 from typing import Optional
+from app.utils.datetime import get_current_datetime, create_expiry_time
 
 def generate_otp(length: int = 6) -> str:
     """Generate a random OTP of specified length"""
@@ -21,10 +21,8 @@ async def create_otp(email: str, is_registration: bool = True) -> str:
     
     # Generate new OTP
     otp_code = generate_otp();
-    # Calculate expiry time in IST and convert to UTC for storage
-    ist_offset = timedelta(hours=5, minutes=30)
-    ist_timezone = timezone(ist_offset)
-    expiry_ist = datetime.now(ist_timezone) + timedelta(minutes=settings.access_token_expire_minutes)
+    # Calculate expiry time using utility function
+    expiry_ist = create_expiry_time(settings.access_token_expire_minutes)
     expiry_utc = expiry_ist.astimezone(pytz.utc)
     
     # Store OTP in database (UTC time)
@@ -69,14 +67,14 @@ async def verify_otp(email: str, otp_code: str, is_registration: Optional[bool] 
         if otp_doc_dict:
             # Check if OTP is expired - ensure both datetimes are timezone-aware and compare in UTC
             expiry_time = otp_doc_dict["expiry"]
-            current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+            current_time = get_current_datetime()
 
             print(f"Debug: expiry_time (from DB): {expiry_time} (tzinfo: {expiry_time.tzinfo})")
             print(f"Debug: current_time (IST): {current_time} (tzinfo: {current_time.tzinfo})")
             
             # Check if OTP is expired - ensure both datetimes are timezone-aware and compare in UTC
             expiry_time = otp_doc_dict["expiry"]
-            current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+            current_time = get_current_datetime()
 
             print(f"Debug: expiry_time (from DB): {expiry_time} (tzinfo: {expiry_time.tzinfo})")
             print(f"Debug: current_time (IST): {current_time} (tzinfo: {current_time.tzinfo})")
@@ -127,14 +125,14 @@ async def verify_otp(email: str, otp_code: str, is_registration: Optional[bool] 
         
         # Check if OTP is expired - ensure both datetimes are timezone-aware and compare in UTC
         expiry_time = otp_doc.expiry
-        current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+        current_time = get_current_datetime()
 
         print(f"Debug: expiry_time (from DB): {expiry_time} (tzinfo: {expiry_time.tzinfo})")
         print(f"Debug: current_time (IST): {current_time} (tzinfo: {current_time.tzinfo})")
         
         # Check if OTP is expired - ensure both datetimes are timezone-aware and compare in UTC
         expiry_time = otp_doc.expiry
-        current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+        current_time = get_current_datetime()
 
         print(f"Debug: expiry_time (from DB): {expiry_time} (tzinfo: {expiry_time.tzinfo})")
         print(f"Debug: current_time (IST): {current_time} (tzinfo: {current_time.tzinfo})")

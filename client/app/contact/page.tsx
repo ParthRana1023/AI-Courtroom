@@ -94,10 +94,10 @@ export default function Contact() {
         <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-zinc-200 dark:border-zinc-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-zinc-800 dark:text-zinc-100">
-              Contact Us
+              Feedback Form
             </h1>
             <p className="text-zinc-600 dark:text-zinc-400 mt-2">
-              We'd love to hear from you. Send us a message!
+              We'd love to hear from you. Please share your valuable insights.
             </p>
           </div>
 
@@ -105,8 +105,8 @@ export default function Contact() {
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg mb-6 flex items-center">
               <CheckCircle className="h-5 w-5 mr-2" />
               <span>
-                Your message has been sent successfully! We'll get back to you
-                soon.
+                Your feedback has been sent successfully! We're grateful for
+                your feedback!
               </span>
             </div>
           )}
@@ -240,7 +240,7 @@ export default function Contact() {
                 htmlFor="message"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
               >
-                Message
+                Feedback
               </label>
               <div className="relative">
                 <div className="absolute top-3 left-3 pointer-events-none">
@@ -253,7 +253,7 @@ export default function Contact() {
                   value={formData.message}
                   onChange={handleChange}
                   className="pl-10 block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
-                  placeholder="How can we help you?"
+                  placeholder="Please provide us with your valuable feedback or suggestions for improvement."
                 />
               </div>
               {errors.message && (
@@ -296,7 +296,7 @@ export default function Contact() {
                     <span>Sending...</span>
                   </>
                 ) : (
-                  "Send Message"
+                  "Send Feedback"
                 )}
               </button>
             </div>

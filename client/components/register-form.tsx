@@ -1,17 +1,25 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { z } from "zod"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { register as registerUser } from "@/lib/api"
-import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { register as registerUser } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react";
+import { getCurrentDate } from "@/lib/datetime";
 
 const formSchema = z
   .object({
@@ -23,13 +31,21 @@ const formSchema = z
     }),
     date_of_birth: z.string().refine(
       (val) => {
-        const date = new Date(val)
-        const today = new Date()
-        return date < today && date > new Date(today.getFullYear() - 100, today.getMonth(), today.getDate())
+        const date = new Date(val);
+        const today = getCurrentDate();
+        return (
+          date < today &&
+          date >
+            new Date(
+              today.getFullYear() - 100,
+              today.getMonth(),
+              today.getDate()
+            )
+        );
       },
       {
         message: "Please enter a valid date of birth",
-      },
+      }
     ),
     phone_number: z
       .string()
@@ -39,12 +55,12 @@ const formSchema = z
       .refine(
         (val) => {
           // Remove any non-digit characters
-          const digits = val.replace(/\D/g, "")
-          return digits.length === 10
+          const digits = val.replace(/\D/g, "");
+          return digits.length === 10;
         },
         {
           message: "Phone number must be exactly 10 digits",
-        },
+        }
       ),
     email: z.string().email({
       message: "Please enter a valid email address",
@@ -56,39 +72,40 @@ const formSchema = z
       })
       .refine(
         (val) => {
-          return /\d/.test(val)
+          return /\d/.test(val);
         },
         {
           message: "Password must contain at least 1 digit",
-        },
+        }
       )
       .refine(
         (val) => {
-          return /[a-zA-Z]/.test(val)
+          return /[a-zA-Z]/.test(val);
         },
         {
           message: "Password must contain at least 1 letter",
-        },
+        }
       )
       .refine(
         (val) => {
-          return /[@$!%*#?&]/.test(val)
+          return /[@$!%*#?&]/.test(val);
         },
         {
-          message: "Password must contain at least 1 special character (@$!%*#?&)",
-        },
+          message:
+            "Password must contain at least 1 special character (@$!%*#?&)",
+        }
       ),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
-  })
+  });
 
 export function RegisterForm() {
-  const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -101,21 +118,21 @@ export function RegisterForm() {
       password: "",
       confirmPassword: "",
     },
-  })
+  });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
-      const { confirmPassword, ...userData } = values
-      await registerUser(userData)
-      router.push("/login?registered=true")
+      const { confirmPassword, ...userData } = values;
+      await registerUser(userData);
+      router.push("/login?registered=true");
     } catch (err: any) {
-      setError(err.message || "Failed to register. Please try again.")
-      console.error(err)
+      setError(err.message || "Failed to register. Please try again.");
+      console.error(err);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
@@ -242,6 +259,5 @@ export function RegisterForm() {
         </Link>
       </div>
     </div>
-  )
+  );
 }
-

@@ -9,6 +9,7 @@ import {
   User,
   FileText,
   Phone,
+  Gavel,
   LogOut,
   Menu,
   X,
@@ -44,7 +45,7 @@ export default function Navigation() {
                         : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
                     }`}
                   >
-                    <FileText className="h-4 w-4 mr-1" />
+                    <Gavel className="h-4 w-4 mr-1" />
                     <span>Cases</span>
                   </Link>
                   <Link
@@ -68,7 +69,7 @@ export default function Navigation() {
                     }`}
                   >
                     <Phone className="h-4 w-4 mr-1" />
-                    <span>Contact Us</span>
+                    <span>Feedback</span>
                   </Link>
                   <Link
                     href="/settings"

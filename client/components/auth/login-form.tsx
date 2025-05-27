@@ -59,7 +59,7 @@ export function LoginForm() {
       setError(null);
 
       await login(values.email.trim(), values.password);
-      router.push("/dashboard");
+      router.push("/dashboard/cases");
       router.refresh(); // Refresh to update auth state
     } catch (err: any) {
       setError(err.message || "Failed to login. Please try again.");

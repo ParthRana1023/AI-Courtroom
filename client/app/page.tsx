@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Navigation from "@/components/navigation";
+import { getCurrentYear } from "@/lib/datetime";
 
 export default function Home() {
   return (
@@ -61,8 +62,7 @@ export default function Home() {
       <footer className="bg-gray-800 text-white py-6">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p>
-            © {new Date().getFullYear()} AI Courtroom Simulation. All rights
-            reserved.
+            © {getCurrentYear()} AI Courtroom Simulation. All rights reserved.
           </p>
         </div>
       </footer>

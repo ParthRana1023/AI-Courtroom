@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.database import init_db
 from app.config import settings
-from app.routes import auth, cases, arguments, rate_limit
+from app.routes import auth, cases, arguments, rate_limit, feedback
 from app.utils.rate_limiter import rate_limiter
 from beanie.odm.fields import PydanticObjectId
 import json
@@ -51,3 +51,4 @@ app.include_router(auth.router, prefix="/auth")
 app.include_router(cases.router, prefix="/cases")
 app.include_router(arguments.router, prefix="/cases")
 app.include_router(rate_limit.router, prefix="/arguments")
+app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])

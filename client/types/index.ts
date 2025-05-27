@@ -45,6 +45,7 @@ export interface Evidence {
 }
 
 export interface Argument {
+  id?: string; // Added optional id field
   type: string;
   content: string;
   user_id: string | null;

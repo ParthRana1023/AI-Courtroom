@@ -8,15 +8,13 @@ import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus } from "@/types";
 import MarkdownRenderer from "@/components/markdown-renderer";
 
-export default function CaseDetails({ params }: { params: { cnr: string } }) {
+export default function CaseDetails({ params }: { params: Promise<{ cnr: string }> }) {
   const router = useRouter();
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Unwrap params using React.use()
-  const unwrappedParams = use(params);
-  const cnr = unwrappedParams.cnr;
+  const { cnr } = use(params);
 
   useEffect(() => {
     const fetchCaseDetails = async () => {

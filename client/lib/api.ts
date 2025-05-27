@@ -1,4 +1,5 @@
 import axios, { type AxiosError } from "axios";
+import { createOffsetDate } from "./datetime";
 
 // Create axios instance with base URL from environment variables
 const api = axios.create({
@@ -62,8 +63,7 @@ const setAuthToken = (token: string, rememberMe = false) => {
 
     // Set cookie with appropriate expiration
     const expirationDays = rememberMe ? 7 : 1;
-    const date = new Date();
-    date.setTime(date.getTime() + expirationDays * 24 * 60 * 60 * 1000);
+    const date = createOffsetDate(expirationDays * 24 * 60 * 60 * 1000);
     document.cookie = `token=${token}; path=/; expires=${date.toUTCString()}; SameSite=Strict`;
   }
 };
@@ -264,14 +264,9 @@ export const argumentAPI = {
 
 // Contact API calls
 export const contactAPI = {
-  submitContactForm: async (contactData: any) => {
-    try {
-      const response = await api.post("/submit", contactData);
-      return response.data;
-    } catch (error) {
-      handleApiError(error);
-      throw error;
-    }
+  submitContactForm: async (formData: ContactFormData) => {
+    const response = await api.post("/feedback/submit", formData);
+    return response.data;
   },
 };
 

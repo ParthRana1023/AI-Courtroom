@@ -2,12 +2,9 @@ from typing import List, Optional
 from pydantic import Field, BaseModel
 from pydantic_mongo import PydanticObjectId
 from datetime import datetime
-import pytz
 from enum import Enum
 from beanie import Document
-
-def get_current_datetime():
-    return datetime.now(pytz.timezone('Asia/Kolkata'))
+from app.utils.datetime import get_current_datetime
 
 class CaseStatus(str, Enum):
     NOT_STARTED = "not started"

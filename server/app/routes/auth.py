@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends,Form, Request
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from app.schemas.user import UserCreate, UserOut
 from app.models.user import User
 from app.models.user import TokenResponse  # This should work now
@@ -8,11 +8,8 @@ from app.services.otp import verify_otp, create_otp
 from app.config import settings
 from datetime import timedelta
 import motor.motor_asyncio
-from pydantic import EmailStr
 from app.models.otp import RegistrationVerifyRequest, LoginVerifyRequest
 from app.dependencies import get_current_user
-from app.schemas.contact import ContactRequest
-from app.services.email import send_contact_email
 
 router = APIRouter(tags=["Authentication"])
 
@@ -139,15 +136,3 @@ async def verify_login(request: Request):
 @router.get("/profile", response_model=UserOut)
 async def profile(current_user: User = Depends(get_current_user)):
     return current_user
-
-@router.post("/submit", status_code=status.HTTP_200_OK)
-async def submit_contact_form(contact_data: ContactRequest):
-    """Submit contact form data"""
-    try:
-        await send_contact_email(contact_data)
-        return {"message": "Your message has been sent successfully"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send message: {str(e)}"
-        )
