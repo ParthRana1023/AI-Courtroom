@@ -17,7 +17,7 @@ async def init_db(motor_client: AsyncIOMotorClient):
         
         await init_beanie(
             database=motor_client[db_name],
-            document_models=[User, Case, Feedback],
+            document_models=[User, Case, Feedback, OTP],
             allow_index_dropping=True,
             recreate_views=True
         )
