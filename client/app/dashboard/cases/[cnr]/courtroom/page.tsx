@@ -642,17 +642,6 @@ export default function Courtroom({
       {caseData.status !== CaseStatus.RESOLVED && (
         <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-700 p-4 shadow-lg">
           <div className="max-w-7xl mx-auto">
-            {/* Feedback message */}
-            <div className="mb-4 text-center text-gray-600 dark:text-gray-400">
-              We're constantly improving! Please provide your feedback on this
-              courtroom experience.
-              <button
-                className="ml-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-                onClick={() => router.push("/contact")}
-              >
-                Give Feedback
-              </button>
-            </div>
             {/* Rate limit information */}
             {rateLimit && (
               <div className="p-3 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg flex items-end space-x-2">

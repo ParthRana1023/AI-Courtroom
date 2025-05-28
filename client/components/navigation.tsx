@@ -89,7 +89,7 @@ export default function Navigation() {
 
           {/* Right Side - Auth Links */}
           <div className="hidden md:flex items-center space-x-4">
-            {/* <ThemeToggle /> */}
+            <ThemeToggle />
 
             {isAuthenticated ? (
               <div className="flex items-center">
@@ -158,7 +158,7 @@ export default function Navigation() {
             <>
               <Link
                 href="/dashboard/cases"
-                className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${
+                className={`px-3 py-2 rounded-md text-base font-medium flex items-center ${
                   pathname.includes("/dashboard/cases")
                     ? "bg-zinc-800 text-white"
                     : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
@@ -170,7 +170,7 @@ export default function Navigation() {
               </Link>
               <Link
                 href="/dashboard"
-                className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${
+                className={`px-3 py-2 rounded-md text-base font-medium flex items-center ${
                   pathname === "/dashboard"
                     ? "bg-zinc-800 text-white"
                     : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
@@ -183,7 +183,7 @@ export default function Navigation() {
 
               <Link
                 href="/contact"
-                className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${
+                className={`px-3 py-2 rounded-md text-base font-medium flex items-center ${
                   pathname === "/contact"
                     ? "bg-zinc-800 text-white"
                     : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
@@ -195,7 +195,7 @@ export default function Navigation() {
               </Link>
               <Link
                 href="/settings"
-                className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${
+                className={`px-3 py-2 rounded-md text-base font-medium flex items-center ${
                   pathname === "/settings"
                     ? "bg-zinc-800 text-white"
                     : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
@@ -210,7 +210,7 @@ export default function Navigation() {
                   setIsMenuOpen(false);
                   logout();
                 }}
-                className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center"
+                className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 <span>Logout</span>
@@ -220,7 +220,7 @@ export default function Navigation() {
             <>
               <Link
                 href="/login"
-                className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${
+                className={`px-3 py-2 rounded-md text-base font-medium flex items-center ${
                   pathname === "/login"
                     ? "bg-zinc-800 text-white"
                     : "text-zinc-300 hover:bg-zinc-700 hover:text-white"

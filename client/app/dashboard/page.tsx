@@ -206,7 +206,7 @@ export default function Dashboard() {
 
               <Link
                 href="/dashboard/generate-case"
-                className="bg-black dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 font-bold py-2 px-4 rounded-lg inline-flex items-center transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center transition-colors"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 <span>Generate New Case</span>

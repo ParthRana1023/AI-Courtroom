@@ -8,7 +8,11 @@ import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus } from "@/types";
 import MarkdownRenderer from "@/components/markdown-renderer";
 
-export default function CaseDetails({ params }: { params: Promise<{ cnr: string }> }) {
+export default function CaseDetails({
+  params,
+}: {
+  params: Promise<{ cnr: string }>;
+}) {
   const router = useRouter();
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -107,7 +111,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
       <Navigation />
 
       <div className="flex-grow container mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">Case Details</h1>
             <div className="flex items-center">

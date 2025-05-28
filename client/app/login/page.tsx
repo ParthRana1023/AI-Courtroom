@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import Navigation from "@/components/navigation";
+import OtpForm from "@/components/otp-form";
 import type { LoginFormData } from "@/types";
 import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
 
@@ -27,9 +28,12 @@ export default function Login() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isOtpSent, setIsOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | undefined>(
+    undefined
+  );
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -38,10 +42,21 @@ export default function Login() {
       // Reset OTP state if authenticated while OTP form is visible
       if (isOtpSent) {
         setIsOtpSent(false);
-        setOtp("");
+        setOtp(Array(6).fill(""));
+        setSuccessMessage(undefined);
       }
     }
   }, [isAuthenticated, authLoading, router, redirectPath, isOtpSent]);
+
+  // Clear success message after a few seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(undefined);
+      }, 5000); // 5 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -67,6 +82,8 @@ export default function Login() {
     try {
       await login(formData.email, formData.password, rememberMe);
       setIsOtpSent(true);
+      setSuccessMessage("OTP sent successfully to your email.");
+      setErrors({}); // Clear any previous errors
     } catch (error: any) {
       if (error.response?.data?.detail) {
         setErrors({ form: error.response.data.detail });
@@ -78,18 +95,38 @@ export default function Login() {
     }
   };
 
+  const handleRequestOtpAgain = async () => {
+    setIsLoading(true);
+    setSuccessMessage(undefined); // Clear any existing success messages
+    try {
+      await login(formData.email, formData.password, rememberMe);
+      setErrors({});
+      setOtp(Array(6).fill(""));
+      setIsOtpSent(true); // Ensure OTP form is shown after requesting again
+      setSuccessMessage("New OTP sent successfully.");
+    } catch (error: any) {
+      if (error.response?.data?.detail) {
+        setErrors({ form: error.response.data.detail });
+      } else {
+        setErrors({ form: "Failed to request OTP again. Please try again." });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!otp) {
-      setErrors({ otp: "OTP is required" });
+    if (otp.some((digit) => !digit)) {
+      setErrors({ otp: "Please enter the complete OTP." });
       return;
     }
 
     setIsLoading(true);
     try {
       // Pass email, otp, and rememberMe as separate arguments
-      await verifyLogin(formData.email, otp, rememberMe);
+      await verifyLogin(formData.email, otp.join(""), rememberMe);
       // Redirect is handled in the auth context
     } catch (error: any) {
       if (error.response?.data?.detail) {
@@ -104,7 +141,7 @@ export default function Login() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col bg-gradient-to-b from-zinc-50 to-white dark:from-black dark:to-black">
         <Navigation />
         <div className="flex-grow flex items-center justify-center">
           <div className="text-center">
@@ -117,16 +154,16 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-zinc-50 to-white dark:from-black dark:to-black">
       <Navigation />
 
       <div className="flex-grow flex items-center justify-center p-6">
-        <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-zinc-200 dark:border-zinc-800">
+        <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-zinc-200 dark:border-gray-800">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-zinc-800 dark:text-zinc-100">
+            <h1 className="text-3xl font-bold text-zinc-800 dark:text-white">
               {isOtpSent ? "Verify OTP" : "Welcome Back"}
             </h1>
-            <p className="text-zinc-600 dark:text-zinc-400 mt-2">
+            <p className="text-zinc-600 dark:text-gray-300 mt-2">
               {isOtpSent
                 ? "Enter the code sent to your email"
                 : "Sign in to your account"}
@@ -145,7 +182,7 @@ export default function Login() {
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+                  className="block text-sm font-medium text-zinc-700 dark:text-white mb-1"
                 >
                   Email Address
                 </label>
@@ -173,7 +210,7 @@ export default function Login() {
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+                  className="block text-sm font-medium text-zinc-700 dark:text-white mb-1"
                 >
                   Password
                 </label>
@@ -209,7 +246,7 @@ export default function Login() {
                 />
                 <label
                   htmlFor="remember_me"
-                  className="ml-2 block text-sm text-zinc-900 dark:text-zinc-100"
+                  className="ml-2 block text-sm text-zinc-900 dark:text-white"
                 >
                   Remember me.
                 </label>
@@ -218,7 +255,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-black dark:bg-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 disabled:opacity-50 transition-colors"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
               >
                 {isLoading ? (
                   <>
@@ -231,11 +268,11 @@ export default function Login() {
               </button>
 
               <div className="text-center">
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                <p className="text-sm text-zinc-600 dark:text-gray-300">
                   Don't have an account?{" "}
                   <Link
                     href="/register"
-                    className="font-medium text-zinc-900 dark:text-zinc-200 hover:text-zinc-700 dark:hover:text-zinc-300"
+                    className="font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-gray-300"
                   >
                     Register
                   </Link>
@@ -243,45 +280,17 @@ export default function Login() {
               </div>
             </form>
           ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-6">
-              <div>
-                <label
-                  htmlFor="otp"
-                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-                >
-                  One-Time Password
-                </label>
-                <input
-                  type="text"
-                  id="otp"
-                  name="otp"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  className="block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
-                  placeholder="Enter OTP"
-                />
-                {errors.otp && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.otp}
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-black dark:bg-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 disabled:opacity-50 transition-colors"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                    <span>Verifying...</span>
-                  </>
-                ) : (
-                  "Verify OTP"
-                )}
-              </button>
-            </form>
+            <OtpForm
+              otp={otp}
+              setOtp={setOtp}
+              handleSubmit={handleVerifyOtp}
+              isLoading={isLoading}
+              error={errors.otp}
+              successMessage={successMessage}
+              title="Verify OTP"
+              description="Your code was sent to you via email"
+              onRequestAgain={handleRequestOtpAgain}
+            />
           )}
         </div>
       </div>

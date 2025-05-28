@@ -89,7 +89,7 @@ export default function GenerateCase() {
       <Navigation />
 
       <div className="flex-grow container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
+        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800">
           <h1 className="text-2xl font-bold mb-6">Generate New Case</h1>
 
           {errors.form && (
@@ -102,7 +102,7 @@ export default function GenerateCase() {
             <div>
               <label
                 htmlFor="sections_involved"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-gray-700 dark:text-white"
               >
                 Number of Sections Involved
               </label>
@@ -113,7 +113,7 @@ export default function GenerateCase() {
                 min="1"
                 value={formData.sections_involved}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
               />
               {errors.sections_involved && (
                 <p className="mt-1 text-sm text-red-600">
@@ -125,7 +125,7 @@ export default function GenerateCase() {
             <div>
               <label
                 htmlFor="section_numbers"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-gray-700 dark:text-white"
               >
                 Section Numbers
               </label>
@@ -135,7 +135,7 @@ export default function GenerateCase() {
                   id="section_input"
                   value={sectionInput}
                   onChange={(e) => setSectionInput(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-l-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-l-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                   placeholder="Enter section number"
                 />
                 <button
@@ -151,8 +151,8 @@ export default function GenerateCase() {
               )}
 
               {formData.section_numbers.length > 0 ? (
-                <div className="mt-2">
-                  <p className="text-sm font-medium text-gray-700 mb-2">
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2 dark:text-white">
                     Added Sections:
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -161,7 +161,7 @@ export default function GenerateCase() {
                         key={index}
                         className="bg-gray-100 px-3 py-1 rounded-full flex items-center"
                       >
-                        <span className="text-sm">{section}</span>
+                        <span className="text-sm text-black">{section}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveSection(index)}
