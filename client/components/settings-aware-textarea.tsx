@@ -12,7 +12,7 @@ import { useSettings } from "@/contexts/settings-context";
 interface SettingsAwareTextAreaProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit?: () => void;
+  onSubmit?: (e: React.FormEvent) => void;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -75,11 +75,11 @@ export default function SettingsAwareTextArea({
       if (enterKeySubmits && !e.shiftKey) {
         // Enter submits, Shift+Enter creates new line
         e.preventDefault();
-        onSubmit?.();
+        onSubmit?.(e);
       } else if (!enterKeySubmits && e.ctrlKey) {
         // Ctrl+Enter submits when Enter creates new line
         e.preventDefault();
-        onSubmit?.();
+        onSubmit?.(e);
       }
     }
   };

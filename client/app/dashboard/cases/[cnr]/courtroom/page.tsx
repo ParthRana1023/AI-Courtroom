@@ -412,7 +412,7 @@ export default function Courtroom({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-zinc-950 pb-32">
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-zinc-950 pb-0">
       <Navigation />
       <main className="flex flex-col">
         <header className="bg-white dark:bg-zinc-900 shadow-sm py-4">
@@ -524,7 +524,9 @@ export default function Courtroom({
 
       {/* Arguments display area - scrollable */}
       <div
-        className="flex-1 mb-6 bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 max-w-7xl mx-auto w-full "
+        className={`flex-1 ${
+          caseData.status === CaseStatus.RESOLVED ? "mb-6" : "mb-48"
+        } bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 max-w-7xl mx-auto w-full `}
         style={{ height: "calc(100vh - 700px)" }}
       >
         {/* Chat messages */}
@@ -640,7 +642,7 @@ export default function Courtroom({
 
       {/* Fixed input area at bottom */}
       {caseData.status !== CaseStatus.RESOLVED && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-700 p-4 shadow-lg">
+        <div className="fixed bottom-0 left-0 right-0 mb-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-700 p-4 shadow-lg">
           <div className="max-w-7xl mx-auto">
             {/* Rate limit information */}
             {rateLimit && (
@@ -705,7 +707,6 @@ export default function Courtroom({
               </div>
             )}
             <div className="flex items-start space-x-4 pt-3">
-              {/* Single-line textarea */}
               <div className="flex-1">
                 <SettingsAwareTextArea
                   value={argument}

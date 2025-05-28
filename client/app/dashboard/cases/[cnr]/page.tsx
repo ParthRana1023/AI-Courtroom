@@ -156,18 +156,23 @@ export default function CaseDetails({
           <div className="mt-8 flex justify-center">
             {caseData.status === CaseStatus.NOT_STARTED ? (
               <div className="flex flex-col sm:flex-row gap-4">
-                <button
-                  onClick={() => handleRoleSelection("plaintiff")}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
-                >
-                  Plaintiff Lawyer
-                </button>
-                <button
-                  onClick={() => handleRoleSelection("defendant")}
-                  className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors"
-                >
-                  Defendant Lawyer
-                </button>
+                <div title="We're still working on this">
+                  <button
+                    onClick={() => handleRoleSelection("plaintiff")}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
+                  >
+                    Plaintiff Lawyer
+                  </button>
+                </div>
+                <div title="We're still working on this">
+                  <button
+                    onClick={() => handleRoleSelection("defendant")}
+                    disabled={true}
+                    className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors cursor-not-allowed"
+                  >
+                    Defendant Lawyer
+                  </button>
+                </div>
               </div>
             ) : (
               <button

@@ -102,8 +102,8 @@ export function ChatInterface({ caseId, role, caseData }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex flex-col h-[70vh] border rounded-md">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="flex flex-col h-full border rounded-md">
+      <div className="flex-1 flex-grow overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
             key={message.id}

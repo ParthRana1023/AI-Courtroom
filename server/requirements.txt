@@ -1,4 +1,6 @@
 # requirements.txt
+
+# Core
 fastapi
 uvicorn
 motor
@@ -6,22 +8,20 @@ beanie
 python-jose[cryptography]
 argon2-cffi
 python-dotenv
-pytest
-pytest-asyncio
-pytest-html
 httpx
 pydantic-settings
-pydantic_mongo
 pydantic
 python-multipart
-pymongo
 nest_asyncio
 passlib
 email-validator
 secure-smtplib
 langchain-community
 langchain-groq
-pipdeptree
-python-dotenv
+
+# Testing
 selenium
 webdriver-manager
+pytest
+pytest-asyncio
+pytest-html

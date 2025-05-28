@@ -5,6 +5,56 @@ from app.utils.llm import llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
+async def random_names():
+    """
+    Generate a list of random Indian names.
+    """
+    names = []
+    template1 = "Generate 15 random names of Indian people"
+
+    prompt = ChatPromptTemplate.from_messages([
+        ('system', template1)
+    ])
+
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        # Use await for async chain invocation as llm is ChatOpenAI and the function is async
+        llm_response = await chain.ainvoke({})
+
+        # Split the response into lines and remove empty lines
+        names = [name.strip() for name in llm_response.split('\n') if name.strip()]
+        return random.sample(names, 5) if len(names) >= 5 else names
+
+    except Exception as e:
+        # Log the error or handle it as appropriate for a backend service
+        print(f"Error generating names with LLM: {str(e)}")
+
+async def random_cities():
+    """
+    Generate a list of random Indian cities.
+    """
+    names = []
+    template1 = "Generate 15 random names of Indian cities"
+
+    prompt = ChatPromptTemplate.from_messages([
+        ('system', template1)
+    ])
+
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        # Use await for async chain invocation as llm is ChatOpenAI and the function is async
+        llm_response = await chain.ainvoke({})
+
+        # Split the response into lines and remove empty lines
+        names = [name.strip() for name in llm_response.split('\n') if name.strip()]
+        return random.sample(names, 5) if len(names) >= 5 else names
+
+    except Exception as e:
+        # Log the error or handle it as appropriate for a backend service
+        print(f"Error generating names with LLM: {str(e)}")
+
 async def generate_case(sections: int, numbers: list[int]) -> dict:
     """
     Generates a hypothetical legal case file using an LLM.
@@ -26,6 +76,14 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
     ipc_section_numbers_str = ", ".join(map(str, numbers)) if numbers else "XXX"  # Default if no numbers provided
     number_of_ipc_sections = sections
 
+    # Generate random names and cities
+    names = await random_names()
+    cities = await random_cities()
+
+    # Select a few random names and a random city
+    selected_names = random.sample(names, min(len(names), 3)) if names else ["Parth Rana", "Pranav Nagvekar", "prasiddhi Agarwal", "Yashvi Savla"]
+    selected_city = random.choice(cities) if cities else "Mumbai"
+
     template = f""" 
         Draft a hypothetical case file for a legal proceeding involving the Indian Penal Code (IPC). 
         
@@ -33,8 +91,8 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         
         IMPORTANT CREATIVITY REQUIREMENTS:
         - Create a UNIQUE and CREATIVE case scenario that differs significantly from previous cases involving these same sections
-        - Generate diverse and culturally appropriate Indian names for all parties involved (never reuse the same names across different cases)
-        - Vary the locations, circumstances, timelines, and specific details to ensure each case feels distinct
+        - Generate diverse and culturally appropriate Indian names for all parties involved (never reuse the same names across different cases). Use these names: {', '.join(selected_names)}
+        - Vary the locations, circumstances, timelines, and specific details to ensure each case feels distinct. Use this city: {selected_city}
         - Consider different socioeconomic backgrounds, occupations, and contexts for the parties involved
         - Ensure each generated case has a different fact pattern even when the same IPC sections are requested
         
@@ -79,7 +137,7 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
            [Age], [Occupation],
            Residing at: [Full Address of Respondent 2/Accused 2]
         ... **RESPONDENTS** / **ACCUSED**
-        - Note: Invent fictitious names and use authentic real-world Indian locations.
+        - Note: Add more respondants if needed for the case.
 
         **PETITION UNDER SECTION [Relevant Act, e.g., 482 of Cr.P.C. or Article 226 of the Constitution] READ WITH IPC SECTIONS:**
         - Clearly title the petition, incorporating BOTH the provided IPC sections {ipc_section_numbers_str} AND the additional related IPC sections you've identified.
@@ -124,7 +182,6 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         1. [Specific prayer, e.g., Quash FIR No. [XYZ/YYYY] registered under IPC Sections {ipc_section_numbers_str} and related sections you've identified.]  
         2. [Another specific prayer, e.g., Grant interim stay on further proceedings.]
         3. Pass any other order(s) as this Hon'ble Court may deem fit and proper in the facts and circumstances of the case.
-        - IMPORTANT: Explicitly reference BOTH the primary IPC sections ({ipc_section_numbers_str}) AND the related sections you've identified in the prayers where relevant, showing how all sections are interconnected in the requested relief.
         ---
 
         **VERIFICATION:**
