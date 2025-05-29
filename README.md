@@ -136,4 +136,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ```
 uvicorn app.main:app --reload
 ```
->>>>>>> 31951aa90ae35004dec90421259d72e0de8be742
