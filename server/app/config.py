@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     extended_token_expire_days: int = 7
     testing: bool = False
     groq_api_key: Optional[str] = None
+    port: int = 8000
     
     # Email settings
     email_sender: str = "noreply@aicourtroom.com"

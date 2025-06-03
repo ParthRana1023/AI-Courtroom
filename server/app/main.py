@@ -8,6 +8,7 @@ from app.config import settings
 from app.routes import auth, cases, arguments, rate_limit, feedback
 from beanie.odm.fields import PydanticObjectId
 import json
+import uvicorn
 
 # Custom JSON encoder to handle PydanticObjectId
 class CustomJSONEncoder(json.JSONEncoder):
@@ -32,7 +33,7 @@ async def lifespan(app: FastAPI):
     motor_client.close()
 
 app = FastAPI(
-    title="AI Courtroom API",
+    title="AI Courtroom",
     lifespan=lifespan,
     # Configure JSON encoders globally
     json_encoders={PydanticObjectId: str}
@@ -40,10 +41,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Add your frontend URL
+    allow_origins=["http://localhost:3000"],  # Next.js default development port
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    expose_headers=["Content-Length"],
+    max_age=3600,
 )
 
 app.include_router(auth.router, prefix="/auth")
@@ -51,3 +54,6 @@ app.include_router(cases.router, prefix="/cases")
 app.include_router(arguments.router, prefix="/cases")
 app.include_router(rate_limit.router, prefix="/arguments")
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
+
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.port, reload=True)
