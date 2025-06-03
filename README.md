@@ -1,4 +1,4 @@
-# AI Courtroom Simulation
+# AI Courtroom
 
 AI Courtroom is an interactive legal simulation platform that leverages artificial intelligence to create realistic courtroom experiences. Users can submit legal arguments, receive AI-generated counter-arguments, and get verdicts based on advanced AI analysis.
 
@@ -136,4 +136,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ```
 uvicorn app.main:app --reload
 ```
->>>>>>> 31951aa90ae35004dec90421259d72e0de8be742
