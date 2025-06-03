@@ -4,6 +4,7 @@
 fastapi
 uvicorn
 motor
+pymongo[srv,tls]
 beanie
 pytz
 python-jose[cryptography]

@@ -1,5 +1,6 @@
 import axios, { type AxiosError } from "axios";
 import { createOffsetDate } from "./datetime";
+import { ContactFormData } from "@/types";
 
 // Create axios instance with base URL from environment variables
 const api = axios.create({
