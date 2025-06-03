@@ -3,7 +3,7 @@ export interface User {
   first_name: string;
   last_name: string;
   email: string;
-  date_of_birth: string;
+  date_of_birth: Date;
   phone_number: string;
 }
 
@@ -75,7 +75,7 @@ export interface CaseHistory {
 export interface RegisterFormData {
   first_name: string;
   last_name: string;
-  date_of_birth: string;
+  date_of_birth: Date;
   phone_number: string;
   email: string;
   password: string;

@@ -21,8 +21,7 @@ class Settings(BaseSettings):
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 587
     
-    # Use SettingsConfigDict instead of ConfigDict
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
     def current_db_name(self) -> str:

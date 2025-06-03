@@ -17,7 +17,7 @@ export default function Register() {
   const [formData, setFormData] = useState<RegisterFormData>({
     first_name: "",
     last_name: "",
-    date_of_birth: "",
+    date_of_birth: new Date(), // Initialize with a Date object
     phone_number: "",
     email: "",
     password: "",
@@ -33,7 +33,7 @@ export default function Register() {
 
     if (!formData.first_name) newErrors.first_name = "First name is required";
     if (!formData.last_name) newErrors.last_name = "Last name is required";
-    if (!formData.date_of_birth)
+    if (!formData.date_of_birth || isNaN(formData.date_of_birth.getTime()))
       newErrors.date_of_birth = "Date of birth is required";
     if (!formData.phone_number)
       newErrors.phone_number = "Phone number is required";
@@ -60,7 +60,10 @@ export default function Register() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "date_of_birth" ? new Date(value) : value,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -94,7 +97,7 @@ export default function Register() {
 
     setIsLoading(true);
     try {
-      await verifyRegistration(formData.email, otp.join(""));
+      await verifyRegistration(formData, otp.join(""));
       router.push("/dashboard");
     } catch (error: any) {
       setErrors({ otp: "OTP verification failed. Please try again." });
@@ -215,7 +218,7 @@ export default function Register() {
                       type="date"
                       id="date_of_birth"
                       name="date_of_birth"
-                      value={formData.date_of_birth}
+                      value={formData.date_of_birth.toISOString().split("T")[0]}
                       onChange={handleChange}
                       className="pl-10 block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder-gray-400"
                     />

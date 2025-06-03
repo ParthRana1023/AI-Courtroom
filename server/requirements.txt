@@ -5,12 +5,14 @@ fastapi
 uvicorn
 motor
 beanie
+pytz
 python-jose[cryptography]
 argon2-cffi
 python-dotenv
 httpx
 pydantic-settings
 pydantic
+pydantic_mongo
 python-multipart
 nest_asyncio
 passlib
