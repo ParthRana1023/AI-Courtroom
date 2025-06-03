@@ -1,7 +1,7 @@
 # app/utils/rate_limiter.py
 from fastapi import Depends, HTTPException
 from starlette.requests import Request
-from datetime import datetime, timedelta
+from datetime import datetime
 from app.dependencies import get_current_user
 from typing import Dict, List, Tuple, Optional
 import time

@@ -29,3 +29,5 @@ tests/
 
 # Environment files - will match .env in any directory
 **/.env
+
+**/pytest.ini

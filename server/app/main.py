@@ -6,7 +6,6 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from app.database import init_db
 from app.config import settings
 from app.routes import auth, cases, arguments, rate_limit, feedback
-from app.utils.rate_limiter import rate_limiter
 from beanie.odm.fields import PydanticObjectId
 import json
 

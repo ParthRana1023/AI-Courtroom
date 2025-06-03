@@ -5,9 +5,7 @@ from app.dependencies import get_current_user
 from app.services.llm.lawyer import generate_counter_argument, opening_statement, closing_statement
 from app.services.llm.judge import generate_verdict
 from app.models.user import User
-from datetime import datetime
 from app.utils.rate_limiter import rate_limiter
-from datetime import datetime
 from app.utils.datetime import get_current_datetime
 from app.models.case import ArgumentItem
 

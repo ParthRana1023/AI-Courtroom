@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from app.schemas.user import UserCreate, UserOut
 from app.models.user import User
-from app.models.user import TokenResponse  # This should work now
+from app.models.user import TokenResponse
 from app.services.auth import create_user, create_access_token, ph
-from app.services.auth import VerifyMismatchError  # Add this import
+from app.services.auth import VerifyMismatchError
 from app.services.otp import verify_otp, create_otp
 from app.config import settings
 from datetime import timedelta

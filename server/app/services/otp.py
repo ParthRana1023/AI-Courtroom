@@ -8,7 +8,6 @@ import motor.motor_asyncio
 from app.config import settings
 from typing import Optional
 from app.utils.datetime import get_current_datetime, create_expiry_time
-from pydantic import EmailStr
 
 def generate_otp(length: int = 6) -> str:
     """Generate a random OTP of specified length"""

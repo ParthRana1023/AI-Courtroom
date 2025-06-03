@@ -1,7 +1,7 @@
 # app/models/user.py
 from beanie import Document
 from pydantic import BaseModel, ConfigDict, EmailStr
-from datetime import date  # Change from datetime
+from datetime import date
 
 class User(Document):
     model_config = ConfigDict(arbitrary_types_allowed=True)

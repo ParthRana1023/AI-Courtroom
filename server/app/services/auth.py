@@ -5,9 +5,9 @@ from fastapi import HTTPException, status
 from app.models.user import User
 from app.models.otp import OTP
 from app.schemas.user import UserCreate, UserOut
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
-from jose import JWTError, jwt
+from jose import jwt
 from app.config import settings
 from app.services.otp import verify_otp
 from app.utils.datetime import create_jwt_expiry

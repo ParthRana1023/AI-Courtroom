@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
-from beanie import Document
-from typing import Optional, Any
+from typing import Optional
 from beanie.odm.fields import PydanticObjectId
 
 class PyObjectId(str):

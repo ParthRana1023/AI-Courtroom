@@ -1,7 +1,0 @@
-client/
-server/venv
-server/tests
-server/.pytest_cache
-server/__pycache__/
-server/pytest.ini
-server/.env
