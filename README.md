@@ -16,44 +16,6 @@ Here're some of the project's best features:
 *   Case Management: Create view and manage legal cases
 *   Feedback System: Submit feedback that is stored in a MongoDB database
 
-<h2>🛠️ Installation Steps:</h2>
-
-<p>1. Backend Setup</p>
-
-```
-cd server
-```
-
-<p>2. Create a virtual environment</p>
-
-```
-python -m venv venv
-```
-
-<p>3. Activating Virtual Environment</p>
-
-```
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-<p>4. Install dependencies</p>
-
-```
-pip install -r requirements.txt
-```
-
-<p>5. Create a .env file in the server directory with the following variables</p>
-
-```
-MONGODB_URL=mongodb://localhost:27017 SECRET_KEY=your-secret-key-here ALGORITHM=HS256 ACCESS_TOKEN_EXPIRE_MINUTES=30 PORT=8000 email_sender=your-email-username-here email_username=your-email-id-here email_password=your-app-password-here smtp_server=smtp.gmail.com smtp_port=587  GROQ_API_KEY=your-groq-api-here
-```
-
-<p>6. Start the backend server:</p>
-
-```
-uvicorn app.main:app --reload
-```
-
 ## Tech Stack
 
 ### Frontend
