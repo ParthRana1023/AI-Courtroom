@@ -1,16 +1,20 @@
-# AI Courtroom
+<h1 align="center" id="title">AI Courtroom</h1>
 
-AI Courtroom is an interactive legal simulation platform that leverages artificial intelligence to create realistic courtroom experiences. Users can submit legal arguments, receive AI-generated counter-arguments, and get verdicts based on advanced AI analysis.
+<p align="center"><img src="https://socialify.git.ci/ParthRana1023/AI-Courtroom/image?description=1&amp;language=1&amp;name=1&amp;theme=Dark" alt="project-image"></p>
 
-## Features
+  
+  
+<h2>🧐 Features</h2>
 
-- **Case Generation**: AI-powered generation of legal case scenarios
-- **Interactive Arguments**: Submit arguments as either plaintiff or defendant
-- **AI Counter-Arguments**: Receive intelligent counter-arguments from the AI
-- **Verdict Generation**: Get AI-generated verdicts based on the arguments presented
-- **User Authentication**: Secure login and registration system
-- **Case Management**: Create, view, and manage legal cases
-- **Feedback System**: Submit feedback that is stored in a MongoDB database
+Here're some of the project's best features:
+
+*   Case Generation: AI-powered generation of legal case scenarios
+*   Interactive Arguments: Submit arguments as either plaintiff or defendant
+*   AI Counter-Arguments: Receive intelligent counter-arguments from the AI
+*   Verdict Generation: Get AI-generated verdicts based on the arguments presented
+*   User Authentication: Secure login and registration system
+*   Case Management: Create view and manage legal cases
+*   Feedback System: Submit feedback that is stored in a MongoDB database
 
 ## Tech Stack
 
@@ -71,7 +75,17 @@ AI Courtroom is an interactive legal simulation platform that leverages artifici
    MONGODB_DB_NAME=ai_courtroom
    SECRET_KEY=your_secret_key
    ACCESS_TOKEN_EXPIRE_MINUTES=30
+   ALGORITHM=HS256 
+   ACCESS_TOKEN_EXPIRE_MINUTES=30 
+   PORT=8000
+
    GROQ_API_KEY=your_groq_api_key
+   
+   email_sender=your-email-username-here 
+   email_username=your-email-id-here 
+   email_password=your-app-password-here 
+   smtp_server=smtp.gmail.com 
+   smtp_port=587  
    ```
 
 5. Start the backend server:
@@ -124,15 +138,10 @@ AI Courtroom is an interactive legal simulation platform that leverages artifici
     │   ├── schemas/        # Pydantic schemas
     │   ├── services/       # Business logic services
     │   └── utils/          # Utility functions
+    ├── .env                # Environament variables file
     └── requirements.txt    # Python dependencies
 ```
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-<p>6. Start the server</p>
-
-```
-uvicorn app.main:app --reload
-```
