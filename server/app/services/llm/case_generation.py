@@ -81,7 +81,7 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
     cities = await random_cities()
 
     # Select a few random names and a random city
-    selected_names = random.sample(names, min(len(names), 3)) if names else ["Parth Rana", "Pranav Nagvekar", "prasiddhi Agarwal", "Yashvi Savla"]
+    selected_names = random.sample(names, min(len(names), 3)) if names else ["Parth Rana", "Pranav Nagvekar", "Prasiddhi Agarwal", "Yashvi Savla"]
     selected_city = random.choice(cities) if cities else "Mumbai"
 
     template = f""" 

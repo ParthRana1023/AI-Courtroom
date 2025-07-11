@@ -7,7 +7,7 @@ from app.utils.llm import llm
 
 logger = logging.getLogger(__name__)
 
-async def generate_verdict(user_args: List[str], counter_args: List[str], case_details: str = None) -> str:
+async def generate_verdict(user_args: List[str], counter_args: List[str], case_details: str = None, title: str = None) -> str:
     try:
         # Combine all arguments to create a history
         history = "\n".join(user_args + counter_args)
@@ -35,44 +35,67 @@ async def generate_verdict(user_args: List[str], counter_args: List[str], case_d
         # Default values if still not found
         plaintiff_closing = plaintiff_closing or "No closing statement provided"
         defendant_closing = defendant_closing or "No closing statement provided"
-            
-        summarization_prompt = ChatPromptTemplate.from_messages([
-            ("system", """
-                You are a legal assistant. Your task is to summarize the key arguments made in this courtroom exchange.
-
-                Summarize the back-and-forth conversation between the lawyers in a concise, neutral manner.
-                Focus only on legal points made by both sides and counterarguments.
-                        """),
-            ("user", history)
-        ])
-
-        summarize_chain = summarization_prompt | llm | StrOutputParser()
-        summary = summarize_chain.invoke({})
 
         judge_template = f"""
-        You are a judge presiding over a courtroom in India. You have received a legal case and closing statements from both the Plaintiff and the Defendant.
+        
+        You are an impartial judge presiding over a courtroom in India. You have received a legal case and closing statements from both the Plaintiff and the Defendant Lawyers.
 
-        Your job is to carefully evaluate the closing statements and the key arguments raised by both sides during the case.
+        Draft a clear, professional judgment using the standard legal structure commonly seen in Indian judgments. Strictly use markdown formatting for all section headers and keywords, as in official court documents. Follow the format below:
 
-        Here is the case description:
-        \"\"\"{case_details or 'No case details provided'}\"\"\"
+        ---
+        **CASE TITLE:** {title or 'A vs B - Matrimonial Dispute'}  
+        **COURT:** [e.g., "Delhi High Court"]  
+        **DATE OF HEARING:** [DD Month YYYY]
+        ---
 
-        Here is the summarized courtroom argument history:
-        \"\"\"{summary}\"\"\"
+        **1. FACTS**  
+        Summarize essential facts concisely: parties involved, background events, relief sought, procedural history.  
+        **Case Description:**  
+        {case_details or 'No case details provided'}
+        
+        **Case Argument History:**  
+        {history or 'No case argument history provided'}
 
-        Closing statement from the Plaintiff:
-        \"\"\"{plaintiff_closing}\"\"\"
+        **2. ISSUES**  
+        Number and list legal questions to be decided (e.g., validity of contract, standard of proof).
 
-        Closing statement from the Defendant:
-        \"\"\"{defendant_closing}\"\"\"
+        **3. ARGUMENTS BY APPELLANT/PLAINTIFF**  
+        - Appellant's legal points  
+        - Evidence relied upon  
+        - Precedents cited  
+        **Closing statement from the Plaintiff:**  
+        {plaintiff_closing}
 
-        Please now deliver a final verdict, clearly stating:
-        1. Which side wins and why
-        2. The reasoning based on law and argument
-        3. A professional tone of authority and finality
+        **4. ARGUMENTS BY RESPONDENT/DEFENDANT**  
+        - Respondent's legal contentions  
+        - Counter-evidence  
+        - Precedents cited  
+        **Closing statement from the Defendant:**  
+        {defendant_closing}
 
-        Use formal judicial language. Be balanced, clear, and precise.
-            """
+        **5. RELEVANT PRECEDENTS**  
+        List key case laws from both sides. Summarize holdings and relevance to current issues.
+
+        **6. LEGAL ANALYSIS**  
+        - Evaluate each issue  
+        - Weigh arguments and evidence  
+        - Apply legal principles and precedents
+
+        **7. COURT'S REASONING**  
+        - How evidence and law support findings  
+        - Address factual findings (credibility, corroboration)
+
+        **8. CONCLUSION & ORDER**  
+        - For each issue, state the decision (allowed/dismissed)  
+        - Grant or deny relief, specify costs or directions  
+        - Sign-off with Judge's name, designation, and date.
+
+        ---
+        **Tone & Style Guidelines:**  
+        - Neutral, formal, judicial  
+        - Numbered/headed sections  
+        - Short, legally precise sentences
+        """
 
         judge_prompt = ChatPromptTemplate.from_messages([
             ("system", judge_template)

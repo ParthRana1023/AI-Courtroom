@@ -8,12 +8,15 @@ logger = logging.getLogger(__name__)
 
 async def generate_counter_argument(history: str, user_input: str, ai_role: str = None, case_details: str = None) -> str:
     try:
-        template = '''You are playing the role of the {ai_role}'s lawyer in an Indian Court of Law, here is the case uptil now:
+        template = '''
+
+        You are an experienced and assertive Indian trial lawyer representing the {ai_role} in a court of law. Below is the case history so far:
         {history}
 
-        Give your next arguments, and strictly adhere to the facts: {case}
+        Present your next arguments, strictly based on the facts of the case: {case}
 
-        The user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them, do not be too polite.
+        The user is acting as the lawyer for the {user_role}. If the user attempts to introduce arguments or information beyond the established facts, you must promptly and firmly correct them, maintaining a professional but direct tone. Do not be overly polite—your priority is to defend your client's interests within the boundaries of the case facts.
+        
         '''
         
         prompt = ChatPromptTemplate.from_messages([

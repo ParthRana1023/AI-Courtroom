@@ -4,10 +4,11 @@
 fastapi
 uvicorn
 motor
-pymongo
+pymongo[srv]
+dnspython
+cryptography>=3.3.2
 beanie
 pytz
-python-jose[cryptography]
 argon2-cffi
 python-dotenv
 httpx
