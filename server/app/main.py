@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.database import init_db
 from app.config import settings
-from app.routes import auth, cases, arguments, rate_limit, feedback
+from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis
 from beanie.odm.fields import PydanticObjectId
 import json
 import uvicorn
@@ -54,6 +54,7 @@ app.include_router(cases.router, prefix="/cases")
 app.include_router(arguments.router, prefix="/cases")
 app.include_router(rate_limit.router, prefix="/arguments")
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
+app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=settings.port, reload=True)

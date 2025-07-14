@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import Enum
 from beanie import Document
 from app.utils.datetime import get_current_datetime
+from app.schemas.case_analysis import CaseAnalysisResponse
 
 class CaseStatus(str, Enum):
     NOT_STARTED = "not started"
@@ -34,6 +35,7 @@ class Case(Document):
         description="Contains arguments with 'type', 'content', 'user_id', and 'timestamp'"
     )
     verdict: Optional[str] = None
+    analysis: Optional[CaseAnalysisResponse] = None
 
     class Settings:
         name = "cases"

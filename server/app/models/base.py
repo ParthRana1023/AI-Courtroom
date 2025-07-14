@@ -16,7 +16,7 @@ class PyObjectId(str):
 class BaseDBModel(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     
-    class Config:
+    class ConfigDict:
         json_encoders = {
             PydanticObjectId: str
         }

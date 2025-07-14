@@ -13,7 +13,7 @@ class FeedbackOut(FeedbackCreate):
     id: str = Field(..., alias="_id")
     created_at: str
 
-    class Config:
+    class ConfigDict:
         from_attributes = True
         populate_by_name = True
         json_encoders = {

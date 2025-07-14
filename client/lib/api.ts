@@ -199,6 +199,16 @@ export const caseAPI = {
     }
   },
 
+  analyzeCase: async (caseId: string) => {
+    try {
+      const response = await api.post(`/cases/${caseId}/analyze-case`);
+      return response.data;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+
   updateCaseStatus: async (cnr: string, status: string) => {
     try {
       const response = await api.put(`/cases/${cnr}/status`, { status });

@@ -333,11 +333,21 @@ export default function Courtroom({
 
       if (response.verdict) {
         updatedHistory.verdict = response.verdict;
-        setShowVerdict(true);
-      }
+          setShowVerdict(true);
 
-      setCaseHistory(updatedHistory);
-      setArgument("");
+          // Call the case analysis endpoint
+          try {
+            await caseAPI.analyzeCase(cnr);
+            console.log("Case analysis initiated successfully.");
+          } catch (analysisError) {
+            console.error("Failed to initiate case analysis:", analysisError);
+          }
+        }
+
+        setCaseHistory(updatedHistory);
+        setArgument("");
+        setCounterArgument(null);
+        setIsSubmitting(false);
 
       // Refresh case data to get updated status
       const updatedCase = await caseAPI.getCase(cnr);
