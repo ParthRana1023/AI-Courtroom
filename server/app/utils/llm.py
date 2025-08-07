@@ -10,7 +10,7 @@ groq_api_key = os.getenv("GROQ_API_KEY")
 # Initialize LLM
 llm = ChatGroq(
     streaming=True,
-    model="meta-llama/llama-4-scout-17b-16e-instruct",
+    model="llama-3.3-70b-versatile",
     temperature=0.1,
     api_key=groq_api_key,
     max_tokens=2048

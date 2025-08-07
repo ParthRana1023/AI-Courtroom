@@ -62,6 +62,8 @@ export default function Courtroom({
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [showVerdict, setShowVerdict] = useState(false);
   const [showCaseDetails, setShowCaseDetails] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [caseAnalysis, setCaseAnalysis] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -296,6 +298,31 @@ export default function Courtroom({
     }
   };
 
+  const handleAnalyzeCase = async () => {
+    if (caseAnalysis) {
+      setShowAnalysis(true);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const analysis = await caseAPI.analyzeCase(cnr);
+      if (analysis) {
+        setCaseAnalysis(
+          typeof analysis.analysis === "string"
+            ? analysis.analysis
+            : JSON.stringify(analysis)
+        );
+      }
+      setShowAnalysis(true);
+    } catch (error) {
+      console.error("Error fetching case analysis:", error);
+      setError("Failed to load case analysis. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmitClosingStatement = async () => {
     if (!argument.trim()) return;
 
@@ -309,6 +336,10 @@ export default function Courtroom({
 
       // Update the UI with the closing statement and verdict
       const updatedHistory = { ...caseHistory! };
+      const userTimestamp = createArgumentTimestamp();
+      const aiTimestamp = createOffsetTimestamp(1); // 1 second after user's timestamp
+
+      // Add user's closing statement
       if (currentRole === "plaintiff") {
         updatedHistory.plaintiff_arguments = [
           ...updatedHistory.plaintiff_arguments,
@@ -316,9 +347,21 @@ export default function Courtroom({
             type: "closing",
             content: argument,
             user_id: "current-user",
-            timestamp: createArgumentTimestamp(),
+            timestamp: userTimestamp,
           },
         ];
+        // Add AI's closing statement for defendant if present
+        if (response.ai_closing_statement) {
+          updatedHistory.defendant_arguments = [
+            ...updatedHistory.defendant_arguments,
+            {
+              type: "closing",
+              content: response.ai_closing_statement,
+              user_id: null,
+              timestamp: aiTimestamp,
+            },
+          ];
+        }
       } else {
         updatedHistory.defendant_arguments = [
           ...updatedHistory.defendant_arguments,
@@ -326,28 +369,43 @@ export default function Courtroom({
             type: "closing",
             content: argument,
             user_id: "current-user",
-            timestamp: createArgumentTimestamp(),
+            timestamp: userTimestamp,
           },
         ];
+        // Add AI's closing statement for plaintiff if present
+        if (response.ai_closing_statement) {
+          updatedHistory.plaintiff_arguments = [
+            ...updatedHistory.plaintiff_arguments,
+            {
+              type: "closing",
+              content: response.ai_closing_statement,
+              user_id: null,
+              timestamp: aiTimestamp,
+            },
+          ];
+        }
       }
 
       if (response.verdict) {
         updatedHistory.verdict = response.verdict;
+
+        setTimeout(() => {
           setShowVerdict(true);
+        }, 3000);
 
-          // Call the case analysis endpoint
-          try {
-            await caseAPI.analyzeCase(cnr);
-            console.log("Case analysis initiated successfully.");
-          } catch (analysisError) {
-            console.error("Failed to initiate case analysis:", analysisError);
-          }
+        // Call the case analysis endpoint
+        try {
+          await caseAPI.analyzeCase(cnr);
+          console.log("Case analysis initiated successfully.");
+        } catch (analysisError) {
+          console.error("Failed to initiate case analysis:", analysisError);
         }
+      }
 
-        setCaseHistory(updatedHistory);
-        setArgument("");
-        setCounterArgument(null);
-        setIsSubmitting(false);
+      setCaseHistory(updatedHistory);
+      setArgument("");
+      setCounterArgument(null);
+      setIsSubmitting(false);
 
       // Refresh case data to get updated status
       const updatedCase = await caseAPI.getCase(cnr);
@@ -487,6 +545,15 @@ export default function Courtroom({
                   View Verdict
                 </Button>
               )}
+              {caseData?.status === CaseStatus.RESOLVED && (
+                <Button
+                  variant="secondary"
+                  onClick={handleAnalyzeCase}
+                  disabled
+                >
+                  Analyze Case
+                </Button>
+              )}
             </div>
           </div>
         </header>
@@ -551,7 +618,9 @@ export default function Courtroom({
               const role = isPlaintiff ? "plaintiff" : "defendant";
               const isUser =
                 arg.user_id === "current-user" ||
-                (currentRole === role && arg.type === "user");
+                (currentRole === role &&
+                  arg.type !== "counter" &&
+                  arg.type !== "opening");
 
               // Create a unique key using timestamp and content hash
               const uniqueKey = `${arg.timestamp || index}-${
@@ -567,6 +636,8 @@ export default function Courtroom({
                     className={`max-w-[75%] rounded-lg p-3 ${
                       isUser
                         ? "bg-blue-500 text-white"
+                        : role === "plaintiff"
+                        ? "bg-purple-200 text-gray-900"
                         : "bg-gray-200 text-gray-900"
                     }`}
                   >
@@ -577,7 +648,7 @@ export default function Courtroom({
                         {arg.type === "closing" && "(Closing Statement)"}
                       </span>
                       {arg.timestamp && (
-                        <span className="text-xs text-gray-500 ml-2">
+                        <span className="text-xs text-gray-800 ml-2">
                           {formatToLocaleString(arg.timestamp)}
                         </span>
                       )}
@@ -587,7 +658,48 @@ export default function Courtroom({
                 </div>
               );
             })}
+            {caseHistory?.verdict &&
+              caseData?.status === CaseStatus.RESOLVED && (
+                <div>
+                  <Dialog
+                    open={showVerdict && !!caseHistory?.verdict}
+                    onOpenChange={setShowVerdict}
+                  >
+                    <DialogContent className="max-w-3xl max-h-[90vh] p-0">
+                      <DialogHeader className="px-6 py-4 border-b">
+                        <DialogTitle className="flex items-center justify-between">
+                          Case Verdict
+                        </DialogTitle>
+                      </DialogHeader>
+                      <ScrollArea className="h-[calc(90vh-6rem)] p-6">
+                        <MarkdownRenderer
+                          markdown={caseHistory.verdict}
+                          className="prose prose-lg max-w-none font-serif dark:prose-invert"
+                        />
+                      </ScrollArea>
+                    </DialogContent>
+                  </Dialog>
 
+                  <Dialog
+                    open={showAnalysis && !!caseAnalysis}
+                    onOpenChange={setShowAnalysis}
+                  >
+                    <DialogContent className="max-w-3xl max-h-[90vh] p-0">
+                      <DialogHeader className="px-6 py-4 border-b">
+                        <DialogTitle className="flex items-center justify-between">
+                          Case Analysis
+                        </DialogTitle>
+                      </DialogHeader>
+                      <ScrollArea className="h-[calc(90vh-6rem)] p-6">
+                        <MarkdownRenderer
+                          markdown={caseAnalysis || ""}
+                          className="prose prose-lg max-w-none font-serif dark:prose-invert"
+                        />
+                      </ScrollArea>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
             {caseHistory?.verdict &&
               caseData?.status === CaseStatus.RESOLVED && (
                 <div>
@@ -657,7 +769,7 @@ export default function Courtroom({
             {/* Rate limit information */}
             {rateLimit && (
               <div className="p-3 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg flex items-end space-x-2">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                <div className="w-full flex justify-between items-center">
                   <div>
                     <span className="text-s text-gray-700 dark:text-gray-300">
                       Daily argument limit:
@@ -675,7 +787,7 @@ export default function Courtroom({
                   </div>
 
                   {timeRemaining !== null && timeRemaining > 0 ? (
-                    <div className="mt-2 sm:mt-0 flex items-center">
+                    <div className="flex items-center justify-end">
                       <div className="text-orange-600 font-medium flex items-center">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -707,7 +819,7 @@ export default function Courtroom({
                       </div>
                     </div>
                   ) : rateLimit.remaining_attempts === 0 ? (
-                    <div className="mt-2 sm:mt-0">
+                    <div className="flex justify-end">
                       <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm">
                         Daily limit reached
                       </span>

@@ -76,7 +76,20 @@ export const authAPI = {
       const response = await api.post("/auth/register/initiate", userData);
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -86,7 +99,20 @@ export const authAPI = {
       const response = await api.post("/auth/register/verify", data);
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -98,7 +124,20 @@ export const authAPI = {
       // await authAPI.verifyLogin({ ...response.data, remember_me: remember });
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -113,7 +152,20 @@ export const authAPI = {
       }
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -123,7 +175,20 @@ export const authAPI = {
       const response = await api.get("/auth/profile");
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -184,7 +249,20 @@ export const caseAPI = {
       const response = await api.get(`/cases/${cnr}`);
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -194,7 +272,20 @@ export const caseAPI = {
       const response = await api.get(`/cases/${caseId}/history`);
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -204,7 +295,20 @@ export const caseAPI = {
       const response = await api.post(`/cases/${caseId}/analyze-case`);
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -214,7 +318,20 @@ export const caseAPI = {
       const response = await api.put(`/cases/${cnr}/status`, { status });
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -224,7 +341,20 @@ export const caseAPI = {
       const response = await api.post("/cases/generate", caseData);
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -234,7 +364,20 @@ export const caseAPI = {
       const response = await api.delete(`/cases/${cnr}`);
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -250,7 +393,20 @@ export const argumentAPI = {
       });
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -267,7 +423,20 @@ export const argumentAPI = {
       });
       return response.data;
     } catch (error) {
-      handleApiError(error);
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
       throw error;
     }
   },
@@ -281,25 +450,59 @@ export const contactAPI = {
   },
 };
 
-// Error handling helper
-function handleApiError(error: any) {
-  if (axios.isAxiosError(error)) {
-    const serverError = error as AxiosError;
-    if (serverError && serverError.response) {
-      console.error("API Error:", serverError.response.data);
-      console.error("API Error Status:", serverError.response.status);
-      console.error("API Error Headers:", serverError.response.headers);
-      console.error("API Error Config:", serverError.config);
-    } else if (serverError.request) {
-      // The request was made but no response was received
-      console.error("API Error: No response received", serverError.request);
-    } else {
-      // Something happened in setting up the request that triggered an Error
-      console.error("API Error:", serverError.message);
-    }
-  } else {
-    console.error("Unexpected error:", error);
+export const analyzeCase = async (
+  caseId: string,
+  plaintiffArguments: string[],
+  defendantArguments: string[],
+  details: string,
+  title: string,
+  verdict: string
+) => {
+  const response = await api.post(`/cases/${caseId}/analyze`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      plaintiff_arguments: plaintiffArguments,
+      counter_arguments: defendantArguments,
+      case_details: details,
+      title: title,
+      judge_verdict: verdict,
+    }),
+  });
+  if (response.status !== 200) {
+    const errorData = response.data;
+    throw new Error(errorData.detail || "Failed to analyze case");
   }
-}
+  return response.data;
+};
+
+export const submitArgument = async (
+  caseId: string,
+  role: string,
+  argument: string
+) => {
+  // Error handling helper
+  function handleApiError(error: any) {
+    if (axios.isAxiosError(error)) {
+      const serverError = error as AxiosError;
+      if (serverError && serverError.response) {
+        console.error("API Error:", serverError.response.data);
+        console.error("API Error Status:", serverError.response.status);
+        console.error("API Error Headers:", serverError.response.headers);
+        console.error("API Error Config:", serverError.config);
+      } else if (serverError.request) {
+        // The request was made but no response was received
+        console.error("API Error: No response received", serverError.request);
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error("API Error:", serverError.message);
+      }
+    } else {
+      console.error("Unexpected error:", error);
+    }
+  }
+};
 
 export default api;

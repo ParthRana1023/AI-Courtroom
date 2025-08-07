@@ -1,15 +1,7 @@
 from typing import List, Dict, Optional, Union
-import json
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
-from pydantic import BaseModel, Field
 from app.utils.llm import llm
-
-class CaseAnalysisResponse(BaseModel):
-    mistakes: List[str] = Field(description="Mistakes or weaknesses in the user's arguments")
-    suggestions: List[str] = Field(description="Actionable suggestions for improvement")
-    outcome: str = Field(description="Whether the user won or lost the case (e.g., 'win', 'lose', 'unknown')")
-    reasoning: str = Field(description="Detailed reasoning for the outcome based on the arguments and verdict")
+from app.models.case import CaseAnalysis
 
 class CaseAnalysisService:
     @staticmethod
@@ -48,22 +40,71 @@ class CaseAnalysisService:
 
             Analyze the case details, the user arguments, the opponent arguments, and the judge's verdict to determine the outcome.
 
-            Return your response as a JSON object with four keys: 
+            Return your response as a well-structured Markdown document with the following sections:
+            
+            ### Outcome
             - 'outcome' (string): Whether the user won or lost the case (e.g., 'win', 'lose', 'unknown')
-            - 'reasoning' (string): Detailed reasoning for the outcome based on the arguments and verdict
-            - 'mistakes' (list of strings): Identify mistakes or weaknesses in each of the user's arguments
-            - 'suggestions' (list of strings): Provide actionable suggestions for improvement in each argument
-        """
-        parser = PydanticOutputParser(pydantic_object=CaseAnalysisResponse)
 
+            ### Reasoning
+            - Detailed reasoning for the outcome based on the arguments and verdict.
+
+            ### Mistakes
+            - Identify mistakes or weaknesses in each of the user's arguments as a bulleted list.
+
+            ### Suggestions
+            - Provide actionable suggestions for improvement in each argument as a bulleted list.
+        """
         analysis_prompt = ChatPromptTemplate.from_messages([
-            ("system", prompt + "\n{format_instructions}")
+            ("system", prompt)
         ])
 
         try:
-            chain = analysis_prompt | llm | parser
-            response = chain.invoke({"format_instructions": parser.get_format_instructions()})
-            return response.dict()
+            chain = analysis_prompt | llm
+            response = chain.invoke({})
+            
+            # Parse the markdown response to extract sections
+            content = response.content
+            sections = {}
+            current_section = None
+            current_content = []
+            
+            for line in content.split('\n'):
+                if line.startswith('### '):
+                    if current_section and current_content:
+                        sections[current_section.lower()] = current_content
+                    current_section = line.replace('### ', '').strip()
+                    current_content = []
+                elif line.strip().startswith('- ') and current_section:
+                    item = line.strip().replace('- ', '').strip()
+                    # For outcome, extract just the value without quotes
+                    if current_section == 'Outcome':
+                        item = item.replace("'", "").replace('"', '').split(':')[-1].strip()
+                    current_content.append(item)
+            
+            # Add the last section
+            if current_section and current_content:
+                sections[current_section.lower()] = current_content
+
+            # Create analysis data
+            analysis_data = CaseAnalysis(
+                mistakes=sections.get('mistakes', ["No mistakes identified."]),
+                suggestions=sections.get('suggestions', ["No suggestions provided."]),
+                outcome=sections.get('outcome', ['unknown'])[0] if sections.get('outcome') else 'unknown',
+                reasoning=f"""
+                ### Outcome
+                - {sections.get('outcome', ['unknown'])[0] if sections.get('outcome') else 'unknown'}
+
+                ### Reasoning
+                {sections.get('reasoning', ['No reasoning provided.'])[0] if sections.get('reasoning') else 'No reasoning provided.'}
+
+                ### Mistakes
+                {chr(10).join('- ' + mistake for mistake in sections.get('mistakes', ["No mistakes identified."]))}
+
+                ### Suggestions
+                {chr(10).join('- ' + suggestion for suggestion in sections.get('suggestions', ["No suggestions provided."]))}"""
+            )
+            
+            return analysis_data.model_dump()
         except Exception as e:
             print(f"Error during LLM analysis: {e}")
             return {
