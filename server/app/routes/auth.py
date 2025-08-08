@@ -75,6 +75,7 @@ async def initiate_login(
     try:
         ph.verify(user.password_hash, password)
     except VerifyMismatchError:
+        print(f"DEBUG: Password mismatch for user: {email}") # Added for debugging
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"

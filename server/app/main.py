@@ -41,13 +41,17 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js default development port
+    allow_origins=["http://localhost:3000", "https://ai-courtroom-backend-v2.onrender.com", "https://ai-courtroom.vercel.app"],  # Next.js default development port
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
     expose_headers=["Content-Length"],
     max_age=3600,
 )
+
+@app.get("/")
+async def read_root():
+    return {"message": "Welcome to AI Courtroom API!"}
 
 app.include_router(auth.router, prefix="/auth")
 app.include_router(cases.router, prefix="/cases")

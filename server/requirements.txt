@@ -6,7 +6,7 @@ uvicorn
 motor
 pymongo
 dnspython
-cryptography>=3.3.2
+cryptography==45.0.6
 beanie
 pytz
 argon2-cffi
@@ -14,7 +14,7 @@ python-dotenv
 python-jose
 httpx
 pydantic-settings
-pydantic
+pydantic==2.11.7
 pydantic_mongo
 python-multipart
 nest_asyncio
