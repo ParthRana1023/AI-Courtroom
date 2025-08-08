@@ -4,13 +4,14 @@
 fastapi
 uvicorn
 motor
-pymongo[srv]
+pymongo
 dnspython
 cryptography>=3.3.2
 beanie
 pytz
 argon2-cffi
 python-dotenv
+python-jose
 httpx
 pydantic-settings
 pydantic
@@ -24,8 +25,8 @@ langchain-community
 langchain-groq
 
 # Testing
-selenium
-webdriver-manager
-pytest
-pytest-asyncio
-pytest-html
+# selenium
+# webdriver-manager
+# pytest
+# pytest-asyncio
+# pytest-html
