@@ -1,5 +1,6 @@
 # app/services/llm/judge.py
 import logging
+import re
 from typing import List
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -103,6 +104,9 @@ async def generate_verdict(user_args: List[str], counter_args: List[str], case_d
         judge_chain = judge_prompt | llm | StrOutputParser()
 
         verdict = judge_chain.invoke({})
+
+        verdict = re.sub(r"<think>.*?</think>", "", verdict, flags=re.DOTALL).strip()
+
         return verdict
     except Exception as e:
         logger.error(f"Error generating verdict: {str(e)}")

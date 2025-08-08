@@ -336,6 +336,31 @@ export const caseAPI = {
     }
   },
 
+  generatePlaintiffOpening: async (cnr: string) => {
+    try {
+      const response = await api.post(
+        `/cases/${cnr}/generate-plaintiff-opening`
+      );
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
+      throw error;
+    }
+  },
+
   generateCase: async (caseData: any) => {
     try {
       const response = await api.post("/cases/generate", caseData);
@@ -387,10 +412,12 @@ export const caseAPI = {
 export const argumentAPI = {
   submitArgument: async (caseCnr: string, role: string, argument: string) => {
     try {
+      console.log(`Submitting argument for case ${caseCnr} as ${role}:`, argument.substring(0, 100) + "...");
       const response = await api.post(`/cases/${caseCnr}/arguments`, {
         role,
         argument,
       });
+      console.log(`Argument submission response:`, response.data);
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {

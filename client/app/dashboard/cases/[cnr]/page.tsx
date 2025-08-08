@@ -40,7 +40,26 @@ export default function CaseDetails({
     try {
       // Update case status to ACTIVE
       await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
-      router.push(`/dashboard/cases/${cnr}/courtroom?role=${role}`);
+      
+      // If user selects defendant role, navigate first, then generate plaintiff opening statement after a delay
+      if (role === "defendant") {
+        // Navigate to courtroom immediately
+        router.push(`/dashboard/cases/${cnr}/courtroom?role=${role}`);
+        
+        // Wait 2 seconds before generating the plaintiff opening statement
+        setTimeout(async () => {
+          console.log("Generating plaintiff opening statement for defendant user after delay");
+          try {
+            await caseAPI.generatePlaintiffOpening(cnr);
+            console.log("Successfully generated plaintiff opening statement");
+          } catch (error) {
+            console.error("Error generating plaintiff opening statement:", error);
+          }
+        }, 2000); // 2 second delay
+      } else {
+        // For plaintiff role, just navigate directly
+        router.push(`/dashboard/cases/${cnr}/courtroom?role=${role}`);
+      }
     } catch (error) {
       console.error("Error updating case status:", error);
       // Optionally show an error message to the user
@@ -164,11 +183,10 @@ export default function CaseDetails({
                     Plaintiff Lawyer
                   </button>
                 </div>
-                <div title="We're still working on this">
+                <div>
                   <button
                     onClick={() => handleRoleSelection("defendant")}
-                    disabled={true}
-                    className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors cursor-not-allowed"
+                    className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors"
                   >
                     Defendant Lawyer
                   </button>

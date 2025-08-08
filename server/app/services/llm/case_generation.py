@@ -1,6 +1,7 @@
 # app/services/llm/case_generation.py
 import random
 import string
+import re
 from app.utils.llm import llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -212,6 +213,8 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
     try:
         # Use await for async chain invocation as llm is ChatOpenAI and the function is async
         llm_response_details = await chain.ainvoke({})
+
+        llm_response_details = re.sub(r"<think>.*?</think>", "", llm_response_details, flags=re.DOTALL).strip()
         
         # Generate a CNR (Case Number Registry)
         cnr = ''.join(random.choices(string.ascii_uppercase + string.digits, k=16))

@@ -40,29 +40,28 @@ async def submit_argument(
     # Check if this is the first argument submission
     if not case.plaintiff_arguments and not case.defendant_arguments:
         print("[DEBUG] Case has no arguments yet.")
-        # First argument must be from plaintiff
+        # First argument must be from plaintiff (either user or AI)
         if role != "plaintiff":
             print("[DEBUG] User is defendant, submitting first argument.")
-            # If user (defendant) submits the first argument:
-            # 1. AI generates plaintiff's opening statement
+            # If user is defendant, AI must generate plaintiff's opening statement first
             print("[DEBUG] Calling opening_statement for plaintiff...")
-            plaintiff_opening_statement = await opening_statement("plaintiff", case.details, role)
+            plaintiff_opening_statement = await opening_statement("plaintiff", case.details, "defendant")
             print(f"[DEBUG] opening_statement returned: {plaintiff_opening_statement[:100]}...") # Log first 100 chars
-            case.plaintiff_arguments.append({
-                "type": "opening",
-                "content": plaintiff_opening_statement,
-                "user_id": None,  # LLM-generated
-                "timestamp": get_current_datetime()
-            })
+            case.plaintiff_arguments.append(ArgumentItem(
+                type="opening",
+                content=plaintiff_opening_statement,
+                user_id=None,  # LLM-generated
+                timestamp=get_current_datetime()
+            ))
 
             # 2. User's submitted argument is recorded as the defendant's opening statement
             defendant_opening_statement_content = argument
-            case.defendant_arguments.append({
-                "type": "opening", # Defendant's first statement is an opening statement
-                "content": defendant_opening_statement_content,
-                "user_id": current_user.id,
-                "timestamp": get_current_datetime()
-            })
+            case.defendant_arguments.append(ArgumentItem(
+                type="opening", # Defendant's first statement is an opening statement
+                content=defendant_opening_statement_content,
+                user_id=current_user.id,
+                timestamp=get_current_datetime()
+            ))
 
             # Prepare history for counter-argument
             history = f"Defendant: {defendant_opening_statement_content}\n"
@@ -71,12 +70,12 @@ async def submit_argument(
             print("[DEBUG] Calling generate_counter_argument for plaintiff...")
             ai_plaintiff_counter_to_defendant_opening = await generate_counter_argument(history, defendant_opening_statement_content, "plaintiff", case.details)
             print(f"[DEBUG] generate_counter_argument returned: {ai_plaintiff_counter_to_defendant_opening[:100]}...") # Log first 100 chars
-            case.plaintiff_arguments.append({
-                "type": "counter",
-                "content": ai_plaintiff_counter_to_defendant_opening,
-                "user_id": None, # LLM-generated
-                "timestamp": get_current_datetime()
-            })
+            case.plaintiff_arguments.append(ArgumentItem(
+                type="counter",
+                content=ai_plaintiff_counter_to_defendant_opening,
+                user_id=None, # LLM-generated
+                timestamp=get_current_datetime()
+            ))
 
             # Update case status
             if case.status == CaseStatus.NOT_STARTED:
@@ -99,18 +98,45 @@ async def submit_argument(
             print("[DEBUG] User is plaintiff, submitting first argument.")
             # User is plaintiff, proceed normally with first argument
             case.plaintiff_arguments.append(ArgumentItem(
-                type="user",
+                type="opening",
                 content=argument,
                 user_id=current_user.id,
                 timestamp=get_current_datetime()
             ))
-            print("[DEBUG] Plaintiff argument appended.")
+            print("[DEBUG] Plaintiff opening statement appended.")
+            
+            # Generate defendant's opening statement
+            print("[DEBUG] Calling opening_statement for defendant...")
+            defendant_opening_statement = await opening_statement("defendant", case.details, "plaintiff")
+            print(f"[DEBUG] opening_statement returned: {defendant_opening_statement[:100]}...") # Log first 100 chars
+            case.defendant_arguments.append(ArgumentItem(
+                type="opening",
+                content=defendant_opening_statement,
+                user_id=None,  # LLM-generated
+                timestamp=get_current_datetime()
+            ))
+            print("[DEBUG] Defendant opening statement appended.")
+            
+            # Update case status
+            if case.status == CaseStatus.NOT_STARTED:
+                case.status = CaseStatus.ACTIVE
+                print(f"[DEBUG] Case status updated to {case.status}")
+                
+            # Save the case
+            await case.save()
+            
+            # Return the AI's opening statement
+            return {
+                "ai_opening_statement": defendant_opening_statement,
+                "ai_opening_role": "defendant"
+            }
+    # This block should never be reached now, but keeping it as a safeguard
     elif not case.plaintiff_arguments and role == "defendant":
-        print("[DEBUG] Defendant submitting before plaintiff.")
+        print("[DEBUG] Defendant submitting before plaintiff - this should not happen.")
         # Defendant cannot submit before plaintiff
         raise HTTPException(
             status_code=400,
-            detail="The plaintiff must submit the first argument"
+            detail="The plaintiff must go first in the case. The system will automatically generate a plaintiff opening statement when you submit as defendant."
         )
     else:
         print("[DEBUG] Case already has arguments.")
@@ -154,6 +180,21 @@ async def submit_argument(
 
     # Prepare history for counter-argument generation
     history = ""
+    print(f"[DEBUG] Building history for counter-argument generation, role={role}")
+    print(f"[DEBUG] Plaintiff arguments count: {len(case.plaintiff_arguments)}")
+    print(f"[DEBUG] Defendant arguments count: {len(case.defendant_arguments)}")
+    
+    # Log all arguments for debugging
+    for i, arg in enumerate(case.plaintiff_arguments):
+        arg_type = arg.type if isinstance(arg, ArgumentItem) else arg.get('type')
+        arg_content = arg.content if isinstance(arg, ArgumentItem) else arg.get('content')
+        print(f"[DEBUG] Plaintiff arg {i}: type={arg_type}, content={arg_content[:50] if arg_content else 'None'}...")
+    
+    for i, arg in enumerate(case.defendant_arguments):
+        arg_type = arg.type if isinstance(arg, ArgumentItem) else arg.get('type')
+        arg_content = arg.content if isinstance(arg, ArgumentItem) else arg.get('content')
+        print(f"[DEBUG] Defendant arg {i}: type={arg_type}, content={arg_content[:50] if arg_content else 'None'}...")
+    
     if role == "plaintiff":
         # If user is plaintiff, include all previous arguments as history
         for arg in case.plaintiff_arguments:
@@ -166,6 +207,7 @@ async def submit_argument(
 
             if content is not None:
                 history += f"Plaintiff: {content}\n"
+                print(f"[DEBUG] Added plaintiff argument to history: {content[:50]}...")
         for arg in case.defendant_arguments:
             # Handle both dictionary and ArgumentItem types for backward compatibility
             content = None
@@ -176,6 +218,7 @@ async def submit_argument(
 
             if content is not None:
                 history += f"Defendant: {content}\n"
+                print(f"[DEBUG] Added defendant argument to history: {content[:50]}...")
     else:
         # If user is defendant, include all previous arguments as history
         for arg in case.defendant_arguments:
@@ -188,6 +231,7 @@ async def submit_argument(
 
             if content is not None:
                 history += f"Defendant: {content}\n"
+                print(f"[DEBUG] Added defendant argument to history: {content[:50]}...")
         for arg in case.plaintiff_arguments:
             # Handle both dictionary and ArgumentItem types for backward compatibility
             content = None
@@ -198,9 +242,13 @@ async def submit_argument(
 
             if content is not None:
                 history += f"Plaintiff: {content}\n"
+                print(f"[DEBUG] Added plaintiff argument to history: {content[:50]}...")
+    
+    print(f"[DEBUG] Final history length: {len(history)} characters")
     
     # Determine AI role based on user's role
     ai_role = "defendant" if role == "plaintiff" else "plaintiff"
+    print(f"[DEBUG] AI role for counter-argument: {ai_role}")
     
     # Check if this is a closing statement
     if is_closing:
@@ -245,14 +293,20 @@ async def submit_argument(
     else:
         # Generate counter-argument for opposing side
         try:
+            print(f"[DEBUG] Generating counter-argument for {ai_role} in response to {role}'s argument")
+            print(f"[DEBUG] History length: {len(history)} characters")
+            print(f"[DEBUG] Argument: {argument[:100]}...")
             counter = await generate_counter_argument(history, argument, ai_role, case.details)
+            print(f"[DEBUG] Counter-argument generated: {counter[:100]}...")
             # Check if the response is the error message from the LLM service
             if counter.startswith("I apologize, but I'm unable to generate a counter argument"):
+                print(f"[DEBUG] Error in counter-argument generation: {counter[:100]}...")
                 # Return the error message without storing it as an argument
                 return {"error": counter}
         except Exception as e:
             # Handle any exceptions during counter argument generation
             error_message = f"Error generating counter argument: {str(e)}"
+            print(f"[DEBUG] Exception in counter-argument generation: {error_message}")
             return {"error": "I apologize, but I'm unable to generate a counter argument at this time. Please try again later."}
 
     if case.status == CaseStatus.NOT_STARTED:
@@ -260,39 +314,78 @@ async def submit_argument(
     
     # If this is the first plaintiff argument (from user), generate defendant opening
     if len(case.plaintiff_arguments) == 1 and len(case.defendant_arguments) == 0 and role == "plaintiff":
-        case.defendant_arguments.append({
-            "type": "opening",
-            "content": counter,
-            "user_id": None,  # LLM-generated
-            "timestamp": get_current_datetime()
-        })
+        print(f"[DEBUG] First plaintiff argument - adding AI defendant opening statement")
+        case.defendant_arguments.append(ArgumentItem(
+            type="opening",
+            content=counter,
+            user_id=None,  # LLM-generated
+            timestamp=get_current_datetime()
+        ))
     # Otherwise add counter argument to appropriate side
     elif role == "plaintiff":
-        case.defendant_arguments.append({
-            "type": "counter",
-            "content": counter,
-            "timestamp": get_current_datetime()
-        })
+        print(f"[DEBUG] Adding counter-argument to defendant's arguments")
+        case.defendant_arguments.append(ArgumentItem(
+            type="counter",
+            content=counter,
+            user_id=None,  # LLM-generated
+            timestamp=get_current_datetime()
+        ))
+        print(f"[DEBUG] Defendant arguments count after adding counter: {len(case.defendant_arguments)}")
+        for i, arg in enumerate(case.defendant_arguments):
+            print(f"[DEBUG] Defendant arg {i}: type={getattr(arg, 'type', 'unknown')}, user_id={getattr(arg, 'user_id', 'unknown')}, content={getattr(arg, 'content', 'unknown')[:50] if hasattr(arg, 'content') and arg.content else 'None'}...")
     else:
-        case.plaintiff_arguments.append({
-            "type": "counter",
-            "content": counter,
-            "timestamp": get_current_datetime()
-        })
+        print(f"[DEBUG] Adding counter-argument to plaintiff's arguments for defendant's submission")
+        # Ensure we're adding a counter-argument for the defendant's submission
+        counter_arg = ArgumentItem(
+            type="counter",
+            content=counter,
+            user_id=None,  # LLM-generated
+            timestamp=get_current_datetime()
+        )
+        print(f"[DEBUG] Created counter argument: {counter_arg.type}, {counter_arg.content[:50]}...")
+        case.plaintiff_arguments.append(counter_arg)
+        print(f"[DEBUG] Plaintiff arguments count after adding counter: {len(case.plaintiff_arguments)}")
+        for i, arg in enumerate(case.plaintiff_arguments):
+            print(f"[DEBUG] Plaintiff arg {i}: type={getattr(arg, 'type', 'unknown')}, user_id={getattr(arg, 'user_id', 'unknown')}, content={getattr(arg, 'content', 'unknown')[:50] if hasattr(arg, 'content') and arg.content else 'None'}...")
+
 
     await case.save()
 
     # Standardize response for AI-generated arguments
     response_data = {}
+    
+    print(f"[DEBUG] Preparing response data: plaintiff_args={len(case.plaintiff_arguments)}, defendant_args={len(case.defendant_arguments)}, role={role}")
+    
+    # Check if this is the first submission from plaintiff
     if len(case.plaintiff_arguments) == 1 and len(case.defendant_arguments) == 1 and role == "plaintiff" and case.defendant_arguments[0].type == "opening" and case.defendant_arguments[0].user_id is None:
+        print(f"[DEBUG] First plaintiff submission - returning AI defendant opening")
         # This was the AI defendant's opening statement generated because plaintiff submitted first
-        response_data["ai_opening_statement"] = counter
+        response_data["ai_opening_statement"] = case.defendant_arguments[0].content if isinstance(case.defendant_arguments[0], ArgumentItem) else case.defendant_arguments[0]["content"]
         response_data["ai_opening_role"] = "defendant"
+    # Check if this is the first submission from defendant
+    elif len(case.plaintiff_arguments) == 1 and len(case.defendant_arguments) == 1 and role == "defendant" and case.plaintiff_arguments[0].type == "opening" and case.plaintiff_arguments[0].user_id is None:
+        print(f"[DEBUG] First defendant submission - returning AI plaintiff opening and counter")
+        # This was the AI plaintiff's opening statement generated because defendant submitted first
+        response_data["ai_opening_statement"] = case.plaintiff_arguments[0].content if isinstance(case.plaintiff_arguments[0], ArgumentItem) else case.plaintiff_arguments[0]["content"]
+        response_data["ai_opening_role"] = "plaintiff"
+        response_data["ai_counter_argument"] = counter
+        response_data["ai_counter_role"] = ai_role
     else:
         # This is a regular counter-argument
+        print(f"[DEBUG] Regular submission - returning counter-argument: role={ai_role}, counter={counter[:50]}...")
         response_data["ai_counter_argument"] = counter
         response_data["ai_counter_role"] = ai_role # ai_role is 'defendant' if user is 'plaintiff', and vice-versa
+        
+    # Always ensure counter-argument is included for defendant's second submission
+    if role == "defendant" and len(case.defendant_arguments) > 1:
+        print(f"[DEBUG] Defendant's subsequent submission - ensuring counter-argument is included")
+        response_data["ai_counter_argument"] = counter
+        response_data["ai_counter_role"] = "plaintiff"
 
+    print(f"[DEBUG] Final response data keys: {response_data.keys()}")
+    if "ai_counter_argument" in response_data:
+        print(f"[DEBUG] Counter-argument in response: {response_data['ai_counter_argument'][:50]}...")
+    
     return response_data
 
 

@@ -3,7 +3,6 @@ from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Any
 from datetime import datetime
 from app.models.case import CaseStatus
-from app.schemas.case_analysis import CaseAnalysisResponse
 
 class CaseBase(BaseModel):
     sections_involved: int
@@ -28,6 +27,6 @@ class CaseOut(BaseModel):
     plaintiff_arguments: List[ArgumentOut] = []
     defendant_arguments: List[ArgumentOut] = []
     verdict: Optional[str] = None
-    analysis: Optional[CaseAnalysisResponse] = None
+    analysis: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

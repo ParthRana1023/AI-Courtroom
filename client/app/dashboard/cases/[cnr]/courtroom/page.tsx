@@ -188,12 +188,51 @@ export default function Courtroom({
     return () => clearInterval(timer);
   }, [timeRemaining]);
 
+  // Scroll to bottom when new messages arrive
   useEffect(() => {
-    // Scroll to bottom of chat when new messages arrive
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [caseHistory, counterArgument]);
+
+  // Poll for case history updates to catch plaintiff opening statement
+  // This is especially important when user selects defendant role
+  useEffect(() => {
+    // Only set up polling if we have case data and the case is active
+    if (!caseData || caseData.status !== CaseStatus.ACTIVE) return;
+
+    // Check if user is defendant and there are no plaintiff arguments yet
+    const isDefendantWithNoPlaintiffArgs =
+      currentRole === "defendant" &&
+      caseHistory &&
+      caseHistory.plaintiff_arguments.length === 0;
+
+    // If we're in this state, poll for updates
+    if (isDefendantWithNoPlaintiffArgs) {
+      console.log("Setting up polling for plaintiff opening statement");
+
+      const pollInterval = setInterval(async () => {
+        try {
+          console.log("Polling for case history updates...");
+          const updatedHistory = await caseAPI.getCaseHistory(cnr);
+
+          // Check if there are new plaintiff arguments
+          if (updatedHistory.plaintiff_arguments.length > 0) {
+            console.log("Found new plaintiff arguments, updating case history");
+            setCaseHistory(updatedHistory);
+            clearInterval(pollInterval); // Stop polling once we find the opening statement
+          }
+        } catch (pollError) {
+          console.error("Error polling case history:", pollError);
+        }
+      }, 2000); // Poll every 2 seconds
+
+      return () => {
+        console.log("Cleaning up polling interval");
+        clearInterval(pollInterval);
+      };
+    }
+  }, [caseData, caseHistory, currentRole, cnr]);
 
   const handleSubmitArgument = async () => {
     if (!argument.trim()) return;
@@ -255,8 +294,14 @@ export default function Courtroom({
 
       // Add AI Counter-Argument if present in the response
       if (response.ai_counter_argument && response.ai_counter_role) {
+        console.log("Counter-argument found in response:", {
+          role: response.ai_counter_role,
+          content: response.ai_counter_argument.substring(0, 100) + "...",
+        });
+
         const aiCounterArgumentTimestamp = createOffsetTimestamp(2); // 2 second offset to appear after opening statement
         if (response.ai_counter_role === "plaintiff") {
+          console.log("Adding plaintiff counter-argument to history");
           updatedHistory.plaintiff_arguments.push({
             type: "counter",
             content: response.ai_counter_argument,
@@ -264,6 +309,7 @@ export default function Courtroom({
             timestamp: aiCounterArgumentTimestamp, // Use consistent format
           });
         } else if (response.ai_counter_role === "defendant") {
+          console.log("Adding defendant counter-argument to history");
           updatedHistory.defendant_arguments.push({
             type: "counter",
             content: response.ai_counter_argument,
@@ -271,6 +317,8 @@ export default function Courtroom({
             timestamp: aiCounterArgumentTimestamp, // Use consistent format
           });
         }
+      } else {
+        console.log("No counter-argument in response:", response);
       }
 
       // Update the state with the new history
@@ -299,24 +347,36 @@ export default function Courtroom({
   };
 
   const handleAnalyzeCase = async () => {
+    console.log("🔍 handleAnalyzeCase called");
+    console.log("📊 Current caseAnalysis state:", caseAnalysis);
+    console.log("👁️ Current showAnalysis state:", showAnalysis);
+
     if (caseAnalysis) {
+      console.log("✅ Case analysis already exists, showing dialog");
       setShowAnalysis(true);
+      console.log("🔄 setShowAnalysis(true) called");
       return;
     }
 
     setIsLoading(true);
     try {
       const analysis = await caseAPI.analyzeCase(cnr);
+
       if (analysis) {
-        setCaseAnalysis(
-          typeof analysis.analysis === "string"
-            ? analysis.analysis
-            : JSON.stringify(analysis)
-        );
+        // The analysis field contains the formatted markdown
+        setCaseAnalysis(analysis.analysis || "");
+      } else {
+        console.log("No analysis in response");
       }
+
       setShowAnalysis(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching case analysis:", error);
+      console.log("Error details:", {
+        message: error?.message,
+        status: error?.response?.status,
+        data: error?.response?.data,
+      });
       setError("Failed to load case analysis. Please try again.");
     } finally {
       setIsLoading(false);
@@ -546,11 +606,7 @@ export default function Courtroom({
                 </Button>
               )}
               {caseData?.status === CaseStatus.RESOLVED && (
-                <Button
-                  variant="secondary"
-                  onClick={handleAnalyzeCase}
-                  disabled
-                >
+                <Button variant="secondary" onClick={handleAnalyzeCase}>
                   Analyze Case
                 </Button>
               )}
@@ -618,9 +674,7 @@ export default function Courtroom({
               const role = isPlaintiff ? "plaintiff" : "defendant";
               const isUser =
                 arg.user_id === "current-user" ||
-                (currentRole === role &&
-                  arg.type !== "counter" &&
-                  arg.type !== "opening");
+                (arg.user_id && currentRole === role);
 
               // Create a unique key using timestamp and content hash
               const uniqueKey = `${arg.timestamp || index}-${
@@ -687,15 +741,48 @@ export default function Courtroom({
                     <DialogContent className="max-w-3xl max-h-[90vh] p-0">
                       <DialogHeader className="px-6 py-4 border-b">
                         <DialogTitle className="flex items-center justify-between">
-                          Case Analysis
+                          <div className="flex items-center space-x-3">
+                            <div className="w-1 h-8 bg-blue-500 rounded"></div>
+                            <div className="max-w-md">
+                              <h2 className="text-xl font-bold truncate">
+                                Case Analysis
+                              </h2>
+                              <p className="text-sm text-gray-500 mt-1 truncate">
+                                Case #{caseData.cnr} • {caseData.title}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            Analysis Complete
+                          </span>
                         </DialogTitle>
                       </DialogHeader>
-                      <ScrollArea className="h-[calc(90vh-6rem)] p-6">
-                        <MarkdownRenderer
-                          markdown={caseAnalysis || ""}
-                          className="prose prose-lg max-w-none font-serif dark:prose-invert"
-                        />
+                      <ScrollArea className="max-h-[calc(90vh-12rem)]">
+                        <div className="px-6 py-4">
+                          <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-inner overflow-hidden">
+                            <div className="p-6">
+                              <MarkdownRenderer
+                                markdown={caseAnalysis || ""}
+                                className="prose prose-lg max-w-none font-serif prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </ScrollArea>
+                      <div className="px-6 py-4 border-t bg-gray-50 dark:bg-zinc-900">
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          <div className="flex items-center">
+                            <span className="inline-block w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            Analysis generated on{" "}
+                            {formatToLocaleDateString(caseData.created_at)}
+                          </div>
+                          {caseData.court && (
+                            <div className="flex items-center text-gray-500">
+                              <span>{caseData.court}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </DialogContent>
                   </Dialog>
                 </div>

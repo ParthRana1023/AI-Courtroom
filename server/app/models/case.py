@@ -5,7 +5,6 @@ from datetime import datetime
 from enum import Enum
 from beanie import Document
 from app.utils.datetime import get_current_datetime
-from app.schemas.case_analysis import CaseAnalysisResponse
 
 class CaseStatus(str, Enum):
     NOT_STARTED = "not started"
@@ -18,12 +17,6 @@ class ArgumentItem(BaseModel):
     content: str
     user_id: Optional[PydanticObjectId] = Field(None, description="ID of the user who added this argument, optional")
     timestamp: datetime = Field(default_factory=get_current_datetime)
-
-class CaseAnalysis(BaseModel):
-    mistakes: List[str] = Field(default_factory=list)
-    suggestions: List[str] = Field(default_factory=list)
-    outcome: str = "unknown"
-    reasoning: str = ""
 
 class Case(Document):
     cnr: str = Field(..., min_length=16, max_length=16)
@@ -41,7 +34,7 @@ class Case(Document):
         description="Contains arguments with 'type', 'content', 'user_id', and 'timestamp'"
     )
     verdict: Optional[str] = None
-    analysis: Optional[CaseAnalysis] = Field(default=None)
+    analysis: Optional[str] = Field(default=None)
 
     class Settings:
         name = "cases"

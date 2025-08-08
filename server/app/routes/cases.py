@@ -93,6 +93,55 @@ async def update_case_status(
 
     return {"message": "Case status updated successfully", "new_status": case.status}
 
+@router.post("/{cnr}/generate-plaintiff-opening")
+async def generate_plaintiff_opening(
+    cnr: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Generate a plaintiff opening statement when user selects defendant role"""
+    from app.models.case import ArgumentItem
+    from app.utils.datetime import get_current_datetime
+    from app.services.llm.lawyer import opening_statement
+    
+    case = await Case.find_one(Case.cnr == cnr)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Check if the case belongs to the current user
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to access this case"
+        )
+    
+    # Check if case already has arguments
+    if case.plaintiff_arguments or case.defendant_arguments:
+        raise HTTPException(
+            status_code=400,
+            detail="Case already has arguments. Cannot generate opening statement."
+        )
+    
+    # Generate plaintiff's opening statement
+    print("[DEBUG] Generating plaintiff opening statement for defendant user")
+    plaintiff_opening_statement = await opening_statement("plaintiff", case.details, "defendant")
+    
+    # Add the opening statement to the case
+    case.plaintiff_arguments.append(ArgumentItem(
+        type="opening",
+        content=plaintiff_opening_statement,
+        user_id=None,  # LLM-generated
+        timestamp=get_current_datetime()
+    ))
+    
+    # Update case status to ACTIVE
+    case.status = CaseStatus.ACTIVE
+    await case.save()
+    
+    return {
+        "ai_opening_statement": plaintiff_opening_statement,
+        "ai_opening_role": "plaintiff"
+    }
+
 @router.delete("/{cnr}")
 async def delete_case(
     cnr: str,
