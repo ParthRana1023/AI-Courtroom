@@ -33,6 +33,9 @@ def is_expired(expiry_time: datetime) -> bool:
     """Check if a timestamp has expired"""
     return get_current_datetime() > expiry_time
 
-def format_reset_time(timestamp: float) -> str:
-    """Format timestamp for rate limiter reset time display"""
-    return datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
+def get_start_of_next_day() -> datetime:
+    """Get the datetime for the start of the next day in the default timezone."""
+    now = get_current_datetime()
+    # Calculate the start of the next day
+    next_day = now.date() + timedelta(days=1)
+    return get_timezone().localize(datetime(next_day.year, next_day.month, next_day.day))

@@ -11,7 +11,7 @@ router = APIRouter(tags=["rate_limit"])
 async def get_argument_rate_limit(current_user: User = Depends(get_current_user)):
     """Get the remaining argument submissions and time until reset for the current user"""
     user_id = str(current_user.id)
-    remaining, seconds_until_next = argument_rate_limiter.get_remaining_attempts(user_id)
+    remaining, seconds_until_next = await argument_rate_limiter.get_remaining_attempts(user_id)
     
     return {
         "remaining_attempts": remaining,
@@ -23,7 +23,7 @@ async def get_argument_rate_limit(current_user: User = Depends(get_current_user)
 async def get_case_generation_rate_limit(current_user: User = Depends(get_current_user)):
     """Get the remaining case generation submissions and time until reset for the current user"""
     user_id = str(current_user.id)
-    remaining, seconds_until_next = case_generation_rate_limiter.get_remaining_attempts(user_id)
+    remaining, seconds_until_next = await case_generation_rate_limiter.get_remaining_attempts(user_id)
     
     return {
         "remaining_attempts": remaining,

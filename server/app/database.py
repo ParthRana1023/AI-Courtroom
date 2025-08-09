@@ -6,6 +6,7 @@ from app.models.case import Case
 from app.models.feedback import Feedback
 from beanie import init_beanie
 from app.models.otp import OTP
+from app.models.rate_limit import RateLimitEntry
 
 # In the init_db function, add OTP to the models list
 async def init_db(motor_client: AsyncIOMotorClient):
@@ -17,7 +18,7 @@ async def init_db(motor_client: AsyncIOMotorClient):
         
         await init_beanie(
             database=motor_client[db_name],
-            document_models=[User, Case, Feedback, OTP],
+            document_models=[User, Case, Feedback, OTP, RateLimitEntry],
             allow_index_dropping=True,
             recreate_views=True
         )
