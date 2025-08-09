@@ -149,14 +149,12 @@ export default function GenerateCase() {
       <div className="flex-grow container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800">
           <h1 className="text-2xl font-bold mb-6">Generate New Case</h1>
-
           {errors.form && (
             <Alert variant="destructive" className="mb-4">
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{errors.form}</AlertDescription>
             </Alert>
           )}
-
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label
@@ -277,7 +275,6 @@ export default function GenerateCase() {
               </button>
             </div>
           </form>
-
           {rateLimit && (
             <div className="mt-6 text-sm text-gray-600 dark:text-gray-400">
               <p>
@@ -292,6 +289,14 @@ export default function GenerateCase() {
               )}
             </div>
           )}
+          <br />
+          <p className="text-sm text-gray-600 dark:text-zinc-400 mb-6">
+            Note: Enter the number of sections involved and specific section
+            numbers (eg. 420, 315, 149, etc) to generate a new case. The AI will
+            use these section numbers to determine the type of case (e.g.,
+            criminal, civil, constitutional) and generate a detailed case
+            summary and analysis accordingly.
+          </p>
         </div>
       </div>
     </div>
