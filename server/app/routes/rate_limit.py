@@ -15,7 +15,7 @@ async def get_argument_rate_limit(current_user: User = Depends(get_current_user)
     
     return {
         "remaining_attempts": remaining,
-        "max_attempts": rate_limiter.requests,
+        "max_attempts": argument_rate_limiter.requests,
         "seconds_until_next": seconds_until_next
     }
 
