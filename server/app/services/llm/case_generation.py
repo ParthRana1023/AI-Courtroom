@@ -144,9 +144,9 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         - Clearly title the petition, incorporating BOTH the provided IPC sections {ipc_section_numbers_str} AND the additional related IPC sections you've identified.
         - Example: `**PETITION UNDER SECTION 482 OF THE CODE OF CRIMINAL PROCEDURE, 1973 READ WITH IPC SECTIONS {ipc_section_numbers_str} AND RELATED SECTIONS [list additional sections] FOR QUASHING OF FIR NO. [XYZ/YYYY]**`
         
-        **RELATED IPC SECTIONS:**
-        - After introducing the petition, include this dedicated section explaining the additional related IPC sections you've incorporated
-        - For each related section, provide its number, title, and a brief explanation of how it connects to the primary sections and its relevance to this specific case
+        **IPC SECTIONS:**
+        - After introducing the petition, include this dedicated section explaining the IPC sections you've incorporated
+        - For each section, provide its number, title, and a brief explanation of how it connects to this case and its relevance to this specific case
         - Format as: `- **Section [Number] - [Title]:** [Brief explanation of relevance to this case]`
 
         **MOST RESPECTFULLY SHEWETH (FORMAL PETITION):**
