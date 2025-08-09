@@ -56,7 +56,7 @@ async def read_root():
 app.include_router(auth.router, prefix="/auth")
 app.include_router(cases.router, prefix="/cases")
 app.include_router(arguments.router, prefix="/cases")
-app.include_router(rate_limit.router, prefix="/arguments")
+app.include_router(rate_limit.router, prefix="/limit")
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
 

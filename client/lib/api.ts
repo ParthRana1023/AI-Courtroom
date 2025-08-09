@@ -79,6 +79,12 @@ export const authAPI = {
       if (axios.isAxiosError(error)) {
         const serverError = error;
         if (serverError.response) {
+          if (serverError.response.status === 429) {
+            throw new Error(
+              serverError.response.data.detail ||
+                "Too many case generation requests. Please try again later."
+            );
+          }
           console.error("API Error:", serverError.response.data);
           console.error("API Error Status:", serverError.response.status);
           console.error("API Error Headers:", serverError.response.headers);
@@ -412,7 +418,10 @@ export const caseAPI = {
 export const argumentAPI = {
   submitArgument: async (caseCnr: string, role: string, argument: string) => {
     try {
-      console.log(`Submitting argument for case ${caseCnr} as ${role}:`, argument.substring(0, 100) + "...");
+      console.log(
+        `Submitting argument for case ${caseCnr} as ${role}:`,
+        argument.substring(0, 100) + "..."
+      );
       const response = await api.post(`/cases/${caseCnr}/arguments`, {
         role,
         argument,

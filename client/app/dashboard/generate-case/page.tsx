@@ -1,11 +1,14 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navigation from "@/components/navigation";
 import { caseAPI } from "@/lib/api";
+import { Alert, AlertDescription, AlertTitle } from "@/components/alert";
 import type { CaseGenerationFormData } from "@/types";
+import { caseGenerationRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
+import { formatSecondsToHMS } from "@/lib/utils";
 
 export default function GenerateCase() {
   const router = useRouter();
@@ -16,6 +19,61 @@ export default function GenerateCase() {
   const [sectionInput, setSectionInput] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchRateLimit = async () => {
+      try {
+        const info =
+          await caseGenerationRateLimitAPI.getCaseGenerationRateLimit();
+        setRateLimit(info);
+        if (info.seconds_until_next) {
+          setTimeRemaining(Math.ceil(info.seconds_until_next));
+        } else {
+          setTimeRemaining(null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch rate limit:", error);
+        setErrors({ form: "Failed to load rate limit information." });
+      }
+    };
+
+    fetchRateLimit();
+    // const interval = setInterval(fetchRateLimit, 5000); // Refresh every 5 seconds
+    // return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (timeRemaining === null || timeRemaining <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev === null || prev <= 1) {
+          const fetchRateLimit = async () => {
+            try {
+              const info =
+                await caseGenerationRateLimitAPI.getCaseGenerationRateLimit();
+              setRateLimit(info);
+              if (info.seconds_until_next) {
+                setTimeRemaining(Math.ceil(info.seconds_until_next));
+              } else {
+                setTimeRemaining(null);
+              }
+            } catch (error) {
+              console.error("Failed to fetch rate limit:", error);
+              setErrors({ form: "Failed to load rate limit information." });
+            }
+          };
+          fetchRateLimit(); // Refresh rate limit info when timer reaches zero
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeRemaining]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -93,9 +151,10 @@ export default function GenerateCase() {
           <h1 className="text-2xl font-bold mb-6">Generate New Case</h1>
 
           {errors.form && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-              {errors.form}
-            </div>
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{errors.form}</AlertDescription>
+            </Alert>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -205,13 +264,34 @@ export default function GenerateCase() {
               </button>
               <button
                 type="submit"
-                disabled={isLoading}
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+                  isLoading || (rateLimit && rateLimit.remaining_attempts <= 0)
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                }`}
+                disabled={
+                  isLoading || (rateLimit?.remaining_attempts ?? 1) <= 0
+                }
               >
                 {isLoading ? "Generating..." : "Generate Case"}
               </button>
             </div>
           </form>
+
+          {rateLimit && (
+            <div className="mt-6 text-sm text-gray-600 dark:text-gray-400">
+              <p>
+                Remaining case generations: {rateLimit.remaining_attempts} /{" "}
+                {rateLimit.max_attempts}
+              </p>
+              {rateLimit.remaining_attempts <= 0 && timeRemaining !== null && (
+                <p className="text-red-500">
+                  Rate limit exceeded. Try again in{" "}
+                  {formatSecondsToHMS(timeRemaining)}.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

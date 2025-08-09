@@ -6,6 +6,7 @@ from app.models.case import Case, CaseStatus
 from app.schemas.case import CaseCreate, CaseOut
 from app.dependencies import get_current_user
 from app.services.llm.case_generation import generate_case
+from app.utils.rate_limiter import case_generation_rate_limiter
 from app.models.user import User
 
 router = APIRouter(tags=["cases"])
@@ -202,7 +203,8 @@ async def get_case_history(
 @router.post("/generate", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
 async def generate_new_case(
     case_data: CaseCreate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    rate_limit: None = Depends(case_generation_rate_limiter)
 ):
     generated_case = await generate_case(
         case_data.sections_involved,

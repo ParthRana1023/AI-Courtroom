@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { use } from "react";
 import Navigation from "@/components/navigation";
 import { caseAPI, argumentAPI } from "@/lib/api";
-import { rateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
+import { argumentRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
 import { type Case, CaseStatus, type Argument } from "@/types";
 import {
   createArgumentTimestamp,
@@ -157,7 +157,8 @@ export default function Courtroom({
   // Fetch rate limit information and update countdown timer
   const fetchRateLimitInfo = async () => {
     try {
-      const limitInfo = await rateLimitAPI.getArgumentRateLimit();
+      const limitInfo = await argumentRateLimitAPI.getArgumentRateLimit();
+
       setRateLimit(limitInfo);
 
       if (limitInfo.seconds_until_next) {

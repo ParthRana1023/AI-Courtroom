@@ -66,4 +66,7 @@ class RateLimiter:
 
 # Create a global instance for daily argument rate limiting
 # 10 arguments per day (86400 seconds)
-rate_limiter = RateLimiter(10, 86400)
+argument_rate_limiter = RateLimiter(10, 86400)
+
+# 1 case per day (86400 seconds)
+case_generation_rate_limiter = RateLimiter(1, 86400)
