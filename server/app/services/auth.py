@@ -14,7 +14,7 @@ from app.utils.datetime import create_jwt_expiry
 
 ph = PasswordHasher()
 
-async def create_user(user_data: UserCreate) -> UserOut:
+async def create_user(user_data: UserCreate) -> User:
     """Create new user with direct Motor operations"""
     existing_user = await User.find_one(User.email == user_data.email)
     if existing_user:
@@ -29,7 +29,7 @@ async def create_user(user_data: UserCreate) -> UserOut:
         password_hash=hashed_password
     )
     await user.insert()
-    return UserOut(**user.model_dump())
+    return user
 
 async def authenticate_user(email: str, password: str) -> User:
     user = await User.find_one(User.email == email)

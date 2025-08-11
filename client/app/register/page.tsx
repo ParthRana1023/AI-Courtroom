@@ -98,7 +98,7 @@ export default function Register() {
     setIsLoading(true);
     try {
       await verifyRegistration(formData, otp.join(""));
-      router.push("/dashboard");
+      router.push("/dashboard/cases");
     } catch (error: any) {
       setErrors({ otp: "OTP verification failed. Please try again." });
     } finally {

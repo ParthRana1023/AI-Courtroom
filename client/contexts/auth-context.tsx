@@ -151,12 +151,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const verifyRegistration = async (userData: any, otp: string) => {
+  const verifyRegistration = async (registrationData: any, otp: string) => {
     setIsLoading(true);
     try {
-      await authAPI.verifyRegistration({ user_data: userData, otp });
+      const { access_token } = await authAPI.verifyRegistration({
+        user_data: registrationData,
+        otp,
+        remember_me: false,
+      });
+      localStorage.setItem("token", access_token);
+      const profileData = await authAPI.getProfile();
+      setUser(profileData);
+      setIsAuthenticated(true);
       setIsLoading(false);
-      router.push("/login");
+      router.push("/dashboard/cases");
     } catch (error) {
       setIsLoading(false);
       throw error;

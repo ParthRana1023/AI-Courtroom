@@ -31,7 +31,9 @@ async def create_otp(email: str, is_registration: bool = True) -> str:
         expiry=expiry_utc,
         is_registration=is_registration
     )
+    print(f"Attempting to insert OTP: email={email}, otp={otp_code}, expiry={expiry_utc}, is_registration={is_registration}")
     await otp.insert()
+    print(f"OTP inserted successfully.")
     
     # Send OTP via email
     await send_otp_email(email, otp_code, is_registration)
@@ -61,7 +63,8 @@ async def verify_otp(email: str, otp_code: str, is_registration: Optional[bool] 
             query_dict["is_registration"] = is_registration
             
         otp_doc_dict = await collection.find_one(query_dict)
-        print(f"Direct MongoDB query result: {otp_doc_dict is not None}")
+        print(f"Direct MongoDB query: {query_dict}")
+        print(f"Direct MongoDB query result: {otp_doc_dict}")
         
         if otp_doc_dict:
             # Check if OTP is expired - ensure both datetimes are timezone-aware and compare in UTC
@@ -117,6 +120,8 @@ async def verify_otp(email: str, otp_code: str, is_registration: Optional[bool] 
         otp_doc = await OTP.find_one(*query)
         
         # Add debug logging
+        print(f"Beanie ORM query: email={email}, otp={otp_code}, is_registration={is_registration}")
+        print(f"Beanie ORM query result: {otp_doc}")
         print(f"Verifying OTP: email={email}, otp={otp_code}, found={otp_doc is not None}")
         
         if not otp_doc:

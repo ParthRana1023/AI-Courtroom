@@ -16,6 +16,7 @@ class OTP(Document):
 class RegistrationVerifyRequest(BaseModel):
     user_data: UserCreate
     otp: str
+    remember_me: bool = False
 
 class LoginVerifyRequest(BaseModel):
     email: EmailStr

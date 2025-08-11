@@ -31,6 +31,7 @@ api.interceptors.request.use(
       }
 
       if (token) {
+        console.log("Token being sent:", token);
         config.headers.Authorization = `Bearer ${token}`;
       }
     }
@@ -103,6 +104,9 @@ export const authAPI = {
   verifyRegistration: async (data: any) => {
     try {
       const response = await api.post("/auth/register/verify", data);
+      if (response.data.access_token) {
+        setAuthToken(response.data.access_token);
+      }
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {

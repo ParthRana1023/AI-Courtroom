@@ -30,7 +30,7 @@ async def initiate_registration(user_data: UserCreate):
     # For simplicity, we'll return a success message and expect the client to send the data again
     return {"message": "OTP sent to your email for verification"}
 
-@router.post("/register/verify", status_code=status.HTTP_201_CREATED, response_model=UserOut)
+@router.post("/register/verify", status_code=status.HTTP_201_CREATED, response_model=TokenResponse)
 async def verify_registration(data: RegistrationVerifyRequest):
     # Verify OTP
     is_valid = await verify_otp(data.user_data.email, data.otp, is_registration=True)
@@ -48,7 +48,19 @@ async def verify_registration(data: RegistrationVerifyRequest):
     # Create the user
     try:
         user = await create_user(data.user_data)
-        return user
+
+        # Create access token for the newly registered user
+        access_token_expires = timedelta(
+            days=settings.extended_token_expire_days if data.remember_me else 0,
+            minutes=settings.access_token_expire_minutes
+        )
+
+        access_token = create_access_token(
+            data={"sub": str(user.email)},
+            expires_delta=access_token_expires
+        )
+
+        return {"access_token": access_token, "token_type": "bearer"}
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -123,7 +135,7 @@ async def verify_login(request: Request):
         )
         
         access_token = create_access_token(
-            data={"sub": str(user.id)},
+            data={"sub": str(user.email)},
             expires_delta=access_token_expires
         )
         
