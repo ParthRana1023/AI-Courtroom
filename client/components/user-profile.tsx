@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getUserProfile, logout } from "@/lib/api"
+import { authAPI } from "@/lib/api"
 import { LogOut } from "lucide-react"
 
 export function UserProfile() {
@@ -18,7 +18,7 @@ export function UserProfile() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await getUserProfile()
+        const data = await authAPI.getProfile()
         setProfile(data)
       } catch (err) {
         setError("Failed to load profile. Please try again.")
@@ -34,7 +34,7 @@ export function UserProfile() {
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
-      await logout()
+      await authAPI.logout()
       router.push("/login")
     } catch (error) {
       console.error("Logout failed:", error)

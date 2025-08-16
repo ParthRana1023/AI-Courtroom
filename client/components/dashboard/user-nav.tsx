@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
+import { authAPI } from "@/lib/api";
 
 export function UserNav() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export function UserNav() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      logout();
+      authAPI.logout();
       router.push("/login");
     } catch (error) {
       console.error("Logout failed:", error);

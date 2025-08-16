@@ -2,7 +2,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from beanie import PydanticObjectId
-from app.models.case import Case, CaseStatus
+from app.models.case import Case, CaseStatus, Roles
 from app.schemas.case import CaseCreate, CaseOut
 from app.dependencies import get_current_user
 from app.services.llm.case_generation import generate_case
@@ -93,6 +93,51 @@ async def update_case_status(
     await case.save()
 
     return {"message": "Case status updated successfully", "new_status": case.status}
+
+@router.put("/{cnr}/roles")
+async def update_case_roles(
+    cnr: str,
+    roles_update: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Update the user's and AI's roles for a specific case by CNR"""
+    case = await Case.find_one(Case.cnr == cnr)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Check if the case belongs to the current user
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to update this case"
+        )
+
+    new_user_role = roles_update.get("user_role")
+    new_ai_role = roles_update.get("ai_role")
+
+    if not new_user_role and not new_ai_role:
+        raise HTTPException(status_code=400, detail="No roles provided for update")
+
+    if new_user_role:
+        try:
+            case.user_role = Roles(new_user_role)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid user_role: {new_user_role}. Must be 'plaintiff', 'defendant', or 'not_started'"
+            )
+    if new_ai_role:
+        try:
+            case.ai_role = Roles(new_ai_role)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid ai_role: {new_ai_role}. Must be 'plaintiff', 'defendant', or 'not_started'"
+            )
+
+    await case.save()
+
+    return {"message": "Case roles updated successfully", "user_role": case.user_role, "ai_role": case.ai_role}
 
 @router.post("/{cnr}/generate-plaintiff-opening")
 async def generate_plaintiff_opening(

@@ -1,39 +1,45 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { getCases } from "@/lib/api"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import { Gavel, ArrowRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useEffect, useState } from "react";
+import { caseAPI } from "@/lib/api";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Gavel, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function CaseHistory() {
-  const [cases, setCases] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [cases, setCases] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCases = async () => {
       try {
-        const data = await getCases()
-        setCases(data)
+        const data = await caseAPI.listCases();
+        setCases(data);
       } catch (err) {
-        setError("Failed to load cases. Please try again.")
-        console.error(err)
+        setError("Failed to load cases. Please try again.");
+        console.error(err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchCases()
-  }, [])
+    fetchCases();
+  }, []);
 
   // Filter cases based on status
-  const activeCases = cases.filter((c) => !c.verdict)
-  const foughtCases = cases.filter((c) => c.verdict)
+  const activeCases = cases.filter((c) => !c.verdict);
+  const foughtCases = cases.filter((c) => c.verdict);
 
   if (loading) {
     return (
@@ -51,7 +57,7 @@ export function CaseHistory() {
           </Card>
         ))}
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -61,7 +67,7 @@ export function CaseHistory() {
           <p className="text-red-500">{error}</p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   if (cases.length === 0) {
@@ -70,13 +76,15 @@ export function CaseHistory() {
         <CardContent className="pt-6 flex flex-col items-center justify-center text-center">
           <Gavel className="h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-muted-foreground">No cases available.</p>
-          <p className="text-sm text-muted-foreground mt-1">Generate a new case to get started.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Generate a new case to get started.
+          </p>
           <Link href="/dashboard/cases" className="mt-4">
             <Button>Go to Cases</Button>
           </Link>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   const renderCaseList = (caseList: any[]) => {
@@ -87,7 +95,7 @@ export function CaseHistory() {
             <p className="text-muted-foreground">No cases in this category.</p>
           </CardContent>
         </Card>
-      )
+      );
     }
 
     return (
@@ -104,7 +112,9 @@ export function CaseHistory() {
               <CardDescription>Legal Case</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground line-clamp-2">{caseItem.details}</p>
+              <p className="text-sm text-muted-foreground line-clamp-2">
+                {caseItem.details}
+              </p>
               <div className="mt-4">
                 <Link href={`/dashboard/cases/${caseItem.id}`} passHref>
                   <Button size="sm">
@@ -116,14 +126,18 @@ export function CaseHistory() {
           </Card>
         ))}
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <Tabs defaultValue="active" className="space-y-4">
       <TabsList>
-        <TabsTrigger value="active">Active Cases ({activeCases.length})</TabsTrigger>
-        <TabsTrigger value="fought">Fought Cases ({foughtCases.length})</TabsTrigger>
+        <TabsTrigger value="active">
+          Active Cases ({activeCases.length})
+        </TabsTrigger>
+        <TabsTrigger value="fought">
+          Fought Cases ({foughtCases.length})
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="active" className="space-y-4">
         {renderCaseList(activeCases)}
@@ -132,6 +146,5 @@ export function CaseHistory() {
         {renderCaseList(foughtCases)}
       </TabsContent>
     </Tabs>
-  )
+  );
 }
-

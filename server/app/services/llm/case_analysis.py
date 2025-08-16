@@ -6,7 +6,7 @@ from app.utils.llm import llm
 
 class CaseAnalysisService:
     @staticmethod
-    def analyze_case(defendant_args: List[str], plaintiff_args: List[str] = None, case_details: str = None, title: Optional[str] = None, judges_verdict: str = None, user_role: bool = False) -> Dict[str, Union[List[str], str]]:
+    def analyze_case(defendant_args: List[str], plaintiff_args: List[str] = None, case_details: str = None, title: Optional[str] = None, judges_verdict: str = None, user_role: str = None, ai_role: str = None) -> Dict[str, Union[List[str], str]]:
         """Uses LLM to analyze the user's arguments and provides suggestions for improvement.
         :param defendant_args: List of arguments presented by the user.
         :param plaintiff_args: List of arguments from the opponent.
@@ -26,7 +26,8 @@ class CaseAnalysisService:
             CASE TITLE: {title or 'Untitled'}
             CASE DETAILS: {case_details or 'No details provided.'}
 
-            USER'S ROLE: {"DEFENDANT" if user_role else "PLAINTIFF"}
+            USER'S ROLE: {user_role.upper() if user_role else 'Not specified'}
+            AI'S ROLE: {ai_role.upper() if ai_role else 'Not specified'}
             
             DEFENDANT'S ARGUMENTS:
             {chr(10).join(defendant_args) if defendant_args else 'None'}

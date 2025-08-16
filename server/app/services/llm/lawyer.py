@@ -7,7 +7,7 @@ from app.utils.llm import llm
 
 logger = logging.getLogger(__name__)
 
-async def generate_counter_argument(history: str, user_input: str, ai_role: str = None, case_details: str = None) -> str:
+async def generate_counter_argument(history: str, user_input: str, ai_role: str = None, user_role: str = None, case_details: str = None) -> str:
     try:
         print(f"[LLM DEBUG] Generating counter argument for {ai_role}")
         print(f"[LLM DEBUG] History: {history[:200]}...")
@@ -16,10 +16,10 @@ async def generate_counter_argument(history: str, user_input: str, ai_role: str 
         
         template = '''
 
-        You are an experienced and assertive Indian trial lawyer representing the {ai_role} in a court of law. Below is the case history so far:
+        You are an experienced and assertive Indian trial lawyer representing the {ai_role} in a court of law. The user is acting as the lawyer for the {user_role}. Below is the case history so far:
         {history}
         Present your next arguments, strictly based on the facts of the case: {case}
-        The user is acting as the lawyer for the {user_role}. If the user attempts to introduce arguments or information beyond the established facts, you must promptly and firmly correct them, maintaining a professional and direct tone but still keep fighting your side of the case. Do not be overly polite—your priority is to defend your client's interests within the boundaries of the case facts.
+        If the user attempts to introduce arguments or information beyond the established facts, you must promptly and firmly correct them, maintaining a professional and direct tone but still keep fighting your side of the case. Do not be overly polite—your priority is to defend your client's interests within the boundaries of the case facts.
 
         '''
         
@@ -35,7 +35,7 @@ async def generate_counter_argument(history: str, user_input: str, ai_role: str 
             "ai_role": ai_role,
             "history": history,
             "case": case_details,
-            "user_role": "plaintiff" if ai_role == "defendant" else "defendant"
+            "user_role": user_role
         })
         
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
@@ -69,9 +69,9 @@ async def opening_statement(ai_role: str, case_details: str, user_role: str,) ->
         logger.error(f"Error generating opening statement: {str(e)}")
         return "I apologize, but I'm unable to generate an opening statement at this time. Please try again later."
 
-async def closing_statement(history: str, ai_role: str) -> str:
+async def closing_statement(history: str, ai_role: str, user_role: str) -> str:
     try:
-        template = '''You are an Indian lawyer from the {ai_role}'s side, and you require to give a brief closing statement regarding the case using this information: {history}
+        template = '''You are an Indian lawyer from the {ai_role}'s side, and the user is the {user_role}'s lawyer. You require to give a brief closing statement regarding the case using this information: {history}
         The closing statement should be around 250 words. Use the words "I rest my case here" at the end.
         Remember to reiterate key points from your side of the argument, try to include a highlight the evidence supporting your client's position
         '''
@@ -84,7 +84,8 @@ async def closing_statement(history: str, ai_role: str) -> str:
 
         response = chain.invoke({
             'ai_role' : ai_role,
-            'history' : history
+            'history' : history,
+            'user_role' : user_role
         })
         return response
     except Exception as e:

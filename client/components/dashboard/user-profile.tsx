@@ -1,30 +1,36 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { getUserProfile } from "@/lib/api"
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { authAPI } from "@/lib/api";
 
 export function UserProfile() {
-  const [profile, setProfile] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await getUserProfile()
-        setProfile(data)
+        const data = await authAPI.getProfile();
+        setProfile(data);
       } catch (err) {
-        setError("Failed to load profile. Please try again.")
-        console.error(err)
+        setError("Failed to load profile. Please try again.");
+        console.error(err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchProfile()
-  }, [])
+    fetchProfile();
+  }, []);
 
   if (loading) {
     return (
@@ -39,7 +45,7 @@ export function UserProfile() {
           <Skeleton className="h-4 w-3/4" />
         </CardContent>
       </Card>
-    )
+    );
   }
 
   if (error) {
@@ -53,7 +59,7 @@ export function UserProfile() {
           <p className="text-red-500">{error}</p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
@@ -76,15 +82,18 @@ export function UserProfile() {
           </div>
           <div>
             <p className="text-sm font-medium">Phone</p>
-            <p className="text-sm text-muted-foreground">{profile?.phoneNumber}</p>
+            <p className="text-sm text-muted-foreground">
+              {profile?.phoneNumber}
+            </p>
           </div>
           <div>
             <p className="text-sm font-medium">Date of Birth</p>
-            <p className="text-sm text-muted-foreground">{new Date(profile?.dateOfBirth).toLocaleDateString()}</p>
+            <p className="text-sm text-muted-foreground">
+              {new Date(profile?.dateOfBirth).toLocaleDateString()}
+            </p>
           </div>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
-

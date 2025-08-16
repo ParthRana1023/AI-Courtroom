@@ -346,6 +346,32 @@ export const caseAPI = {
     }
   },
 
+  updateCaseRoles: async (cnr: string, user_role: string, ai_role: string) => {
+    try {
+      const response = await api.put(`/cases/${cnr}/roles`, {
+        user_role,
+        ai_role,
+      });
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+          console.error("API Error Headers:", serverError.response.headers);
+        } else if (serverError.request) {
+          console.error("API Error: No response received", serverError.request);
+        } else {
+          console.error("API Error:", serverError.message);
+        }
+      } else {
+        console.error("Unexpected error:", error);
+      }
+      throw error;
+    }
+  },
+
   generatePlaintiffOpening: async (cnr: string) => {
     try {
       const response = await api.post(
@@ -420,7 +446,11 @@ export const caseAPI = {
 
 // Argument API calls
 export const argumentAPI = {
-  submitArgument: async (caseCnr: string, role: string, argument: string) => {
+  submitArgument: async (
+    caseCnr: string,
+    role: "plaintiff" | "defendant",
+    argument: string
+  ) => {
     try {
       console.log(
         `Submitting argument for case ${caseCnr} as ${role}:`,
@@ -518,31 +548,31 @@ export const analyzeCase = async (
   return response.data;
 };
 
-export const submitArgument = async (
-  caseId: string,
-  role: string,
-  argument: string
-) => {
-  // Error handling helper
-  function handleApiError(error: any) {
-    if (axios.isAxiosError(error)) {
-      const serverError = error as AxiosError;
-      if (serverError && serverError.response) {
-        console.error("API Error:", serverError.response.data);
-        console.error("API Error Status:", serverError.response.status);
-        console.error("API Error Headers:", serverError.response.headers);
-        console.error("API Error Config:", serverError.config);
-      } else if (serverError.request) {
-        // The request was made but no response was received
-        console.error("API Error: No response received", serverError.request);
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        console.error("API Error:", serverError.message);
-      }
-    } else {
-      console.error("Unexpected error:", error);
-    }
-  }
-};
+// export const submitArgument = async (
+//   caseId: string,
+//   role: string,
+//   argument: string
+// ) => {
+//   // Error handling helper
+//   function handleApiError(error: any) {
+//     if (axios.isAxiosError(error)) {
+//       const serverError = error as AxiosError;
+//       if (serverError && serverError.response) {
+//         console.error("API Error:", serverError.response.data);
+//         console.error("API Error Status:", serverError.response.status);
+//         console.error("API Error Headers:", serverError.response.headers);
+//         console.error("API Error Config:", serverError.config);
+//       } else if (serverError.request) {
+//         // The request was made but no response was received
+//         console.error("API Error: No response received", serverError.request);
+//       } else {
+//         // Something happened in setting up the request that triggered an Error
+//         console.error("API Error:", serverError.message);
+//       }
+//     } else {
+//       console.error("Unexpected error:", error);
+//     }
+//   }
+// };
 
 export default api;

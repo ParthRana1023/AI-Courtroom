@@ -1,4 +1,10 @@
 // User types
+export enum Roles {
+  PLAINTIFF = "plaintiff",
+  DEFENDANT = "defendant",
+  NOT_STARTED = "not started",
+}
+
 export interface User {
   first_name: string;
   last_name: string;
@@ -22,33 +28,12 @@ export interface CaseListItem {
   status: CaseStatus;
 }
 
-export interface Petitioner {
-  name: string;
-  details: string;
-  address: string;
-}
-
-export interface Respondent {
-  name: string;
-  details: string;
-  address: string;
-}
-
-export interface Witness {
-  name: string;
-  testimony: string;
-}
-
-export interface Evidence {
-  title: string;
-  description: string;
-}
-
 export interface Argument {
   id?: string; // Added optional id field
   type: string;
   content: string;
   user_id: string | null;
+  user_role: Roles;
   timestamp?: string;
 }
 
@@ -63,6 +48,7 @@ export interface Case {
   defendant_arguments: Argument[];
   verdict: string | null;
   created_at: string;
+  role?: Roles; // User's role for this specific case
 }
 
 export interface CaseHistory {

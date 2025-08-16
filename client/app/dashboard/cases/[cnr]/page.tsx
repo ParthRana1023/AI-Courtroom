@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { use } from "react";
 import Navigation from "@/components/navigation";
 import { caseAPI } from "@/lib/api";
-import { type Case, CaseStatus } from "@/types";
+import { type Case, CaseStatus, Roles } from "@/types";
 import MarkdownRenderer from "@/components/markdown-renderer";
 
 export default function CaseDetails({
@@ -40,20 +40,30 @@ export default function CaseDetails({
     try {
       // Update case status to ACTIVE
       await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
-      
+
+      // Update case role in the database
+      const userRole = role === "plaintiff" ? Roles.PLAINTIFF : Roles.DEFENDANT;
+      const aiRole = role === "plaintiff" ? Roles.DEFENDANT : Roles.PLAINTIFF;
+      await caseAPI.updateCaseRoles(cnr, userRole, aiRole);
+
       // If user selects defendant role, navigate first, then generate plaintiff opening statement after a delay
       if (role === "defendant") {
         // Navigate to courtroom immediately
         router.push(`/dashboard/cases/${cnr}/courtroom?role=${role}`);
-        
+
         // Wait 2 seconds before generating the plaintiff opening statement
         setTimeout(async () => {
-          console.log("Generating plaintiff opening statement for defendant user after delay");
+          console.log(
+            "Generating plaintiff opening statement for defendant user after delay"
+          );
           try {
             await caseAPI.generatePlaintiffOpening(cnr);
             console.log("Successfully generated plaintiff opening statement");
           } catch (error) {
-            console.error("Error generating plaintiff opening statement:", error);
+            console.error(
+              "Error generating plaintiff opening statement:",
+              error
+            );
           }
         }, 2000); // 2 second delay
       } else {
@@ -61,7 +71,7 @@ export default function CaseDetails({
         router.push(`/dashboard/cases/${cnr}/courtroom?role=${role}`);
       }
     } catch (error) {
-      console.error("Error updating case status:", error);
+      console.error("Error updating case status or role:", error);
       // Optionally show an error message to the user
       setError("Failed to start case. Please try again.");
     }

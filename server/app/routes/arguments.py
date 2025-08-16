@@ -7,7 +7,7 @@ from app.services.llm.judge import generate_verdict
 from app.models.user import User
 from app.utils.rate_limiter import argument_rate_limiter as rate_limiter
 from app.utils.datetime import get_current_datetime
-from app.models.case import ArgumentItem
+from app.models.case import ArgumentItem, Roles
 
 router = APIRouter(tags=["arguments"])
 
@@ -21,6 +21,8 @@ async def submit_argument(
     current_user: User = Depends(get_current_user),
     rate_limited: None = Depends(rate_limiter)
 ):
+    # Log the user's profile role for debugging
+
     case = await Case.find_one(Case.cnr == case_cnr)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -31,9 +33,17 @@ async def submit_argument(
             detail="You don't have permission to access this case"
         )
     
-    if role not in ["plaintiff", "defendant"]:
-        raise HTTPException(status_code=400, detail="Invalid role specified")
-
+    # Validate the role
+    try:
+        role_enum = Roles(role)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid role specified. Must be 'plaintiff' or 'defendant'")
+        
+    # Check if the user's role in the case matches the requested role
+    if case.user_role and case.user_role != Roles.NOT_STARTED and case.user_role.value != role:
+        print(f"[DEBUG] Role mismatch: User role in case is {case.user_role.value}, but requested {role}")
+        # We'll allow this for now but log it - could enforce in the future
+        
     print(f"[DEBUG] submit_argument called for case {case_cnr}, role {role}, argument length {len(argument)}")
     print(f"[DEBUG] Current arguments: Plaintiff={len(case.plaintiff_arguments)}, Defendant={len(case.defendant_arguments)}")
 
@@ -50,32 +60,35 @@ async def submit_argument(
             case.plaintiff_arguments.append(ArgumentItem(
                 type="opening",
                 content=plaintiff_opening_statement,
-                user_id=None,  # LLM-generated
-                timestamp=get_current_datetime()
-            ))
+            user_id=None,  # LLM-generated
+            role=Roles.PLAINTIFF,
+            timestamp=get_current_datetime()
+        ))
 
             # 2. User's submitted argument is recorded as the defendant's opening statement
             defendant_opening_statement_content = argument
             case.defendant_arguments.append(ArgumentItem(
                 type="opening", # Defendant's first statement is an opening statement
                 content=defendant_opening_statement_content,
-                user_id=current_user.id,
-                timestamp=get_current_datetime()
-            ))
+            user_id=current_user.id,
+            role=Roles.DEFENDANT,
+            timestamp=get_current_datetime()
+        ))
 
             # Prepare history for counter-argument
             history = f"Defendant: {defendant_opening_statement_content}\n"
             
             # 3. AI (as plaintiff) generates a counter-argument to the defendant's opening statement
             print("[DEBUG] Calling generate_counter_argument for plaintiff...")
-            ai_plaintiff_counter_to_defendant_opening = await generate_counter_argument(history, defendant_opening_statement_content, "plaintiff", case.details)
+            ai_plaintiff_counter_to_defendant_opening = await generate_counter_argument(history, defendant_opening_statement_content, "plaintiff", case.user_role.value, case.details)
             print(f"[DEBUG] generate_counter_argument returned: {ai_plaintiff_counter_to_defendant_opening[:100]}...") # Log first 100 chars
             case.plaintiff_arguments.append(ArgumentItem(
                 type="counter",
                 content=ai_plaintiff_counter_to_defendant_opening,
-                user_id=None, # LLM-generated
-                timestamp=get_current_datetime()
-            ))
+            user_id=None, # LLM-generated
+            role=Roles.PLAINTIFF,
+            timestamp=get_current_datetime()
+        ))
 
             # Update case status
             if case.status == CaseStatus.NOT_STARTED:
@@ -100,9 +113,10 @@ async def submit_argument(
             case.plaintiff_arguments.append(ArgumentItem(
                 type="opening",
                 content=argument,
-                user_id=current_user.id,
-                timestamp=get_current_datetime()
-            ))
+            user_id=current_user.id,
+            role=role_enum,
+            timestamp=get_current_datetime()
+        ))
             print("[DEBUG] Plaintiff opening statement appended.")
             
             # Generate defendant's opening statement
@@ -112,9 +126,10 @@ async def submit_argument(
             case.defendant_arguments.append(ArgumentItem(
                 type="opening",
                 content=defendant_opening_statement,
-                user_id=None,  # LLM-generated
-                timestamp=get_current_datetime()
-            ))
+            user_id=None,  # LLM-generated
+            role=Roles.DEFENDANT,
+            timestamp=get_current_datetime()
+        ))
             print("[DEBUG] Defendant opening statement appended.")
             
             # Update case status
@@ -165,17 +180,19 @@ async def submit_argument(
                 case.plaintiff_arguments.append(ArgumentItem(
                     type="user",
                     content=argument,
-                    user_id=user_id,
-                    timestamp=get_current_datetime()
-                ))
+                user_id=user_id,
+                role=role_enum,
+                timestamp=get_current_datetime()
+            ))
                 print("[DEBUG] Plaintiff argument appended.")
             else:
                 case.defendant_arguments.append(ArgumentItem(
                     type="user",
                     content=argument,
-                    user_id=user_id,
-                    timestamp=get_current_datetime()
-                ))
+                user_id=user_id,
+                role=role_enum,
+                timestamp=get_current_datetime()
+            ))
                 print("[DEBUG] Defendant argument appended.")
 
     # Prepare history for counter-argument generation
@@ -270,7 +287,7 @@ async def submit_argument(
             ))
         
         # Generate AI's closing statement
-        counter = await closing_statement(history, ai_role)
+        counter = await closing_statement(history, ai_role, case.user_role.value)
         
         # Record AI's closing statement
         if role == "plaintiff":
@@ -296,7 +313,7 @@ async def submit_argument(
             print(f"[DEBUG] Generating counter-argument for {ai_role} in response to {role}'s argument")
             print(f"[DEBUG] History length: {len(history)} characters")
             print(f"[DEBUG] Argument: {argument[:100]}...")
-            counter = await generate_counter_argument(history, argument, ai_role, case.details)
+            counter = await generate_counter_argument(history, argument, ai_role, case.user_role.value, case.details)
             print(f"[DEBUG] Counter-argument generated: {counter[:100]}...")
             # Check if the response is the error message from the LLM service
             if counter.startswith("I apologize, but I'm unable to generate a counter argument"):
@@ -409,9 +426,10 @@ async def submit_closing_statement(
             detail="You don't have permission to access this case"
         )
     
+    # Validate the role
     if role not in ["plaintiff", "defendant"]:
         raise HTTPException(status_code=400, detail="Invalid role specified")
-
+        
     # Check if user has participated in this case with the specified role
     existing_roles = set()
     for arg in case.plaintiff_arguments:
@@ -489,7 +507,7 @@ async def submit_closing_statement(
     ai_role = "defendant" if role == "plaintiff" else "plaintiff"
     
     # Generate AI's closing statement
-    ai_closing = await closing_statement(history, ai_role)
+    ai_closing = await closing_statement(history, ai_role, case.user_role.value)
     
     # Add AI's closing statement to the appropriate side
     if role == "plaintiff":

@@ -10,13 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 import { authAPI } from "@/lib/api";
 
-interface User {
-  first_name: string;
-  last_name: string;
-  email: string;
-  date_of_birth: string;
-  phone_number: string;
-}
+import { User } from "@/types";
 
 // Update the AuthContextType interface to include the redirectPath parameter
 interface AuthContextType {

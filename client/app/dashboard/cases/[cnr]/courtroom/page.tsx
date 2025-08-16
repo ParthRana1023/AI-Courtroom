@@ -6,11 +6,11 @@ import { use } from "react";
 import Navigation from "@/components/navigation";
 import { caseAPI, argumentAPI } from "@/lib/api";
 import { argumentRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
-import { type Case, CaseStatus, type Argument } from "@/types";
+import { useAuth } from "@/contexts/auth-context";
+import { type Case, CaseStatus, type Argument, Roles } from "@/types";
 import {
   createArgumentTimestamp,
   createOffsetTimestamp,
-  createOffsetDate,
   formatToLocaleDateString,
   formatToLocaleString,
   sortByTimestamp,
@@ -26,7 +26,6 @@ import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
@@ -41,7 +40,8 @@ export default function Courtroom({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const role = searchParams.get("role") || "";
+  const urlRole = searchParams.get("role") || "";
+  const { user } = useAuth();
 
   const { cnr } = use(params);
 
@@ -55,7 +55,9 @@ export default function Courtroom({
   const [error, setError] = useState("");
   const [argument, setArgument] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentRole, setCurrentRole] = useState<string>(role);
+  const [currentRole, setCurrentRole] = useState<Roles>(
+    (urlRole as Roles) || Roles.PLAINTIFF
+  );
   const [showClosingButton, setShowClosingButton] = useState(false);
   const [counterArgument, setCounterArgument] = useState<string | null>(null);
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
@@ -100,7 +102,7 @@ export default function Courtroom({
 
         // Determine role based on previous participation
         // This is critical to prevent 403 errors when submitting arguments
-        let detectedRole = "";
+        let detectedRole: Roles = Roles.NOT_STARTED;
 
         // Check if user has participated as plaintiff
         const participatedAsPlaintiff = history.plaintiff_arguments.some(
@@ -113,32 +115,41 @@ export default function Courtroom({
         );
 
         if (participatedAsPlaintiff) {
-          detectedRole = "plaintiff";
+          detectedRole = Roles.PLAINTIFF;
         } else if (participatedAsDefendant) {
-          detectedRole = "defendant";
+          detectedRole = Roles.DEFENDANT;
         }
 
-        // If role is provided in URL but conflicts with previous participation, ignore it
-        if (
-          role &&
-          ((role === "plaintiff" && participatedAsDefendant) ||
-            (role === "defendant" && participatedAsPlaintiff))
-        ) {
-          console.warn(
-            "Cannot switch roles. Using previously established role."
+        // Priority for role determination:
+        // 1. Previous participation in the case (cannot be changed)
+        // 2. URL parameter (if provided and doesn't conflict with participation)
+        // 3. User's profile role (if set and doesn't conflict)
+        // 4. Default to plaintiff
+
+        if (participatedAsPlaintiff || participatedAsDefendant) {
+          // If user has already participated, use that role
+          console.log(
+            "Using role based on previous participation:",
+            detectedRole
           );
           setCurrentRole(detectedRole);
-        } else if (role) {
-          // Use role from URL if it doesn't conflict
-          setCurrentRole(role);
+        } else if (urlRole && urlRole !== Roles.NOT_STARTED) {
+          // Use role from URL if provided and valid
+          console.log("Using role from URL parameter:", urlRole);
+          setCurrentRole(urlRole as Roles);
+        } else if (caseData?.role && caseData.role !== Roles.NOT_STARTED) {
+          // Use role from case if set
+          console.log("Using role from case:", caseData.role);
+          setCurrentRole(caseData.role as Roles);
         } else {
-          // Use detected role or default to plaintiff if no participation yet
-          setCurrentRole(detectedRole || "plaintiff");
+          // Default to plaintiff if no role is determined
+          console.log("No role detected, defaulting to plaintiff");
+          setCurrentRole(Roles.PLAINTIFF);
         }
 
         // Lock role if case is NOT_STARTED and role is provided in URL
-        if (data.status === CaseStatus.NOT_STARTED && role) {
-          setCurrentRole(role);
+        if (data.status === CaseStatus.NOT_STARTED && urlRole) {
+          setCurrentRole(urlRole as Roles);
         }
 
         // Fetch rate limit information
@@ -152,7 +163,7 @@ export default function Courtroom({
     };
 
     fetchCaseDetails();
-  }, [cnr, role]);
+  }, [cnr, urlRole]);
 
   // Fetch rate limit information and update countdown timer
   const fetchRateLimitInfo = async () => {
@@ -242,7 +253,7 @@ export default function Courtroom({
     try {
       const response = await argumentAPI.submitArgument(
         cnr,
-        currentRole,
+        currentRole.toLowerCase() as "plaintiff" | "defendant",
         argument
       );
 
@@ -262,6 +273,7 @@ export default function Courtroom({
           type: "user",
           content: argument,
           user_id: "current-user",
+          user_role: currentRole,
           timestamp: userArgumentTimestamp, // Ensure this is always set
         });
       } else if (currentRole === "defendant") {
@@ -269,6 +281,7 @@ export default function Courtroom({
           type: "user",
           content: argument,
           user_id: "current-user",
+          user_role: currentRole,
           timestamp: userArgumentTimestamp, // Ensure this is always set
         });
       }
@@ -281,6 +294,7 @@ export default function Courtroom({
             type: "opening",
             content: response.ai_opening_statement,
             user_id: null,
+            user_role: Roles.PLAINTIFF,
             timestamp: aiOpeningTimestamp,
           });
         } else if (response.ai_opening_role === "defendant") {
@@ -288,6 +302,7 @@ export default function Courtroom({
             type: "opening",
             content: response.ai_opening_statement,
             user_id: null,
+            user_role: Roles.DEFENDANT,
             timestamp: aiOpeningTimestamp,
           });
         }
@@ -307,6 +322,7 @@ export default function Courtroom({
             type: "counter",
             content: response.ai_counter_argument,
             user_id: null,
+            user_role: Roles.PLAINTIFF,
             timestamp: aiCounterArgumentTimestamp, // Use consistent format
           });
         } else if (response.ai_counter_role === "defendant") {
@@ -315,6 +331,7 @@ export default function Courtroom({
             type: "counter",
             content: response.ai_counter_argument,
             user_id: null,
+            user_role: Roles.DEFENDANT,
             timestamp: aiCounterArgumentTimestamp, // Use consistent format
           });
         }
@@ -408,6 +425,7 @@ export default function Courtroom({
             type: "closing",
             content: argument,
             user_id: "current-user",
+            user_role: currentRole,
             timestamp: userTimestamp,
           },
         ];
@@ -419,6 +437,7 @@ export default function Courtroom({
               type: "closing",
               content: response.ai_closing_statement,
               user_id: null,
+              user_role: Roles.DEFENDANT,
               timestamp: aiTimestamp,
             },
           ];
@@ -430,6 +449,7 @@ export default function Courtroom({
             type: "closing",
             content: argument,
             user_id: "current-user",
+            user_role: currentRole,
             timestamp: userTimestamp,
           },
         ];
@@ -441,6 +461,7 @@ export default function Courtroom({
               type: "closing",
               content: response.ai_closing_statement,
               user_id: null,
+              user_role: Roles.PLAINTIFF,
               timestamp: aiTimestamp,
             },
           ];

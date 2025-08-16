@@ -11,11 +11,21 @@ class CaseStatus(str, Enum):
     ACTIVE = "active"
     RESOLVED = "resolved"
 
+class Roles(str, Enum):
+    PLAINTIFF = "plaintiff"
+    DEFENDANT = "defendant"
+    NOT_STARTED = "not_started"
+
+class Sides(BaseModel):
+    user_role: Roles = Field(default=Roles.NOT_STARTED)
+    ai_role: Roles = Field(default=Roles.NOT_STARTED)
+
 # Define a model for the items within the argument lists
 class ArgumentItem(BaseModel):
     type: str
     content: str
     user_id: Optional[PydanticObjectId] = Field(None, description="ID of the user who added this argument, optional")
+    role: Roles = Field(default=Roles.NOT_STARTED)
     timestamp: datetime = Field(default_factory=get_current_datetime)
 
 class Case(Document):
@@ -25,6 +35,8 @@ class Case(Document):
     created_at: datetime = Field(default_factory=get_current_datetime)
     status: CaseStatus = Field(default=CaseStatus.NOT_STARTED)
     user_id: PydanticObjectId = Field(..., description="ID of the user who owns this case")
+    user_role: Roles = Field(default=Roles.NOT_STARTED)  # Default role is not started
+    ai_role: Roles = Field(default=Roles.NOT_STARTED)  # Default role is not started
     plaintiff_arguments: List[ArgumentItem] = Field(
         default_factory=list,
         description="Contains arguments with 'type', 'content', 'user_id', and 'timestamp'"
