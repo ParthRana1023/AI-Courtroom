@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     
     # Email settings
     email_sender: str = "noreply@aicourtroom.com"
-    email_username: str = ""
-    email_password: str = ""
+    email_username: str
+    email_password: str
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 587
     

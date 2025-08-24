@@ -64,6 +64,9 @@ async def opening_statement(ai_role: str, case_details: str, user_role: str,) ->
             'case' : case_details,
             'user_role': user_role
         })
+
+        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+
         return response
     except Exception as e:
         logger.error(f"Error generating opening statement: {str(e)}")
@@ -87,6 +90,9 @@ async def closing_statement(history: str, ai_role: str, user_role: str) -> str:
             'history' : history,
             'user_role' : user_role
         })
+
+        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+
         return response
     except Exception as e:
         logger.error(f"Error generating closing statement: {str(e)}")

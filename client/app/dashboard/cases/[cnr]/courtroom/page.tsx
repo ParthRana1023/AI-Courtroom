@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import MarkdownRenderer from "@/components/markdown-renderer";
+import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 
 export default function Courtroom({
   params,
@@ -698,6 +699,8 @@ export default function Courtroom({
                 arg.user_id === "current-user" ||
                 (arg.user_id && currentRole === role);
 
+              const formattedContent = arg.content;
+
               // Create a unique key using timestamp and content hash
               const uniqueKey = `${arg.timestamp || index}-${
                 arg.type
@@ -729,7 +732,7 @@ export default function Courtroom({
                         </span>
                       )}
                     </div>
-                    <p className="whitespace-pre-wrap">{arg.content}</p>
+                    <ChatMarkdownRenderer markdown={formattedContent} />
                   </div>
                 </div>
               );

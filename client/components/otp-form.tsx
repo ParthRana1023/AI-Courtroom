@@ -109,6 +109,12 @@ export default function OtpForm({
               }}
               onKeyDown={(e) => {
                 // Allow only digits, backspace, delete, tab, escape, enter, and arrow keys
+                // Allow Ctrl+C (copy) and Ctrl+V (paste) combinations
+                if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v')) {
+                  return; // Allow the default behavior for copy/paste
+                }
+
+                // Allow only digits, backspace, delete, tab, escape, enter, and arrow keys
                 if (
                   !/[0-9]/.test(e.key) &&
                   e.key !== "Backspace" &&

@@ -47,6 +47,11 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     // Handle unauthorized errors (401)
     if (error.response?.status === 401) {
+      // Check if the error is from the login initiation endpoint
+      if (error.config?.url?.includes('/auth/login/initiate')) {
+        // Do not redirect for login initiation 401 errors, let the component handle it
+        return Promise.reject(error);
+      }
       if (typeof window !== "undefined") {
         localStorage.removeItem("token");
         document.cookie =

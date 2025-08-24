@@ -122,23 +122,18 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         - `**[Title of the Case, e.g., State vs. Accused Name(s) OR Petitioner Name vs. Respondent Name(s)]**`
         - This section should clearly state the nature of the case.
 
-        **BETWEEN:**
-
-        **[Full Name of Petitioner/Applicant]**
+        **[Full Name of Applicant]**
         [Age], [Occupation],
-        Residing at: [Full Address of Petitioner/Applicant]
-        ... **PETITIONER** / **APPLICANT**
+        Residing at: [Full Address of Applicant]
+        ... **APPLICANT**
 
         **AND**
 
-        1. **[Full Name of Respondent 1/Accused 1]**
+        1. **[Full Name of NON-APPLICANT]**
            [Age], [Occupation],
-           Residing at: [Full Address of Respondent 1/Accused 1]
-        2. **[Full Name of Respondent 2/Accused 2]** (if applicable)
-           [Age], [Occupation],
-           Residing at: [Full Address of Respondent 2/Accused 2]
-        ... **RESPONDENTS** / **ACCUSED**
-        - Note: Add more respondants if needed for the case.
+           Residing at: [Full Address of NON-APPLICANT]
+        ... **NON-APPLICANT**
+        - Note: Add more NON-APPLICANTS if needed for the case. NON-APPLICANT can also be a comapny or an organization depending on the case generated
 
         **PETITION UNDER SECTION [Relevant Act, e.g., 482 of Cr.P.C. or Article 226 of the Constitution] READ WITH IPC SECTIONS:**
         - Clearly title the petition, incorporating BOTH the provided IPC sections {ipc_section_numbers_str} AND the additional related IPC sections you've identified.
@@ -167,7 +162,7 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         - IMPORTANT: Ensure you reference BOTH the primary IPC sections ({ipc_section_numbers_str}) AND your identified related sections throughout the grounds, showing how they interconnect in this specific case scenario.
         ---
 
-        **EVIDENCE (IF APPLICABLE):**
+        **EVIDENCE:**
         - Provide a detailed presentation of evidence that supports allegations related to BOTH primary and related IPC sections.
         - **Eyewitness Testimonies:**
           - `- **Witness Name:** [Full Name], Age: [Age], Address: [Full Address]`

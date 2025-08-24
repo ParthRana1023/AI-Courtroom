@@ -87,17 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     rememberMe: boolean
   ) => {
-    setIsLoading(true);
     try {
       const response = await authAPI.login({
         email,
         password,
         remember_me: rememberMe,
       });
-      setIsLoading(false);
       return response;
     } catch (error) {
-      setIsLoading(false);
       throw error;
     }
   };
@@ -108,7 +105,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     rememberMe: boolean,
     redirectPath: string = "/dashboard/cases"
   ) => {
-    setIsLoading(true);
     try {
       const dataToSend = {
         email,
@@ -122,13 +118,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Set authentication state
       setUser(userData);
       setIsAuthenticated(true);
-      setIsLoading(false);
 
-      // Force navigation to the specified redirect path
-      window.location.href = redirectPath;
+      router.push(redirectPath);
       return response;
     } catch (error) {
-      setIsLoading(false);
       throw error;
     }
   };
