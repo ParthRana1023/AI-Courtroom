@@ -11,10 +11,10 @@ async def random_names():
     Generate a list of random Indian names.
     """
     names = []
-    template1 = "Generate 15 random names of Indian people"
+    template = "Generate 15 random names of Indian people"
 
     prompt = ChatPromptTemplate.from_messages([
-        ('system', template1)
+        ('system', template)
     ])
 
     chain = prompt | llm | StrOutputParser()
@@ -36,10 +36,10 @@ async def random_cities():
     Generate a list of random Indian cities.
     """
     names = []
-    template1 = "Generate 15 random names of Indian cities"
+    template = "Generate 10 random names of Indian cities"
 
     prompt = ChatPromptTemplate.from_messages([
-        ('system', template1)
+        ('system', template)
     ])
 
     chain = prompt | llm | StrOutputParser()

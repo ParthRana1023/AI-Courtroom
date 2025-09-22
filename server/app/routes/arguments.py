@@ -60,20 +60,20 @@ async def submit_argument(
             case.plaintiff_arguments.append(ArgumentItem(
                 type="opening",
                 content=plaintiff_opening_statement,
-            user_id=None,  # LLM-generated
-            role=Roles.PLAINTIFF,
-            timestamp=get_current_datetime()
-        ))
+                user_id=None,  # LLM-generated
+                role=Roles.PLAINTIFF,  # AI is explicitly plaintiff here
+                timestamp=get_current_datetime()
+            ))
 
             # 2. User's submitted argument is recorded as the defendant's opening statement
             defendant_opening_statement_content = argument
             case.defendant_arguments.append(ArgumentItem(
-                type="opening", # Defendant's first statement is an opening statement
+                type="opening",  # Defendant's first statement is an opening statement
                 content=defendant_opening_statement_content,
-            user_id=current_user.id,
-            role=Roles.DEFENDANT,
-            timestamp=get_current_datetime()
-        ))
+                user_id=current_user.id,
+                role=Roles.DEFENDANT,  # User is explicitly defendant
+                timestamp=get_current_datetime()
+            ))
 
             # Prepare history for counter-argument
             history = f"Defendant: {defendant_opening_statement_content}\n"
@@ -126,10 +126,10 @@ async def submit_argument(
             case.defendant_arguments.append(ArgumentItem(
                 type="opening",
                 content=defendant_opening_statement,
-            user_id=None,  # LLM-generated
-            role=Roles.DEFENDANT,
-            timestamp=get_current_datetime()
-        ))
+                user_id=None,  # LLM-generated
+                role=Roles.DEFENDANT,  # AI is explicitly defendant
+                timestamp=get_current_datetime()
+            ))
             print("[DEBUG] Defendant opening statement appended.")
             
             # Update case status
@@ -180,19 +180,19 @@ async def submit_argument(
                 case.plaintiff_arguments.append(ArgumentItem(
                     type="user",
                     content=argument,
-                user_id=user_id,
-                role=role_enum,
-                timestamp=get_current_datetime()
-            ))
+                    user_id=user_id,
+                    role=Roles.PLAINTIFF,  # User is explicitly plaintiff
+                    timestamp=get_current_datetime()
+                ))
                 print("[DEBUG] Plaintiff argument appended.")
             else:
                 case.defendant_arguments.append(ArgumentItem(
                     type="user",
                     content=argument,
-                user_id=user_id,
-                role=role_enum,
-                timestamp=get_current_datetime()
-            ))
+                    user_id=user_id,
+                    role=Roles.DEFENDANT,  # User is explicitly defendant
+                    timestamp=get_current_datetime()
+                ))
                 print("[DEBUG] Defendant argument appended.")
 
     # Prepare history for counter-argument generation
@@ -276,6 +276,7 @@ async def submit_argument(
                 type="closing",
                 content=argument,
                 user_id=current_user.id,
+                role=Roles.PLAINTIFF,  # User is explicitly plaintiff
                 timestamp=get_current_datetime()
             ))
         else:
@@ -283,27 +284,30 @@ async def submit_argument(
                 type="closing",
                 content=argument,
                 user_id=current_user.id,
+                role=Roles.DEFENDANT,  # User is explicitly defendant
                 timestamp=get_current_datetime()
             ))
         
         # Generate AI's closing statement
         counter = await closing_statement(history, ai_role, case.user_role.value)
         
-        # Record AI's closing statement
+        # Record AI's closing statement with proper role
         if role == "plaintiff":
-            case.defendant_arguments.append({
-                "type": "closing",
-                "content": counter,
-                "user_id": None,  # LLM-generated
-                "timestamp": get_current_datetime()
-            })
+            case.defendant_arguments.append(ArgumentItem(
+                type="closing",
+                content=counter,
+                user_id=None,  # LLM-generated
+                role=Roles.DEFENDANT,  # AI is defendant when user is plaintiff
+                timestamp=get_current_datetime()
+            ))
         else:
-            case.plaintiff_arguments.append({
-                "type": "closing",
-                "content": counter,
-                "user_id": None,  # LLM-generated
-                "timestamp": get_current_datetime()
-            })
+            case.plaintiff_arguments.append(ArgumentItem(
+                type="closing",
+                content=counter,
+                user_id=None,  # LLM-generated
+                role=Roles.PLAINTIFF,  # AI is plaintiff when user is defendant
+                timestamp=get_current_datetime()
+            ))
         
         # Update case status to CLOSED
         case.status = CaseStatus.CLOSED
@@ -336,34 +340,39 @@ async def submit_argument(
             type="opening",
             content=counter,
             user_id=None,  # LLM-generated
+            role=Roles.DEFENDANT,  # AI is defendant
             timestamp=get_current_datetime()
         ))
-    # Otherwise add counter argument to appropriate side
-    elif role == "plaintiff":
-        print(f"[DEBUG] Adding counter-argument to defendant's arguments")
-        case.defendant_arguments.append(ArgumentItem(
-            type="counter",
-            content=counter,
-            user_id=None,  # LLM-generated
-            timestamp=get_current_datetime()
-        ))
-        print(f"[DEBUG] Defendant arguments count after adding counter: {len(case.defendant_arguments)}")
-        for i, arg in enumerate(case.defendant_arguments):
-            print(f"[DEBUG] Defendant arg {i}: type={getattr(arg, 'type', 'unknown')}, user_id={getattr(arg, 'user_id', 'unknown')}, content={getattr(arg, 'content', 'unknown')[:50] if hasattr(arg, 'content') and arg.content else 'None'}...")
+    # Otherwise add counter argument to appropriate side based on who made the argument
     else:
-        print(f"[DEBUG] Adding counter-argument to plaintiff's arguments for defendant's submission")
-        # Ensure we're adding a counter-argument for the defendant's submission
-        counter_arg = ArgumentItem(
-            type="counter",
-            content=counter,
-            user_id=None,  # LLM-generated
-            timestamp=get_current_datetime()
-        )
-        print(f"[DEBUG] Created counter argument: {counter_arg.type}, {counter_arg.content[:50]}...")
-        case.plaintiff_arguments.append(counter_arg)
-        print(f"[DEBUG] Plaintiff arguments count after adding counter: {len(case.plaintiff_arguments)}")
-        for i, arg in enumerate(case.plaintiff_arguments):
-            print(f"[DEBUG] Plaintiff arg {i}: type={getattr(arg, 'type', 'unknown')}, user_id={getattr(arg, 'user_id', 'unknown')}, content={getattr(arg, 'content', 'unknown')[:50] if hasattr(arg, 'content') and arg.content else 'None'}...")
+        # If user is plaintiff, AI response should be saved in defendant arguments
+        if role == "plaintiff":
+            print(f"[DEBUG] Adding AI's (defendant) counter-argument to defendant arguments")
+            counter_arg = ArgumentItem(
+                type="counter",
+                content=counter,
+                user_id=None,  # LLM-generated
+                role=Roles.DEFENDANT,  # AI is defendant
+                timestamp=get_current_datetime()
+            )
+            case.defendant_arguments.append(counter_arg)
+            print(f"[DEBUG] Defendant arguments count after adding counter: {len(case.defendant_arguments)}")
+            for i, arg in enumerate(case.defendant_arguments):
+                print(f"[DEBUG] Defendant arg {i}: type={getattr(arg, 'type', 'unknown')}, role={getattr(arg, 'role', 'unknown')}, user_id={getattr(arg, 'user_id', 'unknown')}, content={getattr(arg, 'content', 'unknown')[:50] if hasattr(arg, 'content') and arg.content else 'None'}...")
+        # If user is defendant, AI response should be saved in plaintiff arguments
+        else:
+            print(f"[DEBUG] Adding AI's (plaintiff) counter-argument to plaintiff arguments")
+            counter_arg = ArgumentItem(
+                type="counter",
+                content=counter,
+                user_id=None,  # LLM-generated
+                role=Roles.PLAINTIFF,  # AI is plaintiff
+                timestamp=get_current_datetime()
+            )
+            case.plaintiff_arguments.append(counter_arg)
+            print(f"[DEBUG] Plaintiff arguments count after adding counter: {len(case.plaintiff_arguments)}")
+            for i, arg in enumerate(case.plaintiff_arguments):
+                print(f"[DEBUG] Plaintiff arg {i}: type={getattr(arg, 'type', 'unknown')}, role={getattr(arg, 'role', 'unknown')}, user_id={getattr(arg, 'user_id', 'unknown')}, content={getattr(arg, 'content', 'unknown')[:50] if hasattr(arg, 'content') and arg.content else 'None'}...")
 
 
     await case.save()
@@ -458,6 +467,7 @@ async def submit_closing_statement(
             type="closing",
             content=statement,
             user_id=user_id,
+            role=Roles.PLAINTIFF,  # User is explicitly plaintiff
             timestamp=get_current_datetime()
         ))
     else:
@@ -465,6 +475,7 @@ async def submit_closing_statement(
             type="closing",
             content=statement,
             user_id=user_id,
+            role=Roles.DEFENDANT,  # User is explicitly defendant
             timestamp=get_current_datetime()
         ))
     
@@ -509,54 +520,73 @@ async def submit_closing_statement(
     # Generate AI's closing statement
     ai_closing = await closing_statement(history, ai_role, case.user_role.value)
     
-    # Add AI's closing statement to the appropriate side
+    # Add AI's closing statement to the appropriate side with proper role
     if role == "plaintiff":
-        case.defendant_arguments.append({
-            "type": "closing",
-            "content": ai_closing,
-            "user_id": None,  # LLM-generated
-            "timestamp": get_current_datetime()
-        })
+        case.defendant_arguments.append(ArgumentItem(
+            type="closing",
+            content=ai_closing,
+            user_id=None,  # LLM-generated
+            role=Roles.DEFENDANT,  # AI is defendant when user is plaintiff
+            timestamp=get_current_datetime()
+        ))
     else:
-        case.plaintiff_arguments.append({
-            "type": "closing",
-            "content": ai_closing,
-            "user_id": None,  # LLM-generated
-            "timestamp": get_current_datetime()
-        })
+        case.plaintiff_arguments.append(ArgumentItem(
+            type="closing",
+            content=ai_closing,
+            user_id=None,  # LLM-generated
+            role=Roles.PLAINTIFF,  # AI is plaintiff when user is defendant
+            timestamp=get_current_datetime()
+        ))
     
     # Generate verdict using all arguments from both sides
-    # Ensure we're only extracting string content for the verdict generation
-    user_args = [
-        str(arg.content) if isinstance(arg, ArgumentItem) else str(arg["content"])
-        for arg in case.plaintiff_arguments + case.defendant_arguments 
-        if (isinstance(arg, ArgumentItem) and arg.type in ["user", "closing"]) or (isinstance(arg, dict) and arg.get("type") in ["user", "closing"])
-    ]
-    counter_args = [
-        str(arg.content) if isinstance(arg, ArgumentItem) else str(arg["content"])
-        for arg in case.plaintiff_arguments + case.defendant_arguments 
-        if (isinstance(arg, ArgumentItem) and arg.type == "counter") or (isinstance(arg, dict) and arg.get("type") == "counter")
-    ]
-    
-    # Pass the case description to the verdict generator
-    case.verdict = await generate_verdict(user_args, counter_args, case.details, case.title)
+    # Collect plaintiff and defendant arguments separately based on role
+    plaintiff_side_args = []
+    defendant_side_args = []
+
+    # Process plaintiff arguments
+    for arg in case.plaintiff_arguments:
+        if isinstance(arg, ArgumentItem):
+            if arg.type in ["user", "opening", "counter", "closing"]:
+                if arg.role == Roles.PLAINTIFF:
+                    plaintiff_side_args.append(str(arg.content))
+                elif arg.role == Roles.DEFENDANT:
+                    defendant_side_args.append(str(arg.content))
+        elif isinstance(arg, dict):  # For backward compatibility
+            if arg.get("type") in ["user", "opening", "counter", "closing"]:
+                if arg.get("role") == Roles.PLAINTIFF.value:
+                    plaintiff_side_args.append(str(arg["content"]))
+                elif arg.get("role") == Roles.DEFENDANT.value:
+                    defendant_side_args.append(str(arg["content"]))
+
+    # Process defendant arguments
+    for arg in case.defendant_arguments:
+        if isinstance(arg, ArgumentItem):
+            if arg.type in ["user", "opening", "counter", "closing"]:
+                if arg.role == Roles.PLAINTIFF:
+                    plaintiff_side_args.append(str(arg.content))
+                elif arg.role == Roles.DEFENDANT:
+                    defendant_side_args.append(str(arg.content))
+        elif isinstance(arg, dict):  # For backward compatibility
+            if arg.get("type") in ["user", "opening", "counter", "closing"]:
+                if arg.get("role") == Roles.PLAINTIFF.value:
+                    plaintiff_side_args.append(str(arg["content"]))
+                elif arg.get("role") == Roles.DEFENDANT.value:
+                    defendant_side_args.append(str(arg["content"]))
+
+    # Pass the case description and properly organized arguments to the verdict generator
+    case.verdict = await generate_verdict(
+        plaintiff_arguments=plaintiff_side_args,
+        defendant_arguments=defendant_side_args,
+        case_details=case.details,
+        title=case.title
+    )
     case.status = CaseStatus.RESOLVED
     await case.save()
-
-    ai_opening_statement_content = None
-    ai_counter_argument_content = None
     
     response_data = {
         "verdict": case.verdict,
-        "ai_closing_statement": ai_closing
+        "ai_closing_statement": ai_closing,
+        "ai_closing_role": ai_role
     }
-
-    # Include AI opening statement and counter-argument if they were generated
-    if ai_opening_statement_content:
-        response_data["ai_opening_statement"] = ai_opening_statement_content
-        response_data["ai_opening_role"] = "plaintiff" # Assuming AI opening is always for plaintiff
-    if ai_counter_argument_content:
-        response_data["ai_counter_argument"] = ai_counter_argument_content
-        response_data["ai_counter_role"] = "plaintiff" # Assuming AI counter is always for plaintiff
 
     return response_data

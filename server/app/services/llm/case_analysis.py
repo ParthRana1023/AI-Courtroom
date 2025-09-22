@@ -20,22 +20,22 @@ class CaseAnalysisService:
         if not (defendant_args or plaintiff_args):
             return "No analysis generated."
 
-        prompt = f"""
+        prompt = """
             You are a legal expert AI tasked with analyzing a legal case. Your role is to evaluate the arguments presented and provide constructive feedback.
 
-            CASE TITLE: {title or 'Untitled'}
-            CASE DETAILS: {case_details or 'No details provided.'}
+            CASE TITLE: {title}
+            CASE DETAILS: {case_details}
 
-            USER'S ROLE: {user_role.upper() if user_role else 'Not specified'}
-            AI'S ROLE: {ai_role.upper() if ai_role else 'Not specified'}
+            USER'S ROLE: {user_role}
+            AI'S ROLE: {ai_role}
             
             DEFENDANT'S ARGUMENTS:
-            {chr(10).join(defendant_args) if defendant_args else 'None'}
+            {defendant_args}
 
             PLAINTIFF'S ARGUMENTS:
-            {chr(10).join(plaintiff_args) if plaintiff_args else 'None'}
+            {plaintiff_args} 
 
-            JUDGE'S VERDICT: {judges_verdict or 'No verdict provided'}
+            JUDGE'S VERDICT: {judges_verdict}
 
             IMPORTANT VERDICT ANALYSIS INSTRUCTIONS:
             1. First, carefully analyze who the verdict favors by examining:
@@ -80,7 +80,15 @@ class CaseAnalysisService:
 
         try:
             chain = analysis_prompt | llm | StrOutputParser()
-            response = chain.invoke({})
+            response = chain.invoke({
+                "title": title,
+                "case_details": case_details,
+                "user_role": user_role.upper(),
+                "ai_role": ai_role.upper(),
+                "defendant_args": chr(10).join(defendant_args),
+                "plaintiff_args": chr(10).join(plaintiff_args),
+                "judges_verdict": judges_verdict,
+            })
 
             response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
             

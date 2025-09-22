@@ -147,13 +147,18 @@ export default function GenerateCase() {
       <Navigation />
 
       <div className="flex-grow container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800">
+        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800 relative">
           <h1 className="text-2xl font-bold mb-6">Generate New Case</h1>
           {errors.form && (
             <Alert variant="destructive" className="mb-4">
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{errors.form}</AlertDescription>
             </Alert>
+          )}
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 dark:bg-zinc-900 dark:bg-opacity-75 z-50 rounded-lg">
+              <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+            </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
