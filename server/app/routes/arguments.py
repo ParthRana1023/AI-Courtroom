@@ -42,7 +42,10 @@ async def submit_argument(
     # Check if the user's role in the case matches the requested role
     if case.user_role and case.user_role != Roles.NOT_STARTED and case.user_role.value != role:
         print(f"[DEBUG] Role mismatch: User role in case is {case.user_role.value}, but requested {role}")
-        # We'll allow this for now but log it - could enforce in the future
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot submit as {role}. Your assigned role in this case is {case.user_role.value}"
+        )
         
     print(f"[DEBUG] submit_argument called for case {case_cnr}, role {role}, argument length {len(argument)}")
     print(f"[DEBUG] Current arguments: Plaintiff={len(case.plaintiff_arguments)}, Defendant={len(case.defendant_arguments)}")
@@ -155,45 +158,53 @@ async def submit_argument(
         )
     else:
         print("[DEBUG] Case already has arguments.")
-        # Check if user has participated in this case with the specified role
-        existing_roles = set()
-        for arg in case.plaintiff_arguments:
-            if arg.user_id is not None and str(arg.user_id) == str(current_user.id):
-                existing_roles.add("plaintiff")
-        for arg in case.defendant_arguments:
-            if arg.user_id is not None and str(arg.user_id) == str(current_user.id):
-                existing_roles.add("defendant")
+        # Check if the user's role in the case matches the requested role
+    if case.user_role and case.user_role != Roles.NOT_STARTED and case.user_role.value != role:
+        print(f"[DEBUG] Role mismatch: User role in case is {case.user_role.value}, but requested {role}")
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot submit as {role}. Your assigned role in this case is {case.user_role.value}"
+        )
+        
+    # For backward compatibility, also check previous participation
+    existing_roles = set()
+    for arg in case.plaintiff_arguments:
+        if arg.user_id is not None and str(arg.user_id) == str(current_user.id):
+            existing_roles.add("plaintiff")
+    for arg in case.defendant_arguments:
+        if arg.user_id is not None and str(arg.user_id) == str(current_user.id):
+            existing_roles.add("defendant")
 
-        if existing_roles and role not in existing_roles:
-            print(f"[DEBUG] Role conflict: User previously participated as {', '.join(existing_roles)}, attempting to submit as {role}.")
-            raise HTTPException(
-                status_code=403,
-                detail=f"Cannot switch roles. Previously participated as {', '.join(existing_roles)}"
-            )
+    if existing_roles and role not in existing_roles:
+        print(f"[DEBUG] Role conflict: User previously participated as {', '.join(existing_roles)}, attempting to submit as {role}.")
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot switch roles. Previously participated as {', '.join(existing_roles)}"
+        )
+    else:
+        print(f"[DEBUG] User submitting as {role} in an ongoing case.")
+        # Not first submission - track user ID with role
+        # Check if current_user.id is not None before adding it
+        user_id = current_user.id if current_user.id is not None else ""
+        
+        if role == "plaintiff":
+            case.plaintiff_arguments.append(ArgumentItem(
+                type="user",
+                content=argument,
+                user_id=user_id,
+                role=Roles.PLAINTIFF,  # User is explicitly plaintiff
+                timestamp=get_current_datetime()
+            ))
+            print("[DEBUG] Plaintiff argument appended.")
         else:
-            print(f"[DEBUG] User submitting as {role} in an ongoing case.")
-            # Not first submission - track user ID with role
-            # Check if current_user.id is not None before adding it
-            user_id = current_user.id if current_user.id is not None else ""
-            
-            if role == "plaintiff":
-                case.plaintiff_arguments.append(ArgumentItem(
-                    type="user",
-                    content=argument,
-                    user_id=user_id,
-                    role=Roles.PLAINTIFF,  # User is explicitly plaintiff
-                    timestamp=get_current_datetime()
-                ))
-                print("[DEBUG] Plaintiff argument appended.")
-            else:
-                case.defendant_arguments.append(ArgumentItem(
-                    type="user",
-                    content=argument,
-                    user_id=user_id,
-                    role=Roles.DEFENDANT,  # User is explicitly defendant
-                    timestamp=get_current_datetime()
-                ))
-                print("[DEBUG] Defendant argument appended.")
+            case.defendant_arguments.append(ArgumentItem(
+                type="user",
+                content=argument,
+                user_id=user_id,
+                role=Roles.DEFENDANT,  # User is explicitly defendant
+                timestamp=get_current_datetime()
+            ))
+            print("[DEBUG] Defendant arg]ument appended.")
 
     # Prepare history for counter-argument generation
     history = ""
@@ -438,8 +449,16 @@ async def submit_closing_statement(
     # Validate the role
     if role not in ["plaintiff", "defendant"]:
         raise HTTPException(status_code=400, detail="Invalid role specified")
+    
+    # Check if the user's role in the case matches the requested role
+    if case.user_role and case.user_role != Roles.NOT_STARTED and case.user_role.value != role:
+        print(f"[DEBUG] Role mismatch: User role in case is {case.user_role.value}, but requested {role}")
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot submit as {role}. Your assigned role in this case is {case.user_role.value}"
+        )
         
-    # Check if user has participated in this case with the specified role
+    # For backward compatibility, also check previous participation
     existing_roles = set()
     for arg in case.plaintiff_arguments:
         # Handle both dictionary and ArgumentItem types for backward compatibility
@@ -452,10 +471,10 @@ async def submit_closing_statement(
         if arg_user_id is not None and str(arg_user_id) == str(current_user.id):
             existing_roles.add("defendant")
 
-    if role not in existing_roles:
+    if existing_roles and role not in existing_roles:
         raise HTTPException(
             status_code=403,
-            detail=f"You must have previously participated as {role} to submit a closing statement"
+            detail=f"Cannot switch roles. Previously participated as {', '.join(existing_roles)}"
         )
     
     # Add closing statement to the appropriate side
