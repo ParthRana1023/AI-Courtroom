@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SettingsProvider } from "@/contexts/settings-context";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,6 +26,7 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="system" storageKey="ai-courtroom-theme">
           <SettingsProvider>
             <AuthProvider>{children}</AuthProvider>
+            <SpeedInsights />
           </SettingsProvider>
         </ThemeProvider>
       </body>
