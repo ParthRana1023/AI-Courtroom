@@ -5,7 +5,7 @@ from app.dependencies import get_current_user
 from app.services.llm.lawyer import generate_counter_argument, opening_statement, closing_statement
 from app.services.llm.judge import generate_verdict
 from app.models.user import User
-from app.utils.rate_limiter import argument_rate_limiter as rate_limiter
+from app.utils.rate_limiter import argument_rate_limiter
 from app.utils.datetime import get_current_datetime
 from app.models.case import ArgumentItem, Roles
 
@@ -19,7 +19,7 @@ async def submit_argument(
     argument: str = Body(...),
     is_closing: bool = Body(False),
     current_user: User = Depends(get_current_user),
-    rate_limited: None = Depends(rate_limiter)
+    _rate_check: User = Depends(argument_rate_limiter.check_only)
 ):
     # Log the user's profile role for debugging
 
@@ -103,6 +103,8 @@ async def submit_argument(
             print("[DEBUG] Case saved.")
 
             # Return both AI plaintiff opening and AI plaintiff counter
+            # Register rate limit usage only after successful LLM responses
+            await argument_rate_limiter.register_usage(str(current_user.id))
             print("[DEBUG] Returning response with AI arguments.")
             return {
                 "ai_opening_statement": plaintiff_opening_statement,
@@ -142,6 +144,9 @@ async def submit_argument(
                 
             # Save the case
             await case.save()
+            
+            # Register rate limit usage only after successful LLM responses
+            await argument_rate_limiter.register_usage(str(current_user.id))
             
             # Return the AI's opening statement
             return {
@@ -386,6 +391,9 @@ async def submit_argument(
                 print(f"[DEBUG] Plaintiff arg {i}: type={getattr(arg, 'type', 'unknown')}, role={getattr(arg, 'role', 'unknown')}, user_id={getattr(arg, 'user_id', 'unknown')}, content={getattr(arg, 'content', 'unknown')[:50] if hasattr(arg, 'content') and arg.content else 'None'}...")
 
 
+    # Register rate limit usage only after successful LLM response
+    await argument_rate_limiter.register_usage(str(current_user.id))
+
     await case.save()
 
     # Standardize response for AI-generated arguments
@@ -432,7 +440,7 @@ async def submit_closing_statement(
     role: str = Body(...),
     statement: str = Body(...),
     current_user: User = Depends(get_current_user),
-    rate_limited: None = Depends(rate_limiter)
+    _rate_check: User = Depends(argument_rate_limiter.check_only)
 ):
     case = await Case.find_one(Case.cnr == case_cnr)
     if not case:
@@ -599,6 +607,9 @@ async def submit_closing_statement(
         case_details=case.details,
         title=case.title
     )
+    # Register rate limit usage only after successful LLM responses (closing statement + verdict)
+    await argument_rate_limiter.register_usage(str(current_user.id))
+    
     case.status = CaseStatus.RESOLVED
     await case.save()
     

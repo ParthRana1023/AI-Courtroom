@@ -119,10 +119,10 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100 dark:from-black dark:to-black">
+    <div className="min-h-screen flex flex-col bg-linear-to-b from-gray-50 to-gray-100 dark:from-black dark:to-black">
       <Navigation />
 
-      <div className="flex-grow flex items-center justify-center p-6 pt-20">
+      <div className="grow flex items-center justify-center p-6 pt-20">
         <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg p-8 border border-gray-100 dark:bg-zinc-900 dark:border-gray-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-white">

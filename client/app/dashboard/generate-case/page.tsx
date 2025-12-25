@@ -146,7 +146,7 @@ export default function GenerateCase() {
     <div className="min-h-screen flex flex-col">
       <Navigation />
 
-      <div className="flex-grow container mx-auto px-4 py-8">
+      <div className="grow container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800 relative">
           <h1 className="text-2xl font-bold mb-6">Generate New Case</h1>
           {errors.form && (

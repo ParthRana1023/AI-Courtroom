@@ -5,24 +5,31 @@ import type React from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Navigation from "@/components/navigation";
-import { contactAPI } from "@/lib/api";
-import type { ContactFormData } from "@/types";
+import { contactAPI, authAPI } from "@/lib/api";
+import type { ContactFormData, FeedbackCategory } from "@/types";
 import {
-  User,
-  Mail,
-  Phone,
   MessageSquare,
   AlertCircle,
   CheckCircle,
+  ChevronDown,
+  FolderKanban,
 } from "lucide-react";
+
+const feedbackCategories: { value: FeedbackCategory; label: string }[] = [
+  { value: "general", label: "General Feedback" },
+  { value: "courtroom", label: "Courtroom Experience" },
+  { value: "case_generation", label: "Case Generation" },
+  { value: "user_interface", label: "User Interface" },
+  { value: "performance", label: "Performance" },
+  { value: "bug_report", label: "Bug Report" },
+  { value: "feature_request", label: "Feature Request" },
+  { value: "other", label: "Other" },
+];
 
 export default function Contact() {
   const router = useRouter();
   const [formData, setFormData] = useState<ContactFormData>({
-    first_name: "",
-    last_name: "",
-    email: "",
-    phone_number: "",
+    feedback_category: "general",
     message: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -32,17 +39,8 @@ export default function Contact() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.first_name) newErrors.first_name = "First name is required";
-    if (!formData.last_name) newErrors.last_name = "Last name is required";
-
-    if (!formData.email) newErrors.email = "Email is required";
-    if (!/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Email is invalid";
-
-    if (!formData.phone_number)
-      newErrors.phone_number = "Phone number is required";
-    if (!/^\d{10}$/.test(formData.phone_number))
-      newErrors.phone_number = "Phone number must be 10 digits";
+    if (!formData.feedback_category)
+      newErrors.feedback_category = "Please select a category";
 
     if (!formData.message) newErrors.message = "Message is required";
     if (formData.message.length < 10)
@@ -53,7 +51,9 @@ export default function Contact() {
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -62,6 +62,12 @@ export default function Contact() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Check if user is authenticated
+    if (!authAPI.isAuthenticated()) {
+      setErrors({ form: "Please login to submit feedback." });
+      return;
+    }
+
     if (!validateForm()) return;
 
     setIsLoading(true);
@@ -69,14 +75,13 @@ export default function Contact() {
       await contactAPI.submitContactForm(formData);
       setIsSuccess(true);
       setFormData({
-        first_name: "",
-        last_name: "",
-        email: "",
-        phone_number: "",
+        feedback_category: "general",
         message: "",
       });
     } catch (error: any) {
-      if (error.response?.data?.detail) {
+      if (error.response?.status === 401) {
+        setErrors({ form: "Please login to submit feedback." });
+      } else if (error.response?.data?.detail) {
         setErrors({ form: error.response.data.detail });
       } else {
         setErrors({ form: "Failed to submit form. Please try again." });
@@ -90,7 +95,7 @@ export default function Contact() {
     <div className="min-h-screen flex flex-col flex-1 p-0 pt-16">
       <Navigation />
 
-      <div className="flex-grow container mx-auto px-4 py-8">
+      <div className="grow container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-zinc-200 dark:border-zinc-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-zinc-800 dark:text-zinc-100">
@@ -119,120 +124,39 @@ export default function Contact() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label
-                  htmlFor="first_name"
-                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-                >
-                  First Name
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-zinc-400" />
-                  </div>
-                  <input
-                    type="text"
-                    id="first_name"
-                    name="first_name"
-                    value={formData.first_name}
-                    onChange={handleChange}
-                    className="pl-10 block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
-                    placeholder="John"
-                  />
+            <div>
+              <label
+                htmlFor="feedback_category"
+                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+              >
+                What would you like to give feedback about?
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FolderKanban className="h-5 w-5 text-zinc-400" />
                 </div>
-                {errors.first_name && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.first_name}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label
-                  htmlFor="last_name"
-                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+                <select
+                  id="feedback_category"
+                  name="feedback_category"
+                  value={formData.feedback_category}
+                  onChange={handleChange}
+                  className="pl-10 pr-10 block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 appearance-none cursor-pointer"
                 >
-                  Last Name
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-zinc-400" />
-                  </div>
-                  <input
-                    type="text"
-                    id="last_name"
-                    name="last_name"
-                    value={formData.last_name}
-                    onChange={handleChange}
-                    className="pl-10 block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
-                    placeholder="Doe"
-                  />
+                  {feedbackCategories.map((category) => (
+                    <option key={category.value} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <ChevronDown className="h-5 w-5 text-zinc-400" />
                 </div>
-                {errors.last_name && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.last_name}
-                  </p>
-                )}
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-                >
-                  Email
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-zinc-400" />
-                  </div>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="pl-10 block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
-                    placeholder="you@example.com"
-                  />
-                </div>
-                {errors.email && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.email}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label
-                  htmlFor="phone_number"
-                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-                >
-                  Phone Number
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Phone className="h-5 w-5 text-zinc-400" />
-                  </div>
-                  <input
-                    type="tel"
-                    id="phone_number"
-                    name="phone_number"
-                    value={formData.phone_number}
-                    onChange={handleChange}
-                    className="pl-10 block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
-                    placeholder="1234567890"
-                  />
-                </div>
-                {errors.phone_number && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.phone_number}
-                  </p>
-                )}
-              </div>
+              {errors.feedback_category && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.feedback_category}
+                </p>
+              )}
             </div>
 
             <div>
@@ -240,7 +164,7 @@ export default function Contact() {
                 htmlFor="message"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
               >
-                Feedback
+                Your Feedback
               </label>
               <div className="relative">
                 <div className="absolute top-3 left-3 pointer-events-none">

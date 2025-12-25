@@ -14,7 +14,7 @@ async def random_names():
     template = "Generate 15 random names of Indian people"
 
     prompt = ChatPromptTemplate.from_messages([
-        ('system', template)
+        ('human', template)
     ])
 
     chain = prompt | llm | StrOutputParser()
@@ -39,7 +39,7 @@ async def random_cities():
     template = "Generate 10 random names of Indian cities"
 
     prompt = ChatPromptTemplate.from_messages([
-        ('system', template)
+        ('human', template)
     ])
 
     chain = prompt | llm | StrOutputParser()
@@ -200,7 +200,7 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
     """
 
     prompt = ChatPromptTemplate.from_messages([
-        ('system', template)
+        ('human', template)
     ])
 
     chain = prompt | llm | StrOutputParser()

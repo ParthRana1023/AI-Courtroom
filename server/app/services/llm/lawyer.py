@@ -24,14 +24,14 @@ async def generate_counter_argument(history: str, user_input: str, ai_role: str 
             Present your next arguments in a consise manner, and by not using all the facts available to you in a single argument.
             If the user attempts to introduce arguments or information beyond the established facts, you must promptly and firmly correct them, maintaining a professional and direct tone but still keep fighting your side of the case. 
             Do not be overly polite—your priority is to defend your client's interests within the boundaries of the case facts.
+            Don't use Applicant and Not Applicant. Use the name of the people in the case.
             Don't add the words "Counter Argument" or something similar as the heading of the prompt.
             Do not ask any questions in the end of the response to anyone.
             
         """
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", template),
-            ("user", user_input)
+            ("human", template + "\n\nUser's argument to respond to: {user_input}")
         ]) 
 
         chain = prompt | llm | StrOutputParser()
@@ -41,7 +41,8 @@ async def generate_counter_argument(history: str, user_input: str, ai_role: str 
             "ai_role": ai_role,
             "history": history,
             "case_details": case_details,
-            "user_role": user_role
+            "user_role": user_role,
+            "user_input": user_input
         })
         
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
@@ -64,7 +65,7 @@ async def opening_statement(ai_role: str, case_details: str, user_role: str) -> 
             Do not ask any questions in the end of the response to anyone."""
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", template)
+            ("human", template)
         ])
 
         chain = prompt | llm | StrOutputParser()
@@ -96,7 +97,7 @@ async def closing_statement(history: str, ai_role: str, user_role: str) -> str:
         """
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", template)
+            ("human", template)
         ])
 
         chain = prompt | llm | StrOutputParser()

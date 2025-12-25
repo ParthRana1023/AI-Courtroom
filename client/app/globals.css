@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.ts";
 
 :root {
   --foreground-rgb: 0, 0, 0;
@@ -16,7 +15,11 @@
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(to bottom, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--background-start-rgb)),
+    rgb(var(--background-end-rgb))
+  );
   min-height: 100vh;
 }
 
@@ -147,4 +150,20 @@ body {
   .container {
     @apply px-4;
   }
+}
+
+/* Text size settings - adjust root font-size to scale all rem-based sizes */
+html.text-size-small,
+body.text-size-small {
+  font-size: 14px !important;
+}
+
+html.text-size-medium,
+body.text-size-medium {
+  font-size: 16px !important;
+}
+
+html.text-size-large,
+body.text-size-large {
+  font-size: 18px !important;
 }

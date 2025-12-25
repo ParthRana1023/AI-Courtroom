@@ -29,7 +29,7 @@ export default function Navigation() {
         <div className="flex items-center justify-between h-16">
           {/* Logo and Main Navigation Links */}
           <div className="flex items-center">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <Link href="/" className="text-xl font-bold flex items-center">
                 <FileText className="h-6 w-6 mr-2" />
                 <span>AI Courtroom</span>

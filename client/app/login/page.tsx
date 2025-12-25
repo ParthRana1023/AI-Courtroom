@@ -141,9 +141,9 @@ export default function Login() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex flex-col bg-gradient-to-b from-zinc-50 to-white dark:from-black dark:to-black">
+      <div className="min-h-screen flex flex-col bg-linear-to-b from-zinc-50 to-white dark:from-black dark:to-black">
         <Navigation />
-        <div className="flex-grow flex items-center justify-center">
+        <div className="grow flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="animate-spin h-12 w-12 text-zinc-500 mx-auto" />
             <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading...</p>
@@ -154,10 +154,10 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-zinc-50 to-white dark:from-black dark:to-black">
+    <div className="min-h-screen flex flex-col bg-linear-to-b from-zinc-50 to-white dark:from-black dark:to-black">
       <Navigation />
 
-      <div className="flex-grow flex items-center justify-center p-6">
+      <div className="grow flex items-center justify-center p-6">
         <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-zinc-200 dark:border-gray-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-zinc-800 dark:text-white">

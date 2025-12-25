@@ -3,7 +3,7 @@ import re
 from typing import List
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from app.utils.llm import judge_llm as llm
+from app.utils.llm import llm
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ async def generate_verdict(plaintiff_arguments: List[str], defendant_arguments: 
         """
 
         judge_prompt = ChatPromptTemplate.from_messages([
-            ("system", judge_template)
+            ("human", judge_template)
         ])
 
         judge_chain = judge_prompt | llm | StrOutputParser()

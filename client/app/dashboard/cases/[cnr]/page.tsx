@@ -83,7 +83,7 @@ export default function CaseDetails({
 
   if (isLoading) {
     return (
-      <div className="flex-grow flex items-center justify-center">
+      <div className="grow flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
           <p className="mt-4">Loading case details...</p>
@@ -96,7 +96,7 @@ export default function CaseDetails({
     return (
       <div className="min-h-screen flex flex-col">
         <Navigation />
-        <div className="flex-grow flex items-center justify-center">
+        <div className="grow flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Error</h1>
             <p className="mb-6">{error}</p>
@@ -116,7 +116,7 @@ export default function CaseDetails({
     return (
       <div className="min-h-screen flex flex-col">
         <Navigation />
-        <div className="flex-grow flex items-center justify-center">
+        <div className="grow flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Case Not Found</h1>
             <p className="mb-6">
@@ -139,7 +139,7 @@ export default function CaseDetails({
     <div className="min-h-screen flex flex-col">
       <Navigation />
 
-      <div className="flex-grow container mx-auto px-4 py-8">
+      <div className="grow container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">Case Details</h1>

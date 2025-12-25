@@ -75,7 +75,7 @@ class CaseAnalysisService:
             Provide actionable suggestions for improvement in each argument as a bulleted list.
         """
         analysis_prompt = ChatPromptTemplate.from_messages([
-            ("system", prompt)
+            ("human", prompt)
         ])
 
         try:
@@ -96,5 +96,4 @@ class CaseAnalysisService:
 
         except Exception as e:
             print(f"Error during LLM analysis: {e}")
-            error_message = f"Internal error during analysis: {e}"
-            return "Error in Generating Analysis: " + error_message
+            raise Exception(f"Internal error during analysis: {e}")

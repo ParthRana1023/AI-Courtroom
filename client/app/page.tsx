@@ -7,7 +7,7 @@ export default function Home() {
     <main className="min-h-screen flex flex-col pt-16">
       <Navigation />
 
-      <div className="flex-grow flex flex-col items-center justify-center p-6 md:p-24 text-center">
+      <div className="grow flex flex-col items-center justify-center p-6 md:p-24 text-center">
         <h1 className="text-4xl md:text-6xl font-bold mb-6">AI Courtroom</h1>
         <p className="text-lg md:text-xl mb-8 max-w-3xl">
           Experience the future of legal proceedings with our AI-powered

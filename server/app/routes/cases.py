@@ -249,8 +249,9 @@ async def get_case_history(
 async def generate_new_case(
     case_data: CaseCreate,
     current_user: User = Depends(get_current_user),
-    rate_limit: None = Depends(case_generation_rate_limiter)
+    _rate_check: User = Depends(case_generation_rate_limiter.check_only)
 ):
+    # Generate the case - rate limit only registered if this succeeds
     generated_case = await generate_case(
         case_data.sections_involved,
         case_data.section_numbers
@@ -259,6 +260,9 @@ async def generate_new_case(
     generated_case["user_id"] = current_user.id
     case = Case(**generated_case)
     await case.insert()
+    
+    # Register rate limit usage only after successful generation
+    await case_generation_rate_limiter.register_usage(str(current_user.id))
     
     # Convert ObjectId fields to strings before returning
     case_dict = case.model_dump()

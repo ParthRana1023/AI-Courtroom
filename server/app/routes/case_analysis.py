@@ -36,15 +36,18 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
     defendant_arguments = [arg.content for arg in case.defendant_arguments]
     plaintiff_arguments = [arg.content for arg in case.plaintiff_arguments]
 
-    analysis_result = CaseAnalysisService.analyze_case(
-        case_details=case.details,
-        title=case.title,
-        defendant_args=defendant_arguments,
-        plaintiff_args=plaintiff_arguments,
-        judges_verdict=case.verdict,
-        user_role=user_role_in_case.value if user_role_in_case else None,
-        ai_role=case.ai_role.value if case.ai_role else None
-    )
+    try:
+        analysis_result = CaseAnalysisService.analyze_case(
+            case_details=case.details,
+            title=case.title,
+            defendant_args=defendant_arguments,
+            plaintiff_args=plaintiff_arguments,
+            judges_verdict=case.verdict,
+            user_role=user_role_in_case.value if user_role_in_case else None,
+            ai_role=case.ai_role.value if case.ai_role else None
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating analysis: {str(e)}")
 
     # The analysis result is already a string from CaseAnalysisService
     case.analysis = analysis_result

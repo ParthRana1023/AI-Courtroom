@@ -33,18 +33,20 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
+import { Alert, AlertDescription, AlertTitle } from "@/components/alert";
 
 export default function Courtroom({
   params,
 }: {
   params: Promise<{ cnr: string }>;
 }) {
+  // IMPORTANT: use() must be called first to maintain consistent hook order
+  const { cnr } = use(params);
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlRole = searchParams.get("role") || "";
   const { user } = useAuth();
-
-  const { cnr } = use(params);
 
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [caseHistory, setCaseHistory] = useState<{
@@ -67,6 +69,7 @@ export default function Courtroom({
   const [showCaseDetails, setShowCaseDetails] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [caseAnalysis, setCaseAnalysis] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -391,12 +394,11 @@ export default function Courtroom({
       setShowAnalysis(true);
     } catch (error: any) {
       console.error("Error fetching case analysis:", error);
-      console.log("Error details:", {
-        message: error?.message,
-        status: error?.response?.status,
-        data: error?.response?.data,
-      });
-      setError("Failed to load case analysis. Please try again.");
+      const errorMessage =
+        error?.response?.data?.detail ||
+        error?.message ||
+        "Failed to load case analysis. Please try again.";
+      setAnalysisError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -471,7 +473,6 @@ export default function Courtroom({
 
       if (response.verdict) {
         updatedHistory.verdict = response.verdict;
-
         setTimeout(() => {
           setShowVerdict(true);
         }, 3000);
@@ -480,8 +481,13 @@ export default function Courtroom({
         try {
           await caseAPI.analyzeCase(cnr);
           console.log("Case analysis initiated successfully.");
-        } catch (analysisError) {
-          console.error("Failed to initiate case analysis:", analysisError);
+        } catch (analysisErr: any) {
+          console.error("Failed to initiate case analysis:", analysisErr);
+          const errorMessage =
+            analysisErr?.response?.data?.detail ||
+            analysisErr?.message ||
+            "Failed to generate case analysis.";
+          setAnalysisError(errorMessage);
         }
       }
 
@@ -510,7 +516,7 @@ export default function Courtroom({
 
   if (isLoading) {
     return (
-      <div className="flex-grow flex items-center justify-center">
+      <div className="grow flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
           <p className="mt-4">Loading courtroom...</p>
@@ -523,7 +529,7 @@ export default function Courtroom({
     return (
       <div className="min-h-screen flex flex-col">
         <Navigation />
-        <div className="flex-grow flex items-center justify-center">
+        <div className="grow flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Error</h1>
             <p className="mb-6">{error}</p>
@@ -543,7 +549,7 @@ export default function Courtroom({
     return (
       <div className="min-h-screen flex flex-col">
         <Navigation />
-        <div className="flex-grow flex items-center justify-center">
+        <div className="grow flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Case Not Found</h1>
             <p className="mb-6">
@@ -565,125 +571,183 @@ export default function Courtroom({
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-zinc-950 pb-0">
       <Navigation />
-      <main className="flex flex-col">
-        <header className="bg-white dark:bg-zinc-900 shadow-sm py-4">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-            <h1 className="text-2xl font-bold leading-tight text-gray-900 dark:text-white">
-              Courtroom
-            </h1>
-            <div className="flex items-center space-x-2">
-              <Drawer open={showCaseDetails} onOpenChange={setShowCaseDetails}>
-                <DrawerTrigger asChild>
-                  <Button variant="outline">View Case Details</Button>
-                </DrawerTrigger>
-                <DrawerContent className="h-[80vh]">
-                  <DrawerHeader className="pb-4 border-b">
-                    <DrawerTitle>Case Details</DrawerTitle>
-                  </DrawerHeader>
-                  <ScrollArea className="h-[calc(100vh-10rem)]">
-                    <div className="p-6">
-                      <div className="mb-8">
-                        <h2 className="text-xl font-semibold mb-4">
-                          {caseData.title}
-                        </h2>
-                        <div className="flex flex-wrap gap-4 mb-4">
-                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                            Case #{caseData.cnr}
-                          </span>
-                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-                            Filed{" "}
-                            {formatToLocaleDateString(caseData.created_at)}
-                          </span>
-                          {caseData.court && (
-                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                              {caseData.court}
-                            </span>
-                          )}
-                        </div>
+      <main className="flex flex-col mt-4 max-w-7xl mx-auto w-full px-4">
+        <header className="bg-white dark:bg-zinc-900 shadow-sm py-4 rounded-lg border border-gray-200 dark:border-zinc-700">
+          <div className="px-4 sm:px-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              {/* Left side - Case info */}
+              <div className="flex flex-col gap-2">
+                <h1 className="text-xl md:text-2xl font-bold leading-tight text-gray-900 dark:text-white">
+                  {caseData.title}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  {currentRole && (
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        currentRole === "plaintiff"
+                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300"
+                          : "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300"
+                      }`}
+                    >
+                      {currentRole === "plaintiff"
+                        ? "Plaintiff Lawyer"
+                        : "Defendant Lawyer"}
+                    </span>
+                  )}
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      caseData.status === CaseStatus.ACTIVE
+                        ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"
+                        : caseData.status === CaseStatus.RESOLVED
+                        ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-gray-300"
+                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300"
+                    }`}
+                  >
+                    {caseData.status}
+                  </span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    Case #{caseData.cnr} • Filed{" "}
+                    {formatToLocaleDateString(caseData.created_at)}
+                  </span>
+                </div>
+              </div>
 
-                        <div className="rounded-md shadow-md border border-gray-300">
-                          {caseData.case_text ? (
-                            <div className="p-6">
-                              <MarkdownRenderer
-                                markdown={caseData.case_text}
-                                className="prose prose-lg max-w-none font-serif dark:prose-invert"
-                              />
-                            </div>
-                          ) : (
-                            <p className="text-gray-500 italic p-6">
-                              No case details available.
-                            </p>
-                          )}
+              {/* Right side - Action buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Drawer
+                  open={showCaseDetails}
+                  onOpenChange={setShowCaseDetails}
+                >
+                  <DrawerTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      View Case Details
+                    </Button>
+                  </DrawerTrigger>
+                  <DrawerContent className="h-[80vh]">
+                    <DrawerHeader className="pb-4 border-b">
+                      <DrawerTitle>Case Details</DrawerTitle>
+                    </DrawerHeader>
+                    <ScrollArea className="h-[calc(100vh-10rem)]">
+                      <div className="p-6">
+                        <div className="mb-8">
+                          <h2 className="text-xl font-semibold mb-4">
+                            {caseData.title}
+                          </h2>
+                          <div className="flex flex-wrap gap-4 mb-4">
+                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                              Case #{caseData.cnr}
+                            </span>
+                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                              Filed{" "}
+                              {formatToLocaleDateString(caseData.created_at)}
+                            </span>
+                            {caseData.court && (
+                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                                {caseData.court}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="rounded-md shadow-md border border-gray-300">
+                            {caseData.case_text ? (
+                              <div className="p-6">
+                                <MarkdownRenderer
+                                  markdown={caseData.case_text}
+                                  className="prose prose-lg max-w-none font-serif dark:prose-invert"
+                                />
+                              </div>
+                            ) : (
+                              <p className="text-gray-500 italic p-6">
+                                No case details available.
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </ScrollArea>
-                </DrawerContent>
-              </Drawer>
-              {caseData?.status === CaseStatus.RESOLVED && (
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowVerdict(true)}
-                >
-                  View Verdict
-                </Button>
-              )}
-              {caseData?.status === CaseStatus.RESOLVED && (
-                <Button variant="secondary" onClick={handleAnalyzeCase}>
-                  Analyze Case
-                </Button>
-              )}
+                    </ScrollArea>
+                  </DrawerContent>
+                </Drawer>
+                {caseData?.status === CaseStatus.RESOLVED && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowVerdict(true)}
+                  >
+                    View Verdict
+                  </Button>
+                )}
+                {caseData?.status === CaseStatus.RESOLVED && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleAnalyzeCase}
+                  >
+                    Analyze Case
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </header>
-
-        <div className="flex-1 space-y-6 p-2 md:p-8 max-w-7xl mx-auto w-full">
-          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-md p-4 flex items-center justify-between">
-            <div className="bg-white dark:bg-zinc-900">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {caseData.title}
-              </h2>
-            </div>
-            <div className="flex items-center space-x-6">
-              {currentRole && (
-                <span
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    currentRole === "plaintiff"
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-purple-100 text-purple-800"
-                  }`}
-                >
-                  {currentRole === "plaintiff"
-                    ? "Plaintiff Lawyer"
-                    : "Defendant Lawyer"}
-                </span>
-              )}
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  caseData.status === CaseStatus.ACTIVE
-                    ? "bg-green-100 text-green-800"
-                    : caseData.status === CaseStatus.RESOLVED
-                    ? "bg-gray-100 text-gray-800"
-                    : "bg-yellow-100 text-yellow-800"
-                }`}
-              >
-                {caseData.status}
-              </span>
-            </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Case #{caseData.cnr} • Filed{" "}
-              {formatToLocaleDateString(caseData.created_at)}
-            </div>
-          </div>
-        </div>
       </main>
+
+      {/* Error Alert */}
+      {analysisError && (
+        <div className="max-w-7xl mx-auto w-full px-4 py-4 mt-4">
+          <Alert
+            variant="destructive"
+            className="relative bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800"
+          >
+            <button
+              onClick={() => setAnalysisError(null)}
+              className="absolute top-3 right-3 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
+              aria-label="Dismiss"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+            <div className="flex items-start gap-3 pr-8">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div>
+                <AlertTitle className="text-red-800 dark:text-red-300 font-semibold">
+                  Analysis Failed
+                </AlertTitle>
+                <AlertDescription className="text-red-700 dark:text-red-400 text-sm mt-1">
+                  Unable to generate case analysis. Please try again later.
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        </div>
+      )}
 
       {/* Arguments display area - scrollable */}
       <div
-        className={`flex-1 ${
+        className={`flex-1 mt-4 ${
           caseData.status === CaseStatus.RESOLVED ? "mb-6" : "mb-48"
-        } bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 max-w-7xl mx-auto w-full `}
-        style={{ height: "calc(100vh - 700px)" }}
+        } bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 max-w-7xl mx-auto w-full`}
+        style={{ height: "calc(100vh - 250px)" }}
       >
         {/* Chat messages */}
         <div className="h-full overflow-y-auto p-4">

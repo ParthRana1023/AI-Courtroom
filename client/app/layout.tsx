@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SettingsProvider } from "@/contexts/settings-context";
+import TextSizeProvider from "@/components/text-size-provider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -26,7 +27,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider defaultTheme="system" storageKey="ai-courtroom-theme">
           <SettingsProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <TextSizeProvider>
+              <AuthProvider>{children}</AuthProvider>
+            </TextSizeProvider>
             <SpeedInsights />
             <Analytics />
           </SettingsProvider>
@@ -35,5 +38,3 @@ export default function RootLayout({
     </html>
   );
 }
-
-import "./globals.css";

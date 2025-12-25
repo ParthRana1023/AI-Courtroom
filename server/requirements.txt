@@ -22,11 +22,11 @@ passlib
 email-validator
 secure-smtplib
 langchain-community
-langchain-groq
+langchain-google-genai
 
 # Testing
-# selenium
-# webdriver-manager
-# pytest
-# pytest-asyncio
-# pytest-html
+selenium
+webdriver-manager
+pytest
+pytest-asyncio
+pytest-html

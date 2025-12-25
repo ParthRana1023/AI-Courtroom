@@ -13,14 +13,20 @@ export default function TextSizeProvider({
   const { textSize } = useSettings();
 
   useEffect(() => {
-    // Remove any existing text size classes
+    // Remove any existing text size classes from both html and body
+    document.documentElement.classList.remove(
+      "text-size-small",
+      "text-size-medium",
+      "text-size-large"
+    );
     document.body.classList.remove(
       "text-size-small",
       "text-size-medium",
       "text-size-large"
     );
 
-    // Add the appropriate class based on the current setting
+    // Add the appropriate class based on the current setting to both html and body
+    document.documentElement.classList.add(`text-size-${textSize}`);
     document.body.classList.add(`text-size-${textSize}`);
 
     // Ensure the text-size classes inherit colors properly

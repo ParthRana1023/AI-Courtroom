@@ -81,10 +81,17 @@ export interface CaseGenerationFormData {
   section_numbers: number[];
 }
 
+export type FeedbackCategory =
+  | "general"
+  | "courtroom"
+  | "case_generation"
+  | "user_interface"
+  | "performance"
+  | "bug_report"
+  | "feature_request"
+  | "other";
+
 export interface ContactFormData {
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone_number: string;
+  feedback_category: FeedbackCategory;
   message: string;
 }
