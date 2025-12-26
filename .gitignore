@@ -33,3 +33,5 @@ tests/
 **/pytest.ini
 
 server/bnss_embedding/
+
+oauth_details/

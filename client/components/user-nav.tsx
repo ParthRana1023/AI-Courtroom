@@ -70,7 +70,7 @@ export function UserNav() {
             className="cursor-pointer flex w-full items-center"
           >
             <User className="mr-2 h-4 w-4" />
-            User Profile
+            Profile
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem

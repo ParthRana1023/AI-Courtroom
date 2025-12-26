@@ -1,47 +1,36 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { authAPI } from "@/lib/api"
-import { LogOut } from "lucide-react"
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { authAPI } from "@/lib/api";
 
 export function UserProfile() {
-  const router = useRouter()
-  const [profile, setProfile] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await authAPI.getProfile()
-        setProfile(data)
+        const data = await authAPI.getProfile();
+        setProfile(data);
       } catch (err) {
-        setError("Failed to load profile. Please try again.")
-        console.error(err)
+        setError("Failed to load profile. Please try again.");
+        console.error(err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchProfile()
-  }, [])
-
-  const handleLogout = async () => {
-    setIsLoggingOut(true)
-    try {
-      await authAPI.logout()
-      router.push("/login")
-    } catch (error) {
-      console.error("Logout failed:", error)
-    } finally {
-      setIsLoggingOut(false)
-    }
-  }
+    fetchProfile();
+  }, []);
 
   if (loading) {
     return (
@@ -56,7 +45,7 @@ export function UserProfile() {
           <Skeleton className="h-4 w-3/4" />
         </CardContent>
       </Card>
-    )
+    );
   }
 
   if (error) {
@@ -70,7 +59,7 @@ export function UserProfile() {
           <p className="text-red-500">{error}</p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
@@ -93,21 +82,20 @@ export function UserProfile() {
           </div>
           <div>
             <p className="text-sm font-medium">Phone</p>
-            <p className="text-sm text-muted-foreground">{profile?.phone_number}</p>
+            <p className="text-sm text-muted-foreground">
+              {profile?.phone_number}
+            </p>
           </div>
           <div>
             <p className="text-sm font-medium">Date of Birth</p>
-            <p className="text-sm text-muted-foreground">{new Date(profile?.date_of_birth).toLocaleDateString()}</p>
+            <p className="text-sm text-muted-foreground">
+              {profile?.date_of_birth
+                ? new Date(profile.date_of_birth).toLocaleDateString("en-GB")
+                : "Not set"}
+            </p>
           </div>
         </div>
       </CardContent>
-      <CardFooter>
-        <Button variant="outline" className="w-full" onClick={handleLogout} disabled={isLoggingOut}>
-          <LogOut className="mr-2 h-4 w-4" />
-          {isLoggingOut ? "Logging out..." : "Log out"}
-        </Button>
-      </CardFooter>
     </Card>
-  )
+  );
 }
-
