@@ -3,8 +3,11 @@ import { createOffsetDate } from "./datetime";
 import { ContactFormData } from "@/types";
 
 // Create axios instance with base URL from environment variables
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+console.log(`🔧 API Base URL: ${apiBaseUrl}`);
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+  baseURL: apiBaseUrl,
   headers: {
     "Content-Type": "application/json",
   },
@@ -217,10 +220,16 @@ export const authAPI = {
   },
 
   // Google OAuth login
-  googleLogin: async (credential: string, rememberMe: boolean = false) => {
+  googleLogin: async (data: {
+    credential?: string;
+    access_token?: string;
+    rememberMe?: boolean;
+  }) => {
     try {
+      const { credential, access_token, rememberMe = false } = data;
       const response = await api.post("/auth/google", {
         credential,
+        access_token,
         remember_me: rememberMe,
       });
       if (response.data.access_token) {

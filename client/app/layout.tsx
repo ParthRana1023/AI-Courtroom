@@ -12,6 +12,23 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Debug: Log environment variables (server-side during build)
+const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+console.log("🔧 Frontend Environment Variables Debug:");
+console.log(
+  `  NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${
+    googleClientId
+      ? "✅ Set (" + googleClientId.substring(0, 20) + "...)"
+      : "❌ NOT SET - using fallback"
+  }`
+);
+console.log(
+  `  NEXT_PUBLIC_API_URL: ${
+    apiUrl ? "✅ Set (" + apiUrl + ")" : "❌ NOT SET - using localhost"
+  }`
+);
+
 export const metadata: Metadata = {
   title: "AI Courtroom",
   description: "AI-powered courtroom simulation for legal proceedings",

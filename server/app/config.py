@@ -32,3 +32,13 @@ class Settings(BaseSettings):
         return self.test_mongodb_db_name if self.testing else self.mongodb_db_name
 
 settings = Settings()
+
+# Debug: Log environment variable status (safe - only shows if set, not actual values)
+print("=" * 50)
+print("🔧 Environment Variables Debug:")
+print(f"  GOOGLE_CLIENT_ID: {'✅ Set' if settings.google_client_id else '❌ NOT SET'}")
+print(f"  GOOGLE_CLIENT_SECRET: {'✅ Set' if settings.google_client_secret else '❌ NOT SET'}")
+print(f"  GROQ_API_KEY: {'✅ Set' if settings.groq_api_key else '❌ NOT SET'}")
+print(f"  MONGODB_URL: {'✅ Set' if settings.mongodb_url != 'mongodb://localhost:27017' else '⚠️ Using default'}")
+print(f"  SECRET_KEY: {'✅ Set' if settings.secret_key != 'secret' else '⚠️ Using default'}")
+print("=" * 50)

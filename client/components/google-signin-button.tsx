@@ -1,6 +1,6 @@
 "use client";
 
-import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
+import { useGoogleLogin } from "@react-oauth/google";
 import { Loader2 } from "lucide-react";
 import { useRef } from "react";
 
@@ -19,19 +19,23 @@ export default function GoogleSignInButton({
   isLoading = false,
   disabled = false,
 }: GoogleSignInButtonProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const handleGoogleSuccess = async (
-    credentialResponse: CredentialResponse
-  ) => {
-    if (credentialResponse.credential) {
-      await onSuccess(credentialResponse.credential);
-    }
-  };
-
-  const handleGoogleError = () => {
-    onError?.();
-  };
+  const login = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      // Pass the access token to the onSuccess handler
+      // Note: backend expects { access_token: ... } or { credential: ... }
+      // This sends the access token string. The parent component should handle packaging it for the API.
+      console.log(
+        "Google Login Success, Access Token:",
+        tokenResponse.access_token
+      );
+      await onSuccess(tokenResponse.access_token);
+    },
+    onError: () => {
+      console.error("Google Login Failed");
+      onError?.();
+    },
+    flow: "implicit", // Returns access_token
+  });
 
   const buttonText =
     text === "signin"
@@ -40,22 +44,12 @@ export default function GoogleSignInButton({
       ? "Sign up with Google"
       : "Continue with Google";
 
-  const handleCustomButtonClick = () => {
-    // Find and click the hidden Google button
-    const googleButton = containerRef.current?.querySelector(
-      'div[role="button"]'
-    ) as HTMLElement;
-    if (googleButton) {
-      googleButton.click();
-    }
-  };
-
   return (
-    <div className="relative w-full" ref={containerRef}>
+    <div className="relative w-full">
       {/* Custom styled button */}
       <button
         type="button"
-        onClick={handleCustomButtonClick}
+        onClick={() => login()}
         disabled={disabled || isLoading}
         className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 dark:border-zinc-600 rounded-lg shadow-sm bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
@@ -85,16 +79,6 @@ export default function GoogleSignInButton({
           {buttonText}
         </span>
       </button>
-
-      {/* Hidden actual Google Login button */}
-      <div className="absolute opacity-0 pointer-events-none top-0 left-0">
-        <GoogleLogin
-          onSuccess={handleGoogleSuccess}
-          onError={handleGoogleError}
-          useOneTap={false}
-          auto_select={false}
-        />
-      </div>
     </div>
   );
 }

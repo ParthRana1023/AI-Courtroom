@@ -188,6 +188,7 @@ async def google_login(data: GoogleLoginRequest):
     try:
         result = await authenticate_google_user(
             credential=data.credential,
+            access_token=data.access_token,
             remember_me=data.remember_me
         )
         return result

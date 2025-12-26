@@ -11,6 +11,9 @@ from typing import Optional
 from app.config import settings
 from app.models.user import User
 from app.services.auth import create_access_token
+import json
+import urllib.request
+import urllib.error
 
 
 async def verify_google_token(credential: str) -> dict:
@@ -27,21 +30,68 @@ async def verify_google_token(credential: str) -> dict:
         HTTPException if token is invalid
     """
     try:
+        # Debug: Log client ID being used for verification
+        client_id = settings.google_client_id
+        print(f"🔐 Google OAuth Debug:")
+        print(f"  Client ID configured: {'✅ ' + client_id[:20] + '...' if client_id else '❌ NOT SET'}")
+        print(f"  Token received: {'✅ ' + credential[:30] + '...' if credential else '❌ Empty'}")
+        
+        if not client_id:
+            raise ValueError("GOOGLE_CLIENT_ID environment variable is not set")
+        
         idinfo = id_token.verify_oauth2_token(
             credential,
             requests.Request(),
-            settings.google_client_id
+            client_id
         )
         
         # Verify the issuer
         if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
             raise ValueError('Invalid issuer')
-            
+        
+        print(f"  Token verified: ✅ Email: {idinfo.get('email', 'N/A')}")
         return idinfo
     except ValueError as e:
+        print(f"  Token verification failed: ❌ {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid Google token: {str(e)}"
+        )
+
+
+async def verify_google_access_token(access_token: str) -> dict:
+    """
+    Verify Google Access Token by calling UserInfo endpoint.
+    
+    Args:
+        access_token: The Google Access Token from the frontend
+        
+    Returns:
+        dict with user info (email, name, picture, sub)
+    """
+    try:
+        # Debug: Log access token being used
+        print(f"🔐 Google OAuth Debug (Access Token):")
+        print(f"  Token received: {'✅ ' + access_token[:20] + '...' if access_token else '❌ Empty'}")
+        
+        url = "https://www.googleapis.com/oauth2/v3/userinfo"
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {access_token}"})
+        
+        try:
+            with urllib.request.urlopen(req) as response:
+                if response.status != 200:
+                    raise ValueError(f"Google API returned {response.status}")
+                data = json.loads(response.read().decode('utf-8'))
+                print(f"  Access Token verified: ✅ Email: {data.get('email', 'N/A')}")
+                return data
+        except urllib.error.HTTPError as e:
+             raise ValueError(f"HTTP Error {e.code}: {e.reason}")
+             
+    except Exception as e:
+        print(f"  Access Token verification failed: ❌ {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Google access token: {str(e)}"
         )
 
 
@@ -93,7 +143,7 @@ async def get_or_create_google_user(google_info: dict) -> tuple[User, bool]:
     return user, is_new_user
 
 
-async def authenticate_google_user(credential: str, remember_me: bool = False) -> dict:
+async def authenticate_google_user(credential: Optional[str] = None, access_token: Optional[str] = None, remember_me: bool = False) -> dict:
     """
     Complete Google authentication flow: verify token, check user, generate JWT or return data.
     
@@ -101,7 +151,8 @@ async def authenticate_google_user(credential: str, remember_me: bool = False) -
     For new users: Returns Google user data to pre-fill registration form
     
     Args:
-        credential: Google ID token from frontend
+        credential: Google ID token (legacy)
+        access_token: Google Access Token (new flow)
         remember_me: Whether to extend token expiration
         
     Returns:
@@ -109,8 +160,16 @@ async def authenticate_google_user(credential: str, remember_me: bool = False) -
     """
     from datetime import timedelta
     
-    # Verify the Google token
-    google_info = await verify_google_token(credential)
+    # Verify the Google token (ID Token or Access Token)
+    if credential:
+        google_info = await verify_google_token(credential)
+    elif access_token:
+        google_info = await verify_google_access_token(access_token)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either credential (ID Token) or access_token is required"
+        )
     
     email = google_info.get('email')
     google_id = google_info.get('sub')

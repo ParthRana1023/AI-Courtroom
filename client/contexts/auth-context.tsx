@@ -166,11 +166,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginWithGoogle = async (
-    credential: string,
+    accessToken: string,
     rememberMe: boolean = false
   ) => {
     try {
-      const response = await authAPI.googleLogin(credential, rememberMe);
+      const response = await authAPI.googleLogin({
+        access_token: accessToken,
+        rememberMe,
+      });
 
       // If this is a new Google user, redirect to register page with pre-filled data
       if (response.is_new_user && response.google_user_data) {

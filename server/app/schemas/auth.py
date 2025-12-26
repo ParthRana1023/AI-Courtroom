@@ -6,7 +6,8 @@ from typing import Optional
 
 class GoogleLoginRequest(BaseModel):
     """Request body for Google OAuth login."""
-    credential: str
+    credential: Optional[str] = None  # ID Token from Google Login component
+    access_token: Optional[str] = None # Access Token from useGoogleLogin hook
     remember_me: bool = False
 
 
