@@ -1,6 +1,7 @@
 # app/schemas/user.py
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 from datetime import date
+from typing import Optional
 
 class UserCreate(BaseModel):
     first_name: str
@@ -9,6 +10,7 @@ class UserCreate(BaseModel):
     phone_number: str
     email: EmailStr
     password: str
+    google_id: Optional[str] = None  # For Google OAuth registrations
 
     @field_validator('phone_number')
     def validate_phone_number(cls, value):

@@ -10,6 +10,7 @@ import Navigation from "@/components/navigation";
 import OtpForm from "@/components/otp-form";
 import type { LoginFormData } from "@/types";
 import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
+import GoogleSignInButton from "@/components/google-signin-button";
 
 export default function Login() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function Login() {
     verifyLogin,
     isAuthenticated,
     isLoading: authLoading,
+    loginWithGoogle,
   } = useAuth();
   const [formData, setFormData] = useState<LoginFormData>({
     email: "",
@@ -278,6 +280,43 @@ export default function Login() {
                   </Link>
                 </p>
               </div>
+
+              {/* Divider */}
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-zinc-300 dark:border-zinc-700"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+
+              {/* Google Sign-In Button */}
+              <GoogleSignInButton
+                onSuccess={async (credential) => {
+                  try {
+                    setIsLoading(true);
+                    await loginWithGoogle(credential, rememberMe);
+                  } catch (error: any) {
+                    setErrors({
+                      form:
+                        error.response?.data?.detail ||
+                        "Google sign-in failed. Please try again.",
+                    });
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                onError={() => {
+                  setErrors({
+                    form: "Google sign-in failed. Please try again.",
+                  });
+                }}
+                text="signin"
+                isLoading={isLoading}
+              />
             </form>
           ) : (
             <OtpForm

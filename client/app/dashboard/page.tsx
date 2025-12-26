@@ -143,6 +143,16 @@ export default function Dashboard() {
                     <span className="font-medium w-24">Phone:</span>
                     <span>{user.phone_number}</span>
                   </p>
+                  <p className="flex items-center text-zinc-700 dark:text-zinc-300">
+                    <span className="font-medium w-24">DOB:</span>
+                    <span>
+                      {user.date_of_birth
+                        ? new Date(user.date_of_birth).toLocaleDateString(
+                            "en-GB"
+                          )
+                        : "Not set"}
+                    </span>
+                  </p>
                 </div>
               </div>
 

@@ -1,10 +1,12 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from app.schemas.user import UserCreate, UserOut
+from app.schemas.auth import GoogleLoginRequest, ProfileUpdateRequest
 from app.models.user import User
 from app.models.user import TokenResponse
 from app.services.auth import create_user, create_access_token, ph
 from app.services.auth import VerifyMismatchError
 from app.services.otp import verify_otp, create_otp
+from app.services.google_auth import authenticate_google_user
 from app.config import settings
 from datetime import timedelta
 import motor.motor_asyncio
@@ -149,3 +151,50 @@ async def verify_login(request: Request):
 @router.get("/profile", response_model=UserOut)
 async def profile(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.put("/profile", response_model=UserOut)
+async def update_profile(
+    data: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Update user profile with phone number and date of birth."""
+    from datetime import datetime
+    
+    try:
+        # Parse date string to date object
+        dob = datetime.strptime(data.date_of_birth, "%Y-%m-%d").date()
+        
+        # Update user
+        current_user.phone_number = data.phone_number
+        current_user.date_of_birth = dob
+        await current_user.save()
+        
+        return current_user
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid date format: {str(e)}"
+        )
+
+
+@router.post("/google")
+async def google_login(data: GoogleLoginRequest):
+    """
+    Authenticate user with Google OAuth.
+    
+    Receives the Google ID token from the frontend, verifies it,
+    and returns a JWT access token.
+    """
+    try:
+        result = await authenticate_google_user(
+            credential=data.credential,
+            remember_me=data.remember_me
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Google authentication failed: {str(e)}"
+        )

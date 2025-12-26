@@ -2,31 +2,83 @@
 
 import type React from "react";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import Navigation from "@/components/navigation";
 import OtpForm from "@/components/otp-form";
 import type { RegisterFormData } from "@/types";
-import { User, Mail, Phone, Calendar, Lock, AlertCircle } from "lucide-react";
+import {
+  User,
+  Mail,
+  Phone,
+  Calendar,
+  Lock,
+  AlertCircle,
+  Globe,
+  Loader2,
+} from "lucide-react";
+import GoogleSignInButton from "@/components/google-signin-button";
+
+// Country codes for phone numbers
+const countryCodes = [
+  { code: "+91", country: "India", flag: "🇮🇳" },
+  { code: "+1", country: "USA/Canada", flag: "🇺🇸" },
+  { code: "+44", country: "UK", flag: "🇬🇧" },
+  { code: "+61", country: "Australia", flag: "🇦🇺" },
+  { code: "+971", country: "UAE", flag: "🇦🇪" },
+  { code: "+65", country: "Singapore", flag: "🇸🇬" },
+  { code: "+49", country: "Germany", flag: "🇩🇪" },
+  { code: "+33", country: "France", flag: "🇫🇷" },
+  { code: "+81", country: "Japan", flag: "🇯🇵" },
+  { code: "+86", country: "China", flag: "🇨🇳" },
+];
 
 export default function Register() {
-  const { register, verifyRegistration } = useAuth();
+  const { register, verifyRegistration, loginWithGoogle } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isGoogleSignUp = searchParams.get("google") === "true";
+
   const [formData, setFormData] = useState<RegisterFormData>({
     first_name: "",
     last_name: "",
-    date_of_birth: new Date(), // Initialize with a Date object
+    date_of_birth: new Date(),
     phone_number: "",
     email: "",
     password: "",
   });
+  const [countryCode, setCountryCode] = useState("+91");
+  const [googleId, setGoogleId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [otp, setOtp] = useState<string[]>(new Array(6).fill(""));
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+
+  // Load Google data from sessionStorage if this is a Google sign-up
+  useEffect(() => {
+    if (isGoogleSignUp && typeof window !== "undefined") {
+      const googleDataStr = sessionStorage.getItem("googleUserData");
+      if (googleDataStr) {
+        try {
+          const googleData = JSON.parse(googleDataStr);
+          setFormData((prev) => ({
+            ...prev,
+            first_name: googleData.first_name || "",
+            last_name: googleData.last_name || "",
+            email: googleData.email || "",
+          }));
+          setGoogleId(googleData.google_id || null);
+          // Clear sessionStorage after reading
+          sessionStorage.removeItem("googleUserData");
+        } catch (e) {
+          console.error("Failed to parse Google user data", e);
+        }
+      }
+    }
+  }, [isGoogleSignUp]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -73,7 +125,11 @@ export default function Register() {
 
     setIsLoading(true);
     try {
-      await register(formData);
+      // Include googleId if this is a Google sign-up
+      const registrationData = googleId
+        ? { ...formData, google_id: googleId }
+        : formData;
+      await register(registrationData);
       setIsOtpSent(true);
       setSuccessMessage("OTP sent successfully to your email.");
     } catch (error: any) {
@@ -126,11 +182,17 @@ export default function Register() {
         <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg p-8 border border-gray-100 dark:bg-zinc-900 dark:border-gray-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
-              {isOtpSent ? "Verify OTP" : "Create Account"}
+              {isOtpSent
+                ? "Verify OTP"
+                : isGoogleSignUp
+                ? "Complete Registration"
+                : "Create Account"}
             </h1>
             <p className="text-gray-600 mt-2 dark:text-gray-300">
               {isOtpSent
                 ? "Enter the code sent to your email"
+                : isGoogleSignUp
+                ? "Please set a password and complete your registration"
                 : "Join the AI Courtroom simulation"}
             </p>
           </div>
@@ -237,19 +299,39 @@ export default function Register() {
                   >
                     Phone Number
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                  <div className="flex">
+                    {/* Country Code Dropdown */}
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="shrink-0 px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg shadow-sm bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {countryCodes.map((cc) => (
+                        <option key={cc.code} value={cc.code}>
+                          {cc.flag} {cc.code}
+                        </option>
+                      ))}
+                    </select>
+                    {/* Phone Number Input - Numerical Only */}
+                    <div className="relative grow">
+                      <input
+                        type="tel"
+                        id="phone_number"
+                        name="phone_number"
+                        value={formData.phone_number}
+                        onChange={(e) => {
+                          // Only allow numerical input
+                          const value = e.target.value.replace(/\D/g, "");
+                          setFormData((prev) => ({
+                            ...prev,
+                            phone_number: value,
+                          }));
+                        }}
+                        maxLength={10}
+                        className="block w-full px-3 py-3 border border-gray-300 rounded-r-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder-gray-400"
+                        placeholder="Enter 10 digit number"
+                      />
                     </div>
-                    <input
-                      type="tel"
-                      id="phone_number"
-                      name="phone_number"
-                      value={formData.phone_number}
-                      onChange={handleChange}
-                      className="pl-10 block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder-gray-400"
-                      placeholder="1234567890"
-                    />
                   </div>
                   {errors.phone_number && (
                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">
@@ -276,7 +358,12 @@ export default function Register() {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="pl-10 block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder-gray-400"
+                    disabled={isGoogleSignUp}
+                    className={`pl-10 block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder-gray-400 ${
+                      isGoogleSignUp
+                        ? "bg-gray-100 dark:bg-zinc-700 cursor-not-allowed"
+                        : ""
+                    }`}
                     placeholder="you@example.com"
                   />
                 </div>
@@ -334,6 +421,48 @@ export default function Register() {
                   </Link>
                 </p>
               </div>
+
+              {/* Only show Google sign-up option if not already signing up via Google */}
+              {!isGoogleSignUp && (
+                <>
+                  {/* Divider */}
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300 dark:border-zinc-700"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white dark:bg-zinc-900 text-gray-500 dark:text-zinc-400">
+                        Or continue with
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Google Sign-Up Button */}
+                  <GoogleSignInButton
+                    onSuccess={async (credential) => {
+                      try {
+                        setIsLoading(true);
+                        await loginWithGoogle(credential, false);
+                      } catch (error: any) {
+                        setErrors({
+                          form:
+                            error.response?.data?.detail ||
+                            "Google sign-up failed. Please try again.",
+                        });
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                    onError={() => {
+                      setErrors({
+                        form: "Google sign-up failed. Please try again.",
+                      });
+                    }}
+                    text="signup"
+                    isLoading={isLoading}
+                  />
+                </>
+              )}
             </form>
           ) : (
             <OtpForm

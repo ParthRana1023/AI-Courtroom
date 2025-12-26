@@ -28,6 +28,7 @@ interface AuthContextType {
   verifyRegistration: (userData: any, otp: string) => Promise<void>;
   logout: () => void;
   redirectToDashboard: () => void;
+  loginWithGoogle: (credential: string, rememberMe?: boolean) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -164,6 +165,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
   };
 
+  const loginWithGoogle = async (
+    credential: string,
+    rememberMe: boolean = false
+  ) => {
+    try {
+      const response = await authAPI.googleLogin(credential, rememberMe);
+
+      // If this is a new Google user, redirect to register page with pre-filled data
+      if (response.is_new_user && response.google_user_data) {
+        // Store Google data in sessionStorage for register page
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(
+            "googleUserData",
+            JSON.stringify(response.google_user_data)
+          );
+        }
+        router.push("/register?google=true");
+        return;
+      }
+
+      // Existing user - get profile and redirect to dashboard
+      const userData = await authAPI.getProfile();
+      setUser(userData);
+      setIsAuthenticated(true);
+      router.push("/dashboard/cases");
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -176,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verifyRegistration,
         logout,
         redirectToDashboard,
+        loginWithGoogle,
       }}
     >
       {children}

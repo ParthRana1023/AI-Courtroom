@@ -8,6 +8,7 @@ import { SettingsProvider } from "@/contexts/settings-context";
 import TextSizeProvider from "@/components/text-size-provider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,7 +29,14 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="system" storageKey="ai-courtroom-theme">
           <SettingsProvider>
             <TextSizeProvider>
-              <AuthProvider>{children}</AuthProvider>
+              <GoogleOAuthProvider
+                clientId={
+                  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+                  "740807115190-urqjuvvjihj4b1etl77e65ht1hc6f9sh.apps.googleusercontent.com"
+                }
+              >
+                <AuthProvider>{children}</AuthProvider>
+              </GoogleOAuthProvider>
             </TextSizeProvider>
             <SpeedInsights />
             <Analytics />

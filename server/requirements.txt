@@ -1,32 +1,44 @@
-# requirements.txt
-
-# Core
+# Core Web Framework & Server
 fastapi
 uvicorn
+
+# Database & ODM (MongoDB)
 motor
 pymongo
-dnspython
-cryptography==45.0.6
 beanie
-pytz
-argon2-cffi
-python-dotenv
-python-jose
-httpx
-pydantic-settings
-pydantic==2.11.7
 pydantic_mongo
-python-multipart
-nest_asyncio
+dnspython
+
+# Authentication, Security & Passwords
+cryptography
+argon2-cffi
 passlib
+python-jose
 email-validator
+
+# Configuration & Environment
+python-dotenv
+pydantic-settings
+pytz
+
+# Data Validation & Parsing
+pydantic
+
+# File Uploads & Request Handling
+python-multipart
+
+# Email & Messaging
 secure-smtplib
+
+# Async & Networking Utilities
+httpx
+nest_asyncio
+
+# AI / LLM / LangChain Stack
 langchain-community
 langchain-google-genai
+langchain-groq
 
-# Testing
-selenium
-webdriver-manager
-pytest
-pytest-asyncio
-pytest-html
+# Google Authentication & OAuth
+google-auth
+google-auth-oauthlib

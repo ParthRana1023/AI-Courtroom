@@ -216,6 +216,29 @@ export const authAPI = {
     }
   },
 
+  // Google OAuth login
+  googleLogin: async (credential: string, rememberMe: boolean = false) => {
+    try {
+      const response = await api.post("/auth/google", {
+        credential,
+        remember_me: rememberMe,
+      });
+      if (response.data.access_token) {
+        setAuthToken(response.data.access_token, rememberMe);
+      }
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+        }
+      }
+      throw error;
+    }
+  },
+
   // Check if user is authenticated
   isAuthenticated: () => {
     if (typeof window !== "undefined") {

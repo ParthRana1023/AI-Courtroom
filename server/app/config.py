@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = None
     port: int = 8000
     
+    # Google OAuth settings
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+    
     # Email settings
     email_sender: str = "noreply@aicourtroom.com"
     email_username: str
