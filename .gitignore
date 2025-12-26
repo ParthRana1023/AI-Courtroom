@@ -35,3 +35,5 @@ tests/
 server/bnss_embedding/
 
 oauth_details/
+
+ui/
