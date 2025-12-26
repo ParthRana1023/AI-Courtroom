@@ -9,7 +9,7 @@ import {
   Home,
   User,
   FileText,
-  Phone,
+  MessageSquare,
   Gavel,
   LogOut,
   Menu,
@@ -18,20 +18,32 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 
-export default function Navigation() {
+interface NavigationProps {
+  translucent?: boolean;
+}
+
+export default function Navigation({ translucent = false }: NavigationProps) {
   const { isAuthenticated, logout, user } = useAuth();
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  const navClassName = translucent
+    ? "bg-black/20 backdrop-blur-md text-white fixed top-0 left-0 right-0 z-50"
+    : "bg-black dark:bg-zinc-900 text-white shadow-lg fixed top-0 left-0 right-0 z-50";
+
   return (
-    <nav className="bg-black dark:bg-zinc-900 text-white shadow-lg fixed top-0 left-0 right-0 z-50">
+    <nav className={navClassName}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo and Main Navigation Links */}
           <div className="flex items-center">
             <div className="shrink-0">
               <Link href="/" className="text-xl font-bold flex items-center">
-                <FileText className="h-6 w-6 mr-2" />
+                <img
+                  src="/favicon.ico"
+                  alt="AI Courtroom Logo"
+                  className="h-8 w-8 mr-2"
+                />
                 <span>AI Courtroom</span>
               </Link>
             </div>
@@ -69,7 +81,7 @@ export default function Navigation() {
                         : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
                     }`}
                   >
-                    <Phone className="h-4 w-4 mr-1" />
+                    <MessageSquare className="h-4 w-4 mr-1" />
                     <span>Feedback</span>
                   </Link>
                   <Link
@@ -191,7 +203,7 @@ export default function Navigation() {
                 }`}
                 onClick={() => setIsMenuOpen(false)}
               >
-                <Phone className="h-4 w-4 mr-2" />
+                <MessageSquare className="h-4 w-4 mr-2" />
                 <span>Contact Us</span>
               </Link>
               <Link
