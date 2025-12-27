@@ -2,9 +2,12 @@
 import random
 import string
 import re
+import uuid
 from app.utils.llm import llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from app.models.person import PersonRole, PersonInvolved
+from app.services.llm.people_service import extract_and_assign_people
 
 async def random_names():
     """
@@ -56,6 +59,52 @@ async def random_cities():
         # Log the error or handle it as appropriate for a backend service
         print(f"Error generating names with LLM: {str(e)}")
 
+
+async def random_organizations():
+    """
+    Generate a list of random Indian company/organization names.
+    """
+    organizations = []
+    template = """Generate 10 random realistic Indian company or organization names.
+Include a mix of:
+- Private companies (e.g., Reliance Industries Pvt Ltd, Tata Motors Ltd)
+- Public sector organizations (e.g., State Bank of India, ONGC)
+- Local businesses (e.g., Mumbai Trading Co., Delhi Textiles)
+- NGOs and foundations (e.g., Akshaya Patra Foundation)
+
+Return only the names, one per line."""
+
+    prompt = ChatPromptTemplate.from_messages([
+        ('human', template)
+    ])
+
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        llm_response = await chain.ainvoke({})
+        
+        # Split the response into lines and clean up
+        organizations = [org.strip() for org in llm_response.split('\n') if org.strip()]
+        # Remove numbering if present (e.g., "1. Company Name" -> "Company Name")
+        organizations = [re.sub(r'^\d+\.\s*', '', org) for org in organizations]
+        return random.sample(organizations, min(5, len(organizations))) if organizations else [
+            "Mumbai Trading Co. Pvt Ltd",
+            "Delhi Textiles Ltd",
+            "Bangalore Tech Solutions",
+            "Chennai Industries Corp",
+            "Kolkata Exports Ltd"
+        ]
+
+    except Exception as e:
+        print(f"Error generating organization names with LLM: {str(e)}")
+        return [
+            "Mumbai Trading Co. Pvt Ltd",
+            "Delhi Textiles Ltd",
+            "Bangalore Tech Solutions",
+            "Chennai Industries Corp",
+            "Kolkata Exports Ltd"
+        ]
+
 async def generate_case(sections: int, numbers: list[int]) -> dict:
     """
     Generates a hypothetical legal case file using an LLM.
@@ -77,12 +126,14 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
     ipc_section_numbers_str = ", ".join(map(str, numbers)) if numbers else "XXX"  # Default if no numbers provided
     number_of_ipc_sections = sections
 
-    # Generate random names and cities
+    # Generate random names, cities, and organizations
     names = await random_names()
     cities = await random_cities()
+    organizations = await random_organizations()
 
-    # Select a few random names and a random city
-    selected_names = random.sample(names, min(len(names), 3)) if names else ["Parth Rana", "Pranav Nagvekar", "Prasiddhi Agarwal", "Yashvi Savla"]
+    # Select a few random names, organizations, and a random city
+    people_involved = random.sample(names, min(len(names), 3)) if names else ["Parth Rana", "Pranav Nagvekar", "Prasiddhi Agarwal", "Yashvi Savla"]
+    orgs_involved = random.sample(organizations, min(len(organizations), 2)) if organizations else ["Mumbai Trading Co. Pvt Ltd", "Delhi Textiles Ltd"]
     selected_city = random.choice(cities) if cities else "Mumbai"
 
     template = f""" 
@@ -92,7 +143,8 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         
         IMPORTANT CREATIVITY REQUIREMENTS:
         - Create a UNIQUE and CREATIVE case scenario that differs significantly from previous cases involving these same sections
-        - Generate diverse and culturally appropriate Indian names for all parties involved (never reuse the same names across different cases). Use these names: {', '.join(selected_names)}
+        - Generate diverse and culturally appropriate Indian names for all parties involved (never reuse the same names across different cases). Use these names: {', '.join(people_involved)}
+        - You may also use these organizations/companies as parties if appropriate for the case: {', '.join(orgs_involved)}
         - Vary the locations, circumstances, timelines, and specific details to ensure each case feels distinct. Use this city: {selected_city}
         - Consider different socioeconomic backgrounds, occupations, and contexts for the parties involved
         - Ensure each generated case has a different fact pattern even when the same IPC sections are requested
@@ -122,18 +174,19 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         - `**[Title of the Case, e.g., State vs. Accused Name(s) OR Petitioner Name vs. Respondent Name(s)]**`
         - This section should clearly state the nature of the case.
 
-        **[Full Name of Applicant]**
+        1. **[Full Name of Applicant (Person/Organization)]**
         [Age], [Occupation],
         Residing at: [Full Address of Applicant]
         ... **APPLICANT**
+        - Note: Add more APPLICANTS if needed for the case. APPLICANT can be an individual or an organization/company depending on the case generated
 
         **AND**
 
-        1. **[Full Name of NON-APPLICANT]**
+        1. **[Full Name of NON-APPLICANT (Person/Organization)]**
            [Age], [Occupation],
            Residing at: [Full Address of NON-APPLICANT]
         ... **NON-APPLICANT**
-        - Note: Add more NON-APPLICANTS if needed for the case. NON-APPLICANT can also be a comapny or an organization depending on the case generated
+        - Note: Add more NON-APPLICANTS if needed for the case. NON-APPLICANT can be an individual or an organization/company depending on the case generated
 
         **PETITION UNDER SECTION [Relevant Act, e.g., 482 of Cr.P.C. or Article 226 of the Constitution] READ WITH IPC SECTIONS:**
         - Clearly title the petition, incorporating BOTH the provided IPC sections {ipc_section_numbers_str} AND the additional related IPC sections you've identified.
@@ -230,11 +283,20 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         # Extract title from the raw LLM response
         title = extract_title(llm_response_details)
         
+        # Use LLM-based extraction to get people and assign roles accurately
+        print("Using LLM-based extraction to identify people and assign roles...")
+        try:
+            extracted_people = await extract_and_assign_people(llm_response_details)
+        except Exception as llm_err:
+            print(f"LLM extraction failed: {str(llm_err)}")
+            extracted_people = []
+        
         return {
             "cnr": cnr,
             "details": llm_response_details,  # Raw LLM output
             "title": title,  # Store title directly in the Case model
-            "status": "not started"
+            "status": "not started",
+            "people_involved": [p.model_dump() for p in extracted_people]  # People data
         }
 
     except Exception as e:

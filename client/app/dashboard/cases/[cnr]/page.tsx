@@ -38,18 +38,15 @@ export default function CaseDetails({
 
   const handleRoleSelection = async (role: string) => {
     try {
-      // Update case status to ACTIVE
-      await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
-
-      // Update case role in the database
+      // Only update roles, NOT status - status becomes ACTIVE only when entering courtroom
       const userRole = role === "plaintiff" ? Roles.PLAINTIFF : Roles.DEFENDANT;
       const aiRole = role === "plaintiff" ? Roles.DEFENDANT : Roles.PLAINTIFF;
       await caseAPI.updateCaseRoles(cnr, userRole, aiRole);
 
       // If user selects defendant role, navigate first, then generate plaintiff opening statement after a delay
       if (role === "defendant") {
-        // Navigate to courtroom immediately
-        router.push(`/dashboard/cases/${cnr}/courtroom?role=${role}`);
+        // Navigate to people page first
+        router.push(`/dashboard/cases/${cnr}/people?role=${role}`);
 
         // Wait 2 seconds before generating the plaintiff opening statement
         setTimeout(async () => {
@@ -67,8 +64,8 @@ export default function CaseDetails({
           }
         }, 2000); // 2 second delay
       } else {
-        // For plaintiff role, just navigate directly
-        router.push(`/dashboard/cases/${cnr}/courtroom?role=${role}`);
+        // For plaintiff role, navigate to people page first
+        router.push(`/dashboard/cases/${cnr}/people?role=${role}`);
       }
     } catch (error) {
       console.error("Error updating case status or role:", error);
@@ -77,8 +74,8 @@ export default function CaseDetails({
     }
   };
 
-  const handleToCourtroom = () => {
-    router.push(`/dashboard/cases/${cnr}/courtroom`);
+  const handleToPeopleInvolved = () => {
+    router.push(`/dashboard/cases/${cnr}/people`);
   };
 
   if (isLoading) {
@@ -150,6 +147,8 @@ export default function CaseDetails({
                     ? "bg-green-100 text-green-800"
                     : caseData.status === CaseStatus.RESOLVED
                     ? "bg-gray-100 text-gray-800"
+                    : caseData.status === CaseStatus.ADJOURNED
+                    ? "bg-amber-100 text-amber-800"
                     : "bg-yellow-100 text-yellow-800"
                 }`}
               >
@@ -182,33 +181,53 @@ export default function CaseDetails({
             </div>
           </div>
 
-          <div className="mt-8 flex justify-center">
-            {caseData.status === CaseStatus.NOT_STARTED ? (
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div title="We're still working on this">
-                  <button
-                    onClick={() => handleRoleSelection("plaintiff")}
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
-                  >
-                    Plaintiff Lawyer
-                  </button>
-                </div>
-                <div>
-                  <button
-                    onClick={() => handleRoleSelection("defendant")}
-                    className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors"
-                  >
-                    Defendant Lawyer
-                  </button>
-                </div>
-              </div>
+          <div className="mt-8 flex flex-col items-center gap-4">
+            {/* Check if role has been chosen - if user_role is plaintiff or defendant, show proceed button */}
+            {caseData.user_role === "plaintiff" ||
+            caseData.user_role === "defendant" ? (
+              <>
+                {/* Role is already selected - show proceed button */}
+                <p className="text-gray-600 dark:text-gray-400">
+                  You are the{" "}
+                  <span className="font-semibold capitalize text-gray-900 dark:text-white">
+                    {caseData.user_role === "plaintiff"
+                      ? "Plaintiff"
+                      : "Defendant"}
+                  </span>{" "}
+                  Lawyer
+                </p>
+                <button
+                  onClick={handleToPeopleInvolved}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
+                >
+                  Proceed to Chat with People Involved
+                </button>
+              </>
             ) : (
-              <button
-                onClick={handleToCourtroom}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
-              >
-                To The Courtroom
-              </button>
+              <>
+                {/* Role not yet chosen - show selection buttons */}
+                <p className="text-gray-600 dark:text-gray-400 mb-2">
+                  Choose your role to start the case:
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div title="Represent the plaintiff/applicant side">
+                    <button
+                      onClick={() => handleRoleSelection("plaintiff")}
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
+                    >
+                      Plaintiff Lawyer
+                    </button>
+                  </div>
+                  <div title="Represent the defendant/respondent side">
+                    <button
+                      onClick={() => handleRoleSelection("defendant")}
+                      className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors"
+                    >
+                      Defendant Lawyer
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </div>

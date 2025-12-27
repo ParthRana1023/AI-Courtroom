@@ -71,6 +71,10 @@ export default function Courtroom({
   const [caseAnalysis, setCaseAnalysis] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
+  // Session popup states
+  const [showSessionPopup, setShowSessionPopup] = useState(false);
+  const [showAdjournedPopup, setShowAdjournedPopup] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Combine and sort all arguments chronologically
@@ -125,12 +129,30 @@ export default function Courtroom({
         }
 
         // Priority for role determination:
-        // 1. Previous participation in the case (cannot be changed)
-        // 2. URL parameter (if provided and doesn't conflict with participation)
-        // 3. User's profile role (if set and doesn't conflict)
+        // 1. User's explicitly assigned role in the case (from role selection)
+        // 2. Previous participation in the case (cannot be changed)
+        // 3. URL parameter (if provided and doesn't conflict)
         // 4. Default to plaintiff
 
-        if (participatedAsPlaintiff || participatedAsDefendant) {
+        console.log(
+          "[DEBUG] Role detection - data.user_role:",
+          data.user_role,
+          "urlRole:",
+          urlRole
+        );
+
+        if (
+          data.user_role &&
+          data.user_role !== Roles.NOT_STARTED &&
+          data.user_role !== "not_started"
+        ) {
+          // User has explicitly selected a role - this takes highest priority
+          console.log(
+            "Using explicitly selected role from data:",
+            data.user_role
+          );
+          setCurrentRole(data.user_role as Roles);
+        } else if (participatedAsPlaintiff || participatedAsDefendant) {
           // If user has already participated, use that role
           console.log(
             "Using role based on previous participation:",
@@ -141,10 +163,6 @@ export default function Courtroom({
           // Use role from URL if provided and valid
           console.log("Using role from URL parameter:", urlRole);
           setCurrentRole(urlRole as Roles);
-        } else if (caseData?.role && caseData.role !== Roles.NOT_STARTED) {
-          // Use role from case if set
-          console.log("Using role from case:", caseData.role);
-          setCurrentRole(caseData.role as Roles);
         } else {
           // Default to plaintiff if no role is determined
           console.log("No role detected, defaulting to plaintiff");
@@ -210,6 +228,54 @@ export default function Courtroom({
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [caseHistory, counterArgument]);
+
+  // Show "Court in Session" popup when entering courtroom
+  useEffect(() => {
+    if (caseData && caseData.status === CaseStatus.ACTIVE && !isLoading) {
+      setShowSessionPopup(true);
+      const timer = setTimeout(() => {
+        setShowSessionPopup(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [caseData, isLoading]);
+
+  // Calculate user arguments submitted THIS SESSION (not total)
+  // session_args_at_start is set when status becomes ACTIVE
+  const sessionUserArguments = useMemo(() => {
+    if (!caseHistory || !caseData) return 0;
+    // User-submitted arguments have user_id set, AI arguments have user_id as null
+    const totalUserArgs = [
+      ...caseHistory.plaintiff_arguments,
+      ...caseHistory.defendant_arguments,
+    ].filter((arg) => arg.user_id !== null).length;
+
+    // Subtract the count when session started to get session-specific count
+    const sessionStart = caseData.session_args_at_start || 0;
+    return Math.max(0, totalUserArgs - sessionStart);
+  }, [caseHistory, caseData]);
+
+  // Handle ending the court session
+  const handleEndSession = async () => {
+    if (sessionUserArguments < 2) {
+      return; // Can't end session with less than 2 arguments
+    }
+
+    try {
+      // Update case status to adjourned (paused) - can resume later
+      await caseAPI.updateCaseStatus(cnr, CaseStatus.ADJOURNED);
+
+      // Show adjourned popup
+      setShowAdjournedPopup(true);
+      setTimeout(() => {
+        setShowAdjournedPopup(false);
+        // Refresh case data
+        window.location.reload();
+      }, 3000);
+    } catch (error) {
+      console.error("Error ending session:", error);
+    }
+  };
 
   // Poll for case history updates to catch plaintiff opening statement
   // This is especially important when user selects defendant role
@@ -614,6 +680,13 @@ export default function Courtroom({
 
               {/* Right side - Action buttons */}
               <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/dashboard/cases/${cnr}/people`)}
+                >
+                  View People
+                </Button>
                 <Drawer
                   open={showCaseDetails}
                   onOpenChange={setShowCaseDetails}
@@ -667,6 +740,23 @@ export default function Courtroom({
                     </ScrollArea>
                   </DrawerContent>
                 </Drawer>
+                {caseData?.status === CaseStatus.ACTIVE && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleEndSession}
+                    disabled={sessionUserArguments < 2}
+                    title={
+                      sessionUserArguments < 2
+                        ? `Submit at least ${
+                            2 - sessionUserArguments
+                          } more argument(s) this session before ending`
+                        : "End court session"
+                    }
+                  >
+                    End Session
+                  </Button>
+                )}
                 {caseData?.status === CaseStatus.RESOLVED && (
                   <Button
                     variant="secondary"
@@ -1051,6 +1141,65 @@ export default function Courtroom({
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Court in Session Popup */}
+      {showSessionPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl p-8 max-w-md mx-4 text-center animate-in fade-in zoom-in duration-300">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+              <svg
+                className="w-8 h-8 text-green-600 dark:text-green-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Court is in Session
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400">
+              The proceedings have begun. Present your arguments wisely.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Court Adjourned Popup */}
+      {showAdjournedPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl p-8 max-w-md mx-4 text-center animate-in fade-in zoom-in duration-300">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+              <svg
+                className="w-8 h-8 text-amber-600 dark:text-amber-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Court is Adjourned
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400">
+              The court is adjourned for the day. Thank you for your
+              participation.
+            </p>
           </div>
         </div>
       )}

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.database import init_db
 from app.config import settings
-from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis
+from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis, people
 from beanie.odm.fields import PydanticObjectId
 import json
 import uvicorn
@@ -56,6 +56,7 @@ async def read_root():
 app.include_router(auth.router, prefix="/auth")
 app.include_router(cases.router, prefix="/cases")
 app.include_router(arguments.router, prefix="/cases")
+app.include_router(people.router, prefix="/cases")
 app.include_router(rate_limit.router, prefix="/limit")
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])

@@ -5,10 +5,12 @@ from datetime import datetime
 from enum import Enum
 from beanie import Document
 from app.utils.datetime import get_current_datetime
+from app.models.person import PersonRole, PersonInvolved, PersonChatMessage
 
 class CaseStatus(str, Enum):
     NOT_STARTED = "not started"
     ACTIVE = "active"
+    ADJOURNED = "adjourned"  # Court session paused/on break - can resume
     RESOLVED = "resolved"
 
 class Roles(str, Enum):
@@ -47,6 +49,21 @@ class Case(Document):
     )
     verdict: Optional[str] = None
     analysis: Optional[str] = Field(default=None)
+    # Track user arguments at session start (for per-session end session validation)
+    session_args_at_start: int = Field(
+        default=0,
+        description="Number of user arguments when courtroom session became ACTIVE. Used to ensure user submits 2 args per session."
+    )
+    # People involved in the case (applicants and non-applicants)
+    people_involved: List[PersonInvolved] = Field(
+        default_factory=list,
+        description="List of people involved in the case with their roles"
+    )
+    # Chat history with people involved (keyed by person_id)
+    person_chats: dict = Field(
+        default_factory=dict,
+        description="Chat history per person: {person_id: [PersonChatMessage, ...]}"
+    )
 
     class Settings:
         name = "cases"

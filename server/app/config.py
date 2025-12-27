@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 587
     
+    # Rate limiting settings
+    case_generation_rate_limit: int = 5  # Number of case generations allowed per window
+    case_generation_rate_window: int = 86400  # Window in seconds (86400 = 24 hours)
+    argument_rate_limit: int = 10  # Number of arguments allowed per window
+    argument_rate_window: int = 86400  # Window in seconds (86400 = 24 hours)
+    
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

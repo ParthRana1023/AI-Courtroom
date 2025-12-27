@@ -163,13 +163,7 @@ async def submit_argument(
         )
     else:
         print("[DEBUG] Case already has arguments.")
-        # Check if the user's role in the case matches the requested role
-    if case.user_role and case.user_role != Roles.NOT_STARTED and case.user_role.value != role:
-        print(f"[DEBUG] Role mismatch: User role in case is {case.user_role.value}, but requested {role}")
-        raise HTTPException(
-            status_code=403,
-            detail=f"Cannot submit as {role}. Your assigned role in this case is {case.user_role.value}"
-        )
+        # Note: Role check already done at lines 42-48, no need to repeat here
         
     # For backward compatibility, also check previous participation
     existing_roles = set()

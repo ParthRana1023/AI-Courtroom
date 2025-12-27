@@ -2,7 +2,7 @@
 export enum Roles {
   PLAINTIFF = "plaintiff",
   DEFENDANT = "defendant",
-  NOT_STARTED = "not started",
+  NOT_STARTED = "not_started",
 }
 
 export interface User {
@@ -17,6 +17,7 @@ export interface User {
 export enum CaseStatus {
   NOT_STARTED = "not started",
   ACTIVE = "active",
+  ADJOURNED = "adjourned",
   RESOLVED = "resolved",
 }
 
@@ -48,7 +49,10 @@ export interface Case {
   defendant_arguments: Argument[];
   verdict: string | null;
   created_at: string;
-  role?: Roles; // User's role for this specific case
+  role?: Roles; // User's role for this specific case (backwards compat)
+  user_role?: Roles; // User's role in the case
+  ai_role?: Roles; // AI's role in the case
+  session_args_at_start?: number; // User args count when session became ACTIVE
 }
 
 export interface CaseHistory {
@@ -94,4 +98,46 @@ export type FeedbackCategory =
 export interface ContactFormData {
   feedback_category: FeedbackCategory;
   message: string;
+}
+
+// People types
+export enum PersonRole {
+  APPLICANT = "applicant",
+  NON_APPLICANT = "non_applicant",
+}
+
+export interface PersonInvolved {
+  id: string;
+  name: string;
+  role: PersonRole;
+  occupation?: string;
+  age?: number;
+  address?: string;
+  bio?: string;
+  can_chat: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: "user" | "person";
+  content: string;
+  timestamp: string;
+}
+
+export interface PeopleListResponse {
+  people: PersonInvolved[];
+  user_role: string;
+  can_access_courtroom: boolean;
+  is_in_courtroom: boolean;
+}
+
+export interface ChatResponse {
+  user_message: ChatMessage;
+  person_response: ChatMessage;
+}
+
+export interface ChatHistoryResponse {
+  person_id: string;
+  person_name: string;
+  messages: ChatMessage[];
 }

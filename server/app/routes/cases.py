@@ -58,7 +58,10 @@ async def get_case(
         "plaintiff_arguments": case_dict["plaintiff_arguments"],
         "defendant_arguments": case_dict["defendant_arguments"],
         "verdict": case_dict["verdict"],
-        "created_at": case_dict["created_at"]
+        "created_at": case_dict["created_at"],
+        "user_role": case_dict.get("user_role"),  # Include user's role
+        "ai_role": case_dict.get("ai_role"),  # Include AI's role
+        "session_args_at_start": case_dict.get("session_args_at_start", 0),  # User args when session started
     }
 
 @router.put("/{cnr}/status")
@@ -89,6 +92,16 @@ async def update_case_status(
     if new_status not in [e.value for e in CaseStatus]:
          raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
 
+    # When transitioning to ACTIVE, record current user argument count
+    # This is used to ensure user submits at least 2 more arguments before ending session
+    if new_status == CaseStatus.ACTIVE.value:
+        # Count current user arguments (arguments with user_id set)
+        user_arg_count = sum(
+            1 for arg in case.plaintiff_arguments + case.defendant_arguments
+            if arg.user_id is not None
+        )
+        case.session_args_at_start = user_arg_count
+
     case.status = new_status
     await case.save()
 
@@ -110,6 +123,13 @@ async def update_case_roles(
         raise HTTPException(
             status_code=403,
             detail="You don't have permission to update this case"
+        )
+
+    # Check if roles are already set (locked) - can't change once chosen
+    if case.user_role and case.user_role != Roles.NOT_STARTED:
+        raise HTTPException(
+            status_code=400,
+            detail="Role has already been selected and cannot be changed"
         )
 
     new_user_role = roles_update.get("user_role")
@@ -179,8 +199,8 @@ async def generate_plaintiff_opening(
         timestamp=get_current_datetime()
     ))
     
-    # Update case status to ACTIVE
-    case.status = CaseStatus.ACTIVE
+    # NOTE: Do NOT set case status to ACTIVE here - that only happens 
+    # when user clicks "Proceed to Courtroom" on the People page
     await case.save()
     
     return {

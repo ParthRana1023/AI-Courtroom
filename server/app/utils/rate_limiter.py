@@ -8,6 +8,7 @@ from typing import Tuple, Optional
 from app.models.user import User
 from app.models.rate_limit import RateLimitEntry
 import pytz
+from app.config import settings
 
 def ensure_ist_timezone(dt: datetime) -> datetime:
     """Ensure a datetime is in IST timezone.
@@ -169,9 +170,14 @@ class RateLimiter:
         
         return None
 
-# Create a global instance for daily argument rate limiting
-# 10 arguments per day (86400 seconds)
-argument_rate_limiter = RateLimiter(10, 86400, "argument_rate_limiter")
+argument_rate_limiter = RateLimiter(
+    settings.argument_rate_limit,
+    settings.argument_rate_window,
+    "argument_rate_limiter"
+)
 
-# 1 case per day (86400 seconds)
-case_generation_rate_limiter = RateLimiter(1, 86400, "case_generation_rate_limiter")
+case_generation_rate_limiter = RateLimiter(
+    settings.case_generation_rate_limit,
+    settings.case_generation_rate_window,
+    "case_generation_rate_limiter"
+)

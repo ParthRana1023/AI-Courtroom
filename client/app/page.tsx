@@ -28,7 +28,7 @@ export default function Home() {
         }}
       />
 
-      <Navigation translucent />
+      {/* <Navigation translucent /> */}
 
       {/* Content positioned on the left (darker side) */}
       <div className="grow flex flex-col items-start justify-center pl-12 md:pl-24 pt-10">

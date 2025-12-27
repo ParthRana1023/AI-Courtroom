@@ -612,4 +612,75 @@ export const analyzeCase = async (
 //   }
 // };
 
+// People API calls
+export const peopleAPI = {
+  getPeople: async (cnr: string) => {
+    try {
+      const response = await api.get(`/cases/${cnr}/people`);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+        }
+      }
+      throw error;
+    }
+  },
+
+  getPersonDetails: async (cnr: string, personId: string) => {
+    try {
+      const response = await api.get(`/cases/${cnr}/people/${personId}`);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+        }
+      }
+      throw error;
+    }
+  },
+
+  chatWithPerson: async (cnr: string, personId: string, message: string) => {
+    try {
+      const response = await api.post(`/cases/${cnr}/people/${personId}/chat`, {
+        message,
+      });
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+        }
+      }
+      throw error;
+    }
+  },
+
+  getChatHistory: async (cnr: string, personId: string) => {
+    try {
+      const response = await api.get(
+        `/cases/${cnr}/people/${personId}/chat-history`
+      );
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+        }
+      }
+      throw error;
+    }
+  },
+};
+
 export default api;

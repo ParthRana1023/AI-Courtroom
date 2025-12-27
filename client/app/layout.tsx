@@ -56,10 +56,7 @@ export default function RootLayout({
           <SettingsProvider>
             <TextSizeProvider>
               <GoogleOAuthProvider
-                clientId={
-                  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-                  "740807115190-urqjuvvjihj4b1etl77e65ht1hc6f9sh.apps.googleusercontent.com"
-                }
+                clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
               >
                 <AuthProvider>{children}</AuthProvider>
               </GoogleOAuthProvider>
