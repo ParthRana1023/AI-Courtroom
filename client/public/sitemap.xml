@@ -1,65 +1,56 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- Homepage -->
   <url>
     <loc>https://ai-courtroom.vercel.app/</loc>
-    <lastmod>2025-12-26</lastmod>
+    <lastmod>2025-12-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
-  
-  <!-- Authentication Pages -->
   <url>
     <loc>https://ai-courtroom.vercel.app/login</loc>
-    <lastmod>2025-12-26</lastmod>
+    <lastmod>2025-12-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://ai-courtroom.vercel.app/register</loc>
-    <lastmod>2025-12-26</lastmod>
+    <lastmod>2025-12-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
-  
-  <!-- Contact Page -->
   <url>
     <loc>https://ai-courtroom.vercel.app/contact</loc>
-    <lastmod>2025-12-26</lastmod>
+    <lastmod>2025-12-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
-  
-  <!-- Dashboard Pages (Protected but crawlable) -->
   <url>
     <loc>https://ai-courtroom.vercel.app/dashboard</loc>
-    <lastmod>2025-12-26</lastmod>
+    <lastmod>2025-12-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://ai-courtroom.vercel.app/dashboard/cases</loc>
-    <lastmod>2025-12-26</lastmod>
+    <lastmod>2025-12-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://ai-courtroom.vercel.app/dashboard/generate-case</loc>
-    <lastmod>2025-12-26</lastmod>
+    <lastmod>2025-12-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://ai-courtroom.vercel.app/dashboard/profile</loc>
-    <lastmod>2025-12-26</lastmod>
+    <lastmod>2025-12-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
-  
-  <!-- Settings Page -->
   <url>
     <loc>https://ai-courtroom.vercel.app/settings</loc>
-    <lastmod>2025-12-26</lastmod>
+    <lastmod>2025-12-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
