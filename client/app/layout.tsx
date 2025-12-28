@@ -30,9 +30,85 @@ console.log(
 );
 
 export const metadata: Metadata = {
-  title: "AI Courtroom",
-  description: "AI-powered courtroom simulation for legal proceedings",
-  generator: "v0.dev",
+  // Basic metadata
+  title: {
+    default: "AI Courtroom - AI-Powered Legal Simulation Platform",
+    template: "%s | AI Courtroom",
+  },
+  description:
+    "Experience the future of legal education and practice. AI Courtroom offers realistic AI-powered courtroom simulations where you can argue cases, challenge AI opponents, and sharpen your legal skills.",
+  keywords: [
+    "AI courtroom",
+    "legal simulation",
+    "courtroom simulator",
+    "AI legal",
+    "law practice",
+    "legal education",
+    "mock trial",
+    "legal training",
+  ],
+  authors: [{ name: "AI Courtroom Team" }],
+  creator: "AI Courtroom",
+  publisher: "AI Courtroom",
+
+  // Site verification and indexing
+  metadataBase: new URL("https://ai-courtroom.vercel.app"),
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+
+  // Open Graph metadata (for Google, Facebook, LinkedIn, etc.)
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://ai-courtroom.vercel.app",
+    siteName: "AI Courtroom",
+    title: "AI Courtroom - AI-Powered Legal Simulation Platform",
+    description:
+      "Experience the future of legal education. Argue your case, challenge the AI, and step into the courtroom where justice is decided.",
+    images: [
+      {
+        url: "/android-chrome-512x512.png",
+        width: 512,
+        height: 512,
+        alt: "AI Courtroom Logo",
+      },
+    ],
+  },
+
+  // Twitter Card metadata
+  twitter: {
+    card: "summary_large_image",
+    title: "AI Courtroom - AI-Powered Legal Simulation",
+    description:
+      "Experience the future of legal education. Argue your case, challenge the AI, and step into the courtroom where justice is decided.",
+    images: ["/android-chrome-512x512.png"],
+    creator: "@aicourtroom",
+  },
+
+  // Application metadata
+  applicationName: "AI Courtroom",
+  appleWebApp: {
+    capable: true,
+    title: "AI Courtroom",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+
+  // Icons
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -40,6 +116,12 @@ export const metadata: Metadata = {
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
     ],
     apple: "/apple-touch-icon.png",
+    other: [
+      {
+        rel: "mask-icon",
+        url: "/favicon.ico",
+      },
+    ],
   },
   manifest: "/site.webmanifest",
 };
