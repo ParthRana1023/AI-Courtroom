@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/alert";
 import type { CaseGenerationFormData } from "@/types";
 import { caseGenerationRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
 import { formatSecondsToHMS } from "@/lib/utils";
+import GavelLoader from "@/components/gavel-loader";
 
 export default function GenerateCase() {
   const router = useRouter();
@@ -130,17 +131,29 @@ export default function GenerateCase() {
     setIsLoading(true);
     try {
       const newCase = await caseAPI.generateCase(formData);
+      // Don't set isLoading to false here - let the page navigate while showing loading
       router.push(`/dashboard/cases/${newCase.cnr}`);
     } catch (error: any) {
+      // Only reset loading on error
+      setIsLoading(false);
       if (error.response?.data?.detail) {
         setErrors({ form: error.response.data.detail });
       } else {
         setErrors({ form: "Failed to generate case. Please try again." });
       }
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navigation />
+        <div className="grow flex items-center justify-center">
+          <GavelLoader message="Generating case..." />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -154,11 +167,6 @@ export default function GenerateCase() {
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{errors.form}</AlertDescription>
             </Alert>
-          )}
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 dark:bg-zinc-900 dark:bg-opacity-75 z-50 rounded-lg">
-              <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
-            </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>

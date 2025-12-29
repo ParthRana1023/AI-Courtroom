@@ -7,6 +7,7 @@ import Navigation from "@/components/navigation";
 import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus, Roles } from "@/types";
 import MarkdownRenderer from "@/components/markdown-renderer";
+import ScalesLoader from "@/components/scales-loader";
 
 export default function CaseDetails({
   params,
@@ -23,6 +24,9 @@ export default function CaseDetails({
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
+        // DEV DELAY - Remove in production
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
         const data = await caseAPI.getCase(cnr); // Use cnr instead of params.cnr
         setCaseData(data);
       } catch (error) {
@@ -81,10 +85,7 @@ export default function CaseDetails({
   if (isLoading) {
     return (
       <div className="grow flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4">Loading case details...</p>
-        </div>
+        <ScalesLoader message="Loading case details..." />
       </div>
     );
   }

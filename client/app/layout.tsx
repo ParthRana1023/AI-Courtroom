@@ -9,6 +9,7 @@ import TextSizeProvider from "@/components/text-size-provider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -145,6 +146,7 @@ export default function RootLayout({
             </TextSizeProvider>
             <SpeedInsights />
             <Analytics />
+            <Toaster richColors position="bottom-right" />
           </SettingsProvider>
         </ThemeProvider>
       </body>

@@ -42,8 +42,8 @@ Here're some of the project's best features:
 
 ### Prerequisites
 
-- Node.js (v18 or higher)
-- Python (v3.9 or higher)
+- Node.js (v24 or higher)
+- Python (v3.13 or higher)
 - MongoDB
 
 ### Backend Setup

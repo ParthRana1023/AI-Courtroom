@@ -15,7 +15,9 @@ import {
   formatToLocaleString,
   sortByTimestamp,
 } from "@/lib/datetime";
-import SettingsAwareTextArea from "@/components/settings-aware-textarea";
+import SettingsAwareTextArea, {
+  SettingsAwareTextAreaRef,
+} from "@/components/settings-aware-textarea";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +36,7 @@ import { ScrollArea } from "@/components/scroll-area";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/alert";
+import GavelLoader from "@/components/gavel-loader";
 
 export default function Courtroom({
   params,
@@ -76,6 +79,7 @@ export default function Courtroom({
   const [showAdjournedPopup, setShowAdjournedPopup] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const argumentTextareaRef = useRef<SettingsAwareTextAreaRef>(null);
 
   // Combine and sort all arguments chronologically
   const allArguments = useMemo(() => {
@@ -90,6 +94,9 @@ export default function Courtroom({
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
+        // DEV DELAY - Remove in production
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
         const data = await caseAPI.getCase(cnr);
         setCaseData(data);
 
@@ -415,6 +422,9 @@ export default function Courtroom({
       setIsSubmitting(false);
       setArgument("");
 
+      // Auto-focus the textarea for next input
+      setTimeout(() => argumentTextareaRef.current?.focus(), 100);
+
       // Refresh rate limit info after successful submission
       fetchRateLimitInfo();
 
@@ -562,6 +572,9 @@ export default function Courtroom({
       setCounterArgument(null);
       setIsSubmitting(false);
 
+      // Auto-focus the textarea for next input
+      setTimeout(() => argumentTextareaRef.current?.focus(), 100);
+
       // Refresh case data to get updated status
       const updatedCase = await caseAPI.getCase(cnr);
       setCaseData(updatedCase);
@@ -583,10 +596,7 @@ export default function Courtroom({
   if (isLoading) {
     return (
       <div className="grow flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4">Loading courtroom...</p>
-        </div>
+        <GavelLoader message="Loading courtroom..." />
       </div>
     );
   }
@@ -1097,6 +1107,7 @@ export default function Courtroom({
             <div className="flex items-start space-x-4 pt-3">
               <div className="flex-1">
                 <SettingsAwareTextArea
+                  ref={argumentTextareaRef}
                   value={argument}
                   onChange={setArgument}
                   onSubmit={handleSubmitArgument}

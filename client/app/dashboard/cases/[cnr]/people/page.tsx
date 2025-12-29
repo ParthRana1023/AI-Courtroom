@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/scroll-area";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { formatToLocaleString } from "@/lib/datetime";
+import GavelLoader from "@/components/gavel-loader";
 
 // Helper function to strip markdown formatting from text (for plain text display)
 const stripMarkdown = (text: string): string => {
@@ -63,11 +64,15 @@ export default function PeoplePage({
   const [showChat, setShowChat] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch people on mount
   useEffect(() => {
     const fetchPeople = async () => {
       try {
+        // DEV DELAY - Remove in production
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
         const data: PeopleListResponse = await peopleAPI.getPeople(cnr);
         setPeople(data.people);
         setUserRole(data.user_role);
@@ -130,6 +135,9 @@ export default function PeoplePage({
         response.person_response,
       ]);
       setNewMessage("");
+
+      // Auto-focus the input for next message
+      setTimeout(() => chatInputRef.current?.focus(), 100);
     } catch (error) {
       console.error("Error sending message:", error);
       setError("Failed to send message. Please try again.");
@@ -148,10 +156,7 @@ export default function PeoplePage({
   if (isLoading) {
     return (
       <div className="grow flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4">Loading people...</p>
-        </div>
+        <GavelLoader message="Loading people details..." />
       </div>
     );
   }
@@ -442,7 +447,7 @@ export default function PeoplePage({
 
       {/* Chat Drawer - Outside main, slides up from bottom with snap points */}
       <Drawer open={showChat} onOpenChange={setShowChat}>
-        <DrawerContent className="flex flex-col">
+        <DrawerContent size="panel" className="flex flex-col">
           <DrawerHeader className="border-b dark:border-zinc-700 shrink-0">
             <DrawerTitle>
               Chat with {stripMarkdown(selectedPerson?.name || "Person")}
@@ -517,6 +522,7 @@ export default function PeoplePage({
             ) : (
               <div className="flex gap-2">
                 <textarea
+                  ref={chatInputRef}
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyPress}

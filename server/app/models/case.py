@@ -64,6 +64,9 @@ class Case(Document):
         default_factory=dict,
         description="Chat history per person: {person_id: [PersonChatMessage, ...]}"
     )
+    # Soft delete fields
+    is_deleted: bool = Field(default=False, description="Whether the case is soft-deleted")
+    deleted_at: Optional[datetime] = Field(default=None, description="Timestamp when the case was soft-deleted")
 
     class Settings:
         name = "cases"

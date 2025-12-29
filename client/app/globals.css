@@ -167,3 +167,71 @@ html.text-size-large,
 body.text-size-large {
   font-size: 18px !important;
 }
+
+/* Fading vertical dividers for table cells */
+.table-cell-divider {
+  position: relative;
+}
+
+.table-cell-divider::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(156, 163, 175, 0.3) 30%,
+    rgba(156, 163, 175, 0.3) 70%,
+    transparent
+  );
+}
+
+.dark .table-cell-divider::after {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(107, 114, 128, 0.4) 30%,
+    rgba(107, 114, 128, 0.4) 70%,
+    transparent
+  );
+}
+
+/* Don't show divider on last cell */
+.table-cell-divider:last-child::after {
+  display: none;
+}
+
+/* Courtroom Loader - Gavel Animation */
+@keyframes gavel {
+  0% {
+    transform: rotate(-45deg);
+  }
+  50% {
+    transform: rotate(45deg);
+  }
+  100% {
+    transform: rotate(-45deg);
+  }
+}
+
+.animate-gavel {
+  animation: gavel 1s ease-in-out infinite;
+}
+
+/* Scales of Justice Animation - Tilting beam */
+@keyframes balance-beam {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+.animate-balance-beam {
+  animation: balance-beam 2s ease-in-out infinite;
+}

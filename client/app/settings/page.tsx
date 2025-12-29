@@ -18,6 +18,10 @@ export default function SettingsPage() {
     setAutoExpandTextAreas,
     textSize,
     setTextSize,
+    skipArchiveConfirmation,
+    setSkipArchiveConfirmation,
+    skipDeleteConfirmation,
+    setSkipDeleteConfirmation,
   } = useSettings();
 
   // Local state to track changes before saving
@@ -26,6 +30,10 @@ export default function SettingsPage() {
   const [localAutoExpandTextAreas, setLocalAutoExpandTextAreas] =
     useState(autoExpandTextAreas);
   const [localTextSize, setLocalTextSize] = useState(textSize);
+  const [localSkipArchiveConfirmation, setLocalSkipArchiveConfirmation] =
+    useState(skipArchiveConfirmation);
+  const [localSkipDeleteConfirmation, setLocalSkipDeleteConfirmation] =
+    useState(skipDeleteConfirmation);
   const [saveMessage, setSaveMessage] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -34,16 +42,22 @@ export default function SettingsPage() {
     const hasUnsavedChanges =
       localEnterKeySubmits !== enterKeySubmits ||
       localAutoExpandTextAreas !== autoExpandTextAreas ||
-      localTextSize !== textSize;
+      localTextSize !== textSize ||
+      localSkipArchiveConfirmation !== skipArchiveConfirmation ||
+      localSkipDeleteConfirmation !== skipDeleteConfirmation;
 
     setHasChanges(hasUnsavedChanges);
   }, [
     localEnterKeySubmits,
     localAutoExpandTextAreas,
     localTextSize,
+    localSkipArchiveConfirmation,
+    localSkipDeleteConfirmation,
     enterKeySubmits,
     autoExpandTextAreas,
     textSize,
+    skipArchiveConfirmation,
+    skipDeleteConfirmation,
   ]);
 
   const handleSave = () => {
@@ -51,6 +65,8 @@ export default function SettingsPage() {
     setEnterKeySubmits(localEnterKeySubmits);
     setAutoExpandTextAreas(localAutoExpandTextAreas);
     setTextSize(localTextSize);
+    setSkipArchiveConfirmation(localSkipArchiveConfirmation);
+    setSkipDeleteConfirmation(localSkipDeleteConfirmation);
 
     // Show success message
     setSaveMessage("Settings saved successfully!");
@@ -190,6 +206,46 @@ export default function SettingsPage() {
                   className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-lg font-medium">Large</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Confirmation Preferences */}
+          <div className="mb-8">
+            <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
+              Confirmation Dialogs
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              Skip confirmation dialogs for faster workflow (for power users)
+            </p>
+            <div className="space-y-3">
+              <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={localSkipArchiveConfirmation}
+                  onChange={() =>
+                    setLocalSkipArchiveConfirmation(
+                      !localSkipArchiveConfirmation
+                    )
+                  }
+                  className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+                />
+                <span className={`${getTextSizeClass()} font-medium`}>
+                  Skip confirmation when archiving cases
+                </span>
+              </label>
+              <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={localSkipDeleteConfirmation}
+                  onChange={() =>
+                    setLocalSkipDeleteConfirmation(!localSkipDeleteConfirmation)
+                  }
+                  className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+                />
+                <span className={`${getTextSizeClass()} font-medium`}>
+                  Skip confirmation when permanently deleting cases
+                </span>
               </label>
             </div>
           </div>

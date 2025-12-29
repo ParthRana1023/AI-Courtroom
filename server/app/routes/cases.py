@@ -13,8 +13,13 @@ router = APIRouter(tags=["cases"])
 
 @router.get("", response_model=List[dict])
 async def list_cases(current_user: User = Depends(get_current_user)):
-    """List all cases for the current user"""
-    cases = await Case.find(Case.user_id == current_user.id).to_list()
+    """List all cases for the current user (excluding soft-deleted cases)"""
+    # Use $ne: True to match cases where is_deleted is False OR doesn't exist (None)
+    cases = await Case.find(
+        Case.user_id == current_user.id,
+        {"is_deleted": {"$ne": True}}
+    ).to_list()
+
     
     return [
         {
@@ -213,7 +218,9 @@ async def delete_case(
     cnr: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a specific case by CNR"""
+    """Soft delete a specific case by CNR (moves to recycle bin)"""
+    from app.utils.datetime import get_current_datetime
+    
     case = await Case.find_one(Case.cnr == cnr)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -225,10 +232,78 @@ async def delete_case(
             detail="You don't have permission to delete this case"
         )
     
-    # Delete the case
+    # Soft delete the case
+    case.is_deleted = True
+    case.deleted_at = get_current_datetime()
+    await case.save()
+    
+    return {"message": "Case moved to recycle bin"}
+
+@router.get("/deleted/list", response_model=List[dict])
+async def list_deleted_cases(current_user: User = Depends(get_current_user)):
+    """List all soft-deleted cases for the current user (recycle bin)"""
+    cases = await Case.find(
+        Case.user_id == current_user.id,
+        Case.is_deleted == True
+    ).to_list()
+    
+    return [
+        {
+            "id": str(case.id),            
+            "cnr": case.cnr,
+            "title": case.title,
+            "created_at": case.created_at,
+            "deleted_at": case.deleted_at,
+            "status": case.status,
+        }
+        for case in cases
+    ]
+
+@router.post("/{cnr}/restore")
+async def restore_case(
+    cnr: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Restore a soft-deleted case from recycle bin"""
+    case = await Case.find_one(Case.cnr == cnr, Case.is_deleted == True)
+    if not case:
+        raise HTTPException(status_code=404, detail="Deleted case not found")
+    
+    # Check if the case belongs to the current user
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403, 
+            detail="You don't have permission to restore this case"
+        )
+    
+    # Restore the case
+    case.is_deleted = False
+    case.deleted_at = None
+    await case.save()
+    
+    return {"message": "Case restored successfully"}
+
+@router.delete("/{cnr}/permanent")
+async def permanent_delete_case(
+    cnr: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Permanently delete a case (cannot be recovered)"""
+    case = await Case.find_one(Case.cnr == cnr, Case.is_deleted == True)
+    if not case:
+        raise HTTPException(status_code=404, detail="Deleted case not found")
+    
+    # Check if the case belongs to the current user
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403, 
+            detail="You don't have permission to permanently delete this case"
+        )
+    
+    # Permanently delete the case
     await case.delete()
     
-    return {"message": "Case deleted successfully"}
+    return {"message": "Case permanently deleted"}
 
 @router.get("/{case_identifier}/history")
 async def get_case_history(

@@ -479,6 +479,48 @@ export const caseAPI = {
       throw error;
     }
   },
+
+  listDeletedCases: async () => {
+    try {
+      const response = await api.get("/cases/deleted/list");
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      console.error("Error in listDeletedCases API call:", error);
+      throw error;
+    }
+  },
+
+  restoreCase: async (cnr: string) => {
+    try {
+      const response = await api.post(`/cases/${cnr}/restore`);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+        }
+      }
+      throw error;
+    }
+  },
+
+  permanentDeleteCase: async (cnr: string) => {
+    try {
+      const response = await api.delete(`/cases/${cnr}/permanent`);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          console.error("API Error Status:", serverError.response.status);
+        }
+      }
+      throw error;
+    }
+  },
 };
 
 // Argument API calls

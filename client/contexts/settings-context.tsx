@@ -14,15 +14,20 @@ interface SettingsContextType {
   // Text size (small, medium, large)
   textSize: "small" | "medium" | "large";
   setTextSize: (size: "small" | "medium" | "large") => void;
+
+  // Confirmation preferences for power users
+  skipArchiveConfirmation: boolean;
+  setSkipArchiveConfirmation: (value: boolean) => void;
+  skipDeleteConfirmation: boolean;
+  setSkipDeleteConfirmation: (value: boolean) => void;
 }
 
-const defaultSettings: Omit<
-  SettingsContextType,
-  "setEnterKeySubmits" | "setAutoExpandTextAreas" | "setTextSize"
-> = {
+const defaultSettings = {
   enterKeySubmits: true,
   autoExpandTextAreas: true,
-  textSize: "medium",
+  textSize: "medium" as const,
+  skipArchiveConfirmation: false,
+  skipDeleteConfirmation: false,
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(
@@ -38,6 +43,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   );
   const [textSize, setTextSize] = useState<"small" | "medium" | "large">(
     defaultSettings.textSize
+  );
+  const [skipArchiveConfirmation, setSkipArchiveConfirmation] =
+    useState<boolean>(defaultSettings.skipArchiveConfirmation);
+  const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState<boolean>(
+    defaultSettings.skipDeleteConfirmation
   );
 
   // Load settings from localStorage on initial render
@@ -55,6 +65,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
               defaultSettings.autoExpandTextAreas
           );
           setTextSize(parsedSettings.textSize ?? defaultSettings.textSize);
+          setSkipArchiveConfirmation(
+            parsedSettings.skipArchiveConfirmation ??
+              defaultSettings.skipArchiveConfirmation
+          );
+          setSkipDeleteConfirmation(
+            parsedSettings.skipDeleteConfirmation ??
+              defaultSettings.skipDeleteConfirmation
+          );
         }
       } catch (error) {
         console.error("Failed to load settings from localStorage:", error);
@@ -73,12 +91,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           enterKeySubmits,
           autoExpandTextAreas,
           textSize,
+          skipArchiveConfirmation,
+          skipDeleteConfirmation,
         })
       );
     } catch (error) {
       console.error("Failed to save settings to localStorage:", error);
     }
-  }, [enterKeySubmits, autoExpandTextAreas, textSize]);
+  }, [
+    enterKeySubmits,
+    autoExpandTextAreas,
+    textSize,
+    skipArchiveConfirmation,
+    skipDeleteConfirmation,
+  ]);
 
   return (
     <SettingsContext.Provider
@@ -89,6 +115,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setAutoExpandTextAreas,
         textSize,
         setTextSize,
+        skipArchiveConfirmation,
+        setSkipArchiveConfirmation,
+        skipDeleteConfirmation,
+        setSkipDeleteConfirmation,
       }}
     >
       {children}

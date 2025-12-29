@@ -1,9 +1,9 @@
-import GavelLoader from "@/components/gavel-loader";
+import ScalesLoader from "@/components/scales-loader";
 
 export default function Loading() {
   return (
     <div className="grow flex items-center justify-center min-h-[50vh]">
-      <GavelLoader message="Loading people details..." />
+      <ScalesLoader message="Loading case details..." />
     </div>
   );
 }

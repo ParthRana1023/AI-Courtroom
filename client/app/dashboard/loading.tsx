@@ -1,3 +1,9 @@
+import ScalesLoader from "@/components/scales-loader";
+
 export default function Loading() {
-  return null
+  return (
+    <div className="grow flex items-center justify-center min-h-[50vh]">
+      <ScalesLoader message="Loading..." />
+    </div>
+  );
 }
