@@ -1,5 +1,6 @@
 # app/main.py
 from contextlib import asynccontextmanager
+from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -8,7 +9,11 @@ from app.config import settings
 from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis, people
 from beanie.odm.fields import PydanticObjectId
 import json
+import time
 import uvicorn
+
+# Track service start time for uptime calculation
+SERVICE_START_TIME = time.time()
 
 # Custom JSON encoder to handle PydanticObjectId
 class CustomJSONEncoder(json.JSONEncoder):
@@ -52,6 +57,19 @@ app.add_middleware(
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to AI Courtroom API!"}
+
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint for Render monitoring.
+    Returns service status, uptime, and timestamp.
+    """
+    return {
+        "status": "healthy",
+        "uptime_seconds": round(time.time() - SERVICE_START_TIME, 2),
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "service": "AI Courtroom API"
+    }
 
 app.include_router(auth.router, prefix="/auth")
 app.include_router(cases.router, prefix="/cases")
