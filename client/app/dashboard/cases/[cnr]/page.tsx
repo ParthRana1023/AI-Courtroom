@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { use } from "react";
-import Navigation from "@/components/navigation";
 import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus, Roles } from "@/types";
 import MarkdownRenderer from "@/components/markdown-renderer";
@@ -84,7 +83,7 @@ export default function CaseDetails({
 
   if (isLoading) {
     return (
-      <div className="grow flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <ScalesLoader message="Loading case details..." />
       </div>
     );
@@ -93,8 +92,7 @@ export default function CaseDetails({
   if (error) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Navigation />
-        <div className="grow flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Error</h1>
             <p className="mb-6">{error}</p>
@@ -113,8 +111,7 @@ export default function CaseDetails({
   if (!caseData) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Navigation />
-        <div className="grow flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Case Not Found</h1>
             <p className="mb-6">
@@ -135,9 +132,7 @@ export default function CaseDetails({
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navigation />
-
-      <div className="grow container mx-auto px-4 py-8">
+      <div className="flex-1 container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">Case Details</h1>

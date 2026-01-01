@@ -24,9 +24,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/alert-dialog";
+} from "@/components/ui/alert-dialog";
 import { useSettings } from "@/contexts/settings-context";
 import ScalesLoader from "@/components/scales-loader";
+import { Filter } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/animate-ui/components/radix/dropdown-menu";
+import { Checkbox } from "@/components/animate-ui/components/radix/checkbox";
 
 export default function CasesListing() {
   const router = useRouter();
@@ -36,21 +46,21 @@ export default function CasesListing() {
   const [error, setError] = useState("");
   const [deletingCnr, setDeletingCnr] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<CaseStatus | "all">("all");
+  const [statusFilters, setStatusFilters] = useState<Set<CaseStatus>>(
+    new Set()
+  );
   const [sortField, setSortField] = useState<
     "cnr" | "title" | "status" | "created_at"
   >("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [selectedCases, setSelectedCases] = useState<Set<string>>(new Set());
   const [searchExpanded, setSearchExpanded] = useState(false);
-  const [filterExpanded, setFilterExpanded] = useState(false);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
 
-  // Refs for click-outside handling
+  // Ref for click-outside handling
   const searchRef = useRef<HTMLDivElement>(null);
-  const filterRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdowns when clicking outside
+  // Close search dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -58,12 +68,6 @@ export default function CasesListing() {
         !searchRef.current.contains(event.target as Node)
       ) {
         setSearchExpanded(false);
-      }
-      if (
-        filterRef.current &&
-        !filterRef.current.contains(event.target as Node)
-      ) {
-        setFilterExpanded(false);
       }
     };
 
@@ -226,9 +230,9 @@ export default function CasesListing() {
       );
     }
 
-    // Apply status filter
-    if (statusFilter !== "all") {
-      result = result.filter((c) => c.status === statusFilter);
+    // Apply status filter (multi-select)
+    if (statusFilters.size > 0) {
+      result = result.filter((c) => statusFilters.has(c.status as CaseStatus));
     }
 
     // Apply sorting
@@ -261,7 +265,7 @@ export default function CasesListing() {
     });
 
     return result;
-  }, [cases, searchQuery, statusFilter, sortField, sortDirection]);
+  }, [cases, searchQuery, statusFilters, sortField, sortDirection]);
 
   // Toggle sort direction or change sort field
   const handleSort = (field: "cnr" | "title" | "status" | "created_at") => {
@@ -400,91 +404,99 @@ export default function CasesListing() {
                 <Search className="h-5 w-5" />
               </button>
             </div>
-            {/* Filter Icon with Dropdown */}
-            <div ref={filterRef} className="relative">
-              <button
-                onClick={() => setFilterExpanded(!filterExpanded)}
+            {/* Filter Dropdown with Animate UI */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
                 className={`p-2 rounded-lg transition-colors ${
-                  filterExpanded || statusFilter !== "all"
+                  statusFilters.size > 0
                     ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                     : "hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-500"
                 }`}
                 title="Filter by status"
               >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <Filter className="h-5 w-5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Status Filter</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    const newFilters = new Set(statusFilters);
+                    if (newFilters.has(CaseStatus.ACTIVE)) {
+                      newFilters.delete(CaseStatus.ACTIVE);
+                    } else {
+                      newFilters.add(CaseStatus.ACTIVE);
+                    }
+                    setStatusFilters(newFilters);
+                  }}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  <Checkbox
+                    checked={statusFilters.has(CaseStatus.ACTIVE)}
+                    size="sm"
                   />
-                </svg>
-              </button>
-              <div
-                className={`absolute right-0 top-full mt-2 transition-all duration-300 ease-in-out origin-top-right z-20 ${
-                  filterExpanded
-                    ? "opacity-100 scale-100"
-                    : "opacity-0 scale-95 pointer-events-none"
-                }`}
-              >
-                <div className="bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-600 rounded-lg shadow-lg p-2 min-w-[150px]">
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 px-2 pb-2 pt-2">
-                    Status Filter
-                  </p>
-                  {[
-                    {
-                      value: "all",
-                      label: "All Statuses",
-                      selectedClass:
-                        "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-                    },
-                    {
-                      value: CaseStatus.ACTIVE,
-                      label: "Active",
-                      selectedClass:
-                        "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-                    },
-                    {
-                      value: CaseStatus.NOT_STARTED,
-                      label: "Not Started",
-                      selectedClass:
-                        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-                    },
-                    {
-                      value: CaseStatus.ADJOURNED,
-                      label: "Adjourned",
-                      selectedClass:
-                        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-                    },
-                    {
-                      value: CaseStatus.RESOLVED,
-                      label: "Resolved",
-                      selectedClass:
-                        "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
-                    },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setStatusFilter(option.value as CaseStatus | "all");
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-sm rounded transition-colors ${
-                        statusFilter === option.value
-                          ? option.selectedClass
-                          : "hover:bg-gray-100 dark:hover:bg-zinc-700"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+                  Active
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    const newFilters = new Set(statusFilters);
+                    if (newFilters.has(CaseStatus.NOT_STARTED)) {
+                      newFilters.delete(CaseStatus.NOT_STARTED);
+                    } else {
+                      newFilters.add(CaseStatus.NOT_STARTED);
+                    }
+                    setStatusFilters(newFilters);
+                  }}
+                >
+                  <Checkbox
+                    checked={statusFilters.has(CaseStatus.NOT_STARTED)}
+                    size="sm"
+                  />
+                  Not Started
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    const newFilters = new Set(statusFilters);
+                    if (newFilters.has(CaseStatus.ADJOURNED)) {
+                      newFilters.delete(CaseStatus.ADJOURNED);
+                    } else {
+                      newFilters.add(CaseStatus.ADJOURNED);
+                    }
+                    setStatusFilters(newFilters);
+                  }}
+                >
+                  <Checkbox
+                    checked={statusFilters.has(CaseStatus.ADJOURNED)}
+                    size="sm"
+                  />
+                  Adjourned
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    const newFilters = new Set(statusFilters);
+                    if (newFilters.has(CaseStatus.RESOLVED)) {
+                      newFilters.delete(CaseStatus.RESOLVED);
+                    } else {
+                      newFilters.add(CaseStatus.RESOLVED);
+                    }
+                    setStatusFilters(newFilters);
+                  }}
+                >
+                  <Checkbox
+                    checked={statusFilters.has(CaseStatus.RESOLVED)}
+                    size="sm"
+                  />
+                  Resolved
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {/* Multi-Select Toggle */}
             <button
               onClick={() => {
@@ -547,7 +559,7 @@ export default function CasesListing() {
         ) : (
           <>
             {/* Results info bar */}
-            {(searchQuery || statusFilter !== "all") && (
+            {(searchQuery || statusFilters.size > 0) && (
               <div className="mb-4">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   Showing {processedCases.length} of {cases.length} cases

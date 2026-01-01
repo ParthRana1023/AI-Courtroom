@@ -17,6 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { UserNav } from "./user-nav";
 
 interface NavigationProps {
   translucent?: boolean;
@@ -62,18 +63,6 @@ export default function Navigation({ translucent = false }: NavigationProps) {
                     <span>Cases</span>
                   </Link>
                   <Link
-                    href="/dashboard"
-                    className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
-                      pathname === "/dashboard"
-                        ? "bg-zinc-800 text-white"
-                        : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
-                    }`}
-                  >
-                    <Home className="h-4 w-4 mr-1" />
-                    <span>Profile</span>
-                  </Link>
-
-                  <Link
                     href="/contact"
                     className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
                       pathname === "/contact"
@@ -105,19 +94,7 @@ export default function Navigation({ translucent = false }: NavigationProps) {
             <ThemeToggle />
 
             {isAuthenticated ? (
-              <div className="flex items-center">
-                <span className="text-zinc-300 mr-4 flex items-center">
-                  <User className="h-4 w-4 mr-1" />
-                  <span>Welcome, {user?.first_name}</span>
-                </span>
-                <button
-                  onClick={logout}
-                  className="px-3 py-2 rounded-md text-sm font-medium text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center"
-                >
-                  <LogOut className="h-4 w-4 mr-1" />
-                  <span>Logout</span>
-                </button>
-              </div>
+              <UserNav />
             ) : (
               <div className="flex items-center space-x-4">
                 <Link
@@ -181,19 +158,6 @@ export default function Navigation({ translucent = false }: NavigationProps) {
                 <FileText className="h-4 w-4 mr-2" />
                 <span>Cases</span>
               </Link>
-              <Link
-                href="/dashboard"
-                className={`px-3 py-2 rounded-md text-base font-medium flex items-center ${
-                  pathname === "/dashboard"
-                    ? "bg-zinc-800 text-white"
-                    : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Home className="h-4 w-4 mr-2" />
-                <span>Dashboard</span>
-              </Link>
-
               <Link
                 href="/contact"
                 className={`px-3 py-2 rounded-md text-base font-medium flex items-center ${

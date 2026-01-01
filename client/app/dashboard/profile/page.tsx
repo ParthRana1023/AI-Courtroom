@@ -70,7 +70,7 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="grow flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="animate-spin h-12 w-12 text-zinc-500 mx-auto" />
           <p className="mt-4 text-zinc-600 dark:text-zinc-400">
@@ -83,7 +83,7 @@ export default function ProfilePage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="grow flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-center bg-white dark:bg-zinc-900 p-8 rounded-xl shadow-lg max-w-md">
           <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold mb-4 text-zinc-800 dark:text-zinc-100">
@@ -105,7 +105,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="grow container mx-auto px-4 py-8">
+    <div className="flex-1 container mx-auto px-4 py-8">
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-md p-6 mb-8 border border-zinc-200 dark:border-zinc-800">
         <h1 className="text-2xl font-bold mb-6 text-zinc-800 dark:text-zinc-100">
           Your Profile

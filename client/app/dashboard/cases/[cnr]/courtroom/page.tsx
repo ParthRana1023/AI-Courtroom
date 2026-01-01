@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { use } from "react";
-import Navigation from "@/components/navigation";
 import { caseAPI, argumentAPI } from "@/lib/api";
 import { argumentRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
 import { useAuth } from "@/contexts/auth-context";
@@ -23,19 +22,19 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/dialog";
-import { Button } from "@/components/button";
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
-} from "@/components/drawer";
-import { ScrollArea } from "@/components/scroll-area";
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
-import { Alert, AlertDescription, AlertTitle } from "@/components/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import GavelLoader from "@/components/gavel-loader";
 
 export default function Courtroom({
@@ -595,7 +594,7 @@ export default function Courtroom({
 
   if (isLoading) {
     return (
-      <div className="grow flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <GavelLoader message="Loading courtroom..." />
       </div>
     );
@@ -604,8 +603,7 @@ export default function Courtroom({
   if (error) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Navigation />
-        <div className="grow flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Error</h1>
             <p className="mb-6">{error}</p>
@@ -624,8 +622,7 @@ export default function Courtroom({
   if (!caseData || !caseHistory) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Navigation />
-        <div className="grow flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Case Not Found</h1>
             <p className="mb-6">
@@ -645,8 +642,7 @@ export default function Courtroom({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-zinc-950 pb-0">
-      <Navigation />
+    <div className="flex flex-col min-h-screen pb-0">
       <main className="flex flex-col mt-4 max-w-7xl mx-auto w-full px-4">
         <header className="bg-white dark:bg-zinc-900 shadow-sm py-4 rounded-lg border border-gray-200 dark:border-zinc-700">
           <div className="px-4 sm:px-6">

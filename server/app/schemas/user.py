@@ -1,7 +1,10 @@
 # app/schemas/user.py
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 from datetime import date
-from typing import Optional
+from typing import Optional, Literal
+
+# Gender type definition
+Gender = Literal["male", "female", "others", "prefer-not-to-say"]
 
 class UserCreate(BaseModel):
     first_name: str
@@ -11,6 +14,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     google_id: Optional[str] = None  # For Google OAuth registrations
+    gender: Optional[Gender] = None  # User's gender preference
 
     @field_validator('phone_number')
     def validate_phone_number(cls, value):
@@ -40,3 +44,4 @@ class UserOut(BaseModel):
     date_of_birth: date
     phone_number: str
     email: EmailStr
+    gender: Optional[Gender] = None  # User's gender preference

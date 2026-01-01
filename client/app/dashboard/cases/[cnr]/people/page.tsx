@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { use } from "react";
-import Navigation from "@/components/navigation";
 import { caseAPI, peopleAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import {
@@ -13,14 +12,14 @@ import {
   PersonRole,
   CaseStatus,
 } from "@/types";
-import { Button } from "@/components/button";
+import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-} from "@/components/drawer";
-import { ScrollArea } from "@/components/scroll-area";
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { formatToLocaleString } from "@/lib/datetime";
@@ -155,16 +154,14 @@ export default function PeoplePage({
 
   if (isLoading) {
     return (
-      <div className="grow flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <GavelLoader message="Loading people details..." />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-zinc-950">
-      <Navigation />
-
+    <div className="flex flex-col min-h-screen">
       <main className="flex-1 mt-4 max-w-7xl mx-auto w-full px-4 pb-8">
         {/* Header */}
         <div className="bg-white dark:bg-zinc-900 shadow-sm py-4 px-6 rounded-lg border border-gray-200 dark:border-zinc-700 mb-6">

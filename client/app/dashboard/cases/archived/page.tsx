@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/alert-dialog";
+} from "@/components/ui/alert-dialog";
 import ScalesLoader from "@/components/scales-loader";
 
 interface DeletedCase {

@@ -62,6 +62,8 @@ export interface CaseHistory {
 }
 
 // Form types
+export type Gender = "male" | "female" | "others" | "prefer-not-to-say";
+
 export interface RegisterFormData {
   first_name: string;
   last_name: string;
@@ -69,6 +71,7 @@ export interface RegisterFormData {
   phone_number: string;
   email: string;
   password: string;
+  gender?: Gender;
 }
 
 export interface LoginFormData {

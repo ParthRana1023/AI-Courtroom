@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, Save, Check, ArrowLeft } from "lucide-react";
+import { Settings, Save, Check, ArrowLeft, Cookie } from "lucide-react";
 import { useSettings } from "@/contexts/settings-context";
+import { useCookieConsent } from "@/contexts/cookie-consent-context";
 import Navigation from "@/components/navigation";
 
 // Add custom styles for animations
 import "./settings.css";
+import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -23,6 +25,7 @@ export default function SettingsPage() {
     skipDeleteConfirmation,
     setSkipDeleteConfirmation,
   } = useSettings();
+  const { consent, openSettings: openCookieSettings } = useCookieConsent();
 
   // Local state to track changes before saving
   const [localEnterKeySubmits, setLocalEnterKeySubmits] =
@@ -90,7 +93,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <>
+    <HexagonBackground className="min-h-screen pt-16">
       <Navigation />
       <div className="max-w-4xl mx-auto p-6 pt-8">
         <div className="flex items-center mb-8">
@@ -282,6 +285,80 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Cookie Management Section */}
+        <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 mb-6 transition-all duration-200">
+          <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700">
+            Cookie Preferences
+          </h2>
+
+          <div className="mb-6">
+            <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
+              Manage Cookies
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              Control how we use cookies to personalize your experience and
+              analyze site usage.
+            </p>
+
+            {/* Current Consent Status */}
+            <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Current Cookie Consent:
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      consent.essential ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Essential: Always On
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      consent.functional ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Functional: {consent.functional ? "On" : "Off"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      consent.analytics ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Analytics: {consent.analytics ? "On" : "Off"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      consent.marketing ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Marketing: {consent.marketing ? "On" : "Off"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={openCookieSettings}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <Cookie className="h-4 w-4" />
+              <span>Manage Cookie Preferences</span>
+            </button>
+          </div>
+        </div>
+
         <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 transition-all duration-200">
           <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 text-blue-600 dark:text-blue-400">
             Preview
@@ -304,6 +381,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-    </>
+    </HexagonBackground>
   );
 }

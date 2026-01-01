@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navigation from "@/components/navigation";
 import { caseAPI } from "@/lib/api";
-import { Alert, AlertDescription, AlertTitle } from "@/components/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CaseGenerationFormData } from "@/types";
 import { caseGenerationRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
 import { formatSecondsToHMS } from "@/lib/utils";

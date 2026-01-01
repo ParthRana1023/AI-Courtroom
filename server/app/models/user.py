@@ -2,7 +2,10 @@
 from beanie import Document
 from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import date
-from typing import Optional
+from typing import Optional, Literal
+
+# Gender type definition
+Gender = Literal["male", "female", "others", "prefer-not-to-say"]
 
 class User(Document):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -14,6 +17,7 @@ class User(Document):
     email: EmailStr
     password_hash: Optional[str] = None  # Optional for Google OAuth users
     google_id: Optional[str] = None  # Google user ID for OAuth users
+    gender: Optional[Gender] = None  # User's gender preference
 
     class Settings:
         name = "users"

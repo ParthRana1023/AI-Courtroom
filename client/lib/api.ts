@@ -1,6 +1,11 @@
 import axios, { type AxiosError } from "axios";
-import { createOffsetDate } from "./datetime";
 import { ContactFormData } from "@/types";
+import {
+  getCookie,
+  setAuthTokenCookie,
+  clearAuthTokenCookie,
+  COOKIE_NAMES,
+} from "./cookies";
 
 // Create axios instance with base URL from environment variables
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -22,19 +27,12 @@ api.interceptors.request.use(
     if (typeof window !== "undefined") {
       token = localStorage.getItem("token");
 
-      // If token not in localStorage, try to get from cookie
+      // If token not in localStorage, try to get from cookie using our utility
       if (!token) {
-        const cookies = document.cookie.split(";");
-        const tokenCookie = cookies.find((cookie) =>
-          cookie.trim().startsWith("token=")
-        );
-        if (tokenCookie) {
-          token = tokenCookie.split("=")[1];
-        }
+        token = getCookie(COOKIE_NAMES.AUTH_TOKEN);
       }
 
       if (token) {
-        console.log("Token being sent:", token);
         config.headers.Authorization = `Bearer ${token}`;
       }
     }
@@ -57,8 +55,7 @@ api.interceptors.response.use(
       }
       if (typeof window !== "undefined") {
         localStorage.removeItem("token");
-        document.cookie =
-          "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        clearAuthTokenCookie();
         window.location.href = "/login";
       }
     }
@@ -70,11 +67,7 @@ api.interceptors.response.use(
 const setAuthToken = (token: string, rememberMe = false) => {
   if (typeof window !== "undefined") {
     localStorage.setItem("token", token);
-
-    // Set cookie with appropriate expiration
-    const expirationDays = rememberMe ? 7 : 1;
-    const date = createOffsetDate(expirationDays * 24 * 60 * 60 * 1000);
-    document.cookie = `token=${token}; path=/; expires=${date.toUTCString()}; SameSite=Strict`;
+    setAuthTokenCookie(token, rememberMe);
   }
 };
 
@@ -214,7 +207,7 @@ export const authAPI = {
   logout: () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("token");
-      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      clearAuthTokenCookie();
       window.location.href = "/";
     }
   },

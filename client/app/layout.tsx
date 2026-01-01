@@ -5,11 +5,13 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SettingsProvider } from "@/contexts/settings-context";
+import { CookieConsentProvider } from "@/contexts/cookie-consent-context";
 import TextSizeProvider from "@/components/text-size-provider";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Analytics } from "@vercel/analytics/next";
+import ConditionalAnalytics from "@/components/conditional-analytics";
+import CookieConsentBanner from "@/components/cookie-consent-banner";
+import CookieSettingsModal from "@/components/cookie-settings-modal";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -134,20 +136,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider defaultTheme="system" storageKey="ai-courtroom-theme">
-          <SettingsProvider>
-            <TextSizeProvider>
-              <GoogleOAuthProvider
-                clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
-              >
-                <AuthProvider>{children}</AuthProvider>
-              </GoogleOAuthProvider>
-            </TextSizeProvider>
-            <SpeedInsights />
-            <Analytics />
-            <Toaster richColors position="bottom-right" />
-          </SettingsProvider>
+          <CookieConsentProvider>
+            <SettingsProvider>
+              <TextSizeProvider>
+                <GoogleOAuthProvider
+                  clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
+                >
+                  <AuthProvider>{children}</AuthProvider>
+                </GoogleOAuthProvider>
+              </TextSizeProvider>
+              <ConditionalAnalytics />
+              <Toaster richColors position="bottom-right" />
+              <CookieConsentBanner />
+              <CookieSettingsModal />
+            </SettingsProvider>
+          </CookieConsentProvider>
         </ThemeProvider>
       </body>
     </html>

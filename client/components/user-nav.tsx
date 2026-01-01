@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +11,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/animate-ui/components/radix/dropdown-menu";
 import { User, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -52,7 +51,7 @@ export function UserNav() {
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
+      <DropdownMenuContent className="w-56" align="end">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
@@ -64,14 +63,12 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link
-            href="/dashboard/profile"
-            className="cursor-pointer flex w-full items-center"
-          >
-            <User className="mr-2 h-4 w-4" />
-            Profile
-          </Link>
+        <DropdownMenuItem
+          className="cursor-pointer"
+          onClick={() => router.push("/dashboard/profile")}
+        >
+          <User className="mr-2 h-4 w-4" />
+          Profile
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={handleLogout}

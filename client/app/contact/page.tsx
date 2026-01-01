@@ -14,6 +14,7 @@ import {
   ChevronDown,
   FolderKanban,
 } from "lucide-react";
+import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 
 const feedbackCategories: { value: FeedbackCategory; label: string }[] = [
   { value: "general", label: "General Feedback" },
@@ -92,7 +93,7 @@ export default function Contact() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col flex-1 p-0 pt-16">
+    <HexagonBackground className="min-h-screen flex flex-col flex-1 p-0 pt-16">
       <Navigation />
 
       <div className="grow container mx-auto px-4 py-8">
@@ -227,6 +228,6 @@ export default function Contact() {
           </form>
         </div>
       </div>
-    </div>
+    </HexagonBackground>
   );
 }

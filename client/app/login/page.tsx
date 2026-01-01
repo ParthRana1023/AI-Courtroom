@@ -8,9 +8,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import Navigation from "@/components/navigation";
 import OtpForm from "@/components/otp-form";
+import FloatingLabelInput from "@/components/floating-label-input";
 import type { LoginFormData } from "@/types";
 import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
 import GoogleSignInButton from "@/components/google-signin-button";
+import { Checkbox } from "@/components/animate-ui/components/radix/checkbox";
+import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 
 export default function Login() {
   const router = useRouter();
@@ -156,10 +159,10 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-linear-to-b from-zinc-50 to-white dark:from-black dark:to-black">
+    <HexagonBackground className="min-h-screen flex flex-col">
       <Navigation />
 
-      <div className="grow flex items-center justify-center p-6">
+      <div className="grow flex items-center justify-center p-6 pt-20">
         <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-zinc-200 dark:border-gray-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-zinc-800 dark:text-white">
@@ -181,76 +184,42 @@ export default function Login() {
 
           {!isOtpSent ? (
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-zinc-700 dark:text-white mb-1"
-                >
-                  Email Address
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-zinc-400" />
-                  </div>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="pl-10 block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
-                    placeholder="you@example.com"
-                  />
-                </div>
-                {errors.email && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.email}
-                  </p>
-                )}
-              </div>
+              <FloatingLabelInput
+                type="email"
+                id="email"
+                name="email"
+                label="Email Address"
+                icon={Mail}
+                value={formData.email}
+                onChange={handleChange}
+                error={errors.email}
+                labelBg="bg-white dark:bg-zinc-900"
+              />
 
-              <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-zinc-700 dark:text-white mb-1"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-zinc-400" />
-                  </div>
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="pl-10 block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
-                    placeholder="••••••••"
-                  />
-                </div>
-                {errors.password && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.password}
-                  </p>
-                )}
-              </div>
+              <FloatingLabelInput
+                type="password"
+                id="password"
+                name="password"
+                label="Password"
+                icon={Lock}
+                value={formData.password}
+                onChange={handleChange}
+                error={errors.password}
+                labelBg="bg-white dark:bg-zinc-900"
+              />
 
-              <div className="flex items-center">
-                <input
+              <div className="flex items-center gap-2 pl-2">
+                <Checkbox
                   id="remember_me"
-                  name="remember_me"
-                  type="checkbox"
                   checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 text-black dark:text-white focus:ring-zinc-500 border-zinc-300 dark:border-zinc-700 rounded"
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  size="sm"
                 />
                 <label
                   htmlFor="remember_me"
-                  className="ml-2 block text-sm text-zinc-900 dark:text-white"
+                  className="text-sm text-zinc-900 dark:text-white cursor-pointer select-none"
                 >
-                  Remember me.
+                  Remember me
                 </label>
               </div>
 
@@ -333,6 +302,6 @@ export default function Login() {
           )}
         </div>
       </div>
-    </div>
+    </HexagonBackground>
   );
 }
