@@ -42,3 +42,6 @@ langchain-groq
 # Google Authentication & OAuth
 google-auth
 google-auth-oauthlib
+
+# Cloud Storage
+cloudinary

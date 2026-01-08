@@ -67,6 +67,7 @@ export default function Register() {
   const [otp, setOtp] = useState<string[]>(new Array(6).fill(""));
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
 
   // Load Google data from sessionStorage if this is a Google sign-up
   useEffect(() => {
@@ -82,8 +83,8 @@ export default function Register() {
             email: googleData.email || "",
           }));
           setGoogleId(googleData.google_id || null);
-          // Clear sessionStorage after reading
-          sessionStorage.removeItem("googleUserData");
+          setProfilePhotoUrl(googleData.profile_photo_url || null);
+          // Don't clear sessionStorage here - keep it until registration completes
         } catch (e) {
           console.error("Failed to parse Google user data", e);
         }
@@ -96,8 +97,30 @@ export default function Register() {
 
     if (!formData.first_name) newErrors.first_name = "First name is required";
     if (!formData.last_name) newErrors.last_name = "Last name is required";
-    if (!formData.date_of_birth || isNaN(formData.date_of_birth.getTime()))
+    if (!formData.date_of_birth || isNaN(formData.date_of_birth.getTime())) {
       newErrors.date_of_birth = "Date of birth is required";
+    } else {
+      // Check if user is at least 18 years old
+      const today = new Date();
+      const birthDate = formData.date_of_birth;
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        age--;
+      }
+      if (age < 18) {
+        newErrors.date_of_birth =
+          "You must be at least 18 years old to register";
+      }
+    }
+
+    if (!formData.gender) {
+      newErrors.gender = "Please select a gender";
+    }
+
     if (!formData.phone_number)
       newErrors.phone_number = "Phone number is required";
     if (!/^\d{10}$/.test(formData.phone_number))
@@ -136,16 +159,42 @@ export default function Register() {
 
     setIsLoading(true);
     try {
+      // Format date_of_birth as YYYY-MM-DD string for the API
+      const formattedDob = formData.date_of_birth.toISOString().split("T")[0];
+
       // Include googleId if this is a Google sign-up
       const registrationData = googleId
-        ? { ...formData, google_id: googleId }
-        : formData;
-      await register(registrationData);
+        ? { ...formData, date_of_birth: formattedDob, google_id: googleId }
+        : { ...formData, date_of_birth: formattedDob };
+      const response = await register(registrationData);
+
+      // If Google registration, auth context handles redirect, nothing more to do here
+      if (response?.skip_otp) {
+        // Clear Google data on successful registration
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("googleUserData");
+        }
+        return;
+      }
+
+      // Regular registration - show OTP form
       setIsOtpSent(true);
       setSuccessMessage("OTP sent successfully to your email.");
     } catch (error: any) {
       if (error.response?.data?.detail) {
-        setErrors({ form: error.response.data.detail });
+        // Handle Pydantic validation errors (422) which return an array of error objects
+        const detail = error.response.data.detail;
+        if (Array.isArray(detail)) {
+          // Extract the first validation error message
+          const firstError = detail[0];
+          const fieldName = firstError.loc?.slice(-1)[0] || "field";
+          const message = firstError.msg || "Validation error";
+          setErrors({ form: `${fieldName}: ${message}` });
+        } else if (typeof detail === "string") {
+          setErrors({ form: detail });
+        } else {
+          setErrors({ form: "Validation failed. Please check your input." });
+        }
       } else {
         setErrors({ form: "Registration failed. Please try again." });
       }
@@ -164,7 +213,14 @@ export default function Register() {
 
     setIsLoading(true);
     try {
-      await verifyRegistration(formData, otp.join(""));
+      // Format date_of_birth as YYYY-MM-DD string for the API
+      const formattedDob = formData.date_of_birth.toISOString().split("T")[0];
+      const formattedData = { ...formData, date_of_birth: formattedDob };
+      await verifyRegistration(formattedData, otp.join(""));
+      // Clear Google data on successful registration
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("googleUserData");
+      }
       router.push("/dashboard/cases");
     } catch (error: any) {
       setErrors({ otp: "OTP verification failed. Please try again." });
@@ -176,7 +232,9 @@ export default function Register() {
   const handleRequestAgain = async () => {
     setIsLoading(true);
     try {
-      await register(formData);
+      // Format date_of_birth as YYYY-MM-DD string for the API
+      const formattedDob = formData.date_of_birth.toISOString().split("T")[0];
+      await register({ ...formData, date_of_birth: formattedDob });
       setErrors({});
     } catch (err: any) {
       setErrors({ form: err.message || "Failed to resend OTP." });
@@ -229,6 +287,33 @@ export default function Register() {
 
           {!isOtpSent ? (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Profile Photo Preview for Google Sign-up */}
+              {isGoogleSignUp && (
+                <div className="flex justify-center mb-4">
+                  <div className="text-center">
+                    <div className="w-20 h-20 mx-auto rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shadow-md text-zinc-600 dark:text-zinc-300 text-xl font-bold">
+                      {profilePhotoUrl ? (
+                        <img
+                          src={profilePhotoUrl}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span>
+                          {(formData.first_name?.[0] || "").toUpperCase()}
+                          {(formData.last_name?.[0] || "").toUpperCase() || "?"}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
+                      {profilePhotoUrl
+                        ? "Google profile photo"
+                        : "No photo available"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* First Name and Last Name - side by side */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FloatingLabelInput
@@ -283,6 +368,7 @@ export default function Register() {
                   onChange={(gender) =>
                     setFormData((prev) => ({ ...prev, gender }))
                   }
+                  error={errors.gender}
                 />
 
                 <div className="flex flex-col gap-4">

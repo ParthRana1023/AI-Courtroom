@@ -11,6 +11,9 @@ export interface User {
   email: string;
   date_of_birth: Date;
   phone_number: string;
+  gender?: "male" | "female" | "others" | "prefer-not-to-say";
+  profile_photo_url?: string;
+  nickname?: string;
 }
 
 // Case types

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Request
+from fastapi import APIRouter, HTTPException, status, Depends, Request, UploadFile, File
 from app.schemas.user import UserCreate, UserOut
 from app.schemas.auth import GoogleLoginRequest, ProfileUpdateRequest
 from app.models.user import User
@@ -25,12 +25,41 @@ async def initiate_registration(user_data: UserCreate):
             detail="Email already registered"
         )
     
-    # Generate and send OTP
+    # If registering via Google, skip OTP and directly create user
+    # Google has already verified the email
+    if user_data.google_id:
+        try:
+            user = await create_user(user_data)
+            
+            # Create access token for the newly registered user
+            access_token_expires = timedelta(
+                minutes=settings.access_token_expire_minutes
+            )
+            
+            access_token = create_access_token(
+                data={"sub": str(user.email)},
+                expires_delta=access_token_expires
+            )
+            
+            return {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "skip_otp": True
+            }
+        except HTTPException as e:
+            raise e
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating user: {str(e)}"
+            )
+    
+    # Generate and send OTP for regular registrations
     await create_otp(user_data.email, is_registration=True)
     
     # Store user data temporarily (you might want to use Redis or a similar solution for this)
     # For simplicity, we'll return a success message and expect the client to send the data again
-    return {"message": "OTP sent to your email for verification"}
+    return {"message": "OTP sent to your email for verification", "skip_otp": False}
 
 @router.post("/register/verify", status_code=status.HTTP_201_CREATED, response_model=TokenResponse)
 async def verify_registration(data: RegistrationVerifyRequest):
@@ -83,6 +112,13 @@ async def initiate_login(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email not registered"
+        )
+    
+    # Check if this is a Google-only user (no password set)
+    if user.password_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account uses Google Sign-In. Please use the 'Continue with Google' button to log in."
         )
     
     # Verify password
@@ -167,6 +203,7 @@ async def update_profile(
         # Update user
         current_user.phone_number = data.phone_number
         current_user.date_of_birth = dob
+        current_user.nickname = data.nickname  # Update nickname
         await current_user.save()
         
         return current_user
@@ -199,3 +236,91 @@ async def google_login(data: GoogleLoginRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Google authentication failed: {str(e)}"
         )
+
+
+@router.post("/profile/photo", response_model=UserOut)
+async def upload_profile_photo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload or update user's profile photo."""
+    from app.services.cloudinary_service import (
+        upload_profile_photo as cloudinary_upload,
+        extract_public_id_from_url
+    )
+    
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # Validate file size (max 5MB)
+    max_size = 5 * 1024 * 1024  # 5MB
+    file_bytes = await file.read()
+    if len(file_bytes) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size exceeds 5MB limit"
+        )
+    
+    try:
+        # Get existing public_id if user has a photo
+        existing_public_id = None
+        if current_user.profile_photo_url:
+            existing_public_id = extract_public_id_from_url(current_user.profile_photo_url)
+        
+        # Upload to Cloudinary
+        secure_url, public_id = await cloudinary_upload(
+            file_bytes=file_bytes,
+            user_id=str(current_user.id),
+            existing_public_id=existing_public_id
+        )
+        
+        # Update user profile
+        current_user.profile_photo_url = secure_url
+        await current_user.save()
+        
+        return current_user
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload profile photo: {str(e)}"
+        )
+
+
+@router.delete("/profile/photo", response_model=UserOut)
+async def delete_profile_photo(
+    current_user: User = Depends(get_current_user)
+):
+    """Remove user's profile photo."""
+    from app.services.cloudinary_service import (
+        delete_profile_photo as cloudinary_delete,
+        extract_public_id_from_url
+    )
+    
+    if not current_user.profile_photo_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No profile photo to delete"
+        )
+    
+    try:
+        # Extract public_id and delete from Cloudinary
+        public_id = extract_public_id_from_url(current_user.profile_photo_url)
+        if public_id:
+            await cloudinary_delete(public_id)
+        
+        # Update user profile
+        current_user.profile_photo_url = None
+        await current_user.save()
+        
+        return current_user
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete profile photo: {str(e)}"
+        )
+

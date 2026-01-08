@@ -18,6 +18,8 @@ class User(Document):
     password_hash: Optional[str] = None  # Optional for Google OAuth users
     google_id: Optional[str] = None  # Google user ID for OAuth users
     gender: Optional[Gender] = None  # User's gender preference
+    profile_photo_url: Optional[str] = None  # Cloudinary URL for profile photo
+    nickname: Optional[str] = None  # User's preferred nickname
 
     class Settings:
         name = "users"

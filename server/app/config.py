@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
     
+    # Cloudinary settings for profile photos
+    cloudinary_cloud_name: Optional[str] = None
+    cloudinary_api_key: Optional[str] = None
+    cloudinary_api_secret: Optional[str] = None
+    
     # Email settings
     email_sender: str = "noreply@aicourtroom.com"
     email_username: str

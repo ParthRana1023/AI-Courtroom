@@ -96,11 +96,6 @@ export default function SettingsPage() {
     <HexagonBackground className="min-h-screen pt-16">
       <Navigation />
       <div className="max-w-4xl mx-auto p-6 pt-8">
-        <div className="flex items-center mb-8">
-          <Settings className="h-6 w-6 mr-2 text-blue-600 dark:text-blue-400" />
-          <h1 className="text-2xl font-bold">Settings</h1>
-        </div>
-
         <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 mb-6 transition-all duration-200">
           <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700">
             Interface Preferences
@@ -171,6 +166,46 @@ export default function SettingsPage() {
             </label>
           </div>
 
+          {/* Confirmation Preferences */}
+          <div className="mb-8">
+            <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
+              Confirmation Dialogs
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              Skip confirmation dialogs for faster workflow (for power users)
+            </p>
+            <div className="space-y-3">
+              <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={localSkipArchiveConfirmation}
+                  onChange={() =>
+                    setLocalSkipArchiveConfirmation(
+                      !localSkipArchiveConfirmation
+                    )
+                  }
+                  className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+                />
+                <span className={`${getTextSizeClass()} font-medium`}>
+                  Skip confirmation when archiving cases
+                </span>
+              </label>
+              <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={localSkipDeleteConfirmation}
+                  onChange={() =>
+                    setLocalSkipDeleteConfirmation(!localSkipDeleteConfirmation)
+                  }
+                  className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+                />
+                <span className={`${getTextSizeClass()} font-medium`}>
+                  Skip confirmation when permanently deleting cases
+                </span>
+              </label>
+            </div>
+          </div>
+
           {/* Text Size */}
           <div className="mb-8">
             <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
@@ -213,46 +248,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Confirmation Preferences */}
-          <div className="mb-8">
-            <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
-              Confirmation Dialogs
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              Skip confirmation dialogs for faster workflow (for power users)
-            </p>
-            <div className="space-y-3">
-              <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={localSkipArchiveConfirmation}
-                  onChange={() =>
-                    setLocalSkipArchiveConfirmation(
-                      !localSkipArchiveConfirmation
-                    )
-                  }
-                  className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
-                />
-                <span className={`${getTextSizeClass()} font-medium`}>
-                  Skip confirmation when archiving cases
-                </span>
-              </label>
-              <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={localSkipDeleteConfirmation}
-                  onChange={() =>
-                    setLocalSkipDeleteConfirmation(!localSkipDeleteConfirmation)
-                  }
-                  className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
-                />
-                <span className={`${getTextSizeClass()} font-medium`}>
-                  Skip confirmation when permanently deleting cases
-                </span>
-              </label>
-            </div>
-          </div>
-
           {/* Save Button */}
           <div className="flex items-center justify-between mt-8 pt-4 border-t dark:border-zinc-700">
             <button
@@ -285,8 +280,31 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Cookie Management Section */}
+        {/* Preview Section */}
         <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 mb-6 transition-all duration-200">
+          <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 text-blue-600 dark:text-blue-400">
+            Preview
+          </h2>
+          <p className={`mb-4 ${getTextSizeClass()}`}>
+            This text will appear at the selected size throughout the
+            application.
+          </p>
+          <div className="border dark:border-zinc-700 p-5 rounded-lg bg-gray-50 dark:bg-zinc-900 shadow-inner">
+            <p
+              className={`mb-3 font-medium ${getTextSizeClass()} text-blue-600 dark:text-blue-400`}
+            >
+              Sample Argument
+            </p>
+            <p className={getTextSizeClass()}>
+              The plaintiff argues that the defendant breached the contract by
+              failing to deliver the goods on time. This caused significant
+              financial damage to the plaintiff's business operations.
+            </p>
+          </div>
+        </div>
+
+        {/* Cookie Management Section */}
+        <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 transition-all duration-200">
           <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700">
             Cookie Preferences
           </h2>
@@ -356,28 +374,6 @@ export default function SettingsPage() {
               <Cookie className="h-4 w-4" />
               <span>Manage Cookie Preferences</span>
             </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 transition-all duration-200">
-          <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 text-blue-600 dark:text-blue-400">
-            Preview
-          </h2>
-          <p className={`mb-4 ${getTextSizeClass()}`}>
-            This text will appear at the selected size throughout the
-            application.
-          </p>
-          <div className="border dark:border-zinc-700 p-5 rounded-lg bg-gray-50 dark:bg-zinc-900 shadow-inner">
-            <p
-              className={`mb-3 font-medium ${getTextSizeClass()} text-blue-600 dark:text-blue-400`}
-            >
-              Sample Argument
-            </p>
-            <p className={getTextSizeClass()}>
-              The plaintiff argues that the defendant breached the contract by
-              failing to deliver the goods on time. This caused significant
-              financial damage to the plaintiff's business operations.
-            </p>
           </div>
         </div>
       </div>

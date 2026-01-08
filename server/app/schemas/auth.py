@@ -24,3 +24,4 @@ class ProfileUpdateRequest(BaseModel):
     """Request body for updating user profile."""
     phone_number: str
     date_of_birth: str  # Will be parsed as date
+    nickname: Optional[str] = None  # User's preferred display name

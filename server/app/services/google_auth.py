@@ -50,6 +50,7 @@ async def verify_google_token(credential: str) -> dict:
             raise ValueError('Invalid issuer')
         
         print(f"  Token verified: ✅ Email: {idinfo.get('email', 'N/A')}")
+        print(f"  Picture URL: {idinfo.get('picture', 'N/A')}")
         return idinfo
     except ValueError as e:
         print(f"  Token verification failed: ❌ {str(e)}")
@@ -83,6 +84,7 @@ async def verify_google_access_token(access_token: str) -> dict:
                     raise ValueError(f"Google API returned {response.status}")
                 data = json.loads(response.read().decode('utf-8'))
                 print(f"  Access Token verified: ✅ Email: {data.get('email', 'N/A')}")
+                print(f"  Picture URL: {data.get('picture', 'N/A')}")
                 return data
         except urllib.error.HTTPError as e:
              raise ValueError(f"HTTP Error {e.code}: {e.reason}")
@@ -184,6 +186,10 @@ async def authenticate_google_user(credential: Optional[str] = None, access_toke
         if user:
             # Link Google account to existing user
             user.google_id = google_id
+            # Update profile photo from Google if user doesn't have one
+            google_picture = google_info.get('picture')
+            if google_picture and not user.profile_photo_url:
+                user.profile_photo_url = google_picture
             await user.save()
         else:
             # New user - return Google data for registration form
@@ -198,11 +204,18 @@ async def authenticate_google_user(credential: Optional[str] = None, access_toke
                     "first_name": name_parts[0] if name_parts else '',
                     "last_name": name_parts[1] if len(name_parts) > 1 else '',
                     "email": email,
-                    "google_id": google_id
+                    "google_id": google_id,
+                    "profile_photo_url": google_info.get('picture')  # Google profile picture
                 }
             }
     
-    # Existing user - create JWT token
+    # Existing user - update profile photo from Google if they don't have one
+    google_picture = google_info.get('picture')
+    if google_picture and not user.profile_photo_url:
+        user.profile_photo_url = google_picture
+        await user.save()
+    
+    # Create JWT token
     access_token_expires = timedelta(
         days=settings.extended_token_expire_days if remember_me else 0,
         minutes=settings.access_token_expire_minutes

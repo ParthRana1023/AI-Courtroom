@@ -14,7 +14,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     google_id: Optional[str] = None  # For Google OAuth registrations
-    gender: Optional[Gender] = None  # User's gender preference
+    gender: Gender  # Required - user must select one of the 4 options
+    profile_photo_url: Optional[str] = None  # Optional - from Google OAuth or user upload
 
     @field_validator('phone_number')
     def validate_phone_number(cls, value):
@@ -23,6 +24,15 @@ class UserCreate(BaseModel):
         if len(digits) != 10:
             raise ValueError("Phone number must be exactly 10 digits")
         return digits
+
+    @field_validator('date_of_birth')
+    def validate_age(cls, value):
+        today = date.today()
+        # Calculate age
+        age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
+        if age < 18:
+            raise ValueError("You must be at least 18 years old to register")
+        return value
 
     @field_validator('password')
     def validate_password(cls, value):
@@ -44,4 +54,6 @@ class UserOut(BaseModel):
     date_of_birth: date
     phone_number: str
     email: EmailStr
-    gender: Optional[Gender] = None  # User's gender preference
+    gender: Optional[Gender] = None  # Optional for backwards compatibility with existing users
+    profile_photo_url: Optional[str] = None  # Cloudinary URL for profile photo (optional)
+    nickname: Optional[str] = None  # User's preferred display name

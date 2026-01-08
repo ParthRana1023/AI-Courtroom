@@ -29,6 +29,7 @@ interface AuthContextType {
   logout: () => void;
   redirectToDashboard: () => void;
   loginWithGoogle: (credential: string, rememberMe?: boolean) => Promise<any>;
+  refreshUser: () => Promise<void>; // Refresh user data from server
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -131,6 +132,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       const response = await authAPI.register(userData);
+
+      // If Google registration (skip_otp), set auth state immediately
+      if (response.skip_otp && response.access_token) {
+        // Store token in both localStorage and cookie
+        if (typeof window !== "undefined") {
+          localStorage.setItem("token", response.access_token);
+          // Also set cookie for consistency
+          document.cookie = `token=${response.access_token}; path=/; max-age=${
+            60 * 60 * 24
+          }; samesite=Strict`;
+        }
+        setIsAuthenticated(true);
+        setIsLoading(false);
+        // Use hard redirect to avoid race conditions
+        if (typeof window !== "undefined") {
+          window.location.href = "/dashboard/cases";
+        }
+        return response;
+      }
+
       setIsLoading(false);
       return response;
     } catch (error) {
@@ -178,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // If this is a new Google user, redirect to register page with pre-filled data
       if (response.is_new_user && response.google_user_data) {
         // Store Google data in sessionStorage for register page
+        console.log("Google user data received:", response.google_user_data);
         if (typeof window !== "undefined") {
           sessionStorage.setItem(
             "googleUserData",
@@ -198,6 +220,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Refresh user data from server (e.g., after profile photo update)
+  const refreshUser = async () => {
+    try {
+      if (authAPI.isAuthenticated()) {
+        const userData = await authAPI.getProfile();
+        setUser(userData);
+      }
+    } catch (error) {
+      console.error("Failed to refresh user data:", error);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -211,6 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         redirectToDashboard,
         loginWithGoogle,
+        refreshUser,
       }}
     >
       {children}

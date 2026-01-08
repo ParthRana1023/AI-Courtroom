@@ -5,9 +5,10 @@ import type { Gender as GenderType } from "@/types";
 interface GenderProps {
   value?: GenderType;
   onChange?: (gender: GenderType) => void;
+  error?: string;
 }
 
-export default function Gender({ value, onChange }: GenderProps) {
+export default function Gender({ value, onChange, error }: GenderProps) {
   const handleChange = (gender: GenderType) => {
     if (onChange) {
       onChange(gender);
@@ -38,7 +39,13 @@ export default function Gender({ value, onChange }: GenderProps) {
         }`}
       />
 
-      <span className="relative z-10 text-center font-mono text-base font-black uppercase text-neutral-600 dark:text-neutral-300">
+      <span
+        className={`relative z-10 text-center font-mono text-base font-black uppercase ${
+          error
+            ? "text-red-600 dark:text-red-400"
+            : "text-neutral-600 dark:text-neutral-300"
+        }`}
+      >
         Please select your gender
       </span>
       <div className="relative z-10 flex items-center gap-4">
@@ -239,6 +246,11 @@ export default function Gender({ value, onChange }: GenderProps) {
           </span>
         </label>
       </div>
+      {error && (
+        <p className="relative z-10 text-sm text-red-600 dark:text-red-400 mt-1">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
