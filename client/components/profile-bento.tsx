@@ -12,6 +12,7 @@ import {
   Pencil,
   User as UserIcon,
   Mail,
+  Gavel,
 } from "lucide-react";
 import ProfileEditSheet from "@/components/profile-edit-sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -652,7 +653,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
           <div className="flex-1 grid grid-cols-4 gap-2">
             {/* Profile Photo Card */}
             <ParticleCard
-              className="bento-card flex items-center justify-center p-4 rounded-xl border border-zinc-700/50 bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+              className="bento-card flex items-center justify-center p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
               style={
                 {
                   "--glow-x": "50%",
@@ -668,12 +669,12 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
               clickEffect={clickEffect}
               enableMagnetism={enableMagnetism}
             >
-              <Avatar className="w-16 h-16 border-2 border-zinc-600">
+              <Avatar className="w-16 h-16 border-2 border-zinc-300 dark:border-zinc-600">
                 <AvatarImage
                   src={user.profile_photo_url || undefined}
                   alt={user.first_name}
                 />
-                <AvatarFallback className="bg-zinc-800 text-zinc-200 text-xl font-medium">
+                <AvatarFallback className="bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 text-xl font-medium">
                   {getInitials()}
                 </AvatarFallback>
               </Avatar>
@@ -681,7 +682,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
             {/* Name and Nickname Card with Edit Button */}
             <ParticleCard
-              className="bento-card col-span-2 flex flex-col justify-center p-4 rounded-xl border border-zinc-700/50 bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow relative"
+              className="bento-card col-span-2 flex flex-col justify-center p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow relative"
               style={
                 {
                   "--glow-x": "50%",
@@ -698,12 +699,12 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
               enableMagnetism={enableMagnetism}
             >
               <ProfileEditSheet>
-                <button className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-zinc-300 rounded-full transition-colors">
+                <button className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors">
                   <Pencil className="w-2.5 h-2.5" />
                   Edit Profile
                 </button>
               </ProfileEditSheet>
-              <h3 className="text-xl font-semibold text-white">
+              <h3 className="text-xl font-semibold text-zinc-900 dark:text-white">
                 {user.first_name} {user.last_name}
               </h3>
               {user.nickname && (
@@ -714,7 +715,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
             {/* Empty space for label positioning */}
             <div className="flex items-center justify-start pl-4">
               <div className="flex flex-col items-start">
-                <span className="text-2xl font-bold text-zinc-200">
+                <span className="text-2xl font-bold text-zinc-700 dark:text-zinc-200">
                   Profile
                 </span>
                 <svg
@@ -735,7 +736,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
         <div className="grid grid-cols-4 gap-2 mb-2">
           {/* Phone */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-700/50 bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -759,7 +760,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
             </div>
             <div className="mt-auto">
               <h3 className="font-medium text-sm text-zinc-400">Phone</h3>
-              <p className="text-base font-semibold text-white mt-1">
+              <p className="text-base font-semibold text-zinc-900 dark:text-white mt-1">
                 {user.phone_number || "Not set"}
               </p>
             </div>
@@ -767,7 +768,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
           {/* Email */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-700/50 bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -791,7 +792,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
             </div>
             <div className="mt-auto">
               <h3 className="font-medium text-sm text-zinc-400">Email</h3>
-              <p className="text-sm font-semibold text-white mt-1 truncate">
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white mt-1 truncate">
                 {user.email}
               </p>
             </div>
@@ -800,7 +801,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
           {/* Total Cases - spans 2 columns with Case Summary label */}
           <div className="col-span-2 flex gap-2">
             <ParticleCard
-              className="bento-card flex-1 flex flex-col justify-between p-4 rounded-xl border border-zinc-700/50 bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+              className="bento-card flex-1 flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
               style={
                 {
                   "--glow-x": "50%",
@@ -820,13 +821,13 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
                 <span className="text-xs text-zinc-500 uppercase tracking-wider">
                   Cases
                 </span>
-                <FileText className="w-4 h-4 text-zinc-500" />
+                <Gavel className="w-4 h-4 text-zinc-500" />
               </div>
               <div className="mt-auto">
                 <h3 className="font-medium text-sm text-zinc-400">
                   Total Cases
                 </h3>
-                <p className="text-3xl font-bold text-white mt-1">
+                <p className="text-3xl font-bold text-zinc-900 dark:text-white mt-1">
                   {caseStats.total}
                 </p>
               </div>
@@ -835,8 +836,10 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
             {/* Case Summary Label */}
             <div className="flex items-start justify-start pt-2 min-w-[100px]">
               <div className="flex flex-col items-start">
-                <span className="text-lg font-bold text-zinc-200">Case</span>
-                <span className="text-lg font-bold text-zinc-200 -mt-1">
+                <span className="text-lg font-bold text-zinc-700 dark:text-zinc-200">
+                  Case
+                </span>
+                <span className="text-lg font-bold text-zinc-700 dark:text-zinc-200 -mt-1">
                   Summary
                 </span>
                 <svg
@@ -857,7 +860,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
         <div className="grid grid-cols-4 gap-2">
           {/* Date of Birth */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-700/50 bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -883,7 +886,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
               <h3 className="font-medium text-sm text-zinc-400">
                 Date of Birth
               </h3>
-              <p className="text-base font-semibold text-white mt-1">
+              <p className="text-base font-semibold text-zinc-900 dark:text-white mt-1">
                 {formatDate(user.date_of_birth)}
               </p>
             </div>
@@ -891,7 +894,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
           {/* Gender */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-700/50 bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -915,7 +918,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
             </div>
             <div className="mt-auto">
               <h3 className="font-medium text-sm text-zinc-400">Gender</h3>
-              <p className="text-base font-semibold text-white mt-1 capitalize">
+              <p className="text-base font-semibold text-zinc-900 dark:text-white mt-1 capitalize">
                 {user.gender?.replace(/-/g, " ") || "Not set"}
               </p>
             </div>
@@ -923,7 +926,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
           {/* Active Cases */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-700/50 bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -949,7 +952,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
               <h3 className="font-medium text-sm text-zinc-400">
                 Active Cases
               </h3>
-              <p className="text-2xl font-bold text-white mt-1">
+              <p className="text-2xl font-bold text-zinc-900 dark:text-white mt-1">
                 {caseStats.active}
               </p>
             </div>
@@ -957,7 +960,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
           {/* Completed Cases */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-700/50 bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -975,13 +978,13 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">
-                Done
+                Completed
               </span>
               <CheckCircle className="w-4 h-4 text-zinc-500" />
             </div>
             <div className="mt-auto">
-              <h3 className="font-medium text-sm text-zinc-400">Completed</h3>
-              <p className="text-2xl font-bold text-white mt-1">
+              <h3 className="font-medium text-sm text-zinc-400">Resolved</h3>
+              <p className="text-2xl font-bold text-zinc-900 dark:text-white mt-1">
                 {caseStats.completed}
               </p>
             </div>

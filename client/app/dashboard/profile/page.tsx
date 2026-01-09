@@ -13,7 +13,7 @@ import {
   Loader2,
   AlertCircle,
   User,
-  FileText,
+  Gavel,
   CheckCircle,
   Clock,
 } from "lucide-react";
@@ -61,6 +61,16 @@ export default function ProfilePage() {
       )
     : [];
 
+  // Unfiltered counts for the bento grid (not affected by search)
+  const allActiveCases = cases.filter(
+    (caseItem) => caseItem.status !== CaseStatus.RESOLVED
+  );
+
+  const allResolvedCases = cases.filter(
+    (caseItem) => caseItem.status === CaseStatus.RESOLVED
+  );
+
+  // Filtered counts for display in tables
   const activeCases = filteredCases.filter(
     (caseItem) => caseItem.status !== CaseStatus.RESOLVED
   );
@@ -117,9 +127,9 @@ export default function ProfilePage() {
             <ProfileBento
               user={user}
               caseStats={{
-                total: filteredCases.length,
-                active: activeCases.length,
-                completed: resolvedCases.length,
+                total: cases.length,
+                active: allActiveCases.length,
+                completed: allResolvedCases.length,
               }}
               enableStars={true}
               enableSpotlight={true}
@@ -137,7 +147,7 @@ export default function ProfilePage() {
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pt-5">
           <h2 className="text-xl font-semibold flex items-center text-zinc-800 dark:text-zinc-100">
-            <FileText className="h-5 w-5 mr-2 text-zinc-500 dark:text-zinc-400" />
+            <Gavel className="h-5 w-5 mr-2 text-zinc-500 dark:text-zinc-400" />
             <span>Your Cases</span>
           </h2>
 
@@ -191,19 +201,19 @@ export default function ProfilePage() {
                   <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
                     <thead className="bg-zinc-50 dark:bg-zinc-800">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Case Number
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Title
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Created
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Status
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Case Details
                         </th>
                       </tr>
@@ -214,30 +224,32 @@ export default function ProfilePage() {
                           key={caseItem.id}
                           className="hover:bg-zinc-50 dark:hover:bg-zinc-800"
                         >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center">
                             {caseItem.cnr}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
                             {caseItem.title}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
                             {new Date(caseItem.created_at).toLocaleDateString()}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
                             <span
                               className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                 caseItem.status === CaseStatus.ACTIVE
-                                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
-                                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                  : caseItem.status === CaseStatus.RESOLVED
+                                  ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300"
+                                  : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                               }`}
                             >
                               {caseItem.status}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                             <Link
                               href={`/dashboard/cases/${caseItem.cnr}`}
-                              className="text-zinc-900 dark:text-zinc-100 hover:text-zinc-700 dark:hover:text-zinc-300 font-medium"
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                             >
                               View Details
                             </Link>
@@ -266,19 +278,19 @@ export default function ProfilePage() {
                   <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
                     <thead className="bg-zinc-50 dark:bg-zinc-800">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Case Number
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Title
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Created
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Status
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                           Case Details
                         </th>
                       </tr>
@@ -289,24 +301,24 @@ export default function ProfilePage() {
                           key={caseItem.id}
                           className="hover:bg-zinc-50 dark:hover:bg-zinc-800"
                         >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center">
                             {caseItem.cnr}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
                             {caseItem.title}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
                             {new Date(caseItem.created_at).toLocaleDateString()}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200">
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300">
                               {caseItem.status}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                             <Link
                               href={`/dashboard/cases/${caseItem.cnr}`}
-                              className="text-zinc-900 dark:text-zinc-100 hover:text-zinc-700 dark:hover:text-zinc-300 font-medium"
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                             >
                               View Details
                             </Link>

@@ -128,6 +128,11 @@ export const metadata: Metadata = {
     ],
   },
   manifest: "/site.webmanifest",
+
+  // Site verification
+  verification: {
+    google: "JtQO7rsIxmvzAg2OC66y4o_MVUS2MGoGEAuqubjosxE",
+  },
 };
 
 export default function RootLayout({
