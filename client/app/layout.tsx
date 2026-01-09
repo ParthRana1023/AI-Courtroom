@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { SettingsProvider } from "@/contexts/settings-context";
 import { CookieConsentProvider } from "@/contexts/cookie-consent-context";
 import TextSizeProvider from "@/components/text-size-provider";
+import NotificationProvider from "@/components/notification-provider";
 import ConditionalAnalytics from "@/components/conditional-analytics";
 import CookieConsentBanner from "@/components/cookie-consent-banner";
 import CookieSettingsModal from "@/components/cookie-settings-modal";
@@ -144,7 +145,9 @@ export default function RootLayout({
                 <GoogleOAuthProvider
                   clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
                 >
-                  <AuthProvider>{children}</AuthProvider>
+                  <AuthProvider>
+                    <NotificationProvider>{children}</NotificationProvider>
+                  </AuthProvider>
                 </GoogleOAuthProvider>
               </TextSizeProvider>
               <ConditionalAnalytics />

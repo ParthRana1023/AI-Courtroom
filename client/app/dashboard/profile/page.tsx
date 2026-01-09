@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { caseAPI } from "@/lib/api";
 import { type CaseListItem, CaseStatus } from "@/types";
-import ProfilePhoto from "@/components/profile-photo";
+import ProfileBento from "@/components/profile-bento";
 import {
   Search,
   Plus,
@@ -114,109 +114,28 @@ export default function ProfilePage() {
 
         {user && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
-                <h2 className="text-lg font-semibold mb-4 flex items-center text-zinc-800 dark:text-zinc-100">
-                  <User className="h-5 w-5 mr-2 text-zinc-500 dark:text-zinc-400" />
-                  <span>Personal Information</span>
-                </h2>
-
-                {/* Profile Header - Photo, Name, and Actions */}
-                <div className="flex flex-col sm:flex-row items-center gap-4 mb-6 pb-6 border-b border-zinc-200 dark:border-zinc-700">
-                  <ProfilePhoto
-                    photoUrl={user.profile_photo_url}
-                    firstName={user.first_name}
-                    lastName={user.last_name}
-                    nickname={user.nickname}
-                    size="lg"
-                    editable={true}
-                    onRefreshUser={refreshUser}
-                  />
-                </div>
-
-                {/* Info Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3 col-span-2">
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                      Nickname
-                    </p>
-                    <p className="font-medium text-zinc-800 dark:text-zinc-100">
-                      {user.nickname || (
-                        <span className="text-zinc-400 italic">Not set</span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                      Phone
-                    </p>
-                    <p className="font-medium text-zinc-800 dark:text-zinc-100">
-                      {user.phone_number}
-                    </p>
-                  </div>
-                  <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                      Date of Birth
-                    </p>
-                    <p className="font-medium text-zinc-800 dark:text-zinc-100">
-                      {user.date_of_birth
-                        ? new Date(user.date_of_birth).toLocaleDateString(
-                            "en-GB"
-                          )
-                        : "Not set"}
-                    </p>
-                  </div>
-                  <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3 col-span-2">
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                      Gender
-                    </p>
-                    <p className="font-medium text-zinc-800 dark:text-zinc-100 capitalize">
-                      {user.gender?.replace(/-/g, " ") || "Not set"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
-                <h2 className="text-lg font-semibold mb-4 flex items-center text-zinc-800 dark:text-zinc-100">
-                  <FileText className="h-5 w-5 mr-2 text-zinc-500 dark:text-zinc-400" />
-                  <span>Case Summary</span>
-                </h2>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-zinc-50 dark:bg-zinc-800 p-4 rounded-lg text-center">
-                    <p className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-                      {activeCases.length}
-                    </p>
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400 flex items-center justify-center">
-                      <Clock className="h-4 w-4 mr-1" />
-                      <span>Active</span>
-                    </p>
-                  </div>
-                  <div className="bg-zinc-50 dark:bg-zinc-800 p-4 rounded-lg text-center">
-                    <p className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-                      {resolvedCases.length}
-                    </p>
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400 flex items-center justify-center">
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      <span>Resolved</span>
-                    </p>
-                  </div>
-                  <div className="bg-zinc-50 dark:bg-zinc-800 p-4 rounded-lg text-center">
-                    <p className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-                      {filteredCases.length}
-                    </p>
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400 flex items-center justify-center">
-                      <FileText className="h-4 w-4 mr-1" />
-                      <span>Total</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ProfileBento
+              user={user}
+              caseStats={{
+                total: filteredCases.length,
+                active: activeCases.length,
+                completed: resolvedCases.length,
+              }}
+              enableStars={true}
+              enableSpotlight={true}
+              enableBorderGlow={true}
+              enableTilt={true}
+              enableMagnetism={true}
+              clickEffect={true}
+              spotlightRadius={300}
+              particleCount={8}
+              glowColor="59, 130, 246"
+              onRefreshUser={refreshUser}
+            />
           </>
         )}
 
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pt-5">
           <h2 className="text-xl font-semibold flex items-center text-zinc-800 dark:text-zinc-100">
             <FileText className="h-5 w-5 mr-2 text-zinc-500 dark:text-zinc-400" />
             <span>Your Cases</span>

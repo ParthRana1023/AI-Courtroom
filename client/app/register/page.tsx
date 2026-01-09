@@ -503,6 +503,15 @@ export default function Register() {
                 />
               </div>
 
+              {/* Warning about non-editable fields */}
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <strong>Note:</strong> Your phone number and date of birth
+                  cannot be changed after registration. Please make sure they
+                  are correct.
+                </p>
+              </div>
+
               <button
                 type="submit"
                 disabled={isLoading}

@@ -301,6 +301,30 @@ export const authAPI = {
       throw error;
     }
   },
+
+  // Update profile
+  updateProfile: async (data: {
+    first_name?: string;
+    last_name?: string;
+    nickname?: string;
+    gender?: string;
+  }) => {
+    try {
+      const response = await api.put("/auth/profile", data);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const serverError = error;
+        if (serverError.response) {
+          console.error("API Error:", serverError.response.data);
+          throw new Error(
+            serverError.response.data.detail || "Failed to update profile"
+          );
+        }
+      }
+      throw error;
+    }
+  },
 };
 
 // Case API calls

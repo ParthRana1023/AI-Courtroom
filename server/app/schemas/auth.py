@@ -22,6 +22,11 @@ class GoogleLoginResponse(BaseModel):
 
 class ProfileUpdateRequest(BaseModel):
     """Request body for updating user profile."""
-    phone_number: str
-    date_of_birth: str  # Will be parsed as date
+    # Required fields for existing update functionality
+    phone_number: Optional[str] = None
+    date_of_birth: Optional[str] = None  # Will be parsed as date
+    # New editable fields
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     nickname: Optional[str] = None  # User's preferred display name
+    gender: Optional[str] = None  # male, female, others, prefer-not-to-say

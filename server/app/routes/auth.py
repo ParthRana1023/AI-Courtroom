@@ -193,24 +193,31 @@ async def update_profile(
     data: ProfileUpdateRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """Update user profile with phone number and date of birth."""
+    """Update user profile - only updates fields that are provided."""
     from datetime import datetime
     
     try:
-        # Parse date string to date object
-        dob = datetime.strptime(data.date_of_birth, "%Y-%m-%d").date()
+        # Update only provided fields
+        if data.first_name is not None:
+            current_user.first_name = data.first_name
+        if data.last_name is not None:
+            current_user.last_name = data.last_name
+        if data.nickname is not None:
+            current_user.nickname = data.nickname if data.nickname.strip() else None
+        if data.gender is not None:
+            current_user.gender = data.gender
+        if data.phone_number is not None:
+            current_user.phone_number = data.phone_number
+        if data.date_of_birth is not None:
+            dob = datetime.strptime(data.date_of_birth, "%Y-%m-%d").date()
+            current_user.date_of_birth = dob
         
-        # Update user
-        current_user.phone_number = data.phone_number
-        current_user.date_of_birth = dob
-        current_user.nickname = data.nickname  # Update nickname
         await current_user.save()
-        
         return current_user
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid date format: {str(e)}"
+            detail=f"Invalid data: {str(e)}"
         )
 
 
