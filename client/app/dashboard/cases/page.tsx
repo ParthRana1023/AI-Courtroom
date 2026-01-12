@@ -377,10 +377,8 @@ export default function CasesListing() {
             {/* Animated Search Bar - expands to the left */}
             <div ref={searchRef} className="relative flex items-center">
               <div
-                className={`absolute right-full mr-2 transition-all duration-300 ease-in-out origin-right ${
-                  searchExpanded
-                    ? "opacity-100 scale-100 w-72"
-                    : "opacity-0 scale-95 w-0 pointer-events-none"
+                className={`absolute right-full mr-2 overflow-hidden transition-all duration-500 ease-out ${
+                  searchExpanded ? "w-72 opacity-100" : "w-0 opacity-0"
                 }`}
               >
                 <input
@@ -388,7 +386,7 @@ export default function CasesListing() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by title or case number..."
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-lg"
+                  className="w-72 px-4 py-2 border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 shadow-lg"
                   autoFocus={searchExpanded}
                 />
               </div>
@@ -795,12 +793,14 @@ export default function CasesListing() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center table-cell-divider">
                         <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             caseItem.status === CaseStatus.ACTIVE
-                              ? "bg-green-100 text-green-800"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
                               : caseItem.status === CaseStatus.RESOLVED
-                              ? "bg-gray-100 text-gray-800"
-                              : "bg-yellow-100 text-yellow-800"
+                              ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300"
+                              : caseItem.status === CaseStatus.ADJOURNED
+                              ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
+                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                           }`}
                         >
                           {caseItem.status}

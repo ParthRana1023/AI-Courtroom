@@ -6,24 +6,28 @@
 
 Here're some of the project's best features:
 
-- Case Generation: AI-powered generation of legal case scenarios
-- Interactive Arguments: Submit arguments as either plaintiff or defendant
-- AI Counter-Arguments: Receive intelligent counter-arguments from the AI
-- Verdict Generation: Get AI-generated verdicts based on the arguments presented
-- User Authentication: Secure login and registration system
-- Case Management: Create view and manage legal cases
-- Feedback System: Submit feedback that is stored in a MongoDB database
+- **Case Generation**: AI-powered generation of legal case scenarios
+- **Interactive Arguments**: Submit arguments as either plaintiff or defendant
+- **AI Counter-Arguments**: Receive intelligent counter-arguments from the AI
+- **Verdict Generation**: Get AI-generated verdicts based on the arguments presented
+- **Case Analysis**: Comprehensive AI analysis of case strength and legal merits
+- **User Authentication**: Secure login with email/password and Google OAuth
+- **Profile Management**: User profiles with bento grid layout and case statistics
+- **Case Management**: Create, view, archive, and manage legal cases
+- **Dark/Light Mode**: Full theme support with system preference detection
+- **Feedback System**: Submit feedback stored in MongoDB database
+- **Cookie Consent**: GDPR-compliant cookie management
 
 ## Tech Stack
 
 ### Frontend
 
-- **Next.js**: React framework for server-rendered applications
+- **Next.js 15**: React framework for server-rendered applications
 - **TypeScript**: Typed JavaScript for better development experience
 - **Tailwind CSS**: Utility-first CSS framework
 - **Radix UI**: Unstyled, accessible UI components
-- **Axios**: Promise-based HTTP client
-- **Google Authentication**: Google OAuth 2.0 integration
+- **GSAP & Framer Motion**: Smooth animations and transitions
+- **Google OAuth**: Google authentication integration
 
 ### Backend
 
@@ -31,12 +35,17 @@ Here're some of the project's best features:
 - **Beanie ODM**: MongoDB object-document mapper for Python
 - **Motor**: Asynchronous MongoDB driver
 - **LangChain**: Framework for developing applications powered by language models
-- **Groq**: Integration for AI model access
-- **JWT Authentication**: Secure user authentication
+- **Groq**: Integration for AI model access (llama-3.3-70b)
+- **JWT Authentication**: Secure user authentication with configurable expiry
 
 ### Database
 
 - **MongoDB**: NoSQL database for storing user data, cases, and feedback
+
+### Deployment
+
+- **Frontend**: Vercel (automatic deploys from GitHub)
+- **Backend**: Render (Docker-based deployment)
 
 ## Getting Started
 
@@ -45,6 +54,19 @@ Here're some of the project's best features:
 - Node.js (v24 or higher)
 - Python (v3.13 or higher)
 - MongoDB
+- Docker (optional, for containerized development)
+
+### Quick Start with Docker
+
+```bash
+# Clone the repository
+git clone https://github.com/ParthRana1023/AI-Courtroom.git
+cd AI-Courtroom
+
+# Build and run with Docker Compose
+docker compose build
+docker compose up
+```
 
 ### Backend Setup
 
@@ -67,27 +89,45 @@ Here're some of the project's best features:
    pip install -r requirements.txt
    ```
 
-4. Create a `.env` file in the server directory with the following variables:
+4. Create a `.env` file in the server directory:
 
-   ```
+   ```env
+   # Database
    MONGODB_URL=mongodb://localhost:27017
    MONGODB_DB_NAME=ai_courtroom
-   SECRET_KEY=your_secret_key
-   ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+   # Authentication
+   SECRET_KEY=your-secure-random-key-here
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=30
-   PORT=8000
+   EXTENDED_TOKEN_EXPIRE_DAYS=7
 
+   # AI
    GROQ_API_KEY=your_groq_api_key
 
+   # Email (for OTP)
    email_sender=your-email-username-here
    email_username=your-email-id-here
    email_password=your-app-password-here
    smtp_server=smtp.gmail.com
    smtp_port=587
 
+   # Google OAuth
    GOOGLE_CLIENT_ID=your-google-client-id
    GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+   # Cloudinary (for profile photos)
+   CLOUDINARY_CLOUD_NAME=your-cloud-name
+   CLOUDINARY_API_KEY=your-api-key
+   CLOUDINARY_API_SECRET=your-api-secret
+
+   # Rate Limiting (optional)
+   CASE_GENERATION_RATE_LIMIT=5
+   CASE_GENERATION_RATE_WINDOW=86400
+   ARGUMENT_RATE_LIMIT=10
+   ARGUMENT_RATE_WINDOW=86400
+
+   PORT=8000
    ```
 
 5. Start the backend server:
@@ -106,12 +146,12 @@ Here're some of the project's best features:
 2. Install dependencies:
 
    ```bash
-   npm install
+   pnpm install
    ```
 
-3. Create a `.env.local` file in the client directory with the following variables:
+3. Create a `.env.local` file in the client directory:
 
-   ```
+   ```env
    NEXT_PUBLIC_API_URL=http://localhost:8000
    NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
    ```
@@ -119,10 +159,10 @@ Here're some of the project's best features:
 4. Start the development server:
 
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Project Structure
 
@@ -133,36 +173,25 @@ Here're some of the project's best features:
 │   ├── contexts/           # React contexts
 │   ├── hooks/              # Custom React hooks
 │   ├── lib/                # Utility functions
+│   ├── types/              # TypeScript type definitions
 │   └── public/             # Static assets
-└── server/                 # Backend FastAPI application
-    ├── app/                # Main application package
-    │   ├── models/         # Database models
-    │   ├── routes/         # API routes
-    │   ├── schemas/        # Pydantic schemas
-    │   ├── services/       # Business logic services
-    │   └── utils/          # Utility functions
-    ├── .env                # Environament variables file
-    └── requirements.txt    # Python dependencies
+├── server/                 # Backend FastAPI application
+│   ├── app/
+│   │   ├── models/         # Database models (Beanie)
+│   │   ├── routes/         # API routes
+│   │   ├── schemas/        # Pydantic schemas
+│   │   ├── services/       # Business logic services
+│   │   └── utils/          # Utility functions
+│   ├── .env                # Environment variables
+│   └── requirements.txt    # Python dependencies
+├── docker-compose.yaml     # Docker Compose configuration
+└── README.md
 ```
-
-## Deployment
-
-### Backend (Render)
-
-1. Create a new Web Service on Render.
-2. Connect your repository.
-3. Set the Build Command to `pip install -r requirements.txt`.
-4. Set the Start Command to `uvicorn app.main:app --host 0.0.0.0 --port 10000`.
-5. Add the environment variables from your `.env` file to the Render dashboard.
-
-### Frontend (Vercel)
-
-1. Import your project into Vercel.
-2. Add the environment variables:
-   - `NEXT_PUBLIC_API_URL`: Your Render backend URL (e.g., `https://your-app.onrender.com`)
-   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: Your Google OAuth Client ID
-3. Deploy!
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License.

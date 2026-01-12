@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
@@ -24,7 +24,28 @@ export default function ProfilePage() {
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [isLoadingCases, setIsLoadingCases] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchExpanded, setSearchExpanded] = useState(false);
   const [error, setError] = useState("");
+
+  // Ref for click-outside handling
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    if (!searchExpanded) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(event.target as Node)
+      ) {
+        setSearchExpanded(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [searchExpanded]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -151,18 +172,34 @@ export default function ProfilePage() {
             <span>Your Cases</span>
           </h2>
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search cases..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
-              />
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                <Search className="h-5 w-5 text-zinc-400" />
+          <div className="flex items-center gap-3">
+            {/* Animated Search Bar - expands to the left */}
+            <div ref={searchRef} className="relative flex items-center">
+              <div
+                className={`absolute right-full mr-2 overflow-hidden transition-all duration-500 ease-out ${
+                  searchExpanded ? "w-72 opacity-100" : "w-0 opacity-0"
+                }`}
+              >
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by title or case number..."
+                  className="w-72 px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-500 shadow-lg"
+                  autoFocus={searchExpanded}
+                />
               </div>
+              <button
+                onClick={() => setSearchExpanded(!searchExpanded)}
+                className={`p-2 rounded-lg transition-colors ${
+                  searchExpanded || searchTerm
+                    ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
+                }`}
+                title="Search"
+              >
+                <Search className="h-5 w-5" />
+              </button>
             </div>
 
             <Link
@@ -240,6 +277,8 @@ export default function ProfilePage() {
                                   ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
                                   : caseItem.status === CaseStatus.RESOLVED
                                   ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300"
+                                  : caseItem.status === CaseStatus.ADJOURNED
+                                  ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
                                   : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                               }`}
                             >
