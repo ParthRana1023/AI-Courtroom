@@ -20,6 +20,9 @@ Here're some of the project's best features:
 - **Feedback System**: Submit feedback stored in MongoDB database
 - **Cookie Consent**: GDPR-compliant cookie management
 - **Location Caching**: Efficient MongoDB-based location data caching with monthly refresh
+- **SEO Optimized**: Advanced SEO with structured data, sitemap generation, and dynamic Open Graph images
+- **About & Privacy**: Dedicated information pages with standardized navigation
+- **Structured Logging**: Comprehensive backend request tracing and secure environment logging
 
 ## Tech Stack
 
