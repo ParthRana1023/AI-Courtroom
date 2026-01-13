@@ -19,6 +19,7 @@ const authUpperItems = [
   { link: "/dashboard/cases", text: "Cases" },
   { link: "/contact", text: "Feedback" },
   { link: "/settings", text: "Settings" },
+  { link: "/about", text: "About" },
 ];
 
 // Menu items for authenticated users (lower section)
@@ -31,6 +32,7 @@ const authLowerItems = [
 const publicUpperItems = [
   { link: "/", text: "Home" },
   { link: "/contact", text: "Feedback" },
+  { link: "/about", text: "About" },
   { link: "/settings", text: "Settings" },
 ];
 

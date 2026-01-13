@@ -34,6 +34,7 @@ export default function Navigation({ translucent = false }: NavigationProps) {
     { link: "/dashboard/cases", text: "Cases" },
     { link: "/contact", text: "Feedback" },
     { link: "/settings", text: "Settings" },
+    { link: "/about", text: "About" },
   ];
 
   // Menu items for StaggeredMenu - Authenticated users (lower section)
@@ -46,6 +47,7 @@ export default function Navigation({ translucent = false }: NavigationProps) {
   const publicUpperItems = [
     { link: "/", text: "Home" },
     { link: "/contact", text: "Feedback" },
+    { link: "/about", text: "About" },
     { link: "/settings", text: "Settings" },
   ];
 
@@ -111,6 +113,17 @@ export default function Navigation({ translucent = false }: NavigationProps) {
                     >
                       <Settings className="h-4 w-4 mr-1" />
                       <span>Settings</span>
+                    </Link>
+                    <Link
+                      href="/about"
+                      className={`px-3 py-2 rounded-md text-sm font-medium flex items-center ${
+                        pathname === "/about"
+                          ? "bg-zinc-800 text-white"
+                          : "text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                      }`}
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      <span>About</span>
                     </Link>
                   </div>
                 )}

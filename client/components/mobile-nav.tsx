@@ -12,12 +12,14 @@ const authMenuItems = [
   { link: "/dashboard/cases", text: "Cases" },
   { link: "/dashboard/profile", text: "Profile" },
   { link: "/dashboard/settings", text: "Settings" },
+  { link: "/about", text: "About" },
   { link: "/feedback", text: "Feedback" },
 ];
 
 // Menu items for unauthenticated users (upper)
 const publicMenuItems = [
   { link: "/", text: "Home" },
+  { link: "/about", text: "About" },
   { link: "/feedback", text: "Feedback" },
 ];
 

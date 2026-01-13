@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Shield,
-  Cookie,
-  Eye,
-  Lock,
-  Mail,
-  Users,
-} from "lucide-react";
+import Navigation from "@/components/navigation";
+import { Shield, Cookie, Eye, Lock, Mail, Users } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -18,19 +11,8 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Home
-          </Link>
-        </div>
-      </div>
+    <main className="min-h-screen bg-background pt-16">
+      <Navigation />
 
       {/* Content */}
       <div className="container mx-auto px-4 py-12 max-w-4xl">
