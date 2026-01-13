@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.database import init_db
 from app.config import settings
-from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis, people
+from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis, parties, location
+from app.services.location_service import preload_cache as preload_location_cache
 from beanie.odm.fields import PydanticObjectId
 import json
 import time
@@ -34,6 +35,11 @@ async def lifespan(app: FastAPI):
         print(f"Using production database: {settings.mongodb_db_name}")
         
     await init_db(motor_client)
+    
+    # Preload location cache in background (don't block startup)
+    import asyncio
+    asyncio.create_task(preload_location_cache())
+    
     yield
     motor_client.close()
 
@@ -74,10 +80,11 @@ async def health_check():
 app.include_router(auth.router, prefix="/auth")
 app.include_router(cases.router, prefix="/cases")
 app.include_router(arguments.router, prefix="/cases")
-app.include_router(people.router, prefix="/cases")
+app.include_router(parties.router, prefix="/cases")
 app.include_router(rate_limit.router, prefix="/limit")
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
+app.include_router(location.router)
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=settings.port, reload=True)

@@ -5,7 +5,8 @@ FROM python:3.13-slim
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip config set global.trusted-host "pypi.org files.pythonhosted.org pypi.python.org" && \
+    pip install --no-cache-dir -r requirements.txt
 COPY . /app/
 
 # Expose the port FastAPI runs on

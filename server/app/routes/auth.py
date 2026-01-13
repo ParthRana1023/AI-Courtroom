@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request, UploadFile, File
-from app.schemas.user import UserCreate, UserOut
+from app.schemas.user import UserCreate, UserOut, CaseLocationPreferenceUpdate
 from app.schemas.auth import GoogleLoginRequest, ProfileUpdateRequest
 from app.models.user import User
 from app.models.user import TokenResponse
@@ -331,3 +331,26 @@ async def delete_profile_photo(
             detail=f"Failed to delete profile photo: {str(e)}"
         )
 
+
+@router.put("/profile/case-location-preference", response_model=UserOut)
+async def update_case_location_preference(
+    data: CaseLocationPreferenceUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update user's case location preference for case generation."""
+    try:
+        current_user.case_location_preference = data.case_location_preference
+        
+        # Only update preferred_case_state if preference is specific_state
+        if data.case_location_preference == "specific_state":
+            current_user.preferred_case_state = data.preferred_case_state
+        else:
+            current_user.preferred_case_state = None
+        
+        await current_user.save()
+        return current_user
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update case location preference: {str(e)}"
+        )

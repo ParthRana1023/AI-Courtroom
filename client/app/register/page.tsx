@@ -23,6 +23,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import GoogleSignInButton from "@/components/google-signin-button";
+import LocationSelector from "@/components/location-selector";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,6 +60,13 @@ export default function Register() {
     email: "",
     password: "",
     gender: undefined,
+    // Location fields
+    city: "",
+    state: "",
+    state_iso2: "",
+    country: "",
+    country_iso2: "",
+    phone_code: "",
   });
   const [countryCode, setCountryCode] = useState("+91");
   const [googleId, setGoogleId] = useState<string | null>(null);
@@ -121,6 +129,17 @@ export default function Register() {
       newErrors.gender = "Please select a gender";
     }
 
+    // Location validation
+    if (!formData.city) {
+      newErrors.city = "City is required";
+    }
+    if (!formData.state) {
+      newErrors.state = "State is required";
+    }
+    if (!formData.country) {
+      newErrors.country = "Country is required";
+    }
+
     if (!formData.phone_number)
       newErrors.phone_number = "Phone number is required";
     if (!/^\d{10}$/.test(formData.phone_number))
@@ -142,6 +161,36 @@ export default function Register() {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // Handle location selection
+  const handleLocationSelect = (location: {
+    city: string;
+    state: string;
+    state_iso2: string;
+    country: string;
+    country_iso2: string;
+    phone_code: string;
+  }) => {
+    setFormData((prev) => ({
+      ...prev,
+      city: location.city,
+      state: location.state,
+      state_iso2: location.state_iso2,
+      country: location.country,
+      country_iso2: location.country_iso2,
+      phone_code: location.phone_code,
+    }));
+
+    // Auto-update phone code dropdown based on country
+    if (location.phone_code) {
+      const newCode = `+${location.phone_code}`;
+      // Check if this code exists in our list
+      const matchingCode = countryCodes.find((cc) => cc.code === newCode);
+      if (matchingCode) {
+        setCountryCode(newCode);
+      }
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -372,25 +421,30 @@ export default function Register() {
                 />
 
                 <div className="flex flex-col gap-4">
-                  <DatePicker
-                    value={formData.date_of_birth}
-                    onChange={(date) =>
-                      setFormData((prev) => ({ ...prev, date_of_birth: date }))
-                    }
-                    label="Date of Birth"
-                    error={errors.date_of_birth}
-                    labelBg={
-                      formData.gender === "male"
-                        ? "bg-slate-50 dark:bg-slate-900"
-                        : formData.gender === "female"
-                        ? "bg-rose-50 dark:bg-rose-950"
-                        : formData.gender === "others"
-                        ? "bg-violet-50 dark:bg-violet-950"
-                        : formData.gender === "prefer-not-to-say"
-                        ? "bg-stone-50 dark:bg-stone-900"
-                        : "bg-white dark:bg-zinc-900"
-                    }
-                  />
+                  <div title="Date of birth cannot be changed after registration">
+                    <DatePicker
+                      value={formData.date_of_birth}
+                      onChange={(date) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          date_of_birth: date,
+                        }))
+                      }
+                      label="Date of Birth"
+                      error={errors.date_of_birth}
+                      labelBg={
+                        formData.gender === "male"
+                          ? "bg-slate-50 dark:bg-slate-900"
+                          : formData.gender === "female"
+                          ? "bg-rose-50 dark:bg-rose-950"
+                          : formData.gender === "others"
+                          ? "bg-violet-50 dark:bg-violet-950"
+                          : formData.gender === "prefer-not-to-say"
+                          ? "bg-stone-50 dark:bg-stone-900"
+                          : "bg-white dark:bg-zinc-900"
+                      }
+                    />
+                  </div>
 
                   <div>
                     <div className="flex">
@@ -455,6 +509,32 @@ export default function Register() {
                 </div>
               </div>
 
+              {/* Location Selector */}
+              <LocationSelector
+                onLocationSelect={handleLocationSelect}
+                initialValue={{
+                  city: formData.city,
+                  state: formData.state,
+                  country: formData.country,
+                }}
+                errors={{
+                  city: errors.city,
+                  state: errors.state,
+                  country: errors.country,
+                }}
+                labelBg={
+                  formData.gender === "male"
+                    ? "bg-slate-50 dark:bg-slate-900"
+                    : formData.gender === "female"
+                    ? "bg-rose-50 dark:bg-rose-950"
+                    : formData.gender === "others"
+                    ? "bg-violet-50 dark:bg-violet-950"
+                    : formData.gender === "prefer-not-to-say"
+                    ? "bg-stone-50 dark:bg-stone-900"
+                    : "bg-white dark:bg-zinc-900"
+                }
+              />
+
               {/* Email and Password - side by side */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FloatingLabelInput
@@ -503,15 +583,6 @@ export default function Register() {
                 />
               </div>
 
-              {/* Warning about non-editable fields */}
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  <strong>Note:</strong> Your phone number and date of birth
-                  cannot be changed after registration. Please make sure they
-                  are correct.
-                </p>
-              </div>
-
               <button
                 type="submit"
                 disabled={isLoading}
@@ -541,7 +612,19 @@ export default function Register() {
                       <div className="w-full border-t border-zinc-300 dark:border-zinc-700"></div>
                     </div>
                     <div className="relative flex justify-center text-sm">
-                      <span className="px-2 text-zinc-500 dark:text-zinc-400">
+                      <span
+                        className={`px-2 text-zinc-500 dark:text-zinc-400 ${
+                          formData.gender === "male"
+                            ? "bg-slate-50 dark:bg-slate-900"
+                            : formData.gender === "female"
+                            ? "bg-rose-50 dark:bg-rose-950"
+                            : formData.gender === "others"
+                            ? "bg-violet-50 dark:bg-violet-950"
+                            : formData.gender === "prefer-not-to-say"
+                            ? "bg-stone-50 dark:bg-stone-900"
+                            : "bg-white dark:bg-zinc-900"
+                        }`}
+                      >
                         Or continue with
                       </span>
                     </div>

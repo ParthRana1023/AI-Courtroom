@@ -24,7 +24,7 @@ async def generate_counter_argument(history: str, user_input: str, ai_role: str 
             Present your next arguments in a consise manner, and by not using all the facts available to you in a single argument.
             If the user attempts to introduce arguments or information beyond the established facts, you must promptly and firmly correct them, maintaining a professional and direct tone but still keep fighting your side of the case. 
             Do not be overly polite—your priority is to defend your client's interests within the boundaries of the case facts.
-            Don't use Applicant and Not Applicant. Use the name of the people in the case.
+            Don't use Applicant and Not Applicant. Use the name of the parties in the case.
             Don't add the words "Counter Argument" or something similar as the heading of the prompt.
             Do not ask any questions in the end of the response to anyone.
             

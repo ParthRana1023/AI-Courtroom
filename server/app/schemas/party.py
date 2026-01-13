@@ -1,20 +1,20 @@
-# app/schemas/person.py
+# app/schemas/party.py
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from datetime import datetime
-from app.models.person import PersonRole
+from app.models.party import PartyRole
 
 
-class PersonOut(BaseModel):
-    """Response schema for a person involved in a case"""
+class PartyOut(BaseModel):
+    """Response schema for a party involved in a case"""
     id: str
     name: str
-    role: PersonRole
+    role: PartyRole
     occupation: Optional[str] = None
     age: Optional[int] = None
     address: Optional[str] = None
     bio: Optional[str] = None
-    can_chat: bool = False  # Whether user can chat with this person based on their role
+    can_chat: bool = False  # Whether user can chat with this party based on their role
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -22,7 +22,7 @@ class PersonOut(BaseModel):
 class ChatMessageOut(BaseModel):
     """Response schema for a chat message"""
     id: str
-    sender: str  # 'user' or 'person'
+    sender: str  # 'user' or 'party'
     content: str
     timestamp: datetime
 
@@ -37,12 +37,12 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     """Response schema for a chat interaction"""
     user_message: ChatMessageOut
-    person_response: ChatMessageOut
+    party_response: ChatMessageOut
 
 
-class PeopleListOut(BaseModel):
-    """Response schema for listing people in a case"""
-    people: List[PersonOut]
+class PartiesListOut(BaseModel):
+    """Response schema for listing parties in a case"""
+    parties: List[PartyOut]
     user_role: str  # The user's role in the case (plaintiff/defendant)
     can_access_courtroom: bool = False  # Whether user has chatted enough to access courtroom
     is_in_courtroom: bool = False  # Whether user is currently in an active courtroom session
@@ -50,6 +50,6 @@ class PeopleListOut(BaseModel):
 
 class ChatHistoryOut(BaseModel):
     """Response schema for chat history"""
-    person_id: str
-    person_name: str
+    party_id: str
+    party_name: str
     messages: List[ChatMessageOut]

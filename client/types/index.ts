@@ -5,6 +5,29 @@ export enum Roles {
   NOT_STARTED = "not_started",
 }
 
+// Location types
+export interface LocationSearchResult {
+  type: "city" | "state" | "country";
+  name: string;
+  city: string | null;
+  state: string | null;
+  state_iso2: string | null;
+  country: string;
+  country_iso2: string;
+  phone_code: string;
+}
+
+export interface IndianState {
+  state_iso2: string;
+  state_name: string;
+  high_court: string;
+}
+
+export type CaseLocationPreference =
+  | "user_location"
+  | "specific_state"
+  | "random";
+
 export interface User {
   first_name: string;
   last_name: string;
@@ -14,6 +37,16 @@ export interface User {
   gender?: "male" | "female" | "others" | "prefer-not-to-say";
   profile_photo_url?: string;
   nickname?: string;
+  // Location fields
+  city?: string;
+  state?: string;
+  state_iso2?: string;
+  country?: string;
+  country_iso2?: string;
+  phone_code?: string;
+  // Case generation preferences
+  case_location_preference?: CaseLocationPreference;
+  preferred_case_state?: string;
 }
 
 // Case types
@@ -75,6 +108,13 @@ export interface RegisterFormData {
   email: string;
   password: string;
   gender?: Gender;
+  // Location fields
+  city: string;
+  state: string;
+  state_iso2: string;
+  country: string;
+  country_iso2: string;
+  phone_code?: string;
 }
 
 export interface LoginFormData {

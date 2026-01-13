@@ -77,7 +77,7 @@ export default function CaseDetails({
     }
   };
 
-  const handleToPeopleInvolved = () => {
+  const handleToPartiesInvolved = () => {
     router.push(`/dashboard/cases/${cnr}/people`);
   };
 
@@ -132,7 +132,7 @@ export default function CaseDetails({
 
   return (
     <div className="min-h-screen flex flex-col">
-      <div className="flex-1 container mx-auto px-4 py-8">
+      <div className="flex-1 container max-w-7xl mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">Case Details</h1>
@@ -193,10 +193,10 @@ export default function CaseDetails({
                   Lawyer
                 </p>
                 <button
-                  onClick={handleToPeopleInvolved}
+                  onClick={handleToPartiesInvolved}
                   className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
                 >
-                  Proceed to Chat with People Involved
+                  Proceed to Chat with Parties Involved
                 </button>
               </>
             ) : (

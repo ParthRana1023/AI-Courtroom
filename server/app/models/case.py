@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from beanie import Document
 from app.utils.datetime import get_current_datetime
-from app.models.person import PersonRole, PersonInvolved, PersonChatMessage
+from app.models.party import PartyRole, PartyInvolved, PartyChatMessage
 
 class CaseStatus(str, Enum):
     NOT_STARTED = "not started"
@@ -54,15 +54,15 @@ class Case(Document):
         default=0,
         description="Number of user arguments when courtroom session became ACTIVE. Used to ensure user submits 2 args per session."
     )
-    # People involved in the case (applicants and non-applicants)
-    people_involved: List[PersonInvolved] = Field(
+    # Parties involved in the case (applicants and non-applicants)
+    parties_involved: List[PartyInvolved] = Field(
         default_factory=list,
-        description="List of people involved in the case with their roles"
+        description="List of parties involved in the case with their roles"
     )
-    # Chat history with people involved (keyed by person_id)
-    person_chats: dict = Field(
+    # Chat history with parties involved (keyed by party_id (same as person_id historically))
+    party_chats: dict = Field(
         default_factory=dict,
-        description="Chat history per person: {person_id: [PersonChatMessage, ...]}"
+        description="Chat history per party: {party_id: [PartyChatMessage, ...]}"
     )
     # Soft delete fields
     is_deleted: bool = Field(default=False, description="Whether the case is soft-deleted")

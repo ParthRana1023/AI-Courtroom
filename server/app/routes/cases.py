@@ -108,7 +108,11 @@ async def update_case_status(
         case.session_args_at_start = user_arg_count
 
     case.status = new_status
-    await case.save()
+    try:
+        await case.save()
+    except Exception as e:
+        print(f"[DEBUG] Error saving case status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update case status. Please try again.")
 
     return {"message": "Case status updated successfully", "new_status": case.status}
 
@@ -160,7 +164,11 @@ async def update_case_roles(
                 detail=f"Invalid ai_role: {new_ai_role}. Must be 'plaintiff', 'defendant', or 'not_started'"
             )
 
-    await case.save()
+    try:
+        await case.save()
+    except Exception as e:
+        print(f"[DEBUG] Error saving case roles: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update case roles. Please try again.")
 
     return {"message": "Case roles updated successfully", "user_role": case.user_role, "ai_role": case.ai_role}
 
@@ -194,7 +202,11 @@ async def generate_plaintiff_opening(
     
     # Generate plaintiff's opening statement
     print("[DEBUG] Generating plaintiff opening statement for defendant user")
-    plaintiff_opening_statement = await opening_statement("plaintiff", case.details, "defendant")
+    try:
+        plaintiff_opening_statement = await opening_statement("plaintiff", case.details, "defendant")
+    except Exception as e:
+        print(f"[DEBUG] Error generating opening statement: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate opening statement. Please try again.")
     
     # Add the opening statement to the case
     case.plaintiff_arguments.append(ArgumentItem(
@@ -206,7 +218,11 @@ async def generate_plaintiff_opening(
     
     # NOTE: Do NOT set case status to ACTIVE here - that only happens 
     # when user clicks "Proceed to Courtroom" on the People page
-    await case.save()
+    try:
+        await case.save()
+    except Exception as e:
+        print(f"[DEBUG] Error saving case: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save opening statement. Please try again.")
     
     return {
         "ai_opening_statement": plaintiff_opening_statement,
@@ -235,7 +251,11 @@ async def delete_case(
     # Soft delete the case
     case.is_deleted = True
     case.deleted_at = get_current_datetime()
-    await case.save()
+    try:
+        await case.save()
+    except Exception as e:
+        print(f"[DEBUG] Error deleting case: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to delete case. Please try again.")
     
     return {"message": "Case moved to recycle bin"}
 
@@ -279,7 +299,11 @@ async def restore_case(
     # Restore the case
     case.is_deleted = False
     case.deleted_at = None
-    await case.save()
+    try:
+        await case.save()
+    except Exception as e:
+        print(f"[DEBUG] Error restoring case: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to restore case. Please try again.")
     
     return {"message": "Case restored successfully"}
 
@@ -301,7 +325,11 @@ async def permanent_delete_case(
         )
     
     # Permanently delete the case
-    await case.delete()
+    try:
+        await case.delete()
+    except Exception as e:
+        print(f"[DEBUG] Error permanently deleting case: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to permanently delete case. Please try again.")
     
     return {"message": "Case permanently deleted"}
 
@@ -346,15 +374,45 @@ async def generate_new_case(
     current_user: User = Depends(get_current_user),
     _rate_check: User = Depends(case_generation_rate_limiter.check_only)
 ):
+    from app.services.high_court_mapping import get_high_court, get_random_high_court
+    
+    # Determine high court and city based on user's preference
+    high_court = None
+    city = None
+    
+    if current_user.case_location_preference == "user_location":
+        # Use user's saved location
+        if current_user.state_iso2 and current_user.country_iso2:
+            high_court = get_high_court(current_user.state_iso2, current_user.country_iso2)
+        if current_user.city:
+            city = current_user.city
+    elif current_user.case_location_preference == "specific_state":
+        # Use user's preferred state
+        if current_user.preferred_case_state:
+            high_court = get_high_court(current_user.preferred_case_state, "IN")
+        # For specific state, we don't set a city - let it be random within that jurisdiction
+    # else: preference is "random" or not set, both stay None (will use random in generate_case)
+    
     # Generate the case - rate limit only registered if this succeeds
-    generated_case = await generate_case(
-        case_data.sections_involved,
-        case_data.section_numbers
-    )
+    try:
+        generated_case = await generate_case(
+            case_data.sections_involved,
+            case_data.section_numbers,
+            high_court=high_court,
+            city=city
+        )
+    except Exception as e:
+        print(f"[DEBUG] Error generating case: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate case. Please try again.")
+    
     # Add the user_id to the case
     generated_case["user_id"] = current_user.id
     case = Case(**generated_case)
-    await case.insert()
+    try:
+        await case.insert()
+    except Exception as e:
+        print(f"[DEBUG] Error inserting case: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save generated case. Please try again.")
     
     # Register rate limit usage only after successful generation
     await case_generation_rate_limiter.register_usage(str(current_user.id))

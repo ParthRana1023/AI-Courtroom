@@ -6,6 +6,9 @@ from typing import Optional, Literal
 # Gender type definition
 Gender = Literal["male", "female", "others", "prefer-not-to-say"]
 
+# Case location preference type
+CaseLocationPreference = Literal["user_location", "specific_state", "random"]
+
 class UserCreate(BaseModel):
     first_name: str
     last_name: str
@@ -16,6 +19,14 @@ class UserCreate(BaseModel):
     google_id: Optional[str] = None  # For Google OAuth registrations
     gender: Gender  # Required - user must select one of the 4 options
     profile_photo_url: Optional[str] = None  # Optional - from Google OAuth or user upload
+    
+    # Location fields - required for registration
+    city: str
+    state: str
+    state_iso2: str
+    country: str
+    country_iso2: str
+    phone_code: Optional[str] = None  # Auto-derived from country
 
     @field_validator('phone_number')
     def validate_phone_number(cls, value):
@@ -57,3 +68,30 @@ class UserOut(BaseModel):
     gender: Optional[Gender] = None  # Optional for backwards compatibility with existing users
     profile_photo_url: Optional[str] = None  # Cloudinary URL for profile photo (optional)
     nickname: Optional[str] = None  # User's preferred display name
+    
+    # Location fields
+    city: Optional[str] = None
+    state: Optional[str] = None
+    state_iso2: Optional[str] = None
+    country: Optional[str] = None
+    country_iso2: Optional[str] = None
+    phone_code: Optional[str] = None
+    
+    # Case generation preferences
+    case_location_preference: Optional[CaseLocationPreference] = "random"
+    preferred_case_state: Optional[str] = None
+
+
+class CaseLocationPreferenceUpdate(BaseModel):
+    """Schema for updating case location preference from settings."""
+    case_location_preference: CaseLocationPreference
+    preferred_case_state: Optional[str] = None  # Required when preference is "specific_state"
+    
+    @field_validator('preferred_case_state')
+    def validate_preferred_state(cls, value, info):
+        # If preference is specific_state, preferred_case_state must be set
+        preference = info.data.get('case_location_preference')
+        if preference == 'specific_state' and not value:
+            raise ValueError("preferred_case_state is required when preference is 'specific_state'")
+        return value
+

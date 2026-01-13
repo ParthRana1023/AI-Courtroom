@@ -3,16 +3,15 @@ import random
 import string
 import re
 import uuid
+from typing import Optional
 from app.utils.llm import llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from app.models.person import PersonRole, PersonInvolved
-from app.services.llm.people_service import extract_and_assign_people
+from app.models.party import PartyRole, PartyInvolved
+from app.services.llm.parties_service import extract_and_assign_parties
+from app.services.high_court_mapping import get_random_high_court
 
 async def random_names():
-    """
-    Generate a list of random Indian names.
-    """
     names = []
     template = "Generate 15 random names of Indian people"
 
@@ -66,13 +65,14 @@ async def random_organizations():
     """
     organizations = []
     template = """Generate 10 random realistic Indian company or organization names.
-Include a mix of:
-- Private companies (e.g., Reliance Industries Pvt Ltd, Tata Motors Ltd)
-- Public sector organizations (e.g., State Bank of India, ONGC)
-- Local businesses (e.g., Mumbai Trading Co., Delhi Textiles)
-- NGOs and foundations (e.g., Akshaya Patra Foundation)
+                    Include a mix of:
+                    - Private companies (e.g., Reliance Industries Pvt Ltd, Tata Motors Ltd)
+                    - Public sector organizations (e.g., State Bank of India, ONGC)
+                    - Local businesses (e.g., Mumbai Trading Co., Delhi Textiles)
+                    - NGOs and foundations (e.g., Akshaya Patra Foundation)
 
-Return only the names, one per line."""
+                    Return only the names, one per line.
+                """
 
     prompt = ChatPromptTemplate.from_messages([
         ('human', template)
@@ -105,13 +105,15 @@ Return only the names, one per line."""
             "Kolkata Exports Ltd"
         ]
 
-async def generate_case(sections: int, numbers: list[int]) -> dict:
+async def generate_case(sections: int, numbers: list[int], high_court: Optional[str] = None, city: Optional[str] = None) -> dict:
     """
     Generates a hypothetical legal case file using an LLM.
 
     Args:
         sections (int): The number of IPC sections involved.
         numbers (list[int]): A list of IPC section numbers provided by the user.
+        high_court (Optional[str]): The specific high court to use. If None, random is used.
+        city (Optional[str]): The specific city to use. If None, random city is generated.
 
     Returns:
         dict: A dictionary containing the case details:
@@ -126,15 +128,24 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
     ipc_section_numbers_str = ", ".join(map(str, numbers)) if numbers else "XXX"  # Default if no numbers provided
     number_of_ipc_sections = sections
 
-    # Generate random names, cities, and organizations
+    # Generate random names and organizations
     names = await random_names()
-    cities = await random_cities()
     organizations = await random_organizations()
 
-    # Select a few random names, organizations, and a random city
-    people_involved = random.sample(names, min(len(names), 3)) if names else ["Parth Rana", "Pranav Nagvekar", "Prasiddhi Agarwal", "Yashvi Savla"]
+    # Only generate random cities if no city is provided
+    if city:
+        selected_city = city
+    else:
+        cities = await random_cities()
+        selected_city = random.choice(cities) if cities else "Mumbai"
+
+    # Select a few random names, organizations
+    parties_involved_names = random.sample(names, min(len(names), 3)) if names else ["Parth Rana", "Pranav Nagvekar", "Prasiddhi Agarwal", "Yashvi Savla"]
     orgs_involved = random.sample(organizations, min(len(organizations), 2)) if organizations else ["Mumbai Trading Co. Pvt Ltd", "Delhi Textiles Ltd"]
-    selected_city = random.choice(cities) if cities else "Mumbai"
+    
+    # Use provided high court or fallback to random
+    selected_high_court = high_court if high_court else get_random_high_court()
+    print(f"[DEBUG] Generating case for High Court: {selected_high_court}, City: {selected_city}")
 
     template = f""" 
         Draft a hypothetical case file for a legal proceeding involving the Indian Penal Code (IPC). 
@@ -143,7 +154,7 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         
         IMPORTANT CREATIVITY REQUIREMENTS:
         - Create a UNIQUE and CREATIVE case scenario that differs significantly from previous cases involving these same sections
-        - Generate diverse and culturally appropriate Indian names for all parties involved (never reuse the same names across different cases). Use these names: {', '.join(people_involved)}
+        - Generate diverse and culturally appropriate Indian names for all parties involved (never reuse the same names across different cases). Use these names: {', '.join(parties_involved_names)}
         - You may also use these organizations/companies as parties if appropriate for the case: {', '.join(orgs_involved)}
         - Vary the locations, circumstances, timelines, and specific details to ensure each case feels distinct. Use this city: {selected_city}
         - Consider different socioeconomic backgrounds, occupations, and contexts for the parties involved
@@ -165,10 +176,10 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         **STRUCTURE AND CONTENT GUIDELINES:**
 
         **COURT DETAILS & CASE NUMBER:**
-        - Start with: `**IN THE [Specify Court Name and Jurisdiction, e.g., HIGH COURT OF DELHI AT NEW DELHI]**`
+        - Start with: `**IN THE {selected_high_court}**`
         - Follow with: `**CASE NO.: [Invent a standardized case number, e.g., W.P.(Crl.) 1234/2024]**`
         - Optionally include: `**CNR Number: [Invent a CNR Number, e.g., DLCT010012342024]**`
-        - Note: Use real-world Indian locations.
+        - Note: The court is already specified, use appropriate jurisdiction for addresses.
 
         **IN THE MATTER OF:**
         - `**[Title of the Case, e.g., State vs. Accused Name(s) OR Petitioner Name vs. Respondent Name(s)]**`
@@ -176,7 +187,7 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
 
         1. **[Full Name of Applicant (Person/Organization)]**
         [Age], [Occupation],
-        Residing at: [Full Address of Applicant]
+        Residing at: [Full Address of Applicant located in {selected_city} or within the jurisdiction of {selected_high_court}]
         ... **APPLICANT**
         - Note: Add more APPLICANTS if needed for the case. APPLICANT can be an individual or an organization/company depending on the case generated
 
@@ -184,7 +195,7 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
 
         1. **[Full Name of NON-APPLICANT (Person/Organization)]**
            [Age], [Occupation],
-           Residing at: [Full Address of NON-APPLICANT]
+           Residing at: [Full Address of NON-APPLICANT located in {selected_city} or within the jurisdiction of {selected_high_court}]
         ... **NON-APPLICANT**
         - Note: Add more NON-APPLICANTS if needed for the case. NON-APPLICANT can be an individual or an organization/company depending on the case generated
 
@@ -283,20 +294,20 @@ async def generate_case(sections: int, numbers: list[int]) -> dict:
         # Extract title from the raw LLM response
         title = extract_title(llm_response_details)
         
-        # Use LLM-based extraction to get people and assign roles accurately
-        print("Using LLM-based extraction to identify people and assign roles...")
+        # Use LLM-based extraction to get parties and assign roles accurately
+        print("Using LLM-based extraction to identify parties and assign roles...")
         try:
-            extracted_people = await extract_and_assign_people(llm_response_details)
+            extracted_parties = await extract_and_assign_parties(llm_response_details)
         except Exception as llm_err:
             print(f"LLM extraction failed: {str(llm_err)}")
-            extracted_people = []
+            extracted_parties = []
         
         return {
             "cnr": cnr,
             "details": llm_response_details,  # Raw LLM output
             "title": title,  # Store title directly in the Case model
             "status": "not started",
-            "people_involved": [p.model_dump() for p in extracted_people]  # People data
+            "parties_involved": [p.model_dump() for p in extracted_parties]  # Party data
         }
 
     except Exception as e:

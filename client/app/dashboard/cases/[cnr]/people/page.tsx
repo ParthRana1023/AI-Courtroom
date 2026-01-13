@@ -168,7 +168,7 @@ export default function PeoplePage({
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                People Involved
+                Parties Involved
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 Case #{cnr} • You are the{" "}
@@ -239,12 +239,12 @@ export default function PeoplePage({
           </div>
         ) : (
           <div className="flex gap-6 h-[calc(100vh-200px)]">
-            {/* Left Sidebar - People List */}
+            {/* Left Sidebar - Parties List */}
             <div className="w-80 shrink-0">
               <div className="bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 h-full overflow-hidden">
                 <div className="p-4 border-b border-gray-200 dark:border-zinc-700">
                   <h2 className="font-semibold text-gray-900 dark:text-white">
-                    People Involved
+                    Parties Involved
                   </h2>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Select a person to view details

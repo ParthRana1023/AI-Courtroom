@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     extended_token_expire_days: int = 7
     testing: bool = False
     groq_api_key: Optional[str] = None
+    csc_api_key: Optional[str] = None  # Country State City API key
     port: int = 8000
     
     # Google OAuth settings

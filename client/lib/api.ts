@@ -787,4 +787,114 @@ export const peopleAPI = {
   },
 };
 
+// Location API calls
+export const locationAPI = {
+  // Search locations (cities, states, countries)
+  search: async (query: string, limit = 20) => {
+    try {
+      const response = await api.get("/location/search", {
+        params: { q: query, limit },
+      });
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error("Location search error:", error.response?.data);
+      }
+      throw error;
+    }
+  },
+
+  // Get all countries
+  getCountries: async () => {
+    try {
+      const response = await api.get("/location/countries");
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error("Get countries error:", error.response?.data);
+      }
+      throw error;
+    }
+  },
+
+  // Get states for a country
+  getStates: async (countryIso2: string) => {
+    try {
+      const response = await api.get(`/location/states/${countryIso2}`);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error("Get states error:", error.response?.data);
+      }
+      throw error;
+    }
+  },
+
+  // Get cities for a state
+  getCities: async (countryIso2: string, stateIso2: string) => {
+    try {
+      const response = await api.get(
+        `/location/cities/${countryIso2}/${stateIso2}`
+      );
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error("Get cities error:", error.response?.data);
+      }
+      throw error;
+    }
+  },
+
+  // Get phone code for a country
+  getPhoneCode: async (countryIso2: string) => {
+    try {
+      const response = await api.get(`/location/phone-code/${countryIso2}`);
+      return response.data.phone_code;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error("Get phone code error:", error.response?.data);
+      }
+      throw error;
+    }
+  },
+
+  // Get all Indian states with High Courts (for settings)
+  getIndianStates: async () => {
+    try {
+      const response = await api.get("/location/indian-states");
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error("Get Indian states error:", error.response?.data);
+      }
+      throw error;
+    }
+  },
+
+  // Update case location preference
+  updateCaseLocationPreference: async (data: {
+    case_location_preference: "user_location" | "specific_state" | "random";
+    preferred_case_state?: string;
+  }) => {
+    try {
+      const response = await api.put(
+        "/auth/profile/case-location-preference",
+        data
+      );
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error(
+          "Update case location preference error:",
+          error.response?.data
+        );
+        throw new Error(
+          error.response?.data?.detail || "Failed to update preference"
+        );
+      }
+      throw error;
+    }
+  },
+};
+
 export default api;

@@ -99,7 +99,11 @@ async def submit_argument(
                 print(f"[DEBUG] Case status updated to {case.status}")
 
             print("[DEBUG] Saving case...")
-            await case.save()
+            try:
+                await case.save()
+            except Exception as e:
+                print(f"[DEBUG] Error saving case: {str(e)}")
+                raise HTTPException(status_code=500, detail="Failed to save case. Please try again.")
             print("[DEBUG] Case saved.")
 
             # Return both AI plaintiff opening and AI plaintiff counter
@@ -143,7 +147,11 @@ async def submit_argument(
                 print(f"[DEBUG] Case status updated to {case.status}")
                 
             # Save the case
-            await case.save()
+            try:
+                await case.save()
+            except Exception as e:
+                print(f"[DEBUG] Error saving case: {str(e)}")
+                raise HTTPException(status_code=500, detail="Failed to save case. Please try again.")
             
             # Register rate limit usage only after successful LLM responses
             await argument_rate_limiter.register_usage(str(current_user.id))
@@ -388,7 +396,11 @@ async def submit_argument(
     # Register rate limit usage only after successful LLM response
     await argument_rate_limiter.register_usage(str(current_user.id))
 
-    await case.save()
+    try:
+        await case.save()
+    except Exception as e:
+        print(f"[DEBUG] Error saving case: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save case. Please try again.")
 
     # Standardize response for AI-generated arguments
     response_data = {}
@@ -500,7 +512,11 @@ async def submit_closing_statement(
             timestamp=get_current_datetime()
         ))
     
-    await case.save()
+    try:
+        await case.save()
+    except Exception as e:
+        print(f"[DEBUG] Error saving closing statement: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save closing statement. Please try again.")
     
     # Prepare history for AI closing statement
     history = ""
@@ -539,7 +555,11 @@ async def submit_closing_statement(
     ai_role = "defendant" if role == "plaintiff" else "plaintiff"
     
     # Generate AI's closing statement
-    ai_closing = await closing_statement(history, ai_role, case.user_role.value)
+    try:
+        ai_closing = await closing_statement(history, ai_role, case.user_role.value)
+    except Exception as e:
+        print(f"[DEBUG] Error generating closing statement: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate AI closing statement. Please try again.")
     
     # Add AI's closing statement to the appropriate side with proper role
     if role == "plaintiff":
@@ -595,17 +615,25 @@ async def submit_closing_statement(
                     defendant_side_args.append(str(arg["content"]))
 
     # Pass the case description and properly organized arguments to the verdict generator
-    case.verdict = await generate_verdict(
-        plaintiff_arguments=plaintiff_side_args,
-        defendant_arguments=defendant_side_args,
-        case_details=case.details,
-        title=case.title
-    )
+    try:
+        case.verdict = await generate_verdict(
+            plaintiff_arguments=plaintiff_side_args,
+            defendant_arguments=defendant_side_args,
+            case_details=case.details,
+            title=case.title
+        )
+    except Exception as e:
+        print(f"[DEBUG] Error generating verdict: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate verdict. Please try again.")
     # Register rate limit usage only after successful LLM responses (closing statement + verdict)
     await argument_rate_limiter.register_usage(str(current_user.id))
     
     case.status = CaseStatus.RESOLVED
-    await case.save()
+    try:
+        await case.save()
+    except Exception as e:
+        print(f"[DEBUG] Error saving verdict: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save verdict. Please try again.")
     
     response_data = {
         "verdict": case.verdict,

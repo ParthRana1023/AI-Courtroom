@@ -17,6 +17,8 @@ import {
 import { useSettings } from "@/contexts/settings-context";
 import { useCookieConsent } from "@/contexts/cookie-consent-context";
 import { useAuth } from "@/contexts/auth-context";
+import { locationAPI, authAPI } from "@/lib/api";
+import type { IndianState, CaseLocationPreference } from "@/types";
 import Navigation from "@/components/navigation";
 
 // Add custom styles for animations
@@ -97,6 +99,18 @@ export default function SettingsPage() {
     useState(skipArchiveConfirmation);
   const [localSkipDeleteConfirmation, setLocalSkipDeleteConfirmation] =
     useState(skipDeleteConfirmation);
+
+  // Case location preference state
+  const [caseLocationPreference, setCaseLocationPreference] =
+    useState<CaseLocationPreference>("random");
+  const [preferredCaseState, setPreferredCaseState] = useState<string>("");
+  const [indianStates, setIndianStates] = useState<IndianState[]>([]);
+  const [isLoadingStates, setIsLoadingStates] = useState(false);
+  const [originalCaseLocationPreference, setOriginalCaseLocationPreference] =
+    useState<CaseLocationPreference>("random");
+  const [originalPreferredCaseState, setOriginalPreferredCaseState] =
+    useState<string>("");
+
   const [saveMessage, setSaveMessage] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -107,7 +121,9 @@ export default function SettingsPage() {
       localAutoExpandTextAreas !== autoExpandTextAreas ||
       localTextSize !== textSize ||
       localSkipArchiveConfirmation !== skipArchiveConfirmation ||
-      localSkipDeleteConfirmation !== skipDeleteConfirmation;
+      localSkipDeleteConfirmation !== skipDeleteConfirmation ||
+      caseLocationPreference !== originalCaseLocationPreference ||
+      preferredCaseState !== originalPreferredCaseState;
 
     setHasChanges(hasUnsavedChanges);
   }, [
@@ -121,15 +137,71 @@ export default function SettingsPage() {
     textSize,
     skipArchiveConfirmation,
     skipDeleteConfirmation,
+    caseLocationPreference,
+    preferredCaseState,
+    originalCaseLocationPreference,
+    originalPreferredCaseState,
   ]);
 
-  const handleSave = () => {
+  // Load Indian states and user preferences
+  useEffect(() => {
+    const loadData = async () => {
+      if (!isAuthenticated) return;
+
+      // Load Indian states for the dropdown
+      setIsLoadingStates(true);
+      try {
+        const states = await locationAPI.getIndianStates();
+        setIndianStates(states);
+      } catch (error) {
+        console.error("Failed to load Indian states:", error);
+      } finally {
+        setIsLoadingStates(false);
+      }
+
+      // Load user's current preferences
+      try {
+        const profile = await authAPI.getProfile();
+        if (profile.case_location_preference) {
+          setCaseLocationPreference(profile.case_location_preference);
+          setOriginalCaseLocationPreference(profile.case_location_preference);
+        }
+        if (profile.preferred_case_state) {
+          setPreferredCaseState(profile.preferred_case_state);
+          setOriginalPreferredCaseState(profile.preferred_case_state);
+        }
+      } catch (error) {
+        console.error("Failed to load user preferences:", error);
+      }
+    };
+
+    loadData();
+  }, [isAuthenticated]);
+
+  const handleSave = async () => {
     // Update global settings
     setEnterKeySubmits(localEnterKeySubmits);
     setAutoExpandTextAreas(localAutoExpandTextAreas);
     setTextSize(localTextSize);
     setSkipArchiveConfirmation(localSkipArchiveConfirmation);
     setSkipDeleteConfirmation(localSkipDeleteConfirmation);
+
+    // Save case location preference to backend if authenticated
+    if (isAuthenticated) {
+      try {
+        await locationAPI.updateCaseLocationPreference({
+          case_location_preference: caseLocationPreference,
+          preferred_case_state:
+            caseLocationPreference === "specific_state"
+              ? preferredCaseState
+              : undefined,
+        });
+        setOriginalCaseLocationPreference(caseLocationPreference);
+        setOriginalPreferredCaseState(preferredCaseState);
+      } catch (error) {
+        console.error("Failed to save case location preference:", error);
+      }
+    }
 
     // Show success message
     setSaveMessage("Settings saved successfully!");
@@ -525,6 +597,106 @@ export default function SettingsPage() {
                         Skip confirmation when permanently deleting cases
                       </span>
                     </label>
+                  </div>
+                </div>
+
+                {/* Case Location Preference Section */}
+                <div className="mb-8">
+                  <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
+                    Case Generation Location
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    Choose which High Court jurisdiction to use when generating
+                    new cases
+                  </p>
+                  <div className="space-y-3">
+                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
+                      <input
+                        type="radio"
+                        name="caseLocation"
+                        value="random"
+                        checked={caseLocationPreference === "random"}
+                        onChange={() => setCaseLocationPreference("random")}
+                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span
+                          className={`${getTextSizeClass()} font-medium block`}
+                        >
+                          Random High Court
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          Cases will be assigned to a random Indian High Court
+                        </span>
+                      </div>
+                    </label>
+                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
+                      <input
+                        type="radio"
+                        name="caseLocation"
+                        value="user_location"
+                        checked={caseLocationPreference === "user_location"}
+                        onChange={() =>
+                          setCaseLocationPreference("user_location")
+                        }
+                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span
+                          className={`${getTextSizeClass()} font-medium block`}
+                        >
+                          My Location
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          Uses the location from your profile
+                        </span>
+                      </div>
+                    </label>
+                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
+                      <input
+                        type="radio"
+                        name="caseLocation"
+                        value="specific_state"
+                        checked={caseLocationPreference === "specific_state"}
+                        onChange={() =>
+                          setCaseLocationPreference("specific_state")
+                        }
+                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span
+                          className={`${getTextSizeClass()} font-medium block`}
+                        >
+                          Specific State
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          Always use a specific Indian state&apos;s High Court
+                        </span>
+                      </div>
+                    </label>
+
+                    {/* State Dropdown - shown when specific_state is selected */}
+                    {caseLocationPreference === "specific_state" && (
+                      <div className="ml-7 mt-2">
+                        <select
+                          value={preferredCaseState}
+                          onChange={(e) =>
+                            setPreferredCaseState(e.target.value)
+                          }
+                          className="w-full md:w-1/2 p-3 border-2 rounded-lg border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white focus:border-blue-500 focus:outline-none"
+                        >
+                          <option value="">Select a state...</option>
+                          {indianStates.map((state) => (
+                            <option
+                              key={state.state_iso2}
+                              value={state.state_iso2}
+                            >
+                              {state.state_name} - {state.high_court}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 </div>
 

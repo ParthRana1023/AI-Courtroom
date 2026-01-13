@@ -6,7 +6,9 @@
 
 Here're some of the project's best features:
 
-- **Case Generation**: AI-powered generation of legal case scenarios
+- **Case Generation**: AI-powered generation of legal case scenarios with location-based High Court assignment
+- **Location-Based Cases**: Generate cases specific to Indian states with accurate High Court jurisdictions
+- **Parties Involved**: Chat with case parties (applicants/non-applicants) to gather evidence before courtroom
 - **Interactive Arguments**: Submit arguments as either plaintiff or defendant
 - **AI Counter-Arguments**: Receive intelligent counter-arguments from the AI
 - **Verdict Generation**: Get AI-generated verdicts based on the arguments presented
@@ -17,6 +19,7 @@ Here're some of the project's best features:
 - **Dark/Light Mode**: Full theme support with system preference detection
 - **Feedback System**: Submit feedback stored in MongoDB database
 - **Cookie Consent**: GDPR-compliant cookie management
+- **Location Caching**: Efficient MongoDB-based location data caching with monthly refresh
 
 ## Tech Stack
 
@@ -37,10 +40,11 @@ Here're some of the project's best features:
 - **LangChain**: Framework for developing applications powered by language models
 - **Groq**: Integration for AI model access (llama-3.3-70b)
 - **JWT Authentication**: Secure user authentication with configurable expiry
+- **Country State City API**: Location data for user profiles and case generation
 
 ### Database
 
-- **MongoDB**: NoSQL database for storing user data, cases, and feedback
+- **MongoDB**: NoSQL database for storing user data, cases, feedback, and location cache
 
 ### Deployment
 
@@ -120,6 +124,9 @@ docker compose up
    CLOUDINARY_CLOUD_NAME=your-cloud-name
    CLOUDINARY_API_KEY=your-api-key
    CLOUDINARY_API_SECRET=your-api-secret
+
+   # Location API (Country State City)
+   CSC_API_KEY=your-country-state-city-api-key
 
    # Rate Limiting (optional)
    CASE_GENERATION_RATE_LIMIT=5

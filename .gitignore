@@ -30,8 +30,10 @@ tests/
 # Environment files - will match .env in any directory
 **/.env
 
-**/pytest.ini
+# **/pytest.ini
 
 server/bnss_embedding/
 
 oauth_details/
+
+scripts/
