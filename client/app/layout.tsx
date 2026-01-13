@@ -188,6 +188,18 @@ export default function RootLayout({
                   },
                 ],
               },
+              {
+                "@context": "https://schema.org",
+                "@type": "SoftwareApplication",
+                name: "AI Courtroom",
+                applicationCategory: "EducationalApplication",
+                operatingSystem: "Web",
+                offers: {
+                  "@type": "Offer",
+                  price: "0",
+                  priceCurrency: "USD",
+                },
+              },
             ]),
           }}
         />
