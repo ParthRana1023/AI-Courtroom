@@ -12,6 +12,9 @@ from app.services.location_service import (
     get_phone_code,
 )
 from app.services.high_court_mapping import get_all_indian_states
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/location", tags=["location"])
 
@@ -24,10 +27,13 @@ async def list_countries():
     Returns:
         List of countries with id, name, iso2, phone_code, etc.
     """
+    logger.debug("Fetching countries list")
     try:
         countries = await get_countries()
+        logger.debug(f"Returned {len(countries)} countries")
         return countries
     except Exception as e:
+        logger.error(f"Failed to fetch countries: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch countries: {str(e)}")
 
 
@@ -42,10 +48,13 @@ async def list_states(country_iso2: str):
     Returns:
         List of states with id, name, iso2, etc.
     """
+    logger.debug(f"Fetching states for country: {country_iso2}")
     try:
         states = await get_states(country_iso2)
+        logger.debug(f"Returned {len(states)} states for {country_iso2}")
         return states
     except Exception as e:
+        logger.error(f"Failed to fetch states for {country_iso2}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch states: {str(e)}")
 
 
@@ -61,10 +70,13 @@ async def list_cities(country_iso2: str, state_iso2: str):
     Returns:
         List of cities with id, name, etc.
     """
+    logger.debug(f"Fetching cities for state: {state_iso2}, country: {country_iso2}")
     try:
         cities = await get_cities(country_iso2, state_iso2)
+        logger.debug(f"Returned {len(cities)} cities for {state_iso2}/{country_iso2}")
         return cities
     except Exception as e:
+        logger.error(f"Failed to fetch cities for {state_iso2}/{country_iso2}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch cities: {str(e)}")
 
 
@@ -84,10 +96,13 @@ async def search(
     Returns:
         List of matching locations with full details (city, state, country, phone_code)
     """
+    logger.debug(f"Location search: query='{q}', limit={limit}")
     try:
         results = await search_locations(q, limit)
+        logger.debug(f"Search returned {len(results)} results for '{q}'")
         return results
     except Exception as e:
+        logger.error(f"Location search failed for '{q}': {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
@@ -102,14 +117,17 @@ async def get_country_phone_code(country_iso2: str):
     Returns:
         Phone code (e.g., "91")
     """
+    logger.debug(f"Fetching phone code for country: {country_iso2}")
     try:
         phone_code = await get_phone_code(country_iso2)
         if phone_code:
             return {"phone_code": phone_code}
+        logger.warning(f"Phone code not found for country: {country_iso2}")
         raise HTTPException(status_code=404, detail="Country not found")
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Failed to fetch phone code for {country_iso2}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch phone code: {str(e)}")
 
 
@@ -122,4 +140,5 @@ async def list_indian_states():
     Returns:
         List of Indian states with state_iso2, state_name, and high_court
     """
+    logger.debug("Fetching Indian states list")
     return get_all_indian_states()

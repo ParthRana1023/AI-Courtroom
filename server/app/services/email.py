@@ -3,6 +3,9 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.config import settings
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 async def send_email(to_email: str, subject: str, body: str):
     """Send an email using SMTP"""
@@ -15,20 +18,23 @@ async def send_email(to_email: str, subject: str, body: str):
     message.attach(MIMEText(body, "html"))
     
     try:
+        logger.debug(f"Connecting to SMTP server: {settings.smtp_server}:{settings.smtp_port}")
         server = smtplib.SMTP(settings.smtp_server, settings.smtp_port)
         server.starttls()
         server.login(settings.email_username, settings.email_password)
         server.send_message(message)
         server.quit()
-        print(f"Email sent successfully to {to_email}")
+        logger.info(f"Email sent successfully to {to_email}")
         return True
     except Exception as e:
-        print(f"Failed to send email: {e}")
+        logger.error(f"Failed to send email to {to_email}: {str(e)}", exc_info=True)
         return False
 
 async def send_otp_email(email: str, otp: str, is_registration: bool = True):
     """Send OTP verification email"""
     action = "registration" if is_registration else "login"
+    logger.info(f"Sending OTP email for {action} to: {email}")
+    
     subject = f"Your OTP for {action} - AI Courtroom"
     body = f"""
     <html>
@@ -40,12 +46,18 @@ async def send_otp_email(email: str, otp: str, is_registration: bool = True):
     </body>
     </html>
     """
-    return await send_email(email, subject, body)
+    result = await send_email(email, subject, body)
+    if result:
+        logger.debug(f"OTP email sent for {action}: {email}")
+    else:
+        logger.warning(f"OTP email failed for {action}: {email}")
+    return result
 
-# Add this new function to the existing email.py file
 
 async def send_contact_email(contact_data):
     """Send contact form submission email"""
+    logger.info(f"Sending contact form email from: {contact_data.email}")
+    
     subject = f"Contact Form Submission from {contact_data.first_name} {contact_data.last_name}"
     body = f"""
     <html>

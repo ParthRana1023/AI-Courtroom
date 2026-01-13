@@ -4,12 +4,16 @@ Combined LLM service for parties involved in cases.
 Handles: extraction, role assignment, bio generation, and chat.
 """
 
+import time
 import re
 from typing import List, Optional
 from app.utils.llm import llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.models.party import PartyRole, PartyInvolved
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 async def extract_names_from_case(case_text: str) -> List[str]:
@@ -44,7 +48,10 @@ Mumbai Trading Co. Pvt Ltd
     chain = prompt | llm | StrOutputParser()
 
     try:
+        start_time = time.perf_counter()
         response = await chain.ainvoke({"case_text": case_text[:8000]})
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
         
         # Extract names from response
@@ -59,11 +66,11 @@ Mumbai Trading Co. Pvt Ltd
                 seen.add(name.lower())
                 unique_names.append(name)
         
-        print(f"Extracted {len(unique_names)} names from case text")
+        logger.info(f"Extracted {len(unique_names)} party names in {duration_ms:.2f}ms")
         return unique_names
         
     except Exception as e:
-        print(f"Error extracting names: {str(e)}")
+        logger.error(f"Error extracting names from case: {str(e)}", exc_info=True)
         return []
 
 
@@ -82,6 +89,8 @@ async def generate_party_details(
     Returns:
         PartyInvolved with role and markdown bio (raw LLM response)
     """
+    logger.debug(f"Generating details for party: {party_name}")
+    
     template = """Analyze this legal case and provide details about **{party_name}**.
 
 CASE TEXT:
@@ -108,10 +117,13 @@ Important: Base everything on the case text. For the role, look for keywords lik
     chain = prompt | llm | StrOutputParser()
 
     try:
+        start_time = time.perf_counter()
         response = await chain.ainvoke({
             "party_name": party_name,
             "case_text": case_text[:6000]
         })
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
         
         # Determine role from response
@@ -152,6 +164,8 @@ Important: Base everything on the case text. For the role, look for keywords lik
             if address.lower() in ['unknown', 'n/a', 'not mentioned']:
                 address = None
         
+        logger.info(f"Party details generated for {party_name} (role={role.value}) in {duration_ms:.2f}ms")
+        
         return PartyInvolved(
             name=party_name,
             role=role,
@@ -162,7 +176,7 @@ Important: Base everything on the case text. For the role, look for keywords lik
         )
         
     except Exception as e:
-        print(f"Error generating details for {party_name}: {str(e)}")
+        logger.error(f"Error generating details for {party_name}: {str(e)}", exc_info=True)
         return PartyInvolved(
             name=party_name,
             role=PartyRole.NON_APPLICANT,
@@ -181,21 +195,25 @@ async def extract_and_assign_parties(case_text: str) -> List[PartyInvolved]:
     Returns:
         List of PartyInvolved with roles and markdown bios
     """
+    logger.info("Starting party extraction and assignment")
+    start_time = time.perf_counter()
+    
     # Step 1: Extract names
     names = await extract_names_from_case(case_text)
     
     if not names:
-        print("No names extracted from case")
+        logger.warning("No party names extracted from case")
         return []
     
     # Step 2: Generate details for each party
     parties = []
     for name in names:
-        print(f"Generating details for: {name}")
+        logger.debug(f"Processing party: {name}")
         party = await generate_party_details(name, case_text)
         parties.append(party)
     
-    print(f"Generated details for {len(parties)} parties")
+    duration_ms = (time.perf_counter() - start_time) * 1000
+    logger.info(f"Extracted and processed {len(parties)} parties in {duration_ms:.2f}ms")
     return parties
 
 
@@ -221,6 +239,8 @@ async def chat_with_party(
     Returns:
         The party's response to the message
     """
+    logger.info(f"Generating chat response for party: {party_name}")
+    
     role_description = "applicant/petitioner" if party_role == "applicant" else "non-applicant/respondent"
     
     # Format chat history
@@ -261,11 +281,16 @@ Respond as {party_name}:
     chain = prompt | llm | StrOutputParser()
     
     try:
+        start_time = time.perf_counter()
         response = await chain.ainvoke({})
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
         # Remove any prefix like "Name:" that the LLM might add
         response = re.sub(rf"^{re.escape(party_name)}:\s*", "", response).strip()
+        
+        logger.info(f"Chat response generated for {party_name} in {duration_ms:.2f}ms")
         return response
     except Exception as e:
-        print(f"Error in chat with {party_name}: {str(e)}")
+        logger.error(f"Error in chat with {party_name}: {str(e)}", exc_info=True)
         return "I'm sorry, I'm having trouble responding right now. Could you please repeat that?"

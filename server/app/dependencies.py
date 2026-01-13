@@ -6,6 +6,9 @@ from app.config import settings
 from app.models.user import User
 from typing import Optional
 from beanie import PydanticObjectId
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
@@ -19,8 +22,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         user_id: Optional[str] = payload.get("sub")
         if user_id is None:
+            logger.warning("Token validation failed - no user_id in payload")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        logger.warning(f"Token validation failed - JWT error: {str(e)}")
         raise credentials_exception
     
     # Try to find the user by email first (since sub might be email)
@@ -32,11 +37,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
             # Only convert to ObjectId if it's not an email
             if '@' not in user_id:
                 user = await User.find_one(User.id == PydanticObjectId(user_id))
-        except:
-            # If conversion fails, raise the credentials exception
+        except Exception as e:
+            logger.warning(f"Token validation failed - user lookup error: {str(e)}")
             raise credentials_exception
     
     if user is None:
+        logger.warning(f"Token validation failed - user not found: {user_id}")
         raise credentials_exception
     
+    logger.debug(f"User authenticated via token: {user.email}")
     return user

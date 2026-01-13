@@ -9,6 +9,9 @@ from app.models.user import User
 from app.models.rate_limit import RateLimitEntry
 import pytz
 from app.config import settings
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 def ensure_ist_timezone(dt: datetime) -> datetime:
     """Ensure a datetime is in IST timezone.
@@ -63,7 +66,7 @@ class RateLimiter:
 
             time_until_reset = (oldest_timestamp + timedelta(seconds=self.window) - now).total_seconds()
 
-
+            logger.debug(f"Rate limit reached for user {user_id}, reset in {time_until_reset:.0f}s")
             return 0, time_until_reset
         
         return remaining, None
@@ -103,11 +106,13 @@ class RateLimiter:
                 duration_str += f"{int(minutes)} minutes "
             duration_str += f"{int(seconds)} seconds"
             
+            logger.warning(f"Rate limit exceeded for user {user.email} ({self.rate_limiter_type})")
             raise HTTPException(
                 status_code=429, 
                 detail=f"Daily limit reached. You can submit again in {duration_str}."
             )
         
+        logger.debug(f"Rate limit check passed for user {user.email}: {len(current_entries)}/{self.requests}")
         return user  # Return user for later registration
 
     async def register_usage(self, user_id: str):
@@ -119,6 +124,7 @@ class RateLimiter:
             expiration_time=now + timedelta(seconds=self.window)
         )
         await new_entry.insert()
+        logger.debug(f"Rate limit usage registered for user {user_id} ({self.rate_limiter_type})")
 
     async def __call__(self, request: Request, user: User = Depends(get_current_user)):
         """Original method - checks and registers immediately (for argument_rate_limiter)"""
@@ -155,6 +161,7 @@ class RateLimiter:
                 duration_str += f"{int(minutes)} minutes "
             duration_str += f"{int(seconds)} seconds"
             
+            logger.warning(f"Rate limit exceeded for user {user.email} ({self.rate_limiter_type})")
             raise HTTPException(
                 status_code=429, 
                 detail=f"Daily argument limit reached. You can submit again in {duration_str}."
@@ -167,6 +174,7 @@ class RateLimiter:
             expiration_time=now + timedelta(seconds=self.window)
         )
         await new_entry.insert()
+        logger.debug(f"Rate limit usage registered for user {user.email} ({self.rate_limiter_type})")
         
         return None
 

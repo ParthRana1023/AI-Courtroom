@@ -1,4 +1,5 @@
 # app/routes/parties.py
+import time
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from app.models.case import Case, CaseStatus, Roles
@@ -11,7 +12,10 @@ from app.dependencies import get_current_user
 from app.services.llm.parties_service import generate_party_details, chat_with_party
 from app.models.user import User
 from app.utils.datetime import get_current_datetime
+from app.logging_config import get_logger
 import uuid
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["parties"])
 
@@ -43,24 +47,25 @@ async def get_case_parties(
     current_user: User = Depends(get_current_user)
 ):
     """Get all parties involved in a case with role-based chat access"""
+    logger.debug(f"Fetching parties for case {cnr}")
+    
     case = await Case.find_one(Case.cnr == cnr)
     if not case:
+        logger.warning(f"Case not found: {cnr}")
         raise HTTPException(status_code=404, detail="Case not found")
     
     if str(case.user_id) != str(current_user.id):
+        logger.warning(f"Unauthorized parties access for case {cnr} by user: {current_user.email}")
         raise HTTPException(
             status_code=403, 
             detail="You don't have permission to access this case"
         )
     
     user_role = case.user_role
-    
-    # Check if user is in active courtroom session
     is_in_courtroom = case.status == CaseStatus.ACTIVE
     
     parties_out = []
     for party in case.parties_involved:
-        # Can only chat with own side, and not during courtroom session
         can_chat = can_user_chat_with_party(user_role, party.role) and not is_in_courtroom
         
         parties_out.append(PartyOut(
@@ -74,8 +79,8 @@ async def get_case_parties(
             can_chat=can_chat
         ))
     
-    # Check if user has chatted enough to access courtroom
     can_access_courtroom = has_user_chatted(case)
+    logger.debug(f"Returned {len(parties_out)} parties for case {cnr}")
     
     return PartiesListOut(
         parties=parties_out,
@@ -87,17 +92,21 @@ async def get_case_parties(
 
 
 @router.get("/{cnr}/parties/{party_id}", response_model=PartyOut)
-async def get_party_details(
+async def get_party_details_route(
     cnr: str,
     party_id: str,
     current_user: User = Depends(get_current_user)
 ):
     """Get detailed information about a party involved in the case"""
+    logger.debug(f"Fetching party {party_id} details for case {cnr}")
+    
     case = await Case.find_one(Case.cnr == cnr)
     if not case:
+        logger.warning(f"Case not found: {cnr}")
         raise HTTPException(status_code=404, detail="Case not found")
     
     if str(case.user_id) != str(current_user.id):
+        logger.warning(f"Unauthorized party details access for case {cnr} by user: {current_user.email}")
         raise HTTPException(
             status_code=403, 
             detail="You don't have permission to access this case"
@@ -113,27 +122,34 @@ async def get_party_details(
             break
     
     if not party:
+        logger.warning(f"Party {party_id} not found in case {cnr}")
         raise HTTPException(status_code=404, detail="Party not found in this case")
     
     # Generate bio if not already generated
     if not party.bio:
+        logger.info(f"Generating bio for party {party.name} in case {cnr}")
+        start_time = time.perf_counter()
+        
         try:
             updated_party = await generate_party_details(
                 party.name,
                 case.details
             )
             case.parties_involved[party_index].bio = updated_party.bio
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.info(f"Party bio generated for {party.name} in {duration_ms:.2f}ms")
         except Exception as e:
-            print(f"[DEBUG] Error generating party details: {str(e)}")
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.error(f"Error generating party details for {party.name} after {duration_ms:.2f}ms: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to generate party details. Please try again.")
+        
         try:
             await case.save()
         except Exception as e:
-            print(f"[DEBUG] Error saving case: {str(e)}")
+            logger.error(f"Error saving party details for case {cnr}: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to save party details. Please try again.")
         party = case.parties_involved[party_index]
     
-    # Check if user can chat with this party
     is_in_courtroom = case.status == CaseStatus.ACTIVE
     can_chat = can_user_chat_with_party(case.user_role, party.role) and not is_in_courtroom
     
@@ -157,11 +173,15 @@ async def chat_with_case_party(
     current_user: User = Depends(get_current_user)
 ):
     """Chat with a party involved in the case (role-based access control)"""
+    logger.info(f"Chat request for party {party_id} in case {cnr}")
+    
     case = await Case.find_one(Case.cnr == cnr)
     if not case:
+        logger.warning(f"Case not found: {cnr}")
         raise HTTPException(status_code=404, detail="Case not found")
     
     if str(case.user_id) != str(current_user.id):
+        logger.warning(f"Unauthorized chat attempt for case {cnr} by user: {current_user.email}")
         raise HTTPException(
             status_code=403, 
             detail="You don't have permission to access this case"
@@ -169,6 +189,7 @@ async def chat_with_case_party(
     
     # Check if in active courtroom session
     if case.status == CaseStatus.ACTIVE:
+        logger.warning(f"Chat blocked - courtroom active for case {cnr}")
         raise HTTPException(
             status_code=403,
             detail="Cannot chat with parties during an active courtroom session. Please continue in the courtroom or resolve the case first."
@@ -176,6 +197,7 @@ async def chat_with_case_party(
     
     # Check if case is resolved
     if case.status == CaseStatus.RESOLVED:
+        logger.warning(f"Chat blocked - case {cnr} is resolved")
         raise HTTPException(
             status_code=403,
             detail="Cannot chat with parties after the case has been resolved. The case has concluded."
@@ -191,10 +213,12 @@ async def chat_with_case_party(
             break
     
     if not party:
+        logger.warning(f"Party {party_id} not found in case {cnr}")
         raise HTTPException(status_code=404, detail="Party not found in this case")
     
     # Check if user can chat with this party based on their role
     if not can_user_chat_with_party(case.user_role, party.role):
+        logger.warning(f"User {current_user.email} cannot chat with party {party.name} - role mismatch")
         raise HTTPException(
             status_code=403,
             detail=f"As a {case.user_role.value} lawyer, you can only chat with {'applicants' if case.user_role == Roles.PLAINTIFF else 'non-applicants'}"
@@ -202,19 +226,25 @@ async def chat_with_case_party(
     
     # Generate bio if not already generated
     if not party.bio:
+        logger.info(f"Generating bio for party {party.name} before chat")
+        start_time = time.perf_counter()
+        
         try:
             updated_party = await generate_party_details(
                 party.name,
                 case.details
             )
             case.parties_involved[party_index].bio = updated_party.bio
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.info(f"Party bio generated for {party.name} in {duration_ms:.2f}ms")
         except Exception as e:
-            print(f"[DEBUG] Error generating party details: {str(e)}")
+            logger.error(f"Error generating party details: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to generate party details. Please try again.")
+        
         try:
             await case.save()
         except Exception as e:
-            print(f"[DEBUG] Error saving case: {str(e)}")
+            logger.error(f"Error saving party details: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to save party details. Please try again.")
         party = case.parties_involved[party_index]
     
@@ -232,6 +262,7 @@ async def chat_with_case_party(
     }
     
     # Generate party's response
+    start_time = time.perf_counter()
     try:
         response_content = await chat_with_party(
             party.name,
@@ -241,8 +272,11 @@ async def chat_with_case_party(
             chat_history,
             chat_request.message
         )
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        logger.info(f"Chat response generated for party {party.name} in {duration_ms:.2f}ms")
     except Exception as e:
-        print(f"[DEBUG] Error in chat with party: {str(e)}")
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        logger.error(f"Error in chat with party {party.name} after {duration_ms:.2f}ms: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate chat response. Please try again.")
     
     # Create party's response message
@@ -260,10 +294,12 @@ async def chat_with_case_party(
         case.party_chats[party_id] = []
     case.party_chats[party_id].append(user_message)
     case.party_chats[party_id].append(party_message)
+    
     try:
         await case.save()
+        logger.debug(f"Chat history saved for party {party_id} in case {cnr}")
     except Exception as e:
-        print(f"[DEBUG] Error saving chat history: {str(e)}")
+        logger.error(f"Error saving chat history for case {cnr}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save chat history. Please try again.")
     
     return ChatResponse(
@@ -289,11 +325,15 @@ async def get_party_chat_history(
     current_user: User = Depends(get_current_user)
 ):
     """Get chat history with a party"""
+    logger.debug(f"Fetching chat history for party {party_id} in case {cnr}")
+    
     case = await Case.find_one(Case.cnr == cnr)
     if not case:
+        logger.warning(f"Case not found: {cnr}")
         raise HTTPException(status_code=404, detail="Case not found")
     
     if str(case.user_id) != str(current_user.id):
+        logger.warning(f"Unauthorized chat history access for case {cnr} by user: {current_user.email}")
         raise HTTPException(
             status_code=403, 
             detail="You don't have permission to access this case"
@@ -307,10 +347,12 @@ async def get_party_chat_history(
             break
     
     if not party:
+        logger.warning(f"Party {party_id} not found in case {cnr}")
         raise HTTPException(status_code=404, detail="Party not found in this case")
     
     # Get chat history
     chat_history = case.party_chats.get(party_id, [])
+    logger.debug(f"Returning {len(chat_history)} messages for party {party_id}")
     
     # Convert to ChatMessageOut format
     messages = [
