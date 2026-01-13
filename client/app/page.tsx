@@ -114,7 +114,7 @@ export default function Home() {
       <div className="grow flex flex-col items-start justify-center pl-12 md:pl-24 pt-10">
         {/* Hero Text */}
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 max-w-xl">
-          AI-Powered Legal Simulation
+          AI Courtroom: AI-Powered Legal Simulation
         </h1>
         <p className="text-lg md:text-xl text-gray-300 mb-8 max-w-lg">
           Argue your case. Challenge the AI. Step into the courtroom where

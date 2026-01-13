@@ -97,20 +97,13 @@ export const metadata: Metadata = {
     telephone: false,
   },
 
-  // Icons
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon.ico?v=2", sizes: "any" },
+      { url: "/favicon-16x16.png?v=2", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png?v=2", sizes: "32x32", type: "image/png" },
     ],
-    apple: "/apple-touch-icon.png",
-    other: [
-      {
-        rel: "mask-icon",
-        url: "/favicon.ico",
-      },
-    ],
+    apple: "/apple-touch-icon.png?v=2",
   },
   manifest: "/site.webmanifest",
 
@@ -146,6 +139,18 @@ export default function RootLayout({
             </SettingsProvider>
           </CookieConsentProvider>
         </ThemeProvider>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "AI Courtroom",
+              alternateName: ["AI-Courtroom", "AICourtroom"],
+              url: "https://ai-courtroom.vercel.app/",
+            }),
+          }}
+        />
       </body>
     </html>
   );
