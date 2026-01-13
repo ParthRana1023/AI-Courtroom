@@ -146,7 +146,7 @@ export interface ContactFormData {
   message: string;
 }
 
-// People types
+// Parties types
 export enum PersonRole {
   APPLICANT = "applicant",
   NON_APPLICANT = "non_applicant",
@@ -170,16 +170,17 @@ export interface ChatMessage {
   timestamp: string;
 }
 
-export interface PeopleListResponse {
-  people: PersonInvolved[];
+export interface PartiesListResponse {
+  parties: PersonInvolved[];
   user_role: string;
   can_access_courtroom: boolean;
   is_in_courtroom: boolean;
+  case_status: string;
 }
 
 export interface ChatResponse {
   user_message: ChatMessage;
-  person_response: ChatMessage;
+  party_response: ChatMessage;
 }
 
 export interface ChatHistoryResponse {

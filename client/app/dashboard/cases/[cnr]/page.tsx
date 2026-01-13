@@ -48,8 +48,8 @@ export default function CaseDetails({
 
       // If user selects defendant role, navigate first, then generate plaintiff opening statement after a delay
       if (role === "defendant") {
-        // Navigate to people page first
-        router.push(`/dashboard/cases/${cnr}/people?role=${role}`);
+        // Navigate to parties page first
+        router.push(`/dashboard/cases/${cnr}/parties?role=${role}`);
 
         // Wait 2 seconds before generating the plaintiff opening statement
         setTimeout(async () => {
@@ -67,8 +67,8 @@ export default function CaseDetails({
           }
         }, 2000); // 2 second delay
       } else {
-        // For plaintiff role, navigate to people page first
-        router.push(`/dashboard/cases/${cnr}/people?role=${role}`);
+        // For plaintiff role, navigate to parties page first
+        router.push(`/dashboard/cases/${cnr}/parties?role=${role}`);
       }
     } catch (error) {
       console.error("Error updating case status or role:", error);
@@ -78,7 +78,7 @@ export default function CaseDetails({
   };
 
   const handleToPartiesInvolved = () => {
-    router.push(`/dashboard/cases/${cnr}/people`);
+    router.push(`/dashboard/cases/${cnr}/parties`);
   };
 
   if (isLoading) {

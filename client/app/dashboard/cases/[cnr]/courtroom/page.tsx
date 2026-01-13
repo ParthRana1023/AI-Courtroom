@@ -689,9 +689,9 @@ export default function Courtroom({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => router.push(`/dashboard/cases/${cnr}/people`)}
+                  onClick={() => router.push(`/dashboard/cases/${cnr}/parties`)}
                 >
-                  View People
+                  View Parties
                 </Button>
                 <Drawer
                   open={showCaseDetails}

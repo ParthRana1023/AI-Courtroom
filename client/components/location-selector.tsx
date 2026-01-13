@@ -77,6 +77,11 @@ export default function LocationSelector({
   const [citySelected, setCitySelected] = useState(false);
   const [stateSelected, setStateSelected] = useState(false);
 
+  // Focus state for floating labels
+  const [cityFocused, setCityFocused] = useState(false);
+  const [stateFocused, setStateFocused] = useState(false);
+  const [countryFocused, setCountryFocused] = useState(false);
+
   // Notify parent of changes
   const notifyParent = useCallback(
     (
@@ -229,6 +234,8 @@ export default function LocationSelector({
     setCountryIso2(result.country_iso2);
     setPhoneCode(result.phone_code);
     setCityDropdownOpen(false);
+    setStateDropdownOpen(false); // Ensure state dropdown stays closed
+    setCountryDropdownOpen(false); // Ensure country dropdown stays closed
     setCityResults([]);
     setCitySelected(true); // Mark as selected from dropdown
 
@@ -309,9 +316,23 @@ export default function LocationSelector({
       {/* City Field */}
       <div className="relative">
         <label
-          className={`absolute left-4 -top-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1 ${labelBg} z-10`}
+          className={`absolute pointer-events-none transition-all duration-200 ease-out px-1
+            ${
+              cityFocused || city
+                ? `left-8 -top-2.5 text-xs ${labelBg}`
+                : "left-10 top-1/2 -translate-y-1/2 text-base"
+            }
+            ${
+              errors?.city
+                ? "text-red-500 dark:text-red-400"
+                : cityFocused
+                ? "text-blue-500 dark:text-blue-400"
+                : "text-zinc-500 dark:text-zinc-400"
+            }
+            z-10
+          `}
         >
-          City <span className="text-red-500"></span>
+          City
         </label>
         <DropdownMenu
           open={cityDropdownOpen}
@@ -345,8 +366,12 @@ export default function LocationSelector({
                   }
                   if (!cityDropdownOpen) setCityDropdownOpen(true);
                 }}
-                onFocus={() => setCityDropdownOpen(true)}
-                placeholder="Search for a city..."
+                onFocus={() => {
+                  setCityDropdownOpen(true);
+                  setCityFocused(true);
+                }}
+                onBlur={() => setCityFocused(false)}
+                placeholder=" "
                 className={`w-full pl-10 pr-10 py-3 border-2 rounded-lg focus:outline-none transition-colors cursor-text
                   ${
                     errors?.city
@@ -404,9 +429,23 @@ export default function LocationSelector({
       {/* State Field */}
       <div className="relative">
         <label
-          className={`absolute left-4 -top-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1 ${labelBg} z-10`}
+          className={`absolute pointer-events-none transition-all duration-200 ease-out px-1
+            ${
+              stateFocused || state
+                ? `left-3 -top-2.5 text-xs ${labelBg}`
+                : "left-4 top-1/2 -translate-y-1/2 text-base"
+            }
+            ${
+              errors?.state
+                ? "text-red-500 dark:text-red-400"
+                : stateFocused
+                ? "text-blue-500 dark:text-blue-400"
+                : "text-zinc-500 dark:text-zinc-400"
+            }
+            z-10
+          `}
         >
-          State <span className="text-red-500"></span>
+          State
         </label>
         <DropdownMenu
           open={stateDropdownOpen}
@@ -428,12 +467,14 @@ export default function LocationSelector({
                   setState(e.target.value);
                   if (!stateDropdownOpen) setStateDropdownOpen(true);
                 }}
-                onFocus={() => !citySelected && setStateDropdownOpen(true)}
-                placeholder={
-                  citySelected
-                    ? "Auto-filled from city"
-                    : "Search for a state..."
-                }
+                onFocus={() => {
+                  if (!citySelected) {
+                    setStateDropdownOpen(true);
+                    setStateFocused(true);
+                  }
+                }}
+                onBlur={() => setStateFocused(false)}
+                placeholder=" "
                 className={`w-full pl-4 pr-10 py-3 border-2 rounded-lg focus:outline-none transition-colors
                   ${
                     citySelected
@@ -496,9 +537,23 @@ export default function LocationSelector({
       {/* Country Field */}
       <div className="relative">
         <label
-          className={`absolute left-4 -top-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1 ${labelBg} z-10`}
+          className={`absolute pointer-events-none transition-all duration-200 ease-out px-1
+            ${
+              countryFocused || country
+                ? `left-3 -top-2.5 text-xs ${labelBg}`
+                : "left-4 top-1/2 -translate-y-1/2 text-base"
+            }
+            ${
+              errors?.country
+                ? "text-red-500 dark:text-red-400"
+                : countryFocused
+                ? "text-blue-500 dark:text-blue-400"
+                : "text-zinc-500 dark:text-zinc-400"
+            }
+            z-10
+          `}
         >
-          Country <span className="text-red-500"></span>
+          Country
         </label>
         <DropdownMenu
           open={countryDropdownOpen}
@@ -520,15 +575,14 @@ export default function LocationSelector({
                   setCountry(e.target.value);
                   if (!countryDropdownOpen) setCountryDropdownOpen(true);
                 }}
-                onFocus={() =>
-                  !(citySelected || stateSelected) &&
-                  setCountryDropdownOpen(true)
-                }
-                placeholder={
-                  citySelected || stateSelected
-                    ? "Auto-filled"
-                    : "Search for a country..."
-                }
+                onFocus={() => {
+                  if (!(citySelected || stateSelected)) {
+                    setCountryDropdownOpen(true);
+                    setCountryFocused(true);
+                  }
+                }}
+                onBlur={() => setCountryFocused(false)}
+                placeholder=" "
                 className={`w-full pl-4 pr-10 py-3 border-2 rounded-lg focus:outline-none transition-colors
                   ${
                     citySelected || stateSelected

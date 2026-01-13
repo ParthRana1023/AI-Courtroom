@@ -212,6 +212,20 @@ async def update_profile(
             dob = datetime.strptime(data.date_of_birth, "%Y-%m-%d").date()
             current_user.date_of_birth = dob
         
+        # Location fields
+        if data.city is not None:
+            current_user.city = data.city
+        if data.state is not None:
+            current_user.state = data.state
+        if data.state_iso2 is not None:
+            current_user.state_iso2 = data.state_iso2
+        if data.country is not None:
+            current_user.country = data.country
+        if data.country_iso2 is not None:
+            current_user.country_iso2 = data.country_iso2
+        if data.phone_code is not None:
+            current_user.phone_code = data.phone_code
+        
         await current_user.save()
         return current_user
     except ValueError as e:

@@ -81,7 +81,8 @@ async def get_case_parties(
         parties=parties_out,
         user_role=user_role.value if user_role else "not_started",
         can_access_courtroom=can_access_courtroom,
-        is_in_courtroom=is_in_courtroom
+        is_in_courtroom=is_in_courtroom,
+        case_status=case.status.value if case.status else "not_started"
     )
 
 
@@ -171,6 +172,13 @@ async def chat_with_case_party(
         raise HTTPException(
             status_code=403,
             detail="Cannot chat with parties during an active courtroom session. Please continue in the courtroom or resolve the case first."
+        )
+    
+    # Check if case is resolved
+    if case.status == CaseStatus.RESOLVED:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot chat with parties after the case has been resolved. The case has concluded."
         )
     
     # Find the party

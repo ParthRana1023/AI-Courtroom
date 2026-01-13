@@ -217,7 +217,7 @@ async def generate_plaintiff_opening(
     ))
     
     # NOTE: Do NOT set case status to ACTIVE here - that only happens 
-    # when user clicks "Proceed to Courtroom" on the People page
+    # when user clicks "Proceed to Courtroom" on the Parties page
     try:
         await case.save()
     except Exception as e:

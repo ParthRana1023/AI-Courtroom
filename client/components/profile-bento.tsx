@@ -13,6 +13,7 @@ import {
   User as UserIcon,
   Mail,
   Gavel,
+  MapPin,
 } from "lucide-react";
 import ProfileEditSheet from "@/components/profile-edit-sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -794,6 +795,40 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
               <h3 className="font-medium text-sm text-zinc-400">Email</h3>
               <p className="text-sm font-semibold text-zinc-900 dark:text-white mt-1 truncate">
                 {user.email}
+              </p>
+            </div>
+          </ParticleCard>
+
+          {/* Location */}
+          <ParticleCard
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            style={
+              {
+                "--glow-x": "50%",
+                "--glow-y": "50%",
+                "--glow-intensity": "0",
+                "--glow-radius": "200px",
+              } as React.CSSProperties
+            }
+            disableAnimations={shouldDisableAnimations}
+            particleCount={particleCount}
+            glowColor={glowColor}
+            enableTilt={enableTilt}
+            clickEffect={clickEffect}
+            enableMagnetism={enableMagnetism}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-zinc-500 uppercase tracking-wider">
+                Location
+              </span>
+              <MapPin className="w-4 h-4 text-zinc-500" />
+            </div>
+            <div className="mt-auto">
+              <h3 className="font-medium text-sm text-zinc-400">City</h3>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white mt-1 truncate">
+                {user.city
+                  ? `${user.city}${user.country ? `, ${user.country}` : ""}`
+                  : "Not set"}
               </p>
             </div>
           </ParticleCard>

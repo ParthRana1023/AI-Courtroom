@@ -308,6 +308,12 @@ export const authAPI = {
     last_name?: string;
     nickname?: string;
     gender?: string;
+    city?: string;
+    state?: string;
+    state_iso2?: string;
+    country?: string;
+    country_iso2?: string;
+    phone_code?: string;
   }) => {
     try {
       const response = await api.put("/auth/profile", data);
@@ -716,11 +722,11 @@ export const analyzeCase = async (
 //   }
 // };
 
-// People API calls
-export const peopleAPI = {
-  getPeople: async (cnr: string) => {
+// Parties API calls
+export const partiesAPI = {
+  getParties: async (cnr: string) => {
     try {
-      const response = await api.get(`/cases/${cnr}/people`);
+      const response = await api.get(`/cases/${cnr}/parties`);
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -734,9 +740,9 @@ export const peopleAPI = {
     }
   },
 
-  getPersonDetails: async (cnr: string, personId: string) => {
+  getPartyDetails: async (cnr: string, partyId: string) => {
     try {
-      const response = await api.get(`/cases/${cnr}/people/${personId}`);
+      const response = await api.get(`/cases/${cnr}/parties/${partyId}`);
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -750,9 +756,9 @@ export const peopleAPI = {
     }
   },
 
-  chatWithPerson: async (cnr: string, personId: string, message: string) => {
+  chatWithParty: async (cnr: string, partyId: string, message: string) => {
     try {
-      const response = await api.post(`/cases/${cnr}/people/${personId}/chat`, {
+      const response = await api.post(`/cases/${cnr}/parties/${partyId}/chat`, {
         message,
       });
       return response.data;
@@ -768,10 +774,10 @@ export const peopleAPI = {
     }
   },
 
-  getChatHistory: async (cnr: string, personId: string) => {
+  getPartyChatHistory: async (cnr: string, partyId: string) => {
     try {
       const response = await api.get(
-        `/cases/${cnr}/people/${personId}/chat-history`
+        `/cases/${cnr}/parties/${partyId}/chat-history`
       );
       return response.data;
     } catch (error) {

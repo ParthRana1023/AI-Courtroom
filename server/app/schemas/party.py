@@ -46,6 +46,7 @@ class PartiesListOut(BaseModel):
     user_role: str  # The user's role in the case (plaintiff/defendant)
     can_access_courtroom: bool = False  # Whether user has chatted enough to access courtroom
     is_in_courtroom: bool = False  # Whether user is currently in an active courtroom session
+    case_status: str = "not_started"  # The current case status (not_started, active, adjourned, resolved)
 
 
 class ChatHistoryOut(BaseModel):

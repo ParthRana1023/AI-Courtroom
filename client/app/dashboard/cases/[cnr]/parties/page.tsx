@@ -3,12 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { use } from "react";
-import { caseAPI, peopleAPI } from "@/lib/api";
+import { caseAPI, partiesAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import {
   type PersonInvolved,
   type ChatMessage,
-  type PeopleListResponse,
+  type PartiesListResponse,
   PersonRole,
   CaseStatus,
 } from "@/types";
@@ -38,7 +38,7 @@ const stripMarkdown = (text: string): string => {
     .trim();
 };
 
-export default function PeoplePage({
+export default function PartiesPage({
   params,
 }: {
   params: Promise<{ cnr: string }>;
@@ -49,10 +49,11 @@ export default function PeoplePage({
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [people, setPeople] = useState<PersonInvolved[]>([]);
+  const [parties, setParties] = useState<PersonInvolved[]>([]);
   const [userRole, setUserRole] = useState<string>("");
   const [canAccessCourtroom, setCanAccessCourtroom] = useState(false);
   const [isInCourtroomSession, setIsInCourtroomSession] = useState(false);
+  const [caseStatus, setCaseStatus] = useState<string>("not_started");
   const [selectedPerson, setSelectedPerson] = useState<PersonInvolved | null>(
     null
   );
@@ -65,27 +66,28 @@ export default function PeoplePage({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch people on mount
+  // Fetch parties on mount
   useEffect(() => {
-    const fetchPeople = async () => {
+    const fetchParties = async () => {
       try {
         // DEV DELAY - Remove in production
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        const data: PeopleListResponse = await peopleAPI.getPeople(cnr);
-        setPeople(data.people);
+        const data: PartiesListResponse = await partiesAPI.getParties(cnr);
+        setParties(data.parties);
         setUserRole(data.user_role);
         setCanAccessCourtroom(data.can_access_courtroom);
         setIsInCourtroomSession(data.is_in_courtroom);
+        setCaseStatus(data.case_status || "not_started");
       } catch (error) {
-        setError("Failed to load people. Please try again later.");
-        console.error("Error fetching people:", error);
+        setError("Failed to load parties. Please try again later.");
+        console.error("Error fetching parties:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchPeople();
+    fetchParties();
   }, [cnr]);
 
   // Scroll to bottom when new messages arrive
@@ -102,15 +104,15 @@ export default function PeoplePage({
 
     try {
       // Fetch person details (this also generates bio if not present)
-      const details = await peopleAPI.getPersonDetails(cnr, person.id);
+      const details = await partiesAPI.getPartyDetails(cnr, person.id);
       setSelectedPerson(details);
 
       // Fetch chat history
-      const history = await peopleAPI.getChatHistory(cnr, person.id);
+      const history = await partiesAPI.getPartyChatHistory(cnr, person.id);
       setChatMessages(history.messages || []);
     } catch (error) {
-      console.error("Error fetching person details:", error);
-      setError("Failed to load person details");
+      console.error("Error fetching party details:", error);
+      setError("Failed to load party details");
     } finally {
       setIsLoadingPerson(false);
     }
@@ -121,7 +123,7 @@ export default function PeoplePage({
 
     setIsSending(true);
     try {
-      const response = await peopleAPI.chatWithPerson(
+      const response = await partiesAPI.chatWithParty(
         cnr,
         selectedPerson.id,
         newMessage
@@ -131,7 +133,7 @@ export default function PeoplePage({
       setChatMessages((prev) => [
         ...prev,
         response.user_message,
-        response.person_response,
+        response.party_response,
       ]);
       setNewMessage("");
 
@@ -155,7 +157,7 @@ export default function PeoplePage({
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <GavelLoader message="Loading people details..." />
+        <GavelLoader message="Loading parties details..." />
       </div>
     );
   }
@@ -179,8 +181,10 @@ export default function PeoplePage({
             <Button
               onClick={async () => {
                 try {
-                  // Set case status to ACTIVE when entering courtroom
-                  await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
+                  // Only set status to ACTIVE if case is NOT resolved
+                  if (caseStatus !== "resolved") {
+                    await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
+                  }
                   router.push(`/dashboard/cases/${cnr}/courtroom`);
                 } catch (error) {
                   console.error("Error starting courtroom session:", error);
@@ -190,7 +194,9 @@ export default function PeoplePage({
                 }
               }}
             >
-              Proceed to Courtroom
+              {caseStatus === "resolved"
+                ? "View Courtroom"
+                : "Proceed to Courtroom"}
             </Button>
           </div>
         </div>
@@ -213,8 +219,8 @@ export default function PeoplePage({
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
             <p className="text-amber-700 dark:text-amber-300 text-sm">
               <strong>⚠️ Courtroom in Session:</strong> You cannot chat with
-              people during an active courtroom session. Please finish or pause
-              your case in the courtroom to resume chatting.
+              parties during an active courtroom session. Please complete or
+              adjourn your case in the courtroom to resume chatting.
             </p>
             <div className="flex gap-2 mt-3">
               <Button
@@ -228,13 +234,13 @@ export default function PeoplePage({
           </div>
         )}
         {/* Left/Right Layout */}
-        {people.length === 0 ? (
+        {parties.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700">
             <p className="text-gray-500 dark:text-gray-400">
-              No people found in this case.
+              No parties found in this case.
             </p>
             <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-              Generate a new case to see people involved.
+              Generate a new case to see parties involved.
             </p>
           </div>
         ) : (
@@ -252,7 +258,7 @@ export default function PeoplePage({
                 </div>
                 <ScrollArea className="h-[calc(100%-60px)]">
                   <div className="p-2 space-y-2">
-                    {people.map((person) => (
+                    {parties.map((person) => (
                       <button
                         key={person.id}
                         onClick={() => {
@@ -260,8 +266,8 @@ export default function PeoplePage({
                           // Fetch person details if not already loaded
                           if (!person.bio) {
                             setIsLoadingPerson(true);
-                            peopleAPI
-                              .getPersonDetails(cnr, person.id)
+                            partiesAPI
+                              .getPartyDetails(cnr, person.id)
                               .then((details) => {
                                 setSelectedPerson(details);
                                 setIsLoadingPerson(false);
@@ -473,34 +479,36 @@ export default function PeoplePage({
               </div>
             ) : (
               <div className="space-y-4">
-                {chatMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${
-                      msg.sender === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
+                {chatMessages
+                  .filter((msg) => msg && msg.sender)
+                  .map((msg) => (
                     <div
-                      className={`max-w-[75%] rounded-lg p-3 ${
-                        msg.sender === "user"
-                          ? "bg-blue-500 text-white"
-                          : "bg-gray-200 dark:bg-zinc-700 text-gray-900 dark:text-gray-100"
+                      key={msg.id}
+                      className={`flex ${
+                        msg.sender === "user" ? "justify-end" : "justify-start"
                       }`}
                     >
-                      <div className="text-xs font-medium mb-1 opacity-80">
-                        {msg.sender === "user"
-                          ? "You"
-                          : stripMarkdown(selectedPerson?.name || "Person")}
-                      </div>
-                      <ChatMarkdownRenderer markdown={msg.content} />
-                      {msg.timestamp && (
-                        <div className="text-xs mt-1 opacity-60">
-                          {formatToLocaleString(msg.timestamp)}
+                      <div
+                        className={`max-w-[75%] rounded-lg p-3 ${
+                          msg.sender === "user"
+                            ? "bg-blue-500 text-white"
+                            : "bg-gray-200 dark:bg-zinc-700 text-gray-900 dark:text-gray-100"
+                        }`}
+                      >
+                        <div className="text-xs font-medium mb-1 opacity-80">
+                          {msg.sender === "user"
+                            ? "You"
+                            : stripMarkdown(selectedPerson?.name || "Person")}
                         </div>
-                      )}
+                        <ChatMarkdownRenderer markdown={msg.content} />
+                        {msg.timestamp && (
+                          <div className="text-xs mt-1 opacity-60">
+                            {formatToLocaleString(msg.timestamp)}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
                 <div ref={messagesEndRef} />
               </div>
             )}
@@ -508,7 +516,15 @@ export default function PeoplePage({
 
           {/* Message Input - always at bottom, hidden in read-only mode */}
           <div className="border-t dark:border-zinc-700 p-4 bg-white dark:bg-zinc-900 shrink-0">
-            {isInCourtroomSession ? (
+            {caseStatus === "resolved" ? (
+              <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+                <p>📋 Read-only mode - Case has been resolved</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  This case has concluded. You can view the chat history but
+                  cannot send new messages.
+                </p>
+              </div>
+            ) : isInCourtroomSession ? (
               <div className="text-center text-sm text-amber-600 dark:text-amber-400">
                 <p>📋 Read-only mode - Courtroom is in session</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

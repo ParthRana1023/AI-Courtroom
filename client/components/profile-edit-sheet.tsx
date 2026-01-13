@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { authAPI } from "@/lib/api";
 import { showNotification } from "@/components/notification-provider";
+import LocationSelector from "@/components/location-selector";
 import {
   Sheet,
   SheetContent,
@@ -37,6 +38,12 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
     last_name: "",
     nickname: "",
     gender: "",
+    city: "",
+    state: "",
+    state_iso2: "",
+    country: "",
+    country_iso2: "",
+    phone_code: "",
   });
 
   // Sync form data when sheet opens or user changes
@@ -47,6 +54,12 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
         last_name: user.last_name || "",
         nickname: user.nickname || "",
         gender: user.gender || "",
+        city: user.city || "",
+        state: user.state || "",
+        state_iso2: user.state_iso2 || "",
+        country: user.country || "",
+        country_iso2: user.country_iso2 || "",
+        phone_code: user.phone_code || "",
       });
     }
   }, [user, open]);
@@ -60,6 +73,12 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
         last_name: formData.last_name,
         nickname: formData.nickname || undefined,
         gender: formData.gender || undefined,
+        city: formData.city || undefined,
+        state: formData.state || undefined,
+        state_iso2: formData.state_iso2 || undefined,
+        country: formData.country || undefined,
+        country_iso2: formData.country_iso2 || undefined,
+        phone_code: formData.phone_code || undefined,
       });
       await refreshUser();
       showNotification("Profile updated successfully!", "success");
@@ -207,6 +226,32 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+            </div>
+
+            {/* Location */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+                Location
+              </label>
+              <LocationSelector
+                initialValue={{
+                  city: formData.city,
+                  state: formData.state,
+                  country: formData.country,
+                }}
+                onLocationSelect={(location) => {
+                  setFormData({
+                    ...formData,
+                    city: location.city,
+                    state: location.state,
+                    state_iso2: location.state_iso2,
+                    country: location.country,
+                    country_iso2: location.country_iso2,
+                    phone_code: location.phone_code,
+                  });
+                }}
+                labelBg="bg-white dark:bg-zinc-900"
+              />
             </div>
           </div>
         </div>

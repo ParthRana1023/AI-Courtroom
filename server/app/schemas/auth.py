@@ -30,3 +30,11 @@ class ProfileUpdateRequest(BaseModel):
     last_name: Optional[str] = None
     nickname: Optional[str] = None  # User's preferred display name
     gender: Optional[str] = None  # male, female, others, prefer-not-to-say
+    # Location fields
+    city: Optional[str] = None
+    state: Optional[str] = None
+    state_iso2: Optional[str] = None
+    country: Optional[str] = None
+    country_iso2: Optional[str] = None
+    phone_code: Optional[str] = None
+
