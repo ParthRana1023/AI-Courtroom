@@ -30,28 +30,21 @@ async def _should_refresh_cache() -> bool:
     """
     Check if the cache should be refreshed.
     Returns True if:
-    - Cache document doesn't exist in MongoDB
-    - Cache is from a previous month
+    - No cache document exists for the current month
     """
     try:
-        print("🔍 Checking if location cache needs refresh...")
-        cache_doc = await LocationCache.find_one(LocationCache.cache_key == CACHE_KEY)
+        current_month = datetime.now().strftime("%Y-%m")
+        print(f"🔍 Checking if location cache needs refresh for {current_month}...")
+        
+        # Check if we have a cache for the current month
+        cache_doc = await LocationCache.find_one(LocationCache.cached_month == current_month)
         
         if cache_doc is None:
-            print("📭 No cache document found in MongoDB. Will fetch fresh data.")
-            return True
-        
-        current_month = datetime.now().strftime("%Y-%m")
-        cached_month = cache_doc.cached_month
-        
-        print(f"📅 Cache month: {cached_month}, Current month: {current_month}")
-        
-        if cached_month != current_month:
-            print(f"📅 Cache is from {cached_month}, current month is {current_month}. Refreshing...")
+            print(f"📭 No cache document found for {current_month}. Will fetch fresh data.")
             return True
         
         entry_count = len(cache_doc.all_locations) if cache_doc.all_locations else 0
-        print(f"✅ Cache is valid (from {cached_month}) with {entry_count} entries. Loading from MongoDB.")
+        print(f"✅ Cache is valid for {current_month} with {entry_count} entries. Loading from MongoDB.")
         return False
     except Exception as e:
         print(f"⚠️ Error checking cache in MongoDB: {e}. Will refresh.")
@@ -63,22 +56,28 @@ async def _should_refresh_cache() -> bool:
 async def _load_cache_from_db() -> bool:
     """
     Load cache data from MongoDB into memory.
+    Loads from the most recent month's cache.
     Returns True if successful, False otherwise.
     """
     global _countries_cache, _states_cache, _cities_cache, _all_locations_cache
     
     try:
-        cache_doc = await LocationCache.find_one(LocationCache.cache_key == CACHE_KEY)
+        # Find the most recent cache document
+        cache_docs = await LocationCache.find(
+            LocationCache.cache_key == CACHE_KEY
+        ).sort("-cached_month").limit(1).to_list()
         
-        if cache_doc is None:
+        if not cache_docs:
             return False
+        
+        cache_doc = cache_docs[0]
         
         _countries_cache = cache_doc.countries
         _states_cache = cache_doc.states
         _cities_cache = cache_doc.cities
         _all_locations_cache = cache_doc.all_locations
         
-        print(f"📂 Loaded location cache from MongoDB with {len(_all_locations_cache or [])} entries")
+        print(f"📂 Loaded location cache from MongoDB (month: {cache_doc.cached_month}) with {len(_all_locations_cache or [])} entries")
         return True
     except Exception as e:
         print(f"⚠️ Error loading cache from MongoDB: {e}")
@@ -86,26 +85,29 @@ async def _load_cache_from_db() -> bool:
 
 
 async def _save_cache_to_db():
-    """Save current cache data to MongoDB."""
+    """
+    Save current cache data to MongoDB as a new month's document.
+    Keeps only 2 months of data, deleting the oldest if necessary.
+    """
     global _countries_cache, _states_cache, _cities_cache, _all_locations_cache
     
     try:
         current_month = datetime.now().strftime("%Y-%m")
         
-        # Check if document exists
-        cache_doc = await LocationCache.find_one(LocationCache.cache_key == CACHE_KEY)
+        # Check if document for current month already exists
+        existing_doc = await LocationCache.find_one(LocationCache.cached_month == current_month)
         
-        if cache_doc:
-            # Update existing document
-            cache_doc.cached_month = current_month
-            cache_doc.cached_at = datetime.now()
-            cache_doc.countries = _countries_cache or []
-            cache_doc.states = _states_cache or {}
-            cache_doc.cities = _cities_cache or {}
-            cache_doc.all_locations = _all_locations_cache or []
-            await cache_doc.save()
+        if existing_doc:
+            # Update existing document for current month
+            existing_doc.cached_at = datetime.now()
+            existing_doc.countries = _countries_cache or []
+            existing_doc.states = _states_cache or {}
+            existing_doc.cities = _cities_cache or {}
+            existing_doc.all_locations = _all_locations_cache or []
+            await existing_doc.save()
+            print(f"💾 Updated existing location cache for {current_month} ({len(_all_locations_cache or [])} entries)")
         else:
-            # Create new document
+            # Create new document for this month
             cache_doc = LocationCache(
                 cache_key=CACHE_KEY,
                 cached_month=current_month,
@@ -116,10 +118,23 @@ async def _save_cache_to_db():
                 all_locations=_all_locations_cache or [],
             )
             await cache_doc.insert()
+            print(f"💾 Created new location cache for {current_month} ({len(_all_locations_cache or [])} entries)")
         
-        print(f"💾 Saved location cache to MongoDB ({len(_all_locations_cache or [])} entries)")
+        # Clean up old cache documents - keep only 2 most recent months
+        all_caches = await LocationCache.find(
+            LocationCache.cache_key == CACHE_KEY
+        ).sort("-cached_month").to_list()
+        
+        if len(all_caches) > 2:
+            # Delete oldest caches beyond the 2 most recent
+            for old_cache in all_caches[2:]:
+                print(f"🗑️ Deleting old cache from {old_cache.cached_month}")
+                await old_cache.delete()
+                
     except Exception as e:
         print(f"⚠️ Error saving cache to MongoDB: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 async def get_countries() -> list[dict]:

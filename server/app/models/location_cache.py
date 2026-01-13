@@ -1,6 +1,7 @@
 # app/models/location_cache.py
 """
 MongoDB model for storing location cache data.
+Stores up to 2 consecutive months of data as backup.
 """
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -12,9 +13,10 @@ from app.utils.datetime import get_current_datetime
 class LocationCache(Document):
     """
     Stores cached location data from Country State City API.
-    Uses a single document to store all location data.
+    Each document represents one month's cache data.
+    We keep up to 2 months of data as backup.
     """
-    cache_key: str = Field(default="location_data", description="Unique key for the cache document")
+    cache_key: str = Field(default="location_data", description="Base key for cache documents")
     cached_month: str = Field(..., description="Month when cache was created (YYYY-MM)")
     cached_at: datetime = Field(default_factory=get_current_datetime)
     countries: List[dict] = Field(default_factory=list)
