@@ -142,13 +142,53 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "WebSite",
-              name: "AI Courtroom",
-              alternateName: ["AI-Courtroom", "AICourtroom"],
-              url: "https://ai-courtroom.vercel.app/",
-            }),
+            __html: JSON.stringify([
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                name: "AI Courtroom",
+                alternateName: ["AI-Courtroom", "AICourtroom"],
+                url: "https://ai-courtroom.vercel.app/",
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": "ItemList",
+                itemListElement: [
+                  {
+                    "@type": "SiteNavigationElement",
+                    position: 1,
+                    name: "Register",
+                    description:
+                      "Create your account to start simulating legal cases.",
+                    url: "https://ai-courtroom.vercel.app/register",
+                  },
+                  {
+                    "@type": "SiteNavigationElement",
+                    position: 2,
+                    name: "Login",
+                    description:
+                      "Access your dashboard and continue your cases.",
+                    url: "https://ai-courtroom.vercel.app/login",
+                  },
+                  {
+                    "@type": "SiteNavigationElement",
+                    position: 3,
+                    name: "Feedback",
+                    description:
+                      "Contact us or provide feedback about the platform.",
+                    url: "https://ai-courtroom.vercel.app/contact",
+                  },
+                  {
+                    "@type": "SiteNavigationElement",
+                    position: 4,
+                    name: "Dashboard",
+                    description:
+                      "Manage your legal cases and view simulation history.",
+                    url: "https://ai-courtroom.vercel.app/dashboard/cases",
+                  },
+                ],
+              },
+            ]),
           }}
         />
       </body>
