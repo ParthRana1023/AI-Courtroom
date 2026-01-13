@@ -9,8 +9,7 @@ import { CookieConsentProvider } from "@/contexts/cookie-consent-context";
 import TextSizeProvider from "@/components/text-size-provider";
 import NotificationProvider from "@/components/notification-provider";
 import ConditionalAnalytics from "@/components/conditional-analytics";
-import CookieConsentBanner from "@/components/cookie-consent-banner";
-import CookieSettingsModal from "@/components/cookie-settings-modal";
+import CookieConsentWrapper from "@/components/cookie-consent-wrapper";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -143,8 +142,7 @@ export default function RootLayout({
               </TextSizeProvider>
               <ConditionalAnalytics />
               <Toaster richColors position="bottom-right" />
-              <CookieConsentBanner />
-              <CookieSettingsModal />
+              <CookieConsentWrapper />
             </SettingsProvider>
           </CookieConsentProvider>
         </ThemeProvider>

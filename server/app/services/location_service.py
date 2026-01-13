@@ -34,20 +34,29 @@ async def _should_refresh_cache() -> bool:
     - Cache is from a previous month
     """
     try:
+        print("🔍 Checking if location cache needs refresh...")
         cache_doc = await LocationCache.find_one(LocationCache.cache_key == CACHE_KEY)
         
         if cache_doc is None:
+            print("📭 No cache document found in MongoDB. Will fetch fresh data.")
             return True
         
         current_month = datetime.now().strftime("%Y-%m")
+        cached_month = cache_doc.cached_month
         
-        if cache_doc.cached_month != current_month:
-            print(f"📅 Cache is from {cache_doc.cached_month}, current month is {current_month}. Refreshing...")
+        print(f"📅 Cache month: {cached_month}, Current month: {current_month}")
+        
+        if cached_month != current_month:
+            print(f"📅 Cache is from {cached_month}, current month is {current_month}. Refreshing...")
             return True
         
+        entry_count = len(cache_doc.all_locations) if cache_doc.all_locations else 0
+        print(f"✅ Cache is valid (from {cached_month}) with {entry_count} entries. Loading from MongoDB.")
         return False
     except Exception as e:
         print(f"⚠️ Error checking cache in MongoDB: {e}. Will refresh.")
+        import traceback
+        traceback.print_exc()
         return True
 
 

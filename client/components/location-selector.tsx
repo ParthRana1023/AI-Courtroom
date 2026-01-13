@@ -73,6 +73,10 @@ export default function LocationSelector({
   const [stateDropdownOpen, setStateDropdownOpen] = useState(false);
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
 
+  // Track if user selected from dropdown (not just typed)
+  const [citySelected, setCitySelected] = useState(false);
+  const [stateSelected, setStateSelected] = useState(false);
+
   // Notify parent of changes
   const notifyParent = useCallback(
     (
@@ -226,6 +230,7 @@ export default function LocationSelector({
     setPhoneCode(result.phone_code);
     setCityDropdownOpen(false);
     setCityResults([]);
+    setCitySelected(true); // Mark as selected from dropdown
 
     notifyParent({
       city: result.name,
@@ -246,6 +251,7 @@ export default function LocationSelector({
     setPhoneCode(result.phone_code);
     setStateDropdownOpen(false);
     setStateResults([]);
+    setStateSelected(true); // Mark as selected from dropdown
 
     notifyParent({
       state: result.name,
@@ -276,6 +282,7 @@ export default function LocationSelector({
     e.stopPropagation();
     setCity("");
     setCityResults([]);
+    setCitySelected(false); // Reset selection flag
     notifyParent({ city: "" });
   };
 
@@ -284,6 +291,7 @@ export default function LocationSelector({
     setState("");
     setStateIso2("");
     setStateResults([]);
+    setStateSelected(false); // Reset selection flag
     notifyParent({ state: "", state_iso2: "" });
   };
 
@@ -301,9 +309,9 @@ export default function LocationSelector({
       {/* City Field */}
       <div className="relative">
         <label
-          className={`absolute left-3 -top-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1 ${labelBg} z-10`}
+          className={`absolute left-4 -top-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1 ${labelBg} z-10`}
         >
-          City <span className="text-red-500">*</span>
+          City <span className="text-red-500"></span>
         </label>
         <DropdownMenu
           open={cityDropdownOpen}
@@ -317,6 +325,24 @@ export default function LocationSelector({
                 value={city}
                 onChange={(e) => {
                   setCity(e.target.value);
+                  // Reset selection state when typing (force selection from dropdown)
+                  if (citySelected) {
+                    setCitySelected(false);
+                    // Clear auto-filled values
+                    setState("");
+                    setStateIso2("");
+                    setCountry("");
+                    setCountryIso2("");
+                    setPhoneCode("");
+                    notifyParent({
+                      city: e.target.value,
+                      state: "",
+                      state_iso2: "",
+                      country: "",
+                      country_iso2: "",
+                      phone_code: "",
+                    });
+                  }
                   if (!cityDropdownOpen) setCityDropdownOpen(true);
                 }}
                 onFocus={() => setCityDropdownOpen(true)}
@@ -378,32 +404,48 @@ export default function LocationSelector({
       {/* State Field */}
       <div className="relative">
         <label
-          className={`absolute left-3 -top-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1 ${labelBg} z-10`}
+          className={`absolute left-4 -top-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1 ${labelBg} z-10`}
         >
-          State <span className="text-red-500">*</span>
+          State <span className="text-red-500"></span>
         </label>
         <DropdownMenu
           open={stateDropdownOpen}
           onOpenChange={setStateDropdownOpen}
         >
           <DropdownMenuTrigger asChild>
-            <div className="relative cursor-pointer">
+            <div
+              className={`relative ${
+                citySelected
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer"
+              }`}
+            >
               <input
                 type="text"
                 value={state}
+                disabled={citySelected}
                 onChange={(e) => {
                   setState(e.target.value);
                   if (!stateDropdownOpen) setStateDropdownOpen(true);
                 }}
-                onFocus={() => setStateDropdownOpen(true)}
-                placeholder="Search for a state..."
-                className={`w-full pl-4 pr-10 py-3 border-2 rounded-lg focus:outline-none transition-colors cursor-text
+                onFocus={() => !citySelected && setStateDropdownOpen(true)}
+                placeholder={
+                  citySelected
+                    ? "Auto-filled from city"
+                    : "Search for a state..."
+                }
+                className={`w-full pl-4 pr-10 py-3 border-2 rounded-lg focus:outline-none transition-colors
+                  ${
+                    citySelected
+                      ? "cursor-not-allowed bg-zinc-100 dark:bg-zinc-800"
+                      : "cursor-text"
+                  }
                   ${
                     errors?.state
                       ? "border-red-500"
                       : "border-zinc-300 focus:border-blue-500 dark:border-zinc-600 dark:focus:border-blue-400"
                   }
-                  dark:bg-transparent dark:text-white`}
+                  dark:text-white`}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 {isLoadingState && (
@@ -454,32 +496,51 @@ export default function LocationSelector({
       {/* Country Field */}
       <div className="relative">
         <label
-          className={`absolute left-3 -top-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1 ${labelBg} z-10`}
+          className={`absolute left-4 -top-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1 ${labelBg} z-10`}
         >
-          Country <span className="text-red-500">*</span>
+          Country <span className="text-red-500"></span>
         </label>
         <DropdownMenu
           open={countryDropdownOpen}
           onOpenChange={setCountryDropdownOpen}
         >
           <DropdownMenuTrigger asChild>
-            <div className="relative cursor-pointer">
+            <div
+              className={`relative ${
+                citySelected || stateSelected
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer"
+              }`}
+            >
               <input
                 type="text"
                 value={country}
+                disabled={citySelected || stateSelected}
                 onChange={(e) => {
                   setCountry(e.target.value);
                   if (!countryDropdownOpen) setCountryDropdownOpen(true);
                 }}
-                onFocus={() => setCountryDropdownOpen(true)}
-                placeholder="Search for a country..."
-                className={`w-full pl-4 pr-10 py-3 border-2 rounded-lg focus:outline-none transition-colors cursor-text
+                onFocus={() =>
+                  !(citySelected || stateSelected) &&
+                  setCountryDropdownOpen(true)
+                }
+                placeholder={
+                  citySelected || stateSelected
+                    ? "Auto-filled"
+                    : "Search for a country..."
+                }
+                className={`w-full pl-4 pr-10 py-3 border-2 rounded-lg focus:outline-none transition-colors
+                  ${
+                    citySelected || stateSelected
+                      ? "cursor-not-allowed bg-zinc-100 dark:bg-zinc-800"
+                      : "cursor-text"
+                  }
                   ${
                     errors?.country
                       ? "border-red-500"
                       : "border-zinc-300 focus:border-blue-500 dark:border-zinc-600 dark:focus:border-blue-400"
                   }
-                  dark:bg-transparent dark:text-white`}
+                  dark:text-white`}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 {isLoadingCountry && (

@@ -39,9 +39,13 @@ export default function CookieConsentBanner() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           {/* Content */}
           <div className="flex-1 space-y-2">
-            <h3 className="text-lg font-semibold text-foreground">
+            <p
+              className="text-lg font-semibold text-foreground"
+              role="heading"
+              aria-level={2}
+            >
               🍪 We value your privacy
-            </h3>
+            </p>
             <p className="text-sm text-muted-foreground">
               We use cookies to enhance your experience, analyze site traffic,
               and personalize content. You can customize your preferences or
@@ -50,7 +54,7 @@ export default function CookieConsentBanner() {
                 href="/privacy"
                 className="text-primary underline underline-offset-2 hover:text-primary/80"
               >
-                Learn more
+                Learn more about our privacy policy
               </a>
             </p>
           </div>

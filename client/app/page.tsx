@@ -1,9 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/auth-context";
-import StaggeredMenu from "@/components/staggered-menu";
-import FlowingMenu from "@/components/flowing-menu";
+
+// Dynamic imports for heavy animation components (reduces initial bundle)
+const StaggeredMenu = dynamic(() => import("@/components/staggered-menu"), {
+  ssr: false,
+});
+const FlowingMenu = dynamic(() => import("@/components/flowing-menu"), {
+  ssr: false,
+});
 
 // Menu items for authenticated users (upper section)
 const authUpperItems = [
@@ -81,20 +89,17 @@ export default function Home() {
         </div>
       </StaggeredMenu>
 
-      {/* Background Image - pushed down with top offset */}
-      <div
-        className="absolute -z-20"
-        style={{
-          top: "0",
-          left: 0,
-          right: 0,
-          bottom: "0",
-          backgroundImage: "url('/background.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center top",
-          backgroundRepeat: "no-repeat",
-        }}
-      />
+      {/* Background Image - optimized with Next.js Image */}
+      <div className="absolute inset-0 -z-20">
+        <Image
+          src="/background.webp"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-top"
+        />
+      </div>
 
       {/* Dark Gradient Overlay */}
       <div
