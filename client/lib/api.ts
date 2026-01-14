@@ -216,13 +216,23 @@ export const authAPI = {
   googleLogin: async (data: {
     credential?: string;
     access_token?: string;
+    code?: string;
+    state?: string;
     rememberMe?: boolean;
   }) => {
     try {
-      const { credential, access_token, rememberMe = false } = data;
+      const {
+        credential,
+        access_token,
+        code,
+        state,
+        rememberMe = false,
+      } = data;
       const response = await api.post("/auth/google", {
         credential,
         access_token,
+        code,
+        state,
         remember_me: rememberMe,
       });
       if (response.data.access_token) {
@@ -237,6 +247,17 @@ export const authAPI = {
           console.error("API Error Status:", serverError.response.status);
         }
       }
+      throw error;
+    }
+  },
+
+  // Get OAuth State
+  getOAuthState: async () => {
+    try {
+      const response = await api.get("/auth/oauth/state");
+      return response.data.state;
+    } catch (error) {
+      console.error("Failed to get OAuth state:", error);
       throw error;
     }
   },

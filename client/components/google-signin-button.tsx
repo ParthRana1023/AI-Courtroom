@@ -5,12 +5,19 @@ import { Loader2 } from "lucide-react";
 import { useRef } from "react";
 
 interface GoogleSignInButtonProps {
-  onSuccess: (credential: string) => Promise<void>;
+  onSuccess: (response: {
+    credential?: string;
+    access_token?: string;
+    code?: string;
+    state?: string;
+  }) => Promise<void>;
   onError?: () => void;
   text?: "signin" | "signup" | "continue";
   isLoading?: boolean;
   disabled?: boolean;
 }
+
+import { authAPI } from "@/lib/api";
 
 export default function GoogleSignInButton({
   onSuccess,
@@ -21,21 +28,48 @@ export default function GoogleSignInButton({
 }: GoogleSignInButtonProps) {
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
-      // Pass the access token to the onSuccess handler
-      // Note: backend expects { access_token: ... } or { credential: ... }
-      // This sends the access token string. The parent component should handle packaging it for the API.
-      console.log(
-        "Google Login Success, Access Token:",
-        tokenResponse.access_token
-      );
-      await onSuccess(tokenResponse.access_token);
+      // Handle Authorization Code Flow
+      if (tokenResponse.code) {
+        console.log("Google Auth Code received");
+
+        // Retrieve state from session storage for validation
+        const storedState = sessionStorage.getItem("oauth_state");
+
+        await onSuccess({
+          code: tokenResponse.code,
+          state: storedState || undefined,
+        } as any);
+      } else {
+        // Fallback or error case
+        console.error("No code received in Google login response");
+      }
     },
+
     onError: () => {
       console.error("Google Login Failed");
       onError?.();
     },
-    flow: "implicit", // Returns access_token
+    flow: "auth-code", // Use Authorization Code flow for security
+    // We can't set state dynamically here easily with the hook's current config unless we override the click handler completely
+    // flexible solution: The hook usually handles state internally if we don't interfere,
+    // but for our backend verification we need to send OUR state.
+    // The useGoogleLogin hook allows passing `state` in the login() function options.
   });
+
+  const handleLogin = async () => {
+    try {
+      // Get secure state from backend
+      const state = await authAPI.getOAuthState();
+      sessionStorage.setItem("oauth_state", state);
+
+      // Trigger login with our state
+      // @ts-ignore
+      login({ state });
+    } catch (err) {
+      console.error("Failed to initialize Google login:", err);
+      onError?.();
+    }
+  };
 
   const buttonText =
     text === "signin"
@@ -49,7 +83,7 @@ export default function GoogleSignInButton({
       {/* Custom styled button */}
       <button
         type="button"
-        onClick={() => login()}
+        onClick={handleLogin}
         disabled={disabled || isLoading}
         className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 dark:border-zinc-600 rounded-lg shadow-sm bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >

@@ -148,6 +148,8 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
                 First Name
               </label>
               <input
+                id="edit-first-name"
+                name="first_name"
                 type="text"
                 value={formData.first_name}
                 onChange={(e) =>
@@ -164,6 +166,8 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
                 Last Name
               </label>
               <input
+                id="edit-last-name"
+                name="last_name"
                 type="text"
                 value={formData.last_name}
                 onChange={(e) =>
@@ -180,6 +184,8 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
                 Nickname <span className="text-zinc-400">(optional)</span>
               </label>
               <input
+                id="edit-nickname"
+                name="nickname"
                 type="text"
                 value={formData.nickname}
                 onChange={(e) =>

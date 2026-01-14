@@ -13,6 +13,7 @@ interface DatePickerProps {
   label?: string;
   error?: string;
   labelBg?: string;
+  id?: string;
 }
 
 const MONTHS = [
@@ -53,6 +54,7 @@ export default function DatePicker({
   label = "Date of Birth",
   error,
   labelBg = "bg-white dark:bg-zinc-900",
+  id = "date-picker",
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("year");
@@ -200,6 +202,7 @@ export default function DatePicker({
           />
         </div>
         <button
+          id={id}
           type="button"
           onClick={() => {
             setIsOpen(!isOpen);
@@ -227,6 +230,7 @@ export default function DatePicker({
           {formatDisplayValue() || " "}
         </button>
         <label
+          htmlFor={id}
           className={`
             absolute pointer-events-none
             transition-all duration-200 ease-out

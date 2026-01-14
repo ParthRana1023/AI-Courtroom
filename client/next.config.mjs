@@ -35,10 +35,6 @@ const nextConfig = {
               "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://*.vercel-scripts.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 https://ai-courtroom-backend-v2.onrender.com https://accounts.google.com https://*.vercel-insights.com https://*.vercel-analytics.com; frame-src https://accounts.google.com;",
           },
           {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin-allow-popups",
-          },
-          {
             key: "X-Frame-Options",
             value: "SAMEORIGIN",
           },

@@ -385,6 +385,7 @@ export default function Register() {
                       ? "bg-stone-50 dark:bg-stone-900"
                       : "bg-white dark:bg-zinc-900"
                   }
+                  autoComplete="given-name"
                 />
 
                 <FloatingLabelInput
@@ -407,6 +408,7 @@ export default function Register() {
                       ? "bg-stone-50 dark:bg-stone-900"
                       : "bg-white dark:bg-zinc-900"
                   }
+                  autoComplete="family-name"
                 />
               </div>
 
@@ -423,6 +425,7 @@ export default function Register() {
                 <div className="flex flex-col gap-4">
                   <div title="Date of birth cannot be changed after registration">
                     <DatePicker
+                      id="dob"
                       value={formData.date_of_birth}
                       onChange={(date) =>
                         setFormData((prev) => ({
@@ -497,6 +500,7 @@ export default function Register() {
                           maxLength={10}
                           className="block w-full pl-10 px-3 py-3 border-2 border-zinc-300 rounded-r-lg focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:border-zinc-600 dark:bg-transparent dark:text-white transition-colors"
                           placeholder="Enter 10 digit number"
+                          autoComplete="tel"
                         />
                       </div>
                     </div>
@@ -558,6 +562,7 @@ export default function Register() {
                       ? "bg-stone-50 dark:bg-stone-900"
                       : "bg-white dark:bg-zinc-900"
                   }
+                  autoComplete="email"
                 />
 
                 <FloatingLabelInput
@@ -580,6 +585,7 @@ export default function Register() {
                       ? "bg-stone-50 dark:bg-stone-900"
                       : "bg-white dark:bg-zinc-900"
                   }
+                  autoComplete="new-password"
                 />
               </div>
 
@@ -632,10 +638,10 @@ export default function Register() {
 
                   {/* Google Sign-Up Button */}
                   <GoogleSignInButton
-                    onSuccess={async (credential) => {
+                    onSuccess={async (authData) => {
                       try {
                         setIsLoading(true);
-                        await loginWithGoogle(credential, false);
+                        await loginWithGoogle(authData, false);
                       } catch (error: any) {
                         setErrors({
                           form:

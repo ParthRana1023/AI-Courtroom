@@ -316,6 +316,7 @@ export default function LocationSelector({
       {/* City Field */}
       <div className="relative">
         <label
+          htmlFor="location-city"
           className={`absolute pointer-events-none transition-all duration-200 ease-out px-1
             ${
               cityFocused || city
@@ -342,6 +343,9 @@ export default function LocationSelector({
             <div className="relative cursor-pointer">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 z-10" />
               <input
+                id="location-city"
+                name="city"
+                autoComplete="address-level2"
                 type="text"
                 value={city}
                 onChange={(e) => {
@@ -429,6 +433,7 @@ export default function LocationSelector({
       {/* State Field */}
       <div className="relative">
         <label
+          htmlFor="location-state"
           className={`absolute pointer-events-none transition-all duration-200 ease-out px-1
             ${
               stateFocused || state
@@ -460,6 +465,9 @@ export default function LocationSelector({
               }`}
             >
               <input
+                id="location-state"
+                name="state"
+                autoComplete="address-level1"
                 type="text"
                 value={state}
                 disabled={citySelected}
@@ -537,6 +545,7 @@ export default function LocationSelector({
       {/* Country Field */}
       <div className="relative">
         <label
+          htmlFor="location-country"
           className={`absolute pointer-events-none transition-all duration-200 ease-out px-1
             ${
               countryFocused || country
@@ -568,6 +577,9 @@ export default function LocationSelector({
               }`}
             >
               <input
+                id="location-country"
+                name="country"
+                autoComplete="country-name"
                 type="text"
                 value={country}
                 disabled={citySelected || stateSelected}

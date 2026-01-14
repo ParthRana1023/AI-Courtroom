@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
     
+    # OAuth Security settings
+    oauth_state_secret: str = "another-secret"
+    risc_webhook_secret: Optional[str] = None
+    oauth_state_token_expiry: int = 600  # 10 minutes
+    
     # Cloudinary settings for profile photos
     cloudinary_cloud_name: Optional[str] = None
     cloudinary_api_key: Optional[str] = None
@@ -81,6 +86,7 @@ def log_environment_status():
         # Google OAuth
         "GOOGLE_CLIENT_ID": is_set(settings.google_client_id),
         "GOOGLE_CLIENT_SECRET": is_set(settings.google_client_secret),
+        "OAUTH_STATE_SECRET_SET": "Yes" if settings.oauth_state_secret and settings.oauth_state_secret != "another-secret" else "Using Default (Unsafe)",
         
         # Cloudinary
         "CLOUDINARY_CLOUD_NAME": is_set(settings.cloudinary_cloud_name),

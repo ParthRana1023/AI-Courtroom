@@ -28,7 +28,15 @@ interface AuthContextType {
   verifyRegistration: (userData: any, otp: string) => Promise<void>;
   logout: () => void;
   redirectToDashboard: () => void;
-  loginWithGoogle: (credential: string, rememberMe?: boolean) => Promise<any>;
+  loginWithGoogle: (
+    authData: {
+      credential?: string;
+      access_token?: string;
+      code?: string;
+      state?: string;
+    },
+    rememberMe?: boolean
+  ) => Promise<any>;
   refreshUser: () => Promise<void>; // Refresh user data from server
 }
 
@@ -187,12 +195,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginWithGoogle = async (
-    accessToken: string,
+    authData: {
+      credential?: string;
+      access_token?: string;
+      code?: string;
+      state?: string;
+    },
     rememberMe: boolean = false
   ) => {
     try {
       const response = await authAPI.googleLogin({
-        access_token: accessToken,
+        ...authData,
         rememberMe,
       });
 

@@ -6,8 +6,10 @@ from typing import Optional
 
 class GoogleLoginRequest(BaseModel):
     """Request body for Google OAuth login."""
-    credential: Optional[str] = None  # ID Token from Google Login component
-    access_token: Optional[str] = None # Access Token from useGoogleLogin hook
+    credential: Optional[str] = None  # ID Token from legacy flow
+    access_token: Optional[str] = None # Access Token from implicit flow
+    code: Optional[str] = None  # Auth Code from authorization code flow
+    state: Optional[str] = None  # State parameter for CSRF protection
     remember_me: bool = False
 
 

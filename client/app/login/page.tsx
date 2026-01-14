@@ -194,6 +194,7 @@ export default function Login() {
                 onChange={handleChange}
                 error={errors.email}
                 labelBg="bg-white dark:bg-zinc-900"
+                autoComplete="email"
               />
 
               <FloatingLabelInput
@@ -206,11 +207,13 @@ export default function Login() {
                 onChange={handleChange}
                 error={errors.password}
                 labelBg="bg-white dark:bg-zinc-900"
+                autoComplete="current-password"
               />
 
               <div className="flex items-center gap-2 pl-2">
                 <Checkbox
                   id="remember_me"
+                  name="remember_me"
                   checked={rememberMe}
                   onCheckedChange={(checked) => setRememberMe(checked === true)}
                   size="sm"
@@ -264,10 +267,10 @@ export default function Login() {
 
               {/* Google Sign-In Button */}
               <GoogleSignInButton
-                onSuccess={async (credential) => {
+                onSuccess={async (authData) => {
                   try {
                     setIsLoading(true);
-                    await loginWithGoogle(credential, rememberMe);
+                    await loginWithGoogle(authData, rememberMe);
                   } catch (error: any) {
                     setErrors({
                       form:

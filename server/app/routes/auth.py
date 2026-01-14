@@ -7,7 +7,13 @@ from app.models.user import TokenResponse
 from app.services.auth import create_user, create_access_token, ph
 from app.services.auth import VerifyMismatchError
 from app.services.otp import verify_otp, create_otp
-from app.services.google_auth import authenticate_google_user
+from app.services.google_auth import (
+    authenticate_google_user, 
+    exchange_code_for_token,
+    generate_state_token, 
+    validate_state_token, 
+    verify_risc_token
+)
 from app.config import settings
 from app.logging_config import get_logger
 from datetime import timedelta
@@ -273,12 +279,34 @@ async def update_profile(
 async def google_login(data: GoogleLoginRequest):
     """
     Authenticate user with Google OAuth.
-    
-    Receives the Google ID token from the frontend, verifies it,
-    and returns a JWT access token.
+    Supports:
+    1. Implicit Flow (credential/access_token) - Client-side
+    2. Authorization Code Flow (code) - Server-side code exchange (More Secure)
     """
     logger.info("Google authentication initiated")
     try:
+        # If using Authorization Code Flow
+        if data.code:
+            # 1. Validate State Parameter if provided
+            if data.state:
+                if not validate_state_token(data.state):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid or expired state parameter"
+                    )
+            
+            # 2. Exchange code for tokens
+            tokens = await exchange_code_for_token(data.code)
+            
+            # 3. Use ID token or access token from exchange
+            result = await authenticate_google_user(
+                credential=tokens.get("id_token"),
+                access_token=tokens.get("access_token"),
+                remember_me=data.remember_me
+            )
+            return result
+            
+        # Legacy/Implicit Flows
         result = await authenticate_google_user(
             credential=data.credential,
             access_token=data.access_token,
@@ -420,3 +448,60 @@ async def update_case_location_preference(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update case location preference: {str(e)}"
         )
+
+
+@router.get("/oauth/state")
+async def get_oauth_state():
+    """Generate a secure state token for Google OAuth."""
+    state = generate_state_token()
+    return {"state": state}
+
+
+@router.post("/risc/webhook")
+async def risc_webhook(request: Request):
+    """
+    Google Cross-Account Protection (RISC) Webhook.
+    Receives security events (token revocation, account disabled).
+    """
+    # 1. Verify Authorization Header
+    # (Google doesn't use standard Auth header for RISC validation mostly relies on signed JWT)
+    
+    try:
+        # Get raw body as it's a signed JWT
+        body_bytes = await request.body()
+        token = body_bytes.decode('utf-8')
+        
+        # Verify the token
+        claims = await verify_risc_token(token)
+        
+        logger.warning(f"Received RISC security event: {claims}")
+        
+        # Handle specific events
+        # https://schemas.openid.net/secevent/risc/event-type/account-disabled
+        # https://schemas.openid.net/secevent/risc/event-type/sessions-revoked
+        
+        event_type = None
+        if 'events' in claims:
+            event_type = list(claims['events'].keys())[0]
+            
+        subject = claims.get('sub')
+        email = claims.get('email')
+        
+        if subject or email:
+            logger.info(f"Processing RISC event {event_type} for user {email or subject}")
+            # Here we would invalidate user sessions
+            # For JWT (stateless), we'd need a blacklist or short expiry times
+            # Since we don't have a token blacklist implemented yet, we log it
+            # TODO: Implement token blacklisting
+            pass
+            
+        return {"status": "received"}
+        
+    except ValueError as e:
+        logger.error(f"RISC webhook validation failed: {str(e)}")
+        # Return 400/401 so Google knows something is wrong, but 202/200 if we just processed it
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"RISC webhook error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+

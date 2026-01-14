@@ -382,12 +382,15 @@ export default function CasesListing() {
                 }`}
               >
                 <input
+                  id="case-search"
+                  name="search"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by title or case number..."
                   className="w-72 px-4 py-2 border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 shadow-lg"
                   autoFocus={searchExpanded}
+                  autoComplete="search"
                 />
               </div>
               <button

@@ -1,13 +1,22 @@
 """
-Google OAuth authentication service for verifying Google ID tokens
-and managing Google-authenticated users.
+Google OAuth authentication service for verifying Google ID tokens,
+managing Google-authenticated users, and OAuth security features.
+
+Includes:
+1. Token verification (ID tokens and Access tokens)
+2. User creation/linking for Google users
+3. State parameter generation/validation (CSRF protection)
+4. RISC (Cross-Account Protection) token verification
+5. Authorization code exchange
 """
+import secrets
+import time
+import jwt
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from fastapi import HTTPException, status
-from datetime import date
-from typing import Optional
-
+from datetime import date, timedelta
+from typing import Optional, Dict, Any
 from app.config import settings
 from app.models.user import User
 from app.services.auth import create_access_token
@@ -18,6 +27,79 @@ import urllib.error
 
 logger = get_logger(__name__)
 
+# =============================================================================
+# OAuth Security Functions (State Parameter & RISC)
+# =============================================================================
+
+def generate_state_token() -> str:
+    """
+    Generate a signed state token for OAuth CSRF protection.
+    Contains a timestamp to enforce expiration.
+    """
+    payload = {
+        "iat": int(time.time()),
+        "exp": int(time.time()) + settings.oauth_state_token_expiry,
+        "nonce": secrets.token_hex(16)
+    }
+    
+    return jwt.encode(payload, settings.oauth_state_secret, algorithm=settings.algorithm)
+
+
+def validate_state_token(token: str) -> bool:
+    """
+    Validate an OAuth state token.
+    Returns True if valid, False if invalid.
+    """
+    try:
+        jwt.decode(token, settings.oauth_state_secret, algorithms=[settings.algorithm])
+        return True
+    except jwt.ExpiredSignatureError:
+        logger.warning("OAuth state token expired")
+        return False
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"Invalid OAuth state token: {str(e)}")
+        return False
+
+
+async def verify_risc_token(token: str) -> Dict[str, Any]:
+    """
+    Verify a RISC security event token from Google.
+    
+    Args:
+        token: The standard JWT token received from Google
+        
+    Returns:
+        The decoded claims if valid
+        
+    Raises:
+        ValueError: If token is invalid
+    """
+    try:
+        # RISC tokens are signed by Google, so we verify using Google's public keys
+        audience = settings.google_client_id
+        
+        # Verify the token signature and claims
+        claims = id_token.verify_oauth2_token(
+            token, 
+            requests.Request(), 
+            audience=audience,
+            clock_skew_in_seconds=60  # Allow 60 seconds of clock drift
+        )
+        
+        # Verify the issuer is Google
+        if claims.get('iss') not in ['accounts.google.com', 'https://accounts.google.com']:
+            raise ValueError('Invalid issuer')
+            
+        return claims
+        
+    except Exception as e:
+        logger.error(f"RISC token verification failed: {str(e)}")
+        raise ValueError(f"Invalid RISC token: {str(e)}")
+
+
+# =============================================================================
+# Google Token Verification Functions
+# =============================================================================
 
 async def verify_google_token(credential: str) -> dict:
     """
@@ -43,7 +125,8 @@ async def verify_google_token(credential: str) -> dict:
         idinfo = id_token.verify_oauth2_token(
             credential,
             requests.Request(),
-            client_id
+            client_id,
+            clock_skew_in_seconds=60  # Allow 60 seconds of clock drift
         )
         
         # Verify the issuer
@@ -94,6 +177,50 @@ async def verify_google_access_token(access_token: str) -> dict:
             detail=f"Invalid Google access token: {str(e)}"
         )
 
+
+async def exchange_code_for_token(code: str) -> dict:
+    """
+    Exchange authorization code for access/ID tokens.
+    
+    Args:
+        code: The authorization code from Google OAuth
+        
+    Returns:
+        dict containing access_token, id_token, etc.
+    """
+    import urllib.parse
+    
+    if not settings.google_client_id or not settings.google_client_secret:
+        raise ValueError("Google OAuth credentials not configured")
+        
+    # For 'postmessage' flow (common in React Google Login):
+    redirect_uri = "postmessage"
+    
+    token_url = "https://oauth2.googleapis.com/token"
+    payload = {
+        "code": code,
+        "client_id": settings.google_client_id,
+        "client_secret": settings.google_client_secret,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code"
+    }
+    
+    data = urllib.parse.urlencode(payload).encode()
+    req = urllib.request.Request(token_url, data=data, method='POST')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            if response.status != 200:
+                raise ValueError(f"Google Token Endpoint returned {response.status}")
+            return json.loads(response.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        logger.error(f"Token exchange failed: {e.read().decode('utf-8')}")
+        raise ValueError(f"Failed to exchange code: {e}")
+
+
+# =============================================================================
+# User Management Functions
+# =============================================================================
 
 async def get_or_create_google_user(google_info: dict) -> tuple[User, bool]:
     """
@@ -150,6 +277,10 @@ async def get_or_create_google_user(google_info: dict) -> tuple[User, bool]:
     return user, is_new_user
 
 
+# =============================================================================
+# Main Authentication Flow
+# =============================================================================
+
 async def authenticate_google_user(credential: Optional[str] = None, access_token: Optional[str] = None, remember_me: bool = False) -> dict:
     """
     Complete Google authentication flow: verify token, check user, generate JWT or return data.
@@ -165,8 +296,6 @@ async def authenticate_google_user(credential: Optional[str] = None, access_toke
     Returns:
         dict with access_token for existing users, or google_user_data for new users
     """
-    from datetime import timedelta
-    
     logger.info("Starting Google authentication flow", extra={"has_credential": bool(credential), "has_access_token": bool(access_token), "remember_me": remember_me})
     
     # Verify the Google token (ID Token or Access Token)
