@@ -12,6 +12,7 @@ dnspython
 # Authentication, Security & Passwords
 cryptography
 argon2-cffi
+PyJWT
 passlib
 python-jose
 email-validator

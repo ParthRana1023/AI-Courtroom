@@ -589,6 +589,17 @@ export default function Register() {
                 />
               </div>
 
+              <div className="text-xs text-center text-zinc-500 dark:text-zinc-400 mt-4 mb-4">
+                By creating an account, you agree to our{" "}
+                <Link
+                  href="/terms"
+                  className="text-blue-600 hover:text-blue-500 underline"
+                >
+                  Terms of Service
+                </Link>
+                .
+              </div>
+
               <button
                 type="submit"
                 disabled={isLoading}
