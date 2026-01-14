@@ -3,9 +3,13 @@ from typing import List, Dict, Optional, Union
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.utils.llm import llm
+from app.logging_config import get_logger, log_execution_time
+
+logger = get_logger(__name__)
 
 class CaseAnalysisService:
     @staticmethod
+    @log_execution_time(logger, "case_analysis_llm")
     def analyze_case(defendant_args: List[str], plaintiff_args: List[str] = None, case_details: str = None, title: Optional[str] = None, judges_verdict: str = None, user_role: str = None, ai_role: str = None) -> Dict[str, Union[List[str], str]]:
         """Uses LLM to analyze the user's arguments and provides suggestions for improvement.
         :param defendant_args: List of arguments presented by the user.
@@ -15,9 +19,11 @@ class CaseAnalysisService:
         :param judges_verdict: The verdict given by the judge.
         :return: Dictionary with 'mistakes', 'suggestions', 'outcome', and 'reasoning'.
         """
+        logger.debug(f"Case analysis started", extra={"title": title, "defendant_args_count": len(defendant_args) if defendant_args else 0, "plaintiff_args_count": len(plaintiff_args) if plaintiff_args else 0})
             
         # Handle empty arguments list
         if not (defendant_args or plaintiff_args):
+            logger.warning("No arguments provided for analysis")
             return "No analysis generated."
 
         prompt = """
@@ -80,6 +86,7 @@ class CaseAnalysisService:
 
         try:
             chain = analysis_prompt | llm | StrOutputParser()
+            logger.debug("Invoking LLM for case analysis")
             response = chain.invoke({
                 "title": title,
                 "case_details": case_details,
@@ -92,8 +99,9 @@ class CaseAnalysisService:
 
             response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
             
+            logger.info("Case analysis completed successfully", extra={"response_length": len(response)})
             return response
 
         except Exception as e:
-            print(f"Error during LLM analysis: {e}")
+            logger.error(f"Error during LLM analysis", extra={"error": str(e)})
             raise Exception(f"Internal error during analysis: {e}")

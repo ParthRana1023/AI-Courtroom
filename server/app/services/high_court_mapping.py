@@ -5,6 +5,9 @@ Used for case generation to determine the appropriate court jurisdiction.
 """
 import random
 from typing import Optional
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # ISO2 codes for Indian states/UTs mapped to their High Courts (Standardized names)
 INDIAN_HIGH_COURTS: dict[str, str] = {
@@ -74,7 +77,12 @@ def get_high_court_for_state(state_iso2: str) -> Optional[str]:
     Returns:
         The name of the High Court, or None if not found
     """
-    return INDIAN_HIGH_COURTS.get(state_iso2.upper())
+    high_court = INDIAN_HIGH_COURTS.get(state_iso2.upper())
+    if high_court:
+        logger.debug(f"High court found for state", extra={"state_iso2": state_iso2, "high_court": high_court})
+    else:
+        logger.debug(f"No high court mapping for state", extra={"state_iso2": state_iso2})
+    return high_court
 
 
 def get_high_court(state_iso2: Optional[str], country_iso2: Optional[str]) -> str:
@@ -94,10 +102,13 @@ def get_high_court(state_iso2: Optional[str], country_iso2: Optional[str]) -> st
     if country_iso2 and country_iso2.upper() == "IN" and state_iso2:
         high_court = get_high_court_for_state(state_iso2)
         if high_court:
+            logger.debug(f"Returning mapped high court for Indian state", extra={"state_iso2": state_iso2, "high_court": high_court})
             return high_court
     
     # For non-Indian users or unknown states, return random major High Court
-    return random.choice(MAJOR_HIGH_COURTS)
+    selected = random.choice(MAJOR_HIGH_COURTS)
+    logger.debug(f"Returning random high court", extra={"country_iso2": country_iso2, "state_iso2": state_iso2, "high_court": selected})
+    return selected
 
 
 def get_random_high_court() -> str:
@@ -107,7 +118,9 @@ def get_random_high_court() -> str:
     Returns:
         The name of a randomly selected High Court
     """
-    return random.choice(MAJOR_HIGH_COURTS)
+    selected = random.choice(MAJOR_HIGH_COURTS)
+    logger.debug(f"Random high court selected", extra={"high_court": selected})
+    return selected
 
 
 def get_all_indian_states() -> list[dict]:
@@ -168,4 +181,5 @@ def get_all_indian_states() -> list[dict]:
     
     # Sort by state name
     result.sort(key=lambda x: x["state_name"])
+    logger.debug(f"Retrieved all Indian states with high courts", extra={"count": len(result)})
     return result

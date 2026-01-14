@@ -3,13 +3,19 @@ from app.services.llm.case_analysis import CaseAnalysisService
 from app.models.case import Case, Roles
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
 @router.post("/{caseId}/analyze-case")
 async def analyze_case(caseId: str, current_user: User = Depends(get_current_user)):
+    logger.info(f"Case analysis requested", extra={"case_id": caseId, "user_id": str(current_user.id)})
+    
     case = await Case.find_one(Case.cnr == caseId, Case.user_id == current_user.id)
     if not case:
+        logger.warning(f"Case not found for analysis", extra={"case_id": caseId})
         raise HTTPException(status_code=404, detail="Case not found")
 
     # Find which role the user participated in by checking user_id
@@ -29,13 +35,17 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
         if case.user_role != Roles.NOT_STARTED:
             user_role_in_case = case.user_role
         else:
+            logger.warning(f"User role not determined", extra={"case_id": caseId})
             raise HTTPException(status_code=400, detail="User role not determined for this case.")
+
+    logger.debug(f"User role determined", extra={"case_id": caseId, "user_role": user_role_in_case.value if user_role_in_case else None})
 
     # Extract argument contents
     defendant_arguments = [arg.content for arg in case.defendant_arguments]
     plaintiff_arguments = [arg.content for arg in case.plaintiff_arguments]
 
     try:
+        logger.info(f"Generating case analysis via LLM", extra={"case_id": caseId, "defendant_args_count": len(defendant_arguments), "plaintiff_args_count": len(plaintiff_arguments)})
         analysis_result = CaseAnalysisService.analyze_case(
             case_details=case.details,
             title=case.title,
@@ -46,14 +56,16 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
             ai_role=case.ai_role.value if case.ai_role else None
         )
     except Exception as e:
+        logger.error(f"Error generating case analysis", extra={"case_id": caseId, "error": str(e)})
         raise HTTPException(status_code=500, detail=f"Error generating analysis: {str(e)}")
 
     # The analysis result is already a string from CaseAnalysisService
     case.analysis = analysis_result
     try:
         await case.save()
+        logger.info(f"Case analysis saved successfully", extra={"case_id": caseId})
     except Exception as e:
-        print(f"[DEBUG] Error saving analysis: {str(e)}")
+        logger.error(f"Error saving case analysis", extra={"case_id": caseId, "error": str(e)})
         raise HTTPException(status_code=500, detail="Failed to save analysis. Please try again.")
 
     # Return the analysis string directly in the response object

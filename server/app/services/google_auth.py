@@ -11,9 +11,12 @@ from typing import Optional
 from app.config import settings
 from app.models.user import User
 from app.services.auth import create_access_token
+from app.logging_config import get_logger
 import json
 import urllib.request
 import urllib.error
+
+logger = get_logger(__name__)
 
 
 async def verify_google_token(credential: str) -> dict:
@@ -30,13 +33,11 @@ async def verify_google_token(credential: str) -> dict:
         HTTPException if token is invalid
     """
     try:
-        # Debug: Log client ID being used for verification
         client_id = settings.google_client_id
-        print(f"🔐 Google OAuth Debug:")
-        print(f"  Client ID configured: {'✅ ' + client_id[:20] + '...' if client_id else '❌ NOT SET'}")
-        print(f"  Token received: {'✅ ' + credential[:30] + '...' if credential else '❌ Empty'}")
+        logger.debug("Verifying Google ID token", extra={"client_id_set": bool(client_id), "token_received": bool(credential)})
         
         if not client_id:
+            logger.error("GOOGLE_CLIENT_ID environment variable not set")
             raise ValueError("GOOGLE_CLIENT_ID environment variable is not set")
         
         idinfo = id_token.verify_oauth2_token(
@@ -47,13 +48,13 @@ async def verify_google_token(credential: str) -> dict:
         
         # Verify the issuer
         if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+            logger.warning("Invalid issuer in Google token", extra={"issuer": idinfo.get('iss')})
             raise ValueError('Invalid issuer')
         
-        print(f"  Token verified: ✅ Email: {idinfo.get('email', 'N/A')}")
-        print(f"  Picture URL: {idinfo.get('picture', 'N/A')}")
+        logger.info("Google ID token verified successfully", extra={"email": idinfo.get('email')})
         return idinfo
     except ValueError as e:
-        print(f"  Token verification failed: ❌ {str(e)}")
+        logger.warning("Google token verification failed", extra={"error": str(e)})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid Google token: {str(e)}"
@@ -71,9 +72,7 @@ async def verify_google_access_token(access_token: str) -> dict:
         dict with user info (email, name, picture, sub)
     """
     try:
-        # Debug: Log access token being used
-        print(f"🔐 Google OAuth Debug (Access Token):")
-        print(f"  Token received: {'✅ ' + access_token[:20] + '...' if access_token else '❌ Empty'}")
+        logger.debug("Verifying Google Access Token", extra={"token_received": bool(access_token)})
         
         url = "https://www.googleapis.com/oauth2/v3/userinfo"
         req = urllib.request.Request(url, headers={"Authorization": f"Bearer {access_token}"})
@@ -83,14 +82,13 @@ async def verify_google_access_token(access_token: str) -> dict:
                 if response.status != 200:
                     raise ValueError(f"Google API returned {response.status}")
                 data = json.loads(response.read().decode('utf-8'))
-                print(f"  Access Token verified: ✅ Email: {data.get('email', 'N/A')}")
-                print(f"  Picture URL: {data.get('picture', 'N/A')}")
+                logger.info("Google Access Token verified successfully", extra={"email": data.get('email')})
                 return data
         except urllib.error.HTTPError as e:
              raise ValueError(f"HTTP Error {e.code}: {e.reason}")
              
     except Exception as e:
-        print(f"  Access Token verification failed: ❌ {str(e)}")
+        logger.warning("Google Access Token verification failed", extra={"error": str(e)})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid Google access token: {str(e)}"
@@ -111,17 +109,21 @@ async def get_or_create_google_user(google_info: dict) -> tuple[User, bool]:
     google_id = google_info.get('sub')
     is_new_user = False
     
+    logger.debug("Looking up user by Google ID", extra={"google_id": google_id})
+    
     # First, try to find user by google_id
     user = await User.find_one(User.google_id == google_id)
     
     if not user:
         # Try to find by email (existing user signing in with Google)
+        logger.debug("User not found by Google ID, checking by email", extra={"email": email})
         user = await User.find_one(User.email == email)
         
         if user:
             # Link Google account to existing user
             user.google_id = google_id
             await user.save()
+            logger.info("Linked Google account to existing user", extra={"user_id": str(user.id), "email": email})
         else:
             # Create new user from Google profile
             is_new_user = True
@@ -141,6 +143,9 @@ async def get_or_create_google_user(google_info: dict) -> tuple[User, bool]:
                 google_id=google_id
             )
             await user.insert()
+            logger.info("Created new user from Google profile", extra={"user_id": str(user.id), "email": email})
+    else:
+        logger.debug("Found existing user by Google ID", extra={"user_id": str(user.id)})
     
     return user, is_new_user
 
@@ -162,12 +167,15 @@ async def authenticate_google_user(credential: Optional[str] = None, access_toke
     """
     from datetime import timedelta
     
+    logger.info("Starting Google authentication flow", extra={"has_credential": bool(credential), "has_access_token": bool(access_token), "remember_me": remember_me})
+    
     # Verify the Google token (ID Token or Access Token)
     if credential:
         google_info = await verify_google_token(credential)
     elif access_token:
         google_info = await verify_google_access_token(access_token)
     else:
+        logger.warning("No Google token provided for authentication")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either credential (ID Token) or access_token is required"
@@ -191,11 +199,13 @@ async def authenticate_google_user(credential: Optional[str] = None, access_toke
             if google_picture and not user.profile_photo_url:
                 user.profile_photo_url = google_picture
             await user.save()
+            logger.info("Linked Google account to existing user during auth", extra={"user_id": str(user.id), "email": email})
         else:
             # New user - return Google data for registration form
             full_name = google_info.get('name', '')
             name_parts = full_name.split(' ', 1) if full_name else ['', '']
             
+            logger.info("New user detected, returning Google data for registration", extra={"email": email})
             return {
                 "access_token": None,
                 "token_type": "bearer",
@@ -221,13 +231,15 @@ async def authenticate_google_user(credential: Optional[str] = None, access_toke
         minutes=settings.access_token_expire_minutes
     )
     
-    access_token = create_access_token(
+    jwt_token = create_access_token(
         data={"sub": str(user.email)},
         expires_delta=access_token_expires
     )
     
+    logger.info("Google authentication successful, JWT issued", extra={"user_id": str(user.id), "email": email})
+    
     return {
-        "access_token": access_token,
+        "access_token": jwt_token,
         "token_type": "bearer",
         "is_new_user": False,
         "google_user_data": None

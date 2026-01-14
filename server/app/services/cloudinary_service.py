@@ -4,6 +4,9 @@ import cloudinary
 import cloudinary.uploader
 from app.config import settings
 from typing import Optional, Tuple
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def configure_cloudinary() -> bool:
@@ -16,6 +19,7 @@ def configure_cloudinary() -> bool:
         settings.cloudinary_api_key,
         settings.cloudinary_api_secret
     ]):
+        logger.warning("Cloudinary credentials not fully configured")
         return False
     
     cloudinary.config(
@@ -24,6 +28,7 @@ def configure_cloudinary() -> bool:
         api_secret=settings.cloudinary_api_secret,
         secure=True
     )
+    logger.debug("Cloudinary configured successfully")
     return True
 
 
@@ -42,31 +47,41 @@ async def upload_profile_photo(file_bytes: bytes, user_id: str, existing_public_
     Raises:
         Exception if upload fails
     """
+    logger.info(f"Uploading profile photo", extra={"user_id": user_id, "has_existing": existing_public_id is not None})
+    
     if not configure_cloudinary():
+        logger.error("Cloudinary not configured, cannot upload photo")
         raise Exception("Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.")
     
     # Delete existing photo if provided
     if existing_public_id:
         try:
             cloudinary.uploader.destroy(existing_public_id)
-        except Exception:
+            logger.debug(f"Deleted existing photo", extra={"public_id": existing_public_id})
+        except Exception as e:
             # Ignore deletion errors, proceed with upload
+            logger.warning(f"Failed to delete existing photo, proceeding with upload", extra={"public_id": existing_public_id, "error": str(e)})
             pass
     
     # Upload new photo
-    result = cloudinary.uploader.upload(
-        file_bytes,
-        folder=f"ai-courtroom/profile-photos",
-        public_id=f"user_{user_id}",
-        overwrite=True,
-        resource_type="image",
-        transformation=[
-            {"width": 400, "height": 400, "crop": "fill", "gravity": "face"},
-            {"quality": "auto", "fetch_format": "auto"}
-        ]
-    )
-    
-    return result["secure_url"], result["public_id"]
+    try:
+        result = cloudinary.uploader.upload(
+            file_bytes,
+            folder=f"ai-courtroom/profile-photos",
+            public_id=f"user_{user_id}",
+            overwrite=True,
+            resource_type="image",
+            transformation=[
+                {"width": 400, "height": 400, "crop": "fill", "gravity": "face"},
+                {"quality": "auto", "fetch_format": "auto"}
+            ]
+        )
+        
+        logger.info(f"Profile photo uploaded successfully", extra={"user_id": user_id, "public_id": result["public_id"]})
+        return result["secure_url"], result["public_id"]
+    except Exception as e:
+        logger.error(f"Failed to upload profile photo", extra={"user_id": user_id, "error": str(e)})
+        raise
 
 
 async def delete_profile_photo(public_id: str) -> bool:
@@ -79,13 +94,22 @@ async def delete_profile_photo(public_id: str) -> bool:
     Returns:
         True if deleted successfully, False otherwise
     """
+    logger.info(f"Deleting profile photo", extra={"public_id": public_id})
+    
     if not configure_cloudinary():
+        logger.error("Cloudinary not configured, cannot delete photo")
         raise Exception("Cloudinary is not configured.")
     
     try:
         result = cloudinary.uploader.destroy(public_id)
-        return result.get("result") == "ok"
-    except Exception:
+        success = result.get("result") == "ok"
+        if success:
+            logger.info(f"Profile photo deleted successfully", extra={"public_id": public_id})
+        else:
+            logger.warning(f"Cloudinary deletion returned non-ok result", extra={"public_id": public_id, "result": result})
+        return success
+    except Exception as e:
+        logger.error(f"Failed to delete profile photo", extra={"public_id": public_id, "error": str(e)})
         return False
 
 
@@ -121,6 +145,8 @@ def extract_public_id_from_url(url: str) -> Optional[str]:
         if dot_idx != -1:
             path = path[:dot_idx]
         
+        logger.debug(f"Extracted public_id from URL", extra={"public_id": path})
         return path
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Failed to extract public_id from URL", extra={"url": url, "error": str(e)})
         return None
