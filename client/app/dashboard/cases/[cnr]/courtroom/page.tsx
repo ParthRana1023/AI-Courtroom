@@ -36,6 +36,10 @@ import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import GavelLoader from "@/components/gavel-loader";
+import {
+  useRenderLogger,
+  useLifecycleLogger,
+} from "@/hooks/use-performance-logger";
 
 export default function Courtroom({
   params,
@@ -44,6 +48,10 @@ export default function Courtroom({
 }) {
   // IMPORTANT: use() must be called first to maintain consistent hook order
   const { cnr } = use(params);
+
+  // Performance monitoring
+  useRenderLogger("Courtroom", 50); // Warn if render takes > 50ms (complex component)
+  useLifecycleLogger("Courtroom");
 
   const router = useRouter();
   const searchParams = useSearchParams();

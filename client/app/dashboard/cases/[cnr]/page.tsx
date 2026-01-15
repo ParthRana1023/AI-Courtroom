@@ -7,6 +7,13 @@ import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus, Roles } from "@/types";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ScalesLoader from "@/components/scales-loader";
+import {
+  useRenderLogger,
+  useLifecycleLogger,
+} from "@/hooks/use-performance-logger";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("cases");
 
 export default function CaseDetails({
   params,
@@ -20,24 +27,27 @@ export default function CaseDetails({
 
   const { cnr } = use(params);
 
+  useRenderLogger("CaseDetails", 32);
+  useLifecycleLogger("CaseDetails");
+
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
         // DEV DELAY - Remove in production
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        const data = await caseAPI.getCase(cnr); // Use cnr instead of params.cnr
+        const data = await caseAPI.getCase(cnr);
         setCaseData(data);
       } catch (error) {
         setError("Failed to load case details. Please try again later.");
-        console.error("Error fetching case details:", error);
+        logger.error("Failed to fetch case details", error as Error);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchCaseDetails();
-  }, [cnr]); // Use cnr in dependency array instead of params.cnr
+  }, [cnr]);
 
   const handleRoleSelection = async (role: string) => {
     try {
@@ -53,16 +63,16 @@ export default function CaseDetails({
 
         // Wait 2 seconds before generating the plaintiff opening statement
         setTimeout(async () => {
-          console.log(
-            "Generating plaintiff opening statement for defendant user after delay"
+          logger.info(
+            "Generating plaintiff opening statement for defendant user"
           );
           try {
             await caseAPI.generatePlaintiffOpening(cnr);
-            console.log("Successfully generated plaintiff opening statement");
+            logger.info("Successfully generated plaintiff opening statement");
           } catch (error) {
-            console.error(
-              "Error generating plaintiff opening statement:",
-              error
+            logger.error(
+              "Failed to generate plaintiff opening statement",
+              error as Error
             );
           }
         }, 2000); // 2 second delay
@@ -71,7 +81,7 @@ export default function CaseDetails({
         router.push(`/dashboard/cases/${cnr}/parties?role=${role}`);
       }
     } catch (error) {
-      console.error("Error updating case status or role:", error);
+      logger.error("Failed to update case role", error as Error);
       // Optionally show an error message to the user
       setError("Failed to start case. Please try again.");
     }

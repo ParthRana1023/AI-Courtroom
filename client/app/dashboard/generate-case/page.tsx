@@ -10,8 +10,18 @@ import type { CaseGenerationFormData } from "@/types";
 import { caseGenerationRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
 import { formatSecondsToHMS } from "@/lib/utils";
 import GavelLoader from "@/components/gavel-loader";
+import {
+  useRenderLogger,
+  useLifecycleLogger,
+} from "@/hooks/use-performance-logger";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("cases");
 
 export default function GenerateCase() {
+  useRenderLogger("GenerateCase", 32);
+  useLifecycleLogger("GenerateCase");
+
   const router = useRouter();
   const [formData, setFormData] = useState<CaseGenerationFormData>({
     sections_involved: 1,
@@ -35,14 +45,12 @@ export default function GenerateCase() {
           setTimeRemaining(null);
         }
       } catch (error) {
-        console.error("Failed to fetch rate limit:", error);
+        logger.error("Failed to fetch rate limit", error as Error);
         setErrors({ form: "Failed to load rate limit information." });
       }
     };
 
     fetchRateLimit();
-    // const interval = setInterval(fetchRateLimit, 5000); // Refresh every 5 seconds
-    // return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -62,7 +70,7 @@ export default function GenerateCase() {
                 setTimeRemaining(null);
               }
             } catch (error) {
-              console.error("Failed to fetch rate limit:", error);
+              logger.error("Failed to fetch rate limit", error as Error);
               setErrors({ form: "Failed to load rate limit information." });
             }
           };

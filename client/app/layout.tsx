@@ -10,6 +10,8 @@ import TextSizeProvider from "@/components/text-size-provider";
 import NotificationProvider from "@/components/notification-provider";
 import ConditionalAnalytics from "@/components/conditional-analytics";
 import CookieConsentWrapper from "@/components/cookie-consent-wrapper";
+import { LoggerProvider } from "@/contexts/logger-context";
+import { LoggingErrorBoundary } from "@/components/error-boundary";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -129,7 +131,11 @@ export default function RootLayout({
                   clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
                 >
                   <AuthProvider>
-                    <NotificationProvider>{children}</NotificationProvider>
+                    <LoggerProvider>
+                      <LoggingErrorBoundary>
+                        <NotificationProvider>{children}</NotificationProvider>
+                      </LoggingErrorBoundary>
+                    </LoggerProvider>
                   </AuthProvider>
                 </GoogleOAuthProvider>
               </TextSizeProvider>

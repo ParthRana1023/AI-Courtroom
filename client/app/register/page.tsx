@@ -31,6 +31,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/animate-ui/components/radix/dropdown-menu";
 import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
+import { useLifecycleLogger } from "@/hooks/use-performance-logger";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("auth");
 
 // Country codes for phone numbers
 const countryCodes = [
@@ -47,6 +51,8 @@ const countryCodes = [
 ];
 
 export default function Register() {
+  useLifecycleLogger("Register");
+
   const { register, verifyRegistration, loginWithGoogle } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -94,7 +100,7 @@ export default function Register() {
           setProfilePhotoUrl(googleData.profile_photo_url || null);
           // Don't clear sessionStorage here - keep it until registration completes
         } catch (e) {
-          console.error("Failed to parse Google user data", e);
+          logger.error("Failed to parse Google user data", e as Error);
         }
       }
     }

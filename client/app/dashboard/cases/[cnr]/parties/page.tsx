@@ -24,6 +24,13 @@ import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { formatToLocaleString } from "@/lib/datetime";
 import GavelLoader from "@/components/gavel-loader";
+import {
+  useRenderLogger,
+  useLifecycleLogger,
+} from "@/hooks/use-performance-logger";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("cases");
 
 // Helper function to strip markdown formatting from text (for plain text display)
 const stripMarkdown = (text: string): string => {
@@ -43,6 +50,9 @@ export default function PartiesPage({
 }: {
   params: Promise<{ cnr: string }>;
 }) {
+  useRenderLogger("PartiesPage", 32);
+  useLifecycleLogger("PartiesPage");
+
   const { cnr } = use(params);
   const router = useRouter();
   const { user } = useAuth();
@@ -81,7 +91,7 @@ export default function PartiesPage({
         setCaseStatus(data.case_status || "not_started");
       } catch (error) {
         setError("Failed to load parties. Please try again later.");
-        console.error("Error fetching parties:", error);
+        logger.error("Failed to fetch parties", error as Error);
       } finally {
         setIsLoading(false);
       }
@@ -111,7 +121,7 @@ export default function PartiesPage({
       const history = await partiesAPI.getPartyChatHistory(cnr, person.id);
       setChatMessages(history.messages || []);
     } catch (error) {
-      console.error("Error fetching party details:", error);
+      logger.error("Failed to fetch party details", error as Error);
       setError("Failed to load party details");
     } finally {
       setIsLoadingPerson(false);
@@ -140,7 +150,7 @@ export default function PartiesPage({
       // Auto-focus the input for next message
       setTimeout(() => chatInputRef.current?.focus(), 100);
     } catch (error) {
-      console.error("Error sending message:", error);
+      logger.error("Failed to send message", error as Error);
       setError("Failed to send message. Please try again.");
     } finally {
       setIsSending(false);
@@ -187,7 +197,10 @@ export default function PartiesPage({
                   }
                   router.push(`/dashboard/cases/${cnr}/courtroom`);
                 } catch (error) {
-                  console.error("Error starting courtroom session:", error);
+                  logger.error(
+                    "Failed to start courtroom session",
+                    error as Error
+                  );
                   setError(
                     "Failed to start courtroom session. Please try again."
                   );

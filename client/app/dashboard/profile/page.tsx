@@ -17,8 +17,14 @@ import {
   CheckCircle,
   Clock,
 } from "lucide-react";
+import { useLifecycleLogger } from "@/hooks/use-performance-logger";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("ui");
 
 export default function ProfilePage() {
+  useLifecycleLogger("ProfilePage");
+
   const router = useRouter();
   const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
   const [cases, setCases] = useState<CaseListItem[]>([]);
@@ -62,7 +68,7 @@ export default function ProfilePage() {
           setCases(casesData);
         } catch (error) {
           setError("Failed to load cases. Please try again later.");
-          console.error("Error fetching cases:", error);
+          logger.error("Failed to fetch cases", error as Error);
         } finally {
           setIsLoadingCases(false);
         }

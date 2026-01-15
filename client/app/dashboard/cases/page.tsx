@@ -37,8 +37,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/animate-ui/components/radix/dropdown-menu";
 import { Checkbox } from "@/components/animate-ui/components/radix/checkbox";
+import {
+  useRenderLogger,
+  useLifecycleLogger,
+} from "@/hooks/use-performance-logger";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("cases");
 
 export default function CasesListing() {
+  // Performance monitoring
+  useRenderLogger("CasesListing", 32); // Warn if render takes > 32ms
+  useLifecycleLogger("CasesListing");
+
   const router = useRouter();
   const { skipArchiveConfirmation, skipDeleteConfirmation } = useSettings();
   const [cases, setCases] = useState<Case[]>([]);
@@ -120,14 +131,14 @@ export default function CasesListing() {
               setCases((prev) => [...prev, ...archivedCases]);
               toast.success(`${count} case(s) restored`);
             } catch (error) {
-              console.error("Error restoring cases:", error);
+              logger.error("Failed to restore cases", error as Error);
               toast.error("Failed to restore cases");
             }
           },
         },
       });
     } catch (error) {
-      console.error("Error bulk archiving:", error);
+      logger.error("Bulk archive failed", error as Error);
       toast.error("Failed to archive some cases");
     } finally {
       setDeletingCnr(null);
@@ -166,7 +177,7 @@ export default function CasesListing() {
               setCases((prev) => [...prev, ...deletedCases]);
               toast.success(`${count} case(s) restored`);
             } catch (error) {
-              console.error("Error restoring cases:", error);
+              logger.error("Failed to restore cases", error as Error);
               toast.error("Failed to restore cases");
             }
           },
@@ -181,12 +192,12 @@ export default function CasesListing() {
               await caseAPI.permanentDeleteCase(cnr);
             }
           } catch (error) {
-            console.error("Error permanently deleting cases:", error);
+            logger.error("Permanent delete failed", error as Error);
           }
         }
       }, 5500);
     } catch (error) {
-      console.error("Error bulk deleting:", error);
+      logger.error("Bulk delete failed", error as Error);
       toast.error("Failed to delete some cases");
     } finally {
       setDeletingCnr(null);
@@ -199,14 +210,16 @@ export default function CasesListing() {
         // DEV DELAY - Remove in production
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        console.log("Fetching cases...");
+        logger.debug("Fetching cases...");
         const data = await caseAPI.listCases();
-        console.log("Processed API response:", data);
+        logger.info("Cases loaded", {
+          count: Array.isArray(data) ? data.length : 0,
+        });
 
         // Even if data is an empty array, this is valid
         setCases(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error("Error fetching cases:", error);
+        logger.error("Failed to fetch cases", error as Error);
         setCases([]);
       } finally {
         setIsLoading(false);
@@ -313,14 +326,14 @@ export default function CasesListing() {
               }
               toast.success("Case restored");
             } catch (error) {
-              console.error("Error restoring case:", error);
+              logger.error("Failed to restore case", error as Error);
               toast.error("Failed to restore case");
             }
           },
         },
       });
     } catch (error) {
-      console.error("Error archiving case:", error);
+      logger.error("Failed to archive case", error as Error);
       toast.error("Failed to archive case. Please try again.");
     } finally {
       setDeletingCnr(null);
@@ -336,7 +349,7 @@ export default function CasesListing() {
       // Remove the deleted case from the state
       setCases(cases.filter((caseItem) => caseItem.cnr !== cnr));
     } catch (error) {
-      console.error("Error permanently deleting case:", error);
+      logger.error("Failed to permanently delete case", error as Error);
       alert("Failed to delete case. Please try again.");
     } finally {
       setDeletingCnr(null);

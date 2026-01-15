@@ -15,6 +15,7 @@ import {
   FolderKanban,
 } from "lucide-react";
 import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
+import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 
 const feedbackCategories: { value: FeedbackCategory; label: string }[] = [
   { value: "general", label: "General Feedback" },
@@ -28,6 +29,8 @@ const feedbackCategories: { value: FeedbackCategory; label: string }[] = [
 ];
 
 export default function Contact() {
+  useLifecycleLogger("Contact");
+
   const router = useRouter();
   const [formData, setFormData] = useState<ContactFormData>({
     feedback_category: "general",

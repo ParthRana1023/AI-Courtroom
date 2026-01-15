@@ -6,10 +6,32 @@ import {
   clearAuthTokenCookie,
   COOKIE_NAMES,
 } from "./cookies";
+import { getLogger } from "./logger";
+
+// Initialize logger for API calls
+const logger = getLogger("api");
+
+/**
+ * Helper function to log API errors in a structured way
+ */
+function logApiError(error: unknown, context?: string): void {
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError;
+    logger.error(context || "API request failed", axiosError, {
+      status: axiosError.response?.status,
+      statusText: axiosError.response?.statusText,
+      url: axiosError.config?.url,
+      method: axiosError.config?.method?.toUpperCase(),
+      data: axiosError.response?.data,
+    });
+  } else {
+    logger.error(context || "Unexpected error", error as Error);
+  }
+}
 
 // Create axios instance with base URL from environment variables
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-console.log(`🔧 API Base URL: ${apiBaseUrl}`);
+logger.info("API initialized", { baseUrl: apiBaseUrl });
 
 const api = axios.create({
   baseURL: apiBaseUrl,
@@ -80,24 +102,14 @@ export const authAPI = {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const serverError = error;
-        if (serverError.response) {
-          if (serverError.response.status === 429) {
-            throw new Error(
-              serverError.response.data.detail ||
-                "Too many case generation requests. Please try again later."
-            );
-          }
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
+        if (serverError.response?.status === 429) {
+          throw new Error(
+            serverError.response.data.detail ||
+              "Too many case generation requests. Please try again later."
+          );
         }
-      } else {
-        console.error("Unexpected error:", error);
       }
+      logApiError(error, "Registration initiation failed");
       throw error;
     }
   },
@@ -110,20 +122,7 @@ export const authAPI = {
       }
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Registration verification failed");
       throw error;
     }
   },
@@ -131,31 +130,16 @@ export const authAPI = {
   login: async (loginData: any) => {
     try {
       const response = await api.post("/auth/login/initiate", loginData);
-      // Remove the immediate call to verifyLogin
-      // await authAPI.verifyLogin({ ...response.data, remember_me: remember });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Login initiation failed");
       throw error;
     }
   },
 
   verifyLogin: async (data: any) => {
     try {
-      console.log("Data received by authAPI.verifyLogin:", data);
+      logger.debug("Verifying login");
       const response = await api.post("/auth/login/verify", data);
       if (response.data.access_token) {
         // Set token in both localStorage and cookie
@@ -163,20 +147,7 @@ export const authAPI = {
       }
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Login verification failed");
       throw error;
     }
   },
@@ -186,20 +157,7 @@ export const authAPI = {
       const response = await api.get("/auth/profile");
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to get profile");
       throw error;
     }
   },
@@ -240,13 +198,7 @@ export const authAPI = {
       }
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-        }
-      }
+      logApiError(error, "Google login failed");
       throw error;
     }
   },
@@ -257,7 +209,7 @@ export const authAPI = {
       const response = await api.get("/auth/oauth/state");
       return response.data.state;
     } catch (error) {
-      console.error("Failed to get OAuth state:", error);
+      logApiError(error, "Failed to get OAuth state");
       throw error;
     }
   },
@@ -289,16 +241,12 @@ export const authAPI = {
           "Content-Type": "multipart/form-data",
         },
       });
+      logger.info("Profile photo uploaded");
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          throw new Error(
-            serverError.response.data.detail || "Failed to upload photo"
-          );
-        }
+      logApiError(error, "Failed to upload profile photo");
+      if (axios.isAxiosError(error) && error.response) {
+        throw new Error(error.response.data.detail || "Failed to upload photo");
       }
       throw error;
     }
@@ -308,16 +256,12 @@ export const authAPI = {
   deleteProfilePhoto: async () => {
     try {
       const response = await api.delete("/auth/profile/photo");
+      logger.info("Profile photo deleted");
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          throw new Error(
-            serverError.response.data.detail || "Failed to delete photo"
-          );
-        }
+      logApiError(error, "Failed to delete profile photo");
+      if (axios.isAxiosError(error) && error.response) {
+        throw new Error(error.response.data.detail || "Failed to delete photo");
       }
       throw error;
     }
@@ -338,16 +282,14 @@ export const authAPI = {
   }) => {
     try {
       const response = await api.put("/auth/profile", data);
+      logger.info("Profile updated");
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          throw new Error(
-            serverError.response.data.detail || "Failed to update profile"
-          );
-        }
+      logApiError(error, "Failed to update profile");
+      if (axios.isAxiosError(error) && error.response) {
+        throw new Error(
+          error.response.data.detail || "Failed to update profile"
+        );
       }
       throw error;
     }
@@ -358,24 +300,26 @@ export const authAPI = {
 export const caseAPI = {
   listCases: async () => {
     try {
-      // Use the configured api instance instead of axios directly
       const response = await api.get("/cases");
-      console.log("API response status:", response.status);
-      console.log("API response data:", response.data);
+      logger.debug("Cases fetched", {
+        count: Array.isArray(response.data)
+          ? response.data.length
+          : response.data?.cases?.length,
+      });
 
       // Make sure we're returning the actual array of cases
-      // The backend might be wrapping the cases in an object
       if (response.data && response.data.cases) {
         return response.data.cases;
       } else if (Array.isArray(response.data)) {
         return response.data;
       } else {
-        console.error("Unexpected API response format:", response.data);
-        return []; // Return empty array instead of undefined
+        logger.warn("Unexpected API response format in listCases", {
+          data: response.data,
+        });
+        return [];
       }
     } catch (error) {
-      console.error("Error in listCases API call:", error);
-      // Re-throw the error so it can be caught by the component
+      logApiError(error, "Failed to list cases");
       throw error;
     }
   },
@@ -385,20 +329,7 @@ export const caseAPI = {
       const response = await api.get(`/cases/${cnr}`);
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to get case");
       throw error;
     }
   },
@@ -408,43 +339,19 @@ export const caseAPI = {
       const response = await api.get(`/cases/${caseId}/history`);
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to get case history");
       throw error;
     }
   },
 
   analyzeCase: async (caseId: string) => {
     try {
+      logger.info("Analyzing case", { caseId });
       const response = await api.post(`/cases/${caseId}/analyze-case`);
+      logger.info("Case analysis complete", { caseId });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to analyze case");
       throw error;
     }
   },
@@ -452,22 +359,10 @@ export const caseAPI = {
   updateCaseStatus: async (cnr: string, status: string) => {
     try {
       const response = await api.put(`/cases/${cnr}/status`, { status });
+      logger.info("Case status updated", { cnr, status });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to update case status");
       throw error;
     }
   },
@@ -478,70 +373,35 @@ export const caseAPI = {
         user_role,
         ai_role,
       });
+      logger.info("Case roles updated", { cnr, user_role, ai_role });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to update case roles");
       throw error;
     }
   },
 
   generatePlaintiffOpening: async (cnr: string) => {
     try {
+      logger.info("Generating plaintiff opening", { cnr });
       const response = await api.post(
         `/cases/${cnr}/generate-plaintiff-opening`
       );
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to generate plaintiff opening");
       throw error;
     }
   },
 
   generateCase: async (caseData: any) => {
     try {
+      logger.info("Generating new case");
       const response = await api.post("/cases/generate", caseData);
+      logger.info("Case generated successfully");
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to generate case");
       throw error;
     }
   },
@@ -549,22 +409,10 @@ export const caseAPI = {
   deleteCase: async (cnr: string) => {
     try {
       const response = await api.delete(`/cases/${cnr}`);
+      logger.info("Case deleted", { cnr });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to delete case");
       throw error;
     }
   },
@@ -574,7 +422,7 @@ export const caseAPI = {
       const response = await api.get("/cases/deleted/list");
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.error("Error in listDeletedCases API call:", error);
+      logApiError(error, "Failed to list deleted cases");
       throw error;
     }
   },
@@ -582,15 +430,10 @@ export const caseAPI = {
   restoreCase: async (cnr: string) => {
     try {
       const response = await api.post(`/cases/${cnr}/restore`);
+      logger.info("Case restored", { cnr });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-        }
-      }
+      logApiError(error, "Failed to restore case");
       throw error;
     }
   },
@@ -598,15 +441,10 @@ export const caseAPI = {
   permanentDeleteCase: async (cnr: string) => {
     try {
       const response = await api.delete(`/cases/${cnr}/permanent`);
+      logger.info("Case permanently deleted", { cnr });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-        }
-      }
+      logApiError(error, "Failed to permanently delete case");
       throw error;
     }
   },
@@ -620,31 +458,19 @@ export const argumentAPI = {
     argument: string
   ) => {
     try {
-      console.log(
-        `Submitting argument for case ${caseCnr} as ${role}:`,
-        argument.substring(0, 100) + "..."
-      );
+      logger.debug("Submitting argument", {
+        caseCnr,
+        role,
+        argumentLength: argument.length,
+      });
       const response = await api.post(`/cases/${caseCnr}/arguments`, {
         role,
         argument,
       });
-      console.log(`Argument submission response:`, response.data);
+      logger.info("Argument submitted", { caseCnr, role });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to submit argument");
       throw error;
     }
   },
@@ -655,26 +481,15 @@ export const argumentAPI = {
     statement: string
   ) => {
     try {
+      logger.debug("Submitting closing statement", { caseCnr, role });
       const response = await api.post(`/cases/${caseCnr}/closing-statement`, {
         role,
         statement,
       });
+      logger.info("Closing statement submitted", { caseCnr, role });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-          console.error("API Error Headers:", serverError.response.headers);
-        } else if (serverError.request) {
-          console.error("API Error: No response received", serverError.request);
-        } else {
-          console.error("API Error:", serverError.message);
-        }
-      } else {
-        console.error("Unexpected error:", error);
-      }
+      logApiError(error, "Failed to submit closing statement");
       throw error;
     }
   },
@@ -716,33 +531,6 @@ export const analyzeCase = async (
   return response.data;
 };
 
-// export const submitArgument = async (
-//   caseId: string,
-//   role: string,
-//   argument: string
-// ) => {
-//   // Error handling helper
-//   function handleApiError(error: any) {
-//     if (axios.isAxiosError(error)) {
-//       const serverError = error as AxiosError;
-//       if (serverError && serverError.response) {
-//         console.error("API Error:", serverError.response.data);
-//         console.error("API Error Status:", serverError.response.status);
-//         console.error("API Error Headers:", serverError.response.headers);
-//         console.error("API Error Config:", serverError.config);
-//       } else if (serverError.request) {
-//         // The request was made but no response was received
-//         console.error("API Error: No response received", serverError.request);
-//       } else {
-//         // Something happened in setting up the request that triggered an Error
-//         console.error("API Error:", serverError.message);
-//       }
-//     } else {
-//       console.error("Unexpected error:", error);
-//     }
-//   }
-// };
-
 // Parties API calls
 export const partiesAPI = {
   getParties: async (cnr: string) => {
@@ -750,13 +538,7 @@ export const partiesAPI = {
       const response = await api.get(`/cases/${cnr}/parties`);
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-        }
-      }
+      logApiError(error, "Failed to get parties");
       throw error;
     }
   },
@@ -766,31 +548,20 @@ export const partiesAPI = {
       const response = await api.get(`/cases/${cnr}/parties/${partyId}`);
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-        }
-      }
+      logApiError(error, "Failed to get party details");
       throw error;
     }
   },
 
   chatWithParty: async (cnr: string, partyId: string, message: string) => {
     try {
+      logger.debug("Chatting with party", { cnr, partyId });
       const response = await api.post(`/cases/${cnr}/parties/${partyId}/chat`, {
         message,
       });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-        }
-      }
+      logApiError(error, "Failed to chat with party");
       throw error;
     }
   },
@@ -802,13 +573,7 @@ export const partiesAPI = {
       );
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const serverError = error;
-        if (serverError.response) {
-          console.error("API Error:", serverError.response.data);
-          console.error("API Error Status:", serverError.response.status);
-        }
-      }
+      logApiError(error, "Failed to get party chat history");
       throw error;
     }
   },
@@ -824,9 +589,7 @@ export const locationAPI = {
       });
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error("Location search error:", error.response?.data);
-      }
+      logApiError(error, "Location search failed");
       throw error;
     }
   },
@@ -837,9 +600,7 @@ export const locationAPI = {
       const response = await api.get("/location/countries");
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error("Get countries error:", error.response?.data);
-      }
+      logApiError(error, "Failed to get countries");
       throw error;
     }
   },
@@ -850,9 +611,7 @@ export const locationAPI = {
       const response = await api.get(`/location/states/${countryIso2}`);
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error("Get states error:", error.response?.data);
-      }
+      logApiError(error, "Failed to get states");
       throw error;
     }
   },
@@ -865,9 +624,7 @@ export const locationAPI = {
       );
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error("Get cities error:", error.response?.data);
-      }
+      logApiError(error, "Failed to get cities");
       throw error;
     }
   },
@@ -878,9 +635,7 @@ export const locationAPI = {
       const response = await api.get(`/location/phone-code/${countryIso2}`);
       return response.data.phone_code;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error("Get phone code error:", error.response?.data);
-      }
+      logApiError(error, "Failed to get phone code");
       throw error;
     }
   },
@@ -891,9 +646,7 @@ export const locationAPI = {
       const response = await api.get("/location/indian-states");
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error("Get Indian states error:", error.response?.data);
-      }
+      logApiError(error, "Failed to get Indian states");
       throw error;
     }
   },
@@ -908,13 +661,11 @@ export const locationAPI = {
         "/auth/profile/case-location-preference",
         data
       );
+      logger.info("Case location preference updated");
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error(
-          "Update case location preference error:",
-          error.response?.data
-        );
+      logApiError(error, "Failed to update case location preference");
+      if (axios.isAxiosError(error) && error.response) {
         throw new Error(
           error.response?.data?.detail || "Failed to update preference"
         );

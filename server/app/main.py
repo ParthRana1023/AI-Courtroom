@@ -7,7 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.database import init_db
 from app.config import settings, log_environment_status
-from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis, parties, location
+from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis, parties, location, client_logs
 from app.services.location_service import preload_cache as preload_location_cache
 from app.logging_config import setup_logging, get_logger, generate_request_id, set_request_id, get_request_id
 from beanie.odm.fields import PydanticObjectId
@@ -156,6 +156,7 @@ app.include_router(rate_limit.router, prefix="/limit")
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
 app.include_router(location.router)
+app.include_router(client_logs.router)
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=settings.port, reload=True)

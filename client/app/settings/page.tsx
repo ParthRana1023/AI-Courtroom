@@ -38,6 +38,10 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/animate-ui/components/radix/sidebar";
+import { useLifecycleLogger } from "@/hooks/use-performance-logger";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("ui");
 
 // Custom toggle button for sidebar
 function SidebarToggleButton() {
@@ -65,6 +69,8 @@ function SidebarToggleButton() {
 }
 
 export default function SettingsPage() {
+  useLifecycleLogger("SettingsPage");
+
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const {
@@ -154,7 +160,7 @@ export default function SettingsPage() {
         const states = await locationAPI.getIndianStates();
         setIndianStates(states);
       } catch (error) {
-        console.error("Failed to load Indian states:", error);
+        logger.error("Failed to load Indian states", error as Error);
       } finally {
         setIsLoadingStates(false);
       }
@@ -171,7 +177,7 @@ export default function SettingsPage() {
           setOriginalPreferredCaseState(profile.preferred_case_state);
         }
       } catch (error) {
-        console.error("Failed to load user preferences:", error);
+        logger.error("Failed to load user preferences", error as Error);
       }
     };
 
@@ -199,7 +205,7 @@ export default function SettingsPage() {
         setOriginalCaseLocationPreference(caseLocationPreference);
         setOriginalPreferredCaseState(preferredCaseState);
       } catch (error) {
-        console.error("Failed to save case location preference:", error);
+        logger.error("Failed to save case location preference", error as Error);
       }
     }
 

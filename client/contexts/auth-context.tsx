@@ -9,8 +9,12 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { authAPI } from "@/lib/api";
+import { getLogger, Logger } from "@/lib/logger";
 
 import { User } from "@/types";
+
+// Initialize logger for auth context
+const logger = getLogger("auth");
 
 // Update the AuthContextType interface to include the redirectPath parameter
 interface AuthContextType {
@@ -57,9 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userData = await authAPI.getProfile();
           setUser(userData);
           setIsAuthenticated(true);
+          // Set user ID for logging
+          Logger.setUserId(userData.id);
+          logger.info("User session restored", { userId: userData.id });
         }
       } catch (error) {
         // If error, clear auth state
+        logger.debug("Auth check failed, clearing state");
         if (typeof window !== "undefined") {
           localStorage.removeItem("token");
           document.cookie =
@@ -97,14 +105,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     rememberMe: boolean
   ) => {
+    logger.info("Login initiated");
     try {
       const response = await authAPI.login({
         email,
         password,
         remember_me: rememberMe,
       });
+      logger.debug("Login credentials accepted, OTP sent");
       return response;
     } catch (error) {
+      logger.error("Login failed", error as Error);
       throw error;
     }
   };
@@ -121,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         otp,
         remember_me: rememberMe,
       };
-      console.log("Sending data to authAPI.verifyLogin:", dataToSend);
+      logger.debug("Verifying login OTP");
       const response = await authAPI.verifyLogin(dataToSend);
       const userData = await authAPI.getProfile();
 
@@ -129,9 +140,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
       setIsAuthenticated(true);
 
+      // Set user ID for logging
+      Logger.setUserId(userData.id);
+      logger.info("Login successful", { userId: userData.id });
+
       router.push(redirectPath);
       return response;
     } catch (error) {
+      logger.error("Login verification failed", error as Error);
       throw error;
     }
   };
@@ -189,6 +205,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    logger.info("User logged out");
+    Logger.setUserId(undefined);
     authAPI.logout();
     setUser(null);
     setIsAuthenticated(false);
@@ -203,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     rememberMe: boolean = false
   ) => {
+    logger.info("Google login initiated");
     try {
       const response = await authAPI.googleLogin({
         ...authData,
@@ -212,7 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // If this is a new Google user, redirect to register page with pre-filled data
       if (response.is_new_user && response.google_user_data) {
         // Store Google data in sessionStorage for register page
-        console.log("Google user data received:", response.google_user_data);
+        logger.debug("New Google user, redirecting to registration");
         if (typeof window !== "undefined") {
           sessionStorage.setItem(
             "googleUserData",
@@ -227,8 +246,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = await authAPI.getProfile();
       setUser(userData);
       setIsAuthenticated(true);
+
+      // Set user ID for logging
+      Logger.setUserId(userData.id);
+      logger.info("Google login successful", { userId: userData.id });
+
       router.push("/dashboard/cases");
     } catch (error) {
+      logger.error("Google login failed", error as Error);
       throw error;
     }
   };
@@ -239,9 +264,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authAPI.isAuthenticated()) {
         const userData = await authAPI.getProfile();
         setUser(userData);
+        logger.debug("User data refreshed");
       }
     } catch (error) {
-      console.error("Failed to refresh user data:", error);
+      logger.error("Failed to refresh user data", error as Error);
     }
   };
 

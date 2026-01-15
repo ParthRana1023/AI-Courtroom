@@ -18,6 +18,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import ScalesLoader from "@/components/scales-loader";
+import { useLifecycleLogger } from "@/hooks/use-performance-logger";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("cases");
 
 interface DeletedCase {
   id: string;
@@ -29,6 +33,8 @@ interface DeletedCase {
 }
 
 export default function RecycleBin() {
+  useLifecycleLogger("RecycleBin");
+
   const router = useRouter();
   const [deletedCases, setDeletedCases] = useState<DeletedCase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +50,7 @@ export default function RecycleBin() {
       const data = await caseAPI.listDeletedCases();
       setDeletedCases(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching deleted cases:", error);
+      logger.error("Failed to fetch deleted cases", error as Error);
       setError("Failed to load archived cases. Please try again.");
     } finally {
       setIsLoading(false);
@@ -58,7 +64,7 @@ export default function RecycleBin() {
       setDeletedCases(deletedCases.filter((caseItem) => caseItem.cnr !== cnr));
       toast.success("Case restored");
     } catch (error) {
-      console.error("Error restoring case:", error);
+      logger.error("Failed to restore case", error as Error);
       toast.error("Failed to restore case. Please try again.");
     } finally {
       setProcessingCnr(null);
@@ -72,7 +78,7 @@ export default function RecycleBin() {
       setDeletedCases(deletedCases.filter((caseItem) => caseItem.cnr !== cnr));
       toast.success("Case permanently deleted");
     } catch (error) {
-      console.error("Error permanently deleting case:", error);
+      logger.error("Failed to permanently delete case", error as Error);
       toast.error("Failed to delete case. Please try again.");
     } finally {
       setProcessingCnr(null);
@@ -88,7 +94,7 @@ export default function RecycleBin() {
       toast.success(`${deletedCases.length} case(s) permanently deleted`);
       setDeletedCases([]);
     } catch (error) {
-      console.error("Error emptying archived cases:", error);
+      logger.error("Failed to empty archived cases", error as Error);
       toast.error("Failed to delete all cases. Please try again.");
       // Refresh to get updated list
       fetchDeletedCases();

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/auth-context";
+import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 
 // Dynamic imports for heavy animation components (reduces initial bundle)
 const StaggeredMenu = dynamic(() => import("@/components/staggered-menu"), {
@@ -43,6 +44,8 @@ const publicLowerItems = [
 ];
 
 export default function Home() {
+  useLifecycleLogger("Home");
+
   const { isAuthenticated } = useAuth();
 
   return (

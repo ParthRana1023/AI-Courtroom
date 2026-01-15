@@ -14,8 +14,11 @@ import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
 import GoogleSignInButton from "@/components/google-signin-button";
 import { Checkbox } from "@/components/animate-ui/components/radix/checkbox";
 import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
+import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 
 export default function Login() {
+  useLifecycleLogger("Login");
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/dashboard/cases";
