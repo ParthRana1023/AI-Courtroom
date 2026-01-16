@@ -7,13 +7,14 @@ from datetime import datetime
 from typing import Optional
 from beanie import Document
 from pydantic import Field
+from app.utils.datetime import get_current_datetime
 
 
 class ClientLog(Document):
     """Client-side log entry stored in MongoDB."""
     
     # Log metadata
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=get_current_datetime)
     level: str  # "debug", "info", "warn", "error"
     category: str  # "api", "auth", "courtroom", etc.
     message: str

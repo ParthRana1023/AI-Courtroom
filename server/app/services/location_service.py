@@ -9,6 +9,7 @@ from datetime import datetime
 from app.config import settings
 from app.models.location_cache import LocationCache
 from app.logging_config import get_logger
+from app.utils.datetime import get_current_datetime
 
 logger = get_logger(__name__)
 
@@ -36,7 +37,7 @@ async def _should_refresh_cache() -> bool:
     - No cache document exists for the current month
     """
     try:
-        current_month = datetime.now().strftime("%Y-%m")
+        current_month = get_current_datetime().strftime("%Y-%m")
         logger.debug(f"Checking if location cache needs refresh", extra={"month": current_month})
         
         # Check if we have a cache for the current month
@@ -94,14 +95,14 @@ async def _save_cache_to_db():
     global _countries_cache, _states_cache, _cities_cache, _all_locations_cache
     
     try:
-        current_month = datetime.now().strftime("%Y-%m")
+        current_month = get_current_datetime().strftime("%Y-%m")
         
         # Check if document for current month already exists
         existing_doc = await LocationCache.find_one(LocationCache.cached_month == current_month)
         
         if existing_doc:
             # Update existing document for current month
-            existing_doc.cached_at = datetime.now()
+            existing_doc.cached_at = get_current_datetime()
             existing_doc.countries = _countries_cache or []
             existing_doc.states = _states_cache or {}
             existing_doc.cities = _cities_cache or {}
@@ -113,7 +114,7 @@ async def _save_cache_to_db():
             cache_doc = LocationCache(
                 cache_key=CACHE_KEY,
                 cached_month=current_month,
-                cached_at=datetime.now(),
+                cached_at=get_current_datetime(),
                 countries=_countries_cache or [],
                 states=_states_cache or {},
                 cities=_cities_cache or {},

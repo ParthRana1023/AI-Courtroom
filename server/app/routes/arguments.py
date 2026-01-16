@@ -3,8 +3,8 @@ import time
 from fastapi import APIRouter, Body, Depends, HTTPException
 from app.models.case import Case, CaseStatus
 from app.dependencies import get_current_user
-from app.services.llm.lawyer import generate_counter_argument, opening_statement, closing_statement
-from app.services.llm.judge import generate_verdict
+from app.services.llm import lawyer
+from app.services.llm import judge
 from app.models.user import User
 from app.utils.rate_limiter import argument_rate_limiter
 from app.utils.datetime import get_current_datetime
@@ -53,6 +53,11 @@ async def submit_argument(
             detail=f"Cannot submit as {role}. Your assigned role in this case is {case.user_role.value}"
         )
         
+    # Check if case is resolved
+    if case.status == CaseStatus.RESOLVED:
+        logger.warning(f"Attempt to submit argument to resolved case {case_cnr}")
+        raise HTTPException(status_code=400, detail="Cannot submit arguments to a resolved case")
+
     logger.debug(f"Current arguments: Plaintiff={len(case.plaintiff_arguments)}, Defendant={len(case.defendant_arguments)}")
 
     # Check if this is the first argument submission
@@ -63,7 +68,7 @@ async def submit_argument(
             logger.info(f"User is defendant - generating AI plaintiff opening for case {case_cnr}")
             start_time = time.perf_counter()
             
-            plaintiff_opening_statement = await opening_statement("plaintiff", case.details, "defendant")
+            plaintiff_opening_statement = await lawyer.opening_statement("plaintiff", case.details, "defendant")
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Plaintiff opening statement generated in {duration_ms:.2f}ms")
             
@@ -89,7 +94,7 @@ async def submit_argument(
             
             # AI (as plaintiff) generates a counter-argument
             start_time = time.perf_counter()
-            ai_plaintiff_counter = await generate_counter_argument(history, argument, "plaintiff", case.user_role.value, case.details)
+            ai_plaintiff_counter = await lawyer.generate_counter_argument(history, argument, "plaintiff", case.user_role.value, case.details)
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Plaintiff counter-argument generated in {duration_ms:.2f}ms")
             
@@ -133,7 +138,7 @@ async def submit_argument(
             
             # Generate defendant's opening statement
             start_time = time.perf_counter()
-            defendant_opening_statement = await opening_statement("defendant", case.details, "plaintiff")
+            defendant_opening_statement = await lawyer.opening_statement("defendant", case.details, "plaintiff")
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Defendant opening statement generated in {duration_ms:.2f}ms")
             
@@ -252,7 +257,7 @@ async def submit_argument(
         
         # Generate AI's closing statement
         start_time = time.perf_counter()
-        counter = await closing_statement(history, ai_role, case.user_role.value)
+        counter = await lawyer.closing_statement(history, ai_role, case.user_role.value)
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"AI closing statement generated in {duration_ms:.2f}ms")
         
@@ -273,12 +278,12 @@ async def submit_argument(
                 timestamp=get_current_datetime()
             ))
         
-        case.status = CaseStatus.CLOSED
+        case.status = CaseStatus.RESOLVED
     else:
         # Generate counter-argument
         start_time = time.perf_counter()
         try:
-            counter = await generate_counter_argument(history, argument, ai_role, case.user_role.value, case.details)
+            counter = await lawyer.generate_counter_argument(history, argument, ai_role, case.user_role.value, case.details)
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Counter-argument generated for case {case_cnr} in {duration_ms:.2f}ms")
             
@@ -450,7 +455,7 @@ async def submit_closing_statement(
     # Generate AI's closing statement
     start_time = time.perf_counter()
     try:
-        ai_closing = await closing_statement(history, ai_role, case.user_role.value)
+        ai_closing = await lawyer.closing_statement(history, ai_role, case.user_role.value)
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"AI closing statement generated for case {case_cnr} in {duration_ms:.2f}ms")
     except Exception as e:
@@ -510,7 +515,7 @@ async def submit_closing_statement(
     # Generate verdict
     start_time = time.perf_counter()
     try:
-        case.verdict = await generate_verdict(
+        case.verdict = await judge.generate_verdict(
             plaintiff_arguments=plaintiff_side_args,
             defendant_arguments=defendant_side_args,
             case_details=case.details,

@@ -1,5 +1,5 @@
 # app/schemas/user.py
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator
 from datetime import date
 from typing import Optional, Literal
 
@@ -87,11 +87,10 @@ class CaseLocationPreferenceUpdate(BaseModel):
     case_location_preference: CaseLocationPreference
     preferred_case_state: Optional[str] = None  # Required when preference is "specific_state"
     
-    @field_validator('preferred_case_state')
-    def validate_preferred_state(cls, value, info):
-        # If preference is specific_state, preferred_case_state must be set
-        preference = info.data.get('case_location_preference')
-        if preference == 'specific_state' and not value:
+    @model_validator(mode='after')
+    def validate_preferred_state(self):
+        """Validate that preferred_case_state is provided when preference is 'specific_state'."""
+        if self.case_location_preference == 'specific_state' and not self.preferred_case_state:
             raise ValueError("preferred_case_state is required when preference is 'specific_state'")
-        return value
+        return self
 

@@ -84,10 +84,10 @@ class JsonFormatter(logging.Formatter):
     
     def format(self, record: logging.LogRecord) -> str:
         import json
-        from datetime import datetime
+        from app.utils.datetime import get_current_datetime
         
         log_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": get_current_datetime().isoformat(),
             "level": record.levelname,
             "request_id": getattr(record, 'request_id', '-'),
             "logger": record.name,

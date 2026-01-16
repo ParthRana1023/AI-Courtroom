@@ -112,6 +112,13 @@ async def update_case_status(
     if new_status not in [e.value for e in CaseStatus]:
          raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
 
+    # Ensure role is selected before activating
+    if new_status == CaseStatus.ACTIVE.value and (not case.user_role or case.user_role == Roles.NOT_STARTED):
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot activate case without selecting a role first"
+        )
+
     # When transitioning to ACTIVE, record current user argument count
     # This is used to ensure user submits at least 2 more arguments before ending session
     if new_status == CaseStatus.ACTIVE.value:

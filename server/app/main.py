@@ -1,6 +1,5 @@
 # app/main.py
 from contextlib import asynccontextmanager
-from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -10,6 +9,7 @@ from app.config import settings, log_environment_status
 from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis, parties, location, client_logs
 from app.services.location_service import preload_cache as preload_location_cache
 from app.logging_config import setup_logging, get_logger, generate_request_id, set_request_id, get_request_id
+from app.utils.datetime import get_current_datetime
 from beanie.odm.fields import PydanticObjectId
 import json
 import time
@@ -143,7 +143,7 @@ async def health_check():
     return {
         "status": "healthy",
         "uptime_seconds": round(time.time() - SERVICE_START_TIME, 2),
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": get_current_datetime().isoformat(),
         "service": "AI Courtroom API",
         "request_id": get_request_id()
     }

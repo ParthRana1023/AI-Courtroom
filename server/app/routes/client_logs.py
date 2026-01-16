@@ -10,6 +10,7 @@ from datetime import datetime
 from app.models.client_log import ClientLog
 from app.schemas.client_log import ClientLogEntry, ClientLogBatch
 from app.logging_config import get_logger
+from app.utils.datetime import get_current_datetime
 
 router = APIRouter(prefix="/logs", tags=["Client Logs"])
 logger = get_logger(__name__)
@@ -62,7 +63,7 @@ async def process_client_logs(logs: List[ClientLogEntry]):
                 timestamp_str = entry.timestamp.replace("Z", "+00:00")
                 timestamp = datetime.fromisoformat(timestamp_str)
             except ValueError:
-                timestamp = datetime.utcnow()
+                timestamp = get_current_datetime()
             
             # Store in MongoDB
             client_log = ClientLog(
@@ -96,7 +97,7 @@ async def get_client_log_stats():
         # Count logs by level in the last 24 hours
         from datetime import timedelta
         
-        since = datetime.utcnow() - timedelta(hours=24)
+        since = get_current_datetime() - timedelta(hours=24)
         
         pipeline = [
             {"$match": {"timestamp": {"$gte": since}}},

@@ -27,12 +27,14 @@ __pycache__/
 # Testing Folder
 tests/
 
+htmlcov/
+
+.coverage
+
 # Environment files - will match .env in any directory
 **/.env
 
-# **/pytest.ini
-
-server/bnss_embedding/
+**/pytest.ini
 
 oauth_details/
 
