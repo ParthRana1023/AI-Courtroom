@@ -27,3 +27,16 @@ yarn-error.log*
 next-env.d.ts
 
 public/googlecfd061ea0c9357aa.html
+
+# testing
+/coverage
+/playwright-report
+/test-results
+*.test.output.txt
+jest_output*.txt
+/__tests__
+/e2e
+/mocks
+jest.config.ts
+jest.setup.ts
+playwright.config.ts
