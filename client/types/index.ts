@@ -57,6 +57,28 @@ export enum CaseStatus {
   RESOLVED = "resolved",
 }
 
+export enum CourtroomProceedingsEventType {
+  OPENING_STATEMENT = "opening_statement",
+  ARGUMENT = "argument",
+  AI_ARGUMENT = "ai_argument",
+  WITNESS_CALLED = "witness_called",
+  WITNESS_DISMISSED = "witness_dismissed",
+  WITNESS_EXAMINED_Q = "witness_examined_q",
+  WITNESS_EXAMINED_A = "witness_examined_a",
+  SYSTEM_MESSAGE = "system_message",
+}
+
+export interface CourtroomProceedingsEvent {
+  type: CourtroomProceedingsEventType;
+  timestamp: string;
+  content: string;
+  speaker_role?: string;
+  speaker_name?: string;
+  witness_id?: string;
+  question?: string;
+  answer?: string;
+}
+
 export interface CaseListItem {
   id: string;
   cnr: string;
@@ -89,6 +111,9 @@ export interface Case {
   user_role?: Roles; // User's role in the case
   ai_role?: Roles; // AI's role in the case
   session_args_at_start?: number; // User args count when session became ACTIVE
+  courtroom_proceedings?: CourtroomProceedingsEvent[];
+  is_ai_examining?: boolean;
+  current_witness_id?: string;
 }
 
 export interface CaseHistory {
@@ -187,4 +212,69 @@ export interface ChatHistoryResponse {
   person_id: string;
   person_name: string;
   messages: ChatMessage[];
+}
+
+// Witness types
+export interface ExaminationItem {
+  id: string;
+  examiner: string;
+  question: string;
+  answer: string;
+  objection?: string;
+  objection_ruling?: string;
+  timestamp: string;
+}
+
+export interface WitnessTestimony {
+  id: string;
+  witness_id: string;
+  witness_name: string;
+  called_by: string;
+  examination: ExaminationItem[];
+  started_at: string;
+  ended_at?: string;
+}
+
+export interface WitnessInfo {
+  id: string;
+  name: string;
+  role: string;
+  has_testified: boolean;
+}
+
+export interface AvailableWitnessesResponse {
+  witnesses: WitnessInfo[];
+  current_witness_id?: string;
+}
+
+export interface CurrentWitnessResponse {
+  has_witness: boolean;
+  witness_id?: string;
+  witness_name?: string;
+  witness_role?: string;
+  called_by?: string;
+  examination_history: ExaminationItem[];
+  is_ai_examining?: boolean;
+}
+
+export interface WitnessExaminationResponse {
+  witness_id: string;
+  witness_name: string;
+  question: string;
+  answer: string;
+  examination_id: string;
+  timestamp: string;
+  ai_followup?: string;
+}
+
+export interface CallWitnessResponse {
+  success: boolean;
+  witness_id: string;
+  witness_name: string;
+  witness_role: string;
+  message: string;
+}
+
+export interface AllTestimoniesResponse {
+  testimonies: WitnessTestimony[];
 }

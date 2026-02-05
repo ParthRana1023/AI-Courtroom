@@ -15,6 +15,18 @@ class ArgumentOut(BaseModel):
     role: Roles = Roles.NOT_STARTED
     timestamp: Optional[datetime] = None  # Add timestamp field to track when argument was submitted
 
+
+class CourtroomProceedingsEventOut(BaseModel):
+    id: str
+    type: str
+    timestamp: datetime
+    content: Optional[str] = None
+    speaker_role: Optional[str] = None
+    speaker_name: Optional[str] = None
+    witness_id: Optional[str] = None
+    question: Optional[str] = None
+    answer: Optional[str] = None
+
 class CaseOut(BaseModel):
     id: str
     cnr: str
@@ -25,7 +37,10 @@ class CaseOut(BaseModel):
     ai_role: Roles = Roles.NOT_STARTED
     plaintiff_arguments: List[ArgumentOut] = []
     defendant_arguments: List[ArgumentOut] = []
+    courtroom_proceedings: List[CourtroomProceedingsEventOut] = []  # Added field
+    is_ai_examining: bool = False  # Added field
     verdict: Optional[str] = None
     analysis: Optional[str] = None
+    current_witness_id: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

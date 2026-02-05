@@ -65,7 +65,7 @@ export default function PartiesPage({
   const [isInCourtroomSession, setIsInCourtroomSession] = useState(false);
   const [caseStatus, setCaseStatus] = useState<string>("not_started");
   const [selectedPerson, setSelectedPerson] = useState<PersonInvolved | null>(
-    null
+    null,
   );
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -136,7 +136,7 @@ export default function PartiesPage({
       const response = await partiesAPI.chatWithParty(
         cnr,
         selectedPerson.id,
-        newMessage
+        newMessage,
       );
 
       // Add both messages to chat
@@ -199,10 +199,10 @@ export default function PartiesPage({
                 } catch (error) {
                   logger.error(
                     "Failed to start courtroom session",
-                    error as Error
+                    error as Error,
                   );
                   setError(
-                    "Failed to start courtroom session. Please try again."
+                    "Failed to start courtroom session. Please try again.",
                   );
                 }
               }}
@@ -502,20 +502,32 @@ export default function PartiesPage({
                       }`}
                     >
                       <div
-                        className={`max-w-[75%] rounded-lg p-3 ${
+                        className={`max-w-[75%] rounded-lg p-3 border-l-4 ${
                           msg.sender === "user"
-                            ? "bg-blue-500 text-white"
-                            : "bg-gray-200 dark:bg-zinc-700 text-gray-900 dark:text-gray-100"
+                            ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
+                            : "bg-gray-100 dark:bg-zinc-800 border-amber-500"
                         }`}
                       >
-                        <div className="text-xs font-medium mb-1 opacity-80">
+                        <div
+                          className={`text-xs font-medium mb-1 ${
+                            msg.sender === "user"
+                              ? "text-blue-600 dark:text-blue-400"
+                              : "text-amber-600 dark:text-amber-400"
+                          }`}
+                        >
                           {msg.sender === "user"
                             ? "You"
                             : stripMarkdown(selectedPerson?.name || "Person")}
                         </div>
-                        <ChatMarkdownRenderer markdown={msg.content} />
+                        <div
+                          className={`text-gray-900 dark:text-gray-100 ${
+                            msg.sender !== "user" ? "" : ""
+                          }`}
+                        >
+                          <ChatMarkdownRenderer markdown={msg.content} />
+                        </div>
                         {msg.timestamp && (
-                          <div className="text-xs mt-1 opacity-60">
+                          <div className="text-xs mt-1 text-gray-500 dark:text-gray-400">
                             {formatToLocaleString(msg.timestamp)}
                           </div>
                         )}
@@ -553,7 +565,7 @@ export default function PartiesPage({
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
                   placeholder={`Ask ${stripMarkdown(
-                    selectedPerson?.name?.split(" ")[0] || "them"
+                    selectedPerson?.name?.split(" ")[0] || "them",
                   )} about the case...`}
                   className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
                   rows={1}

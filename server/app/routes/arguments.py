@@ -8,7 +8,10 @@ from app.services.llm import judge
 from app.models.user import User
 from app.utils.rate_limiter import argument_rate_limiter
 from app.utils.datetime import get_current_datetime
-from app.models.case import ArgumentItem, Roles
+from app.models.case import (
+    ArgumentItem, Roles, 
+    CourtroomProceedingsEvent, CourtroomProceedingsEventType
+)
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -79,6 +82,14 @@ async def submit_argument(
                 role=Roles.PLAINTIFF,
                 timestamp=get_current_datetime()
             ))
+            
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.OPENING_STATEMENT,
+                content=plaintiff_opening_statement,
+                speaker_role="plaintiff",
+                speaker_name="Plaintiff Lawyer",
+                timestamp=get_current_datetime()
+            ))
 
             # User's submitted argument is recorded as the defendant's opening statement
             case.defendant_arguments.append(ArgumentItem(
@@ -86,6 +97,14 @@ async def submit_argument(
                 content=argument,
                 user_id=current_user.id,
                 role=Roles.DEFENDANT,
+                timestamp=get_current_datetime()
+            ))
+            
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.OPENING_STATEMENT,
+                content=argument,
+                speaker_role="defendant",
+                speaker_name=f"{current_user.first_name} {current_user.last_name}",
                 timestamp=get_current_datetime()
             ))
 
@@ -103,6 +122,14 @@ async def submit_argument(
                 content=ai_plaintiff_counter,
                 user_id=None,
                 role=Roles.PLAINTIFF,
+                timestamp=get_current_datetime()
+            ))
+
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.AI_ARGUMENT,
+                content=ai_plaintiff_counter,
+                speaker_role="plaintiff",
+                speaker_name="Plaintiff Lawyer",
                 timestamp=get_current_datetime()
             ))
 
@@ -135,6 +162,14 @@ async def submit_argument(
                 role=role_enum,
                 timestamp=get_current_datetime()
             ))
+
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.OPENING_STATEMENT,
+                content=argument,
+                speaker_role="plaintiff",
+                speaker_name=f"{current_user.first_name} {current_user.last_name}",
+                timestamp=get_current_datetime()
+            ))
             
             # Generate defendant's opening statement
             start_time = time.perf_counter()
@@ -147,6 +182,14 @@ async def submit_argument(
                 content=defendant_opening_statement,
                 user_id=None,
                 role=Roles.DEFENDANT,
+                timestamp=get_current_datetime()
+            ))
+
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.OPENING_STATEMENT,
+                content=defendant_opening_statement,
+                speaker_role="defendant",
+                speaker_name="Defense Lawyer",
                 timestamp=get_current_datetime()
             ))
             
@@ -202,12 +245,28 @@ async def submit_argument(
                 role=Roles.PLAINTIFF,
                 timestamp=get_current_datetime()
             ))
+
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.ARGUMENT,
+                content=argument,
+                speaker_role="plaintiff",
+                speaker_name=f"{current_user.first_name} {current_user.last_name}",
+                timestamp=get_current_datetime()
+            ))
         else:
             case.defendant_arguments.append(ArgumentItem(
                 type="user",
                 content=argument,
                 user_id=user_id,
                 role=Roles.DEFENDANT,
+                timestamp=get_current_datetime()
+            ))
+            
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.ARGUMENT,
+                content=argument,
+                speaker_role="defendant",
+                speaker_name=f"{current_user.first_name} {current_user.last_name}",
                 timestamp=get_current_datetime()
             ))
 
@@ -246,12 +305,28 @@ async def submit_argument(
                 role=Roles.PLAINTIFF,
                 timestamp=get_current_datetime()
             ))
+
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.ARGUMENT,
+                content=argument,
+                speaker_role="plaintiff",
+                speaker_name=f"{current_user.first_name} {current_user.last_name}",
+                timestamp=get_current_datetime()
+            ))
         else:
             case.defendant_arguments.append(ArgumentItem(
                 type="closing",
                 content=argument,
                 user_id=current_user.id,
                 role=Roles.DEFENDANT,
+                timestamp=get_current_datetime()
+            ))
+
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.ARGUMENT,
+                content=argument,
+                speaker_role="defendant",
+                speaker_name=f"{current_user.first_name} {current_user.last_name}",
                 timestamp=get_current_datetime()
             ))
         
@@ -307,6 +382,14 @@ async def submit_argument(
             role=Roles.DEFENDANT,
             timestamp=get_current_datetime()
         ))
+        
+        case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.OPENING_STATEMENT,
+            content=counter,
+            speaker_role="defendant",
+            speaker_name="Defense Lawyer",
+            timestamp=get_current_datetime()
+        ))
     else:
         if role == "plaintiff":
             case.defendant_arguments.append(ArgumentItem(
@@ -316,12 +399,28 @@ async def submit_argument(
                 role=Roles.DEFENDANT,
                 timestamp=get_current_datetime()
             ))
+
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.AI_ARGUMENT,
+                content=counter,
+                speaker_role="defendant",
+                speaker_name="Defense Lawyer",
+                timestamp=get_current_datetime()
+            ))
         else:
             case.plaintiff_arguments.append(ArgumentItem(
                 type="counter",
                 content=counter,
                 user_id=None,
                 role=Roles.PLAINTIFF,
+                timestamp=get_current_datetime()
+            ))
+            
+            case.courtroom_proceedings.append(CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.AI_ARGUMENT,
+                content=counter,
+                speaker_role="plaintiff",
+                speaker_name="Plaintiff Lawyer",
                 timestamp=get_current_datetime()
             ))
 

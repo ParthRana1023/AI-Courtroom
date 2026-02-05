@@ -6,6 +6,7 @@ from enum import Enum
 from beanie import Document
 from app.utils.datetime import get_current_datetime
 from app.models.party import PartyRole, PartyInvolved, PartyChatMessage
+import uuid
 
 class CaseStatus(str, Enum):
     NOT_STARTED = "not started"
@@ -30,6 +31,55 @@ class ArgumentItem(BaseModel):
     role: Roles = Field(default=Roles.NOT_STARTED)
     timestamp: datetime = Field(default_factory=get_current_datetime)
 
+class CourtroomProceedingsEventType(str, Enum):
+    ARGUMENT = "user_argument"
+    AI_ARGUMENT = "ai_argument"
+    OPENING_STATEMENT = "opening_statement"
+    WITNESS_CALLED = "witness_called"
+    WITNESS_EXAMINED_Q = "witness_examined_q"  # Question
+    WITNESS_EXAMINED_A = "witness_examined_a"  # Answer
+    WITNESS_DISMISSED = "witness_dismissed"
+    SYSTEM_MESSAGE = "system_message"
+
+class CourtroomProceedingsEvent(BaseModel):
+    """A single event in the ordered courtroom proceedings"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    type: CourtroomProceedingsEventType
+    timestamp: datetime = Field(default_factory=get_current_datetime)
+    
+    # Content fields - populated based on type
+    content: Optional[str] = None  # For arguments, messages, etc.
+    speaker_role: Optional[str] = None  # Who performed the action (plaintiff/defendant/judge/witness)
+    speaker_name: Optional[str] = None  # Name of speaker (e.g. Witness Name)
+    
+    # Witness specific fields
+    witness_id: Optional[str] = None
+    question: Optional[str] = None
+    answer: Optional[str] = None
+
+# Witness examination models
+class ExaminationItem(BaseModel):
+    """A single Q&A exchange during witness examination"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    examiner: str  # 'plaintiff', 'defendant', or 'judge'
+    question: str
+    answer: str
+    objection: Optional[str] = None
+    objection_ruling: Optional[str] = None
+    timestamp: datetime = Field(default_factory=get_current_datetime)
+
+
+class WitnessTestimony(BaseModel):
+    """Complete testimony from a witness examination session"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    witness_id: str  # Party ID
+    witness_name: str
+    called_by: str  # 'plaintiff', 'defendant', or 'judge'
+    examination: List[ExaminationItem] = Field(default_factory=list)
+    started_at: datetime = Field(default_factory=get_current_datetime)
+    ended_at: Optional[datetime] = None
+
+
 class Case(Document):
     cnr: str = Field(..., min_length=16, max_length=16)
     details: str
@@ -47,6 +97,18 @@ class Case(Document):
         default_factory=list,
         description="Contains arguments with 'type', 'content', 'user_id', and 'timestamp'"
     )
+    
+    # Unified timeline of events
+    courtroom_proceedings: List[CourtroomProceedingsEvent] = Field(
+        default_factory=list,
+        description="Ordered list of all courtroom events including arguments and witness interactions"
+    )
+    
+    is_ai_examining: bool = Field(
+        default=False,
+        description="Flag indicating if AI is currently running a background cross-examination"
+    )
+
     verdict: Optional[str] = None
     analysis: Optional[str] = Field(default=None)
     # Track user arguments at session start (for per-session end session validation)
@@ -63,6 +125,15 @@ class Case(Document):
     party_chats: dict = Field(
         default_factory=dict,
         description="Chat history per party: {party_id: [PartyChatMessage, ...]}"
+    )
+    # Witness examination fields
+    witness_testimonies: List[WitnessTestimony] = Field(
+        default_factory=list,
+        description="List of witness testimonies given during the case"
+    )
+    current_witness_id: Optional[str] = Field(
+        default=None,
+        description="ID of the witness currently on the stand (None if no active examination)"
     )
     # Soft delete fields
     is_deleted: bool = Field(default=False, description="Whether the case is soft-deleted")

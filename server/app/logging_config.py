@@ -38,10 +38,16 @@ class SensitiveDataFilter(logging.Filter):
         if hasattr(record, 'msg') and isinstance(record.msg, str):
             record.msg = self._mask_sensitive(record.msg)
         if hasattr(record, 'args') and record.args:
-            record.args = tuple(
-                self._mask_sensitive(str(arg)) if isinstance(arg, str) else arg
-                for arg in record.args
-            )
+            # Handle case where args is a dict (logging optimization for single dict arg)
+            if isinstance(record.args, dict):
+                # Skip iteration for dicts to avoid converting keys to tuple args
+                # We could implement recursive masking here if needed, but for now this fixes the crash
+                pass
+            else:
+                record.args = tuple(
+                    self._mask_sensitive(str(arg)) if isinstance(arg, str) else arg
+                    for arg in record.args
+                )
         return True
     
     def _mask_sensitive(self, text: str) -> str:

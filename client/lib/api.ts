@@ -61,7 +61,7 @@ api.interceptors.request.use(
 
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // Add response interceptor to handle common errors
@@ -82,7 +82,7 @@ api.interceptors.response.use(
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 // Helper function to set token in both localStorage and cookie
@@ -105,7 +105,7 @@ export const authAPI = {
         if (serverError.response?.status === 429) {
           throw new Error(
             serverError.response.data.detail ||
-              "Too many case generation requests. Please try again later."
+              "Too many case generation requests. Please try again later.",
           );
         }
       }
@@ -223,7 +223,7 @@ export const authAPI = {
       // Check cookies as fallback
       const cookies = document.cookie.split(";");
       const tokenCookie = cookies.find((cookie) =>
-        cookie.trim().startsWith("token=")
+        cookie.trim().startsWith("token="),
       );
       return !!tokenCookie;
     }
@@ -288,7 +288,7 @@ export const authAPI = {
       logApiError(error, "Failed to update profile");
       if (axios.isAxiosError(error) && error.response) {
         throw new Error(
-          error.response.data.detail || "Failed to update profile"
+          error.response.data.detail || "Failed to update profile",
         );
       }
       throw error;
@@ -385,7 +385,7 @@ export const caseAPI = {
     try {
       logger.info("Generating plaintiff opening", { cnr });
       const response = await api.post(
-        `/cases/${cnr}/generate-plaintiff-opening`
+        `/cases/${cnr}/generate-plaintiff-opening`,
       );
       return response.data;
     } catch (error) {
@@ -455,7 +455,7 @@ export const argumentAPI = {
   submitArgument: async (
     caseCnr: string,
     role: "plaintiff" | "defendant",
-    argument: string
+    argument: string,
   ) => {
     try {
       logger.debug("Submitting argument", {
@@ -478,7 +478,7 @@ export const argumentAPI = {
   submitClosingStatement: async (
     caseCnr: string,
     role: string,
-    statement: string
+    statement: string,
   ) => {
     try {
       logger.debug("Submitting closing statement", { caseCnr, role });
@@ -509,7 +509,7 @@ export const analyzeCase = async (
   defendantArguments: string[],
   details: string,
   title: string,
-  verdict: string
+  verdict: string,
 ) => {
   const response = await api.post(`/cases/${caseId}/analyze`, {
     method: "POST",
@@ -569,11 +569,128 @@ export const partiesAPI = {
   getPartyChatHistory: async (cnr: string, partyId: string) => {
     try {
       const response = await api.get(
-        `/cases/${cnr}/parties/${partyId}/chat-history`
+        `/cases/${cnr}/parties/${partyId}/chat-history`,
       );
       return response.data;
     } catch (error) {
       logApiError(error, "Failed to get party chat history");
+      throw error;
+    }
+  },
+};
+
+// Witness API calls
+export const witnessAPI = {
+  getAvailableWitnesses: async (cnr: string) => {
+    try {
+      const response = await api.get(`/cases/${cnr}/witness/available`);
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to get available witnesses");
+      throw error;
+    }
+  },
+
+  callWitness: async (cnr: string, witnessId: string) => {
+    try {
+      logger.debug("Calling witness", { cnr, witnessId });
+      const response = await api.post(`/cases/${cnr}/witness/call`, {
+        witness_id: witnessId,
+      });
+      logger.info("Witness called", { cnr, witnessId });
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to call witness");
+      throw error;
+    }
+  },
+
+  examineWitness: async (cnr: string, question: string) => {
+    try {
+      logger.debug("Examining witness", { cnr });
+      const response = await api.post(`/cases/${cnr}/witness/examine`, {
+        question,
+      });
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to examine witness");
+      throw error;
+    }
+  },
+
+  aiExamineWitness: async (cnr: string) => {
+    try {
+      logger.debug("AI examining witness", { cnr });
+      const response = await api.post(`/cases/${cnr}/witness/ai-examine`);
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to get AI examination");
+      throw error;
+    }
+  },
+
+  aiCrossExamine: async (cnr: string) => {
+    try {
+      logger.debug("AI cross-examining witness", { cnr });
+      const response = await api.post(`/cases/${cnr}/witness/ai-cross-examine`);
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to get AI cross-examination");
+      throw error;
+    }
+  },
+
+  concludeWitness: async (cnr: string) => {
+    try {
+      logger.debug("Concluding witness examination", { cnr });
+      const response = await api.post(`/cases/${cnr}/witness/conclude`);
+      logger.info("Witness examination concluded", { cnr });
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to conclude witness examination");
+      throw error;
+    }
+  },
+
+  dismissWitness: async (cnr: string) => {
+    try {
+      logger.debug("Dismissing witness", { cnr });
+      const response = await api.post(`/cases/${cnr}/witness/dismiss`);
+      logger.info("Witness dismissed", { cnr });
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to dismiss witness");
+      throw error;
+    }
+  },
+
+  getCurrentWitness: async (cnr: string) => {
+    try {
+      const response = await api.get(`/cases/${cnr}/witness/current`);
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to get current witness");
+      throw error;
+    }
+  },
+
+  getTestimonies: async (cnr: string) => {
+    try {
+      const response = await api.get(`/cases/${cnr}/witness/testimonies`);
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to get testimonies");
+      throw error;
+    }
+  },
+
+  aiCallWitness: async (cnr: string) => {
+    try {
+      logger.debug("AI evaluating witness call", { cnr });
+      const response = await api.post(`/cases/${cnr}/witness/ai-call`);
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to evaluate AI witness call");
       throw error;
     }
   },
@@ -620,7 +737,7 @@ export const locationAPI = {
   getCities: async (countryIso2: string, stateIso2: string) => {
     try {
       const response = await api.get(
-        `/location/cities/${countryIso2}/${stateIso2}`
+        `/location/cities/${countryIso2}/${stateIso2}`,
       );
       return response.data;
     } catch (error) {
@@ -659,7 +776,7 @@ export const locationAPI = {
     try {
       const response = await api.put(
         "/auth/profile/case-location-preference",
-        data
+        data,
       );
       logger.info("Case location preference updated");
       return response.data;
@@ -667,7 +784,7 @@ export const locationAPI = {
       logApiError(error, "Failed to update case location preference");
       if (axios.isAxiosError(error) && error.response) {
         throw new Error(
-          error.response?.data?.detail || "Failed to update preference"
+          error.response?.data?.detail || "Failed to update preference",
         );
       }
       throw error;

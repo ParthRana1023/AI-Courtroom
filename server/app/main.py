@@ -6,7 +6,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.database import init_db
 from app.config import settings, log_environment_status
-from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis, parties, location, client_logs
+from app.routes import auth, cases, arguments, rate_limit, feedback, case_analysis, parties, location, client_logs, witness
 from app.services.location_service import preload_cache as preload_location_cache
 from app.logging_config import setup_logging, get_logger, generate_request_id, set_request_id, get_request_id
 from app.utils.datetime import get_current_datetime
@@ -152,6 +152,7 @@ app.include_router(auth.router, prefix="/auth")
 app.include_router(cases.router, prefix="/cases")
 app.include_router(arguments.router, prefix="/cases")
 app.include_router(parties.router, prefix="/cases")
+app.include_router(witness.router, prefix="/cases")
 app.include_router(rate_limit.router, prefix="/limit")
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
