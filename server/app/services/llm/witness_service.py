@@ -210,9 +210,10 @@ async def should_ai_call_witness(
         logger.debug("No untestified witnesses available")
         return None
     
+    # Use numbered list for unambiguous selection
     witness_list = "\n".join([
-        f"- {w.get('name')} ({w.get('role')}): {w.get('bio', '')[:200]}..."
-        for w in untestified[:5]
+        f"{i+1}. {w.get('name')} ({w.get('role')}): {w.get('bio', '')[:200]}..."
+        for i, w in enumerate(untestified[:5])
     ])
     
     template = f"""You are an experienced Indian trial lawyer representing the {ai_role}.
@@ -231,9 +232,11 @@ Based on the case progress, should you call a witness now? Consider:
 2. Is there a strategic advantage to calling a witness at this point?
 3. Would it be better to continue with arguments instead?
 
-Respond with ONLY one of:
-- "CALL: [exact witness name]" if you should call a witness
-- "NO_WITNESS" if you should continue with arguments
+You should call a witness if their testimony could support your case. Do NOT always refuse.
+
+Respond with ONLY one of these exact formats (no extra text):
+- CALL: [number] (e.g. CALL: 1) if you want to call a witness
+- NO_WITNESS if you should continue with arguments
 
 Your response:
 """
@@ -248,16 +251,42 @@ Your response:
         
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
         
-        logger.debug(f"AI witness decision: {response} (took {duration_ms:.2f}ms)")
+        logger.info(f"AI witness decision raw response: '{response}' (took {duration_ms:.2f}ms)")
         
-        if response.startswith("CALL:"):
-            witness_name = response.replace("CALL:", "").strip()
-            # Find the witness ID
-            for w in untestified:
-                if w.get('name', '').lower() == witness_name.lower():
-                    logger.info(f"AI decided to call witness: {w.get('name')}")
-                    return w.get('id')
+        if "CALL" in response.upper():
+            # Try index-based matching first (e.g., "CALL: 1" or "CALL: 2")
+            index_match = re.search(r'CALL\s*:\s*(\d+)', response, re.IGNORECASE)
+            if index_match:
+                witness_index = int(index_match.group(1)) - 1  # Convert to 0-based
+                if 0 <= witness_index < len(untestified):
+                    selected = untestified[witness_index]
+                    logger.info(f"AI decided to call witness by index: {selected.get('name')} (index {witness_index + 1})")
+                    return selected.get('id')
+                else:
+                    logger.warning(f"AI returned invalid witness index: {index_match.group(1)}, available: {len(untestified)}")
+            
+            # Fallback: try name-based matching (fuzzy)
+            call_match = re.search(r'CALL\s*:\s*(.+)', response, re.IGNORECASE)
+            if call_match:
+                witness_name = call_match.group(1).strip().strip('"').strip("'").strip()
+                logger.debug(f"Trying name-based matching for: '{witness_name}'")
+                
+                # Try exact match first
+                for w in untestified:
+                    if w.get('name', '').lower().strip() == witness_name.lower().strip():
+                        logger.info(f"AI decided to call witness (exact name match): {w.get('name')}")
+                        return w.get('id')
+                
+                # Try substring/partial match
+                for w in untestified:
+                    w_name = w.get('name', '').lower().strip()
+                    if w_name in witness_name.lower() or witness_name.lower() in w_name:
+                        logger.info(f"AI decided to call witness (partial name match): {w.get('name')} matched '{witness_name}'")
+                        return w.get('id')
+                
+                logger.warning(f"AI wanted to call witness '{witness_name}' but no match found. Available: {[w.get('name') for w in untestified]}")
         
+        logger.info("AI decided not to call a witness at this time")
         return None
     except Exception as e:
         logger.error(f"Error in AI witness decision: {str(e)}", exc_info=True)

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     testing: bool = False
     groq_api_key: Optional[str] = None
     csc_api_key: Optional[str] = None  # Country State City API key
+    llm_model: str = "meta-llama/llama-4-maverick-17b-128e-instruct"
     port: int = 8000
     
     # Google OAuth settings

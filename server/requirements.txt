@@ -48,10 +48,10 @@ google-auth-oauthlib
 cloudinary
 
 # Testing
-pytest
-pytest-asyncio>=0.23.0
-pytest-cov
-httpx
-mongomock-motor
-factory-boy
-faker
+# pytest
+# pytest-asyncio>=0.23.0
+# pytest-cov
+# httpx
+# mongomock-motor
+# factory-boy
+# faker

@@ -10,7 +10,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.models.party import PartyRole, PartyInvolved
 from app.services.llm.parties_service import extract_and_assign_parties
-from app.services.high_court_mapping import get_random_high_court
+from app.services.high_court_mapping import get_random_high_court, INDIAN_HIGH_COURTS
+from datetime import datetime
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -115,6 +116,65 @@ async def random_organizations():
             "Chennai Industries Corp",
             "Kolkata Exports Ltd"
         ]
+
+def generate_realistic_cnr(high_court: str, city: str) -> str:
+    """
+    Generates a realistic CNR number based on the High Court (State) and City.
+    Format: [State Code 2][District Code 2][Establishment Code 2][Case Number 6][Year 4]
+    Total length: 16 characters
+    """
+    # 1. State Code (2 chars)
+    # Create reverse mapping: High Court Name -> State ISO2
+    high_court_to_state = {v: k for k, v in INDIAN_HIGH_COURTS.items()}
+    
+    # Handle bench names that might be slightly different or missing
+    # Default to DL (Delhi) if not found, or try to find partial match
+    state_code = "DL"
+    if high_court in high_court_to_state:
+        state_code = high_court_to_state[high_court]
+    else:
+        # Try finding by substring (e.g. "Bombay High Court" in "Bombay High Court (Goa Bench)")
+        for hc_name, code in high_court_to_state.items():
+            if high_court in hc_name or hc_name in high_court:
+                state_code = code
+                break
+    
+    # 2. District Code (2 chars)
+    # Use first two letters of city, or random keys if city is too short
+    if city and len(city) >= 2:
+        district_code = city[:2].upper()
+    else:
+        district_code = ''.join(random.choices(string.ascii_uppercase, k=2))
+        
+    # Ensure district code is alpha only
+    district_code = ''.join(c for c in district_code if c.isalpha())
+    if len(district_code) < 2:
+        district_code = (district_code + "X")[:2]
+        
+    # 3. Establishment Code (2 chars)
+    # Random 2 digits
+    establishment_code = f"{random.randint(1, 99):02d}"
+    
+    # 4. Case Number (6 chars)
+    # Random 6 digits
+    case_number = f"{random.randint(1, 999999):06d}"
+    
+    # 5. Year (4 chars)
+    year = str(datetime.now().year)
+    
+    cnr = f"{state_code}{district_code}{establishment_code}{case_number}{year}"
+    
+    # Ensure strictly 16 chars just in case
+    if len(cnr) != 16:
+        # Fallback to random if something goes wrong with length
+        logger.warning(f"Generated CNR {cnr} length {len(cnr)} != 16. Falling back to structured random.")
+        cnr = f"{state_code}{district_code}{establishment_code}{case_number[:6]}{year}"
+        if len(cnr) < 16:
+             cnr = cnr.ljust(16, '0')
+        elif len(cnr) > 16:
+             cnr = cnr[:16]
+             
+    return cnr
 
 async def generate_case(sections: int, numbers: list[int], high_court: Optional[str] = None, city: Optional[str] = None) -> dict:
     """
@@ -292,8 +352,8 @@ async def generate_case(sections: int, numbers: list[int], high_court: Optional[
 
         llm_response_details = re.sub(r"<think>.*?</think>", "", llm_response_details, flags=re.DOTALL).strip()
         
-        # Generate a CNR (Case Number Registry)
-        cnr = ''.join(random.choices(string.ascii_uppercase + string.digits, k=16))
+        # Generate a realistic CNR
+        cnr = generate_realistic_cnr(selected_high_court, selected_city)
         
         def extract_title(case_text: str) -> str:
             """Extract just the title from case text for display purposes"""
