@@ -24,7 +24,9 @@ const logger = getLogger("courtroom");
 type ExaminationState =
   | "user_questioning"
   | "ai_cross_examining"
-  | "awaiting_user_choice";
+  | "ai_examining_first"
+  | "awaiting_user_choice"
+  | "awaiting_user_cross";
 
 interface AICrossExaminationItem {
   question: string;
@@ -36,6 +38,8 @@ interface WitnessPanelProps {
   cnr: string;
   isActive: boolean;
   userRole: string;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
   onWitnessUpdate?: () => void;
 }
 
@@ -43,9 +47,20 @@ export default function WitnessPanel({
   cnr,
   isActive,
   userRole,
+  externalOpen,
+  onExternalOpenChange,
   onWitnessUpdate,
 }: WitnessPanelProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  // Use external open state if provided, otherwise internal
+  const isOpen = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setIsOpen = (open: boolean) => {
+    if (onExternalOpenChange) {
+      onExternalOpenChange(open);
+    }
+    setInternalOpen(open);
+  };
   const [witnesses, setWitnesses] = useState<WitnessInfo[]>([]);
   const [currentWitness, setCurrentWitness] =
     useState<CurrentWitnessResponse | null>(null);
@@ -91,23 +106,47 @@ export default function WitnessPanel({
       setWitnesses(witnessesData.witnesses || []);
       setCurrentWitness(currentData);
 
-      // Reset examination state when fetching fresh data
+      // Determine examination state based on who called the witness
       if (currentData?.has_witness) {
+        const aiCalled = currentData.called_by !== userRole;
+
         if (currentData.is_ai_examining) {
-          setExaminationState("ai_cross_examining");
+          // AI is actively examining
+          if (aiCalled && examinationState !== "ai_cross_examining") {
+            setExaminationState("ai_examining_first");
+          } else {
+            setExaminationState("ai_cross_examining");
+          }
           setIsCrossExamining(true);
         } else {
           if (isCrossExaminingRef.current) {
-            // Transition from examining to done -> show choice
-            setExaminationState("awaiting_user_choice");
+            // Just finished examining
+            if (examinationState === "ai_examining_first") {
+              // AI was examining first (AI-called witness) -> user can cross-examine
+              setExaminationState("awaiting_user_cross");
+            } else {
+              // AI was cross-examining (user-called witness) -> user choice
+              setExaminationState("awaiting_user_choice");
+            }
             setIsCrossExamining(false);
           } else {
             // Preserve specific states unless clearly reset
-            setExaminationState((prev) =>
-              prev === "awaiting_user_choice"
-                ? "awaiting_user_choice"
-                : "user_questioning",
-            );
+            setExaminationState((prev) => {
+              if (
+                prev === "awaiting_user_choice" ||
+                prev === "awaiting_user_cross"
+              ) {
+                return prev;
+              }
+              // If AI called and no examination yet, start AI examining
+              if (
+                aiCalled &&
+                (currentData.examination_history?.length ?? 0) === 0
+              ) {
+                return "ai_examining_first";
+              }
+              return "user_questioning";
+            });
             setIsCrossExamining(false);
           }
         }
@@ -338,17 +377,21 @@ export default function WitnessPanel({
                   </div>
                 </div>
 
-                {/* AI Cross-Examining Status */}
-                {isCrossExamining && (
-                  <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full"></div>
-                      <p className="text-sm text-purple-700 dark:text-purple-300">
-                        Opposition lawyer is cross-examining the witness...
-                      </p>
+                {/* AI Examining Status */}
+                {(examinationState === "ai_cross_examining" ||
+                  examinationState === "ai_examining_first") &&
+                  isCrossExamining && (
+                    <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full"></div>
+                        <p className="text-sm text-purple-700 dark:text-purple-300">
+                          {examinationState === "ai_examining_first"
+                            ? "Opposition lawyer is examining the witness..."
+                            : "Opposition lawyer is cross-examining the witness..."}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Examination History */}
                 <div className="space-y-3">
@@ -445,7 +488,7 @@ export default function WitnessPanel({
               </div>
             )}
 
-            {/* User Choice after AI Cross-Examination */}
+            {/* User Choice after AI Cross-Examination (user-called witness) */}
             {examinationState === "awaiting_user_choice" && (
               <div className="space-y-3">
                 <p className="text-sm text-center text-gray-600 dark:text-gray-400">
@@ -465,6 +508,32 @@ export default function WitnessPanel({
                     disabled={isLoading}
                   >
                     {isLoading ? "Dismissing..." : "No Further Questions"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* User Choice after AI Examination First (AI-called witness) */}
+            {examinationState === "awaiting_user_cross" && (
+              <div className="space-y-3">
+                <p className="text-sm text-center text-gray-600 dark:text-gray-400">
+                  The opposition lawyer has finished examining the witness.
+                  Would you like to cross-examine?
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleAskMoreQuestions}
+                    variant="outline"
+                    className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                  >
+                    Cross-Examine
+                  </Button>
+                  <Button
+                    onClick={handleNoFurtherQuestions}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Dismissing..." : "No Questions — Dismiss"}
                   </Button>
                 </div>
               </div>

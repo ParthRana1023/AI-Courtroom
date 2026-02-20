@@ -729,6 +729,7 @@ async def get_all_testimonies(
 @router.post("/{case_cnr}/witness/ai-call")
 async def ai_call_witness(
     case_cnr: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user)
 ):
     """AI lawyer strategically decides whether to call a witness"""
@@ -803,9 +804,14 @@ async def ai_call_witness(
                 )
                 case.witness_testimonies.append(testimony)
                 case.current_witness_id = party.id
+                
+                # Auto-start AI examination so it questions the witness first
+                case.is_ai_examining = True
                 await case.save()
                 
-                logger.info(f"AI called witness: {witness_name}")
+                background_tasks.add_task(process_ai_cross_examination, case_cnr, 5)
+                
+                logger.info(f"AI called witness: {witness_name}, auto-starting AI examination")
                 return {
                     "should_call": True,
                     "witness_id": witness_id,

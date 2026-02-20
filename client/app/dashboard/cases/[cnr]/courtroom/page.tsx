@@ -109,6 +109,9 @@ export default function Courtroom({
     message: "",
   });
 
+  // Controlled state for witness drawer (used when AI calls a witness)
+  const [witnessDrawerOpen, setWitnessDrawerOpen] = useState(false);
+
   // Session popup states
   const [showSessionPopup, setShowSessionPopup] = useState(false);
   const [showAdjournedPopup, setShowAdjournedPopup] = useState(false);
@@ -116,7 +119,6 @@ export default function Courtroom({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const argumentTextareaRef = useRef<SettingsAwareTextAreaRef>(null);
 
-  // Combine and sort all arguments chronologically
   // Combine and sort all arguments chronologically
   const timelineEvents = useMemo(() => {
     if (
@@ -135,6 +137,13 @@ export default function Courtroom({
     ];
     return sortByTimestamp(combined);
   }, [caseHistory, caseData]);
+
+  // Auto-scroll to bottom when timeline events change (e.g., AI responds)
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [timelineEvents]);
 
   // Fetch rate limit information and update countdown timer
   const fetchRateLimitInfo = useCallback(async () => {
@@ -473,19 +482,22 @@ export default function Courtroom({
       // We do this after the argument flow is updated
       setTimeout(async () => {
         try {
-          // Check if witness panel is open first? No, AI can interrupt
-          // But we should check if a witness is already active to avoid unnecessary calls
           const currentWitness = await witnessAPI.getCurrentWitness(cnr);
           if (!currentWitness.has_witness) {
             const witnessCall = await witnessAPI.aiCallWitness(cnr);
             if (witnessCall.should_call) {
-              // Show alert to user
+              // Show popup alert to user
               setAiWitnessAlert({
                 isOpen: true,
                 witnessName: witnessCall.witness_name,
                 message: witnessCall.message,
               });
-              // Refresh witness panel state if needed (handled by the alert closing or auto-refresh)
+              // Auto-dismiss popup after 4s and open the witness drawer
+              setTimeout(() => {
+                setAiWitnessAlert((prev) => ({ ...prev, isOpen: false }));
+                setWitnessDrawerOpen(true);
+                setRefreshWitnessPanel((p) => p + 1);
+              }, 4000);
             }
           }
         } catch (err) {
@@ -699,9 +711,9 @@ export default function Courtroom({
   }
 
   return (
-    <div className="flex flex-col min-h-screen pb-0">
-      <main className="flex flex-col mt-4 max-w-7xl mx-auto w-full px-4">
-        <header className="bg-white dark:bg-zinc-900 shadow-sm py-4 rounded-lg border border-gray-200 dark:border-zinc-700">
+    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden pb-0">
+      <header className="shrink-0 mt-4 max-w-7xl mx-auto w-full">
+        <div className="bg-white dark:bg-zinc-900 shadow-sm py-4 rounded-lg border border-gray-200 dark:border-zinc-700">
           <div className="px-4 sm:px-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               {/* Left side - Case info */}
@@ -749,6 +761,8 @@ export default function Courtroom({
                   cnr={cnr}
                   isActive={caseData?.status === CaseStatus.ACTIVE}
                   userRole={currentRole}
+                  externalOpen={witnessDrawerOpen}
+                  onExternalOpenChange={setWitnessDrawerOpen}
                   onWitnessUpdate={() => {
                     // Optional: Reload case data if needed
                   }}
@@ -852,8 +866,8 @@ export default function Courtroom({
               </div>
             </div>
           </div>
-        </header>
-      </main>
+        </div>
+      </header>
 
       {/* Error Alert */}
       {analysisError && (
@@ -908,14 +922,13 @@ export default function Courtroom({
 
       {/* Arguments display area - scrollable */}
       <div
-        className={`flex-1 mt-4 ${
-          caseData.status === CaseStatus.RESOLVED ? "mb-6" : "mb-48"
+        className={`flex-1 min-h-0 mt-4 ${
+          caseData.status === CaseStatus.RESOLVED ? "mb-6" : "mb-2"
         } bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 max-w-7xl mx-auto w-full`}
-        style={{ height: "calc(100vh - 250px)" }}
       >
         {/* Chat messages */}
-        <div className="h-full overflow-y-auto p-4">
-          <div className="space-y-4">
+        <ScrollArea className="h-full">
+          <div className="p-4 space-y-4">
             {timelineEvents.map((item: any, index: number) => {
               // Check if it's a proceeding event (has speaker_role)
               const isProceedingEvent = "speaker_role" in item;
@@ -1101,6 +1114,7 @@ export default function Courtroom({
                 </div>
               );
             })}
+            <div ref={messagesEndRef} />
             {caseHistory?.verdict &&
               caseData?.status === CaseStatus.RESOLVED && (
                 <div>
@@ -1235,12 +1249,12 @@ export default function Courtroom({
                 </div>
               )}
           </div>
-        </div>
+        </ScrollArea>
       </div>
 
       {/* Fixed input area at bottom */}
       {caseData.status !== CaseStatus.RESOLVED && (
-        <div className="fixed bottom-0 left-0 right-0 mb-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-700 p-4 shadow-lg">
+        <div className="shrink-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-700 p-4 shadow-lg w-full">
           <div className="max-w-7xl mx-auto">
             {/* Rate limit information */}
             {rateLimit && (
@@ -1352,6 +1366,36 @@ export default function Courtroom({
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Witness Call Popup */}
+      {aiWitnessAlert.isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => {
+            setAiWitnessAlert((prev) => ({ ...prev, isOpen: false }));
+            setWitnessDrawerOpen(true);
+            setRefreshWitnessPanel((p) => p + 1);
+          }}
+        >
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl p-8 max-w-md mx-4 text-center animate-in fade-in zoom-in duration-300">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
+              <span className="text-3xl">⚖️</span>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Witness Called
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-1">
+              {aiWitnessAlert.message}
+            </p>
+            <p className="text-sm text-purple-600 dark:text-purple-400 font-medium mt-3">
+              The opposition lawyer will now question the witness.
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">
+              Click to continue or wait...
+            </p>
           </div>
         </div>
       )}

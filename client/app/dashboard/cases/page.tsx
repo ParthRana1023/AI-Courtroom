@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/animate-ui/components/radix/dropdown-menu";
 import { Checkbox } from "@/components/animate-ui/components/radix/checkbox";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   useRenderLogger,
   useLifecycleLogger,
@@ -58,7 +59,7 @@ export default function CasesListing() {
   const [deletingCnr, setDeletingCnr] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<Set<CaseStatus>>(
-    new Set()
+    new Set(),
   );
   const [sortField, setSortField] = useState<
     "cnr" | "title" | "status" | "created_at"
@@ -239,7 +240,7 @@ export default function CasesListing() {
       result = result.filter(
         (c) =>
           c.title?.toLowerCase().includes(query) ||
-          c.cnr?.toLowerCase().includes(query)
+          c.cnr?.toLowerCase().includes(query),
       );
     }
 
@@ -382,9 +383,9 @@ export default function CasesListing() {
   }
 
   return (
-    <div className="grow container mx-auto px-4 py-8">
-      <div className="bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900">
-        <div className="flex justify-between items-center mb-6">
+    <div className="flex flex-col h-[calc(100vh-4rem)] container mx-auto px-4 py-8">
+      <div className="flex flex-col flex-1 min-h-0 bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900">
+        <div className="shrink-0 flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">My Cases</h1>
           <div className="flex gap-3 items-center">
             {/* Animated Search Bar - expands to the left */}
@@ -571,7 +572,7 @@ export default function CasesListing() {
             </button>
           </div>
         ) : (
-          <>
+          <div className="flex flex-col flex-1 min-h-0">
             {/* Results info bar */}
             {(searchQuery || statusFilters.size > 0) && (
               <div className="mb-4">
@@ -671,288 +672,296 @@ export default function CasesListing() {
               </div>
             )}
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-zinc-800">
-                  <tr>
-                    {/* Checkbox column header - only when multi-select mode is on */}
-                    {multiSelectMode && (
-                      <th
-                        scope="col"
-                        className="px-4 py-3 text-center table-cell-divider"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div
-                          onClick={handleSelectAll}
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all mx-auto ${
-                            processedCases.length > 0 &&
-                            selectedCases.size === processedCases.length
-                              ? "bg-blue-600 border-blue-600"
-                              : selectedCases.size > 0
-                              ? "bg-blue-600/50 border-blue-600"
-                              : "border-gray-400 dark:border-gray-500 hover:border-blue-500"
-                          }`}
-                        >
-                          {processedCases.length > 0 &&
-                            selectedCases.size === processedCases.length && (
-                              <svg
-                                className="w-3 h-3 text-white"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={3}
-                                  d="M5 13l4 4L19 7"
-                                />
-                              </svg>
-                            )}
-                          {selectedCases.size > 0 &&
-                            selectedCases.size < processedCases.length && (
-                              <div className="w-2.5 h-0.5 bg-white rounded" />
-                            )}
-                        </div>
-                      </th>
-                    )}
-                    <th
-                      scope="col"
-                      onClick={() => handleSort("cnr")}
-                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
-                    >
-                      Case Number
-                      <SortIcon field="cnr" />
-                    </th>
-                    <th
-                      scope="col"
-                      onClick={() => handleSort("title")}
-                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
-                    >
-                      Title
-                      <SortIcon field="title" />
-                    </th>
-                    <th
-                      scope="col"
-                      onClick={() => handleSort("status")}
-                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
-                    >
-                      Status
-                      <SortIcon field="status" />
-                    </th>
-                    <th
-                      scope="col"
-                      onClick={() => handleSort("created_at")}
-                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
-                    >
-                      Date Filed
-                      <SortIcon field="created_at" />
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                    >
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-200 dark:divide-gray-700">
-                  {processedCases.map((caseItem) => (
-                    <tr
-                      key={caseItem.cnr}
-                      className="hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
-                      onClick={() =>
-                        router.push(`/dashboard/cases/${caseItem.cnr}`)
-                      }
-                    >
-                      {/* Checkbox cell - only when multi-select mode is on */}
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="min-w-full">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-zinc-800">
+                    <tr>
+                      {/* Checkbox column header - only when multi-select mode is on */}
                       {multiSelectMode && (
-                        <td
-                          className="px-4 py-4 text-center table-cell-divider"
+                        <th
+                          scope="col"
+                          className="px-4 py-3 text-center table-cell-divider"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <div
-                            onClick={() => toggleCaseSelection(caseItem.cnr)}
+                            onClick={handleSelectAll}
                             className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all mx-auto ${
-                              selectedCases.has(caseItem.cnr)
+                              processedCases.length > 0 &&
+                              selectedCases.size === processedCases.length
                                 ? "bg-blue-600 border-blue-600"
-                                : "border-gray-400 dark:border-gray-500 hover:border-blue-500"
+                                : selectedCases.size > 0
+                                  ? "bg-blue-600/50 border-blue-600"
+                                  : "border-gray-400 dark:border-gray-500 hover:border-blue-500"
                             }`}
                           >
-                            {selectedCases.has(caseItem.cnr) && (
-                              <svg
-                                className="w-3 h-3 text-white"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                            {processedCases.length > 0 &&
+                              selectedCases.size === processedCases.length && (
+                                <svg
+                                  className="w-3 h-3 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={3}
+                                    d="M5 13l4 4L19 7"
+                                  />
+                                </svg>
+                              )}
+                            {selectedCases.size > 0 &&
+                              selectedCases.size < processedCases.length && (
+                                <div className="w-2.5 h-0.5 bg-white rounded" />
+                              )}
+                          </div>
+                        </th>
+                      )}
+                      <th
+                        scope="col"
+                        onClick={() => handleSort("cnr")}
+                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
+                      >
+                        Case Number
+                        <SortIcon field="cnr" />
+                      </th>
+                      <th
+                        scope="col"
+                        onClick={() => handleSort("title")}
+                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
+                      >
+                        Title
+                        <SortIcon field="title" />
+                      </th>
+                      <th
+                        scope="col"
+                        onClick={() => handleSort("status")}
+                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
+                      >
+                        Status
+                        <SortIcon field="status" />
+                      </th>
+                      <th
+                        scope="col"
+                        onClick={() => handleSort("created_at")}
+                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
+                      >
+                        Date Filed
+                        <SortIcon field="created_at" />
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                      >
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-200 dark:divide-gray-700">
+                    {processedCases.map((caseItem) => (
+                      <tr
+                        key={caseItem.cnr}
+                        className="hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
+                        onClick={() =>
+                          router.push(`/dashboard/cases/${caseItem.cnr}`)
+                        }
+                      >
+                        {/* Checkbox cell - only when multi-select mode is on */}
+                        {multiSelectMode && (
+                          <td
+                            className="px-4 py-4 text-center table-cell-divider"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div
+                              onClick={() => toggleCaseSelection(caseItem.cnr)}
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all mx-auto ${
+                                selectedCases.has(caseItem.cnr)
+                                  ? "bg-blue-600 border-blue-600"
+                                  : "border-gray-400 dark:border-gray-500 hover:border-blue-500"
+                              }`}
+                            >
+                              {selectedCases.has(caseItem.cnr) && (
+                                <svg
+                                  className="w-3 h-3 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={3}
+                                    d="M5 13l4 4L19 7"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-6 py-4 whitespace-nowrap text-center table-cell-divider">
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {caseItem.cnr}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center table-cell-divider">
+                          <div className="text-sm text-gray-900 dark:text-gray-100">
+                            {caseItem.title || "Untitled Case"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center table-cell-divider">
+                          <span
+                            className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              caseItem.status === CaseStatus.ACTIVE
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                : caseItem.status === CaseStatus.RESOLVED
+                                  ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300"
+                                  : caseItem.status === CaseStatus.ADJOURNED
+                                    ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
+                                    : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            }`}
+                          >
+                            {caseItem.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center table-cell-divider">
+                          {caseItem.created_at
+                            ? new Date(caseItem.created_at).toLocaleDateString()
+                            : "N/A"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                          <div className="flex items-center justify-center gap-2">
+                            {/* Archive Button (Move to Archived Cases) */}
+                            {skipArchiveConfirmation ? (
+                              <button
+                                onClick={(e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  handleDeleteCase(caseItem.cnr);
+                                }}
+                                disabled={deletingCnr === caseItem.cnr}
+                                className="p-2 bg-orange-100 text-orange-600 hover:bg-orange-200 hover:text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50 rounded-lg transition-colors disabled:opacity-50"
+                                title="Archive Case"
                               >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={3}
-                                  d="M5 13l4 4L19 7"
-                                />
-                              </svg>
+                                <Archive className="h-5 w-5" />
+                              </button>
+                            ) : (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <button
+                                    onClick={(e: React.MouseEvent) =>
+                                      e.stopPropagation()
+                                    }
+                                    disabled={deletingCnr === caseItem.cnr}
+                                    className="p-2 bg-orange-100 text-orange-600 hover:bg-orange-200 hover:text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50 rounded-lg transition-colors disabled:opacity-50"
+                                    title="Archive Case"
+                                  >
+                                    <Archive className="h-5 w-5" />
+                                  </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent
+                                  onClick={(e: React.MouseEvent) =>
+                                    e.stopPropagation()
+                                  }
+                                >
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Archive Case
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to archive this
+                                      case? It will be moved to Archived Cases
+                                      where you can restore it later or delete
+                                      it.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() =>
+                                        handleDeleteCase(caseItem.cnr)
+                                      }
+                                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                                    >
+                                      Archive Case
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+
+                            {/* Delete Button */}
+                            {skipDeleteConfirmation ? (
+                              <button
+                                onClick={(e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  handlePermanentDeleteCase(caseItem.cnr);
+                                }}
+                                disabled={deletingCnr === caseItem.cnr}
+                                className="p-2 bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-800 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 rounded-lg transition-colors disabled:opacity-50"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </button>
+                            ) : (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <button
+                                    onClick={(e: React.MouseEvent) =>
+                                      e.stopPropagation()
+                                    }
+                                    disabled={deletingCnr === caseItem.cnr}
+                                    className="p-2 bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-800 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 rounded-lg transition-colors disabled:opacity-50"
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="h-5 w-5" />
+                                  </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent
+                                  onClick={(e: React.MouseEvent) =>
+                                    e.stopPropagation()
+                                  }
+                                >
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Delete Case
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription className="text-red-600 font-medium">
+                                      ⚠️ This action cannot be undone!
+                                    </AlertDialogDescription>
+                                    <AlertDialogDescription>
+                                      This will permanently delete the case and
+                                      all associated data. You will not be able
+                                      to recover this case.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() =>
+                                        handlePermanentDeleteCase(caseItem.cnr)
+                                      }
+                                      className="bg-red-600 hover:bg-red-700 text-white"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             )}
                           </div>
                         </td>
-                      )}
-                      <td className="px-6 py-4 whitespace-nowrap text-center table-cell-divider">
-                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {caseItem.cnr}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center table-cell-divider">
-                        <div className="text-sm text-gray-900 dark:text-gray-100">
-                          {caseItem.title || "Untitled Case"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center table-cell-divider">
-                        <span
-                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            caseItem.status === CaseStatus.ACTIVE
-                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                              : caseItem.status === CaseStatus.RESOLVED
-                              ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300"
-                              : caseItem.status === CaseStatus.ADJOURNED
-                              ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
-                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                          }`}
-                        >
-                          {caseItem.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center table-cell-divider">
-                        {caseItem.created_at
-                          ? new Date(caseItem.created_at).toLocaleDateString()
-                          : "N/A"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                        <div className="flex items-center justify-center gap-2">
-                          {/* Archive Button (Move to Archived Cases) */}
-                          {skipArchiveConfirmation ? (
-                            <button
-                              onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                handleDeleteCase(caseItem.cnr);
-                              }}
-                              disabled={deletingCnr === caseItem.cnr}
-                              className="p-2 bg-orange-100 text-orange-600 hover:bg-orange-200 hover:text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50 rounded-lg transition-colors disabled:opacity-50"
-                              title="Archive Case"
-                            >
-                              <Archive className="h-5 w-5" />
-                            </button>
-                          ) : (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <button
-                                  onClick={(e: React.MouseEvent) =>
-                                    e.stopPropagation()
-                                  }
-                                  disabled={deletingCnr === caseItem.cnr}
-                                  className="p-2 bg-orange-100 text-orange-600 hover:bg-orange-200 hover:text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50 rounded-lg transition-colors disabled:opacity-50"
-                                  title="Archive Case"
-                                >
-                                  <Archive className="h-5 w-5" />
-                                </button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent
-                                onClick={(e: React.MouseEvent) =>
-                                  e.stopPropagation()
-                                }
-                              >
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Archive Case
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to archive this case?
-                                    It will be moved to Archived Cases where you
-                                    can restore it later or delete it.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() =>
-                                      handleDeleteCase(caseItem.cnr)
-                                    }
-                                    className="bg-orange-600 hover:bg-orange-700 text-white"
-                                  >
-                                    Archive Case
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-
-                          {/* Delete Button */}
-                          {skipDeleteConfirmation ? (
-                            <button
-                              onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                handlePermanentDeleteCase(caseItem.cnr);
-                              }}
-                              disabled={deletingCnr === caseItem.cnr}
-                              className="p-2 bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-800 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 rounded-lg transition-colors disabled:opacity-50"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-5 w-5" />
-                            </button>
-                          ) : (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <button
-                                  onClick={(e: React.MouseEvent) =>
-                                    e.stopPropagation()
-                                  }
-                                  disabled={deletingCnr === caseItem.cnr}
-                                  className="p-2 bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-800 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 rounded-lg transition-colors disabled:opacity-50"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-5 w-5" />
-                                </button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent
-                                onClick={(e: React.MouseEvent) =>
-                                  e.stopPropagation()
-                                }
-                              >
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Delete Case
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription className="text-red-600 font-medium">
-                                    ⚠️ This action cannot be undone!
-                                  </AlertDialogDescription>
-                                  <AlertDialogDescription>
-                                    This will permanently delete the case and
-                                    all associated data. You will not be able to
-                                    recover this case.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() =>
-                                      handlePermanentDeleteCase(caseItem.cnr)
-                                    }
-                                    className="bg-red-600 hover:bg-red-700 text-white"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
         )}
       </div>
     </div>

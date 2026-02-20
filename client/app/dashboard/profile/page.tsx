@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 const logger = getLogger("ui");
 
@@ -84,26 +85,26 @@ export default function ProfilePage() {
     ? cases.filter(
         (caseItem) =>
           caseItem.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          caseItem.cnr.toLowerCase().includes(searchTerm.toLowerCase())
+          caseItem.cnr.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     : [];
 
   // Unfiltered counts for the bento grid (not affected by search)
   const allActiveCases = cases.filter(
-    (caseItem) => caseItem.status !== CaseStatus.RESOLVED
+    (caseItem) => caseItem.status !== CaseStatus.RESOLVED,
   );
 
   const allResolvedCases = cases.filter(
-    (caseItem) => caseItem.status === CaseStatus.RESOLVED
+    (caseItem) => caseItem.status === CaseStatus.RESOLVED,
   );
 
   // Filtered counts for display in tables
   const activeCases = filteredCases.filter(
-    (caseItem) => caseItem.status !== CaseStatus.RESOLVED
+    (caseItem) => caseItem.status !== CaseStatus.RESOLVED,
   );
 
   const resolvedCases = filteredCases.filter(
-    (caseItem) => caseItem.status === CaseStatus.RESOLVED
+    (caseItem) => caseItem.status === CaseStatus.RESOLVED,
   );
 
   if (isLoading) {
@@ -240,70 +241,75 @@ export default function ProfilePage() {
                 <span>Active Cases</span>
               </h3>
               {activeCases.length > 0 ? (
-                <div className="overflow-x-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
-                  <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-                    <thead className="bg-zinc-50 dark:bg-zinc-800">
-                      <tr>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Case Number
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Title
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Created
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Case Details
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-800">
-                      {activeCases.map((caseItem) => (
-                        <tr
-                          key={caseItem.id}
-                          className="hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center">
-                            {caseItem.cnr}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                            {caseItem.title}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                            {new Date(caseItem.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <span
-                              className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                caseItem.status === CaseStatus.ACTIVE
-                                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                  : caseItem.status === CaseStatus.RESOLVED
-                                  ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300"
-                                  : caseItem.status === CaseStatus.ADJOURNED
-                                  ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
-                                  : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                              }`}
-                            >
-                              {caseItem.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                            <Link
-                              href={`/dashboard/cases/${caseItem.cnr}`}
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                            >
-                              View Details
-                            </Link>
-                          </td>
+                <ScrollArea className="w-full">
+                  <div className="min-w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
+                    <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                      <thead className="bg-zinc-50 dark:bg-zinc-800">
+                        <tr>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Case Number
+                          </th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Title
+                          </th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Created
+                          </th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Case Details
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="bg-white dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-800">
+                        {activeCases.map((caseItem) => (
+                          <tr
+                            key={caseItem.id}
+                            className="hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center">
+                              {caseItem.cnr}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                              {caseItem.title}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                              {new Date(
+                                caseItem.created_at,
+                              ).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              <span
+                                className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  caseItem.status === CaseStatus.ACTIVE
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                    : caseItem.status === CaseStatus.RESOLVED
+                                      ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300"
+                                      : caseItem.status === CaseStatus.ADJOURNED
+                                        ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
+                                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                }`}
+                              >
+                                {caseItem.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                              <Link
+                                href={`/dashboard/cases/${caseItem.cnr}`}
+                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                              >
+                                View Details
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
               ) : (
                 <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 text-center">
                   <p className="text-zinc-500 dark:text-zinc-400 italic">
@@ -319,60 +325,65 @@ export default function ProfilePage() {
                 <span>Resolved Cases</span>
               </h3>
               {resolvedCases.length > 0 ? (
-                <div className="overflow-x-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
-                  <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-                    <thead className="bg-zinc-50 dark:bg-zinc-800">
-                      <tr>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Case Number
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Title
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Created
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Case Details
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-800">
-                      {resolvedCases.map((caseItem) => (
-                        <tr
-                          key={caseItem.id}
-                          className="hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center">
-                            {caseItem.cnr}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                            {caseItem.title}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                            {new Date(caseItem.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300">
-                              {caseItem.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                            <Link
-                              href={`/dashboard/cases/${caseItem.cnr}`}
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                            >
-                              View Details
-                            </Link>
-                          </td>
+                <ScrollArea className="w-full">
+                  <div className="min-w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
+                    <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                      <thead className="bg-zinc-50 dark:bg-zinc-800">
+                        <tr>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Case Number
+                          </th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Title
+                          </th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Created
+                          </th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Case Details
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="bg-white dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-800">
+                        {resolvedCases.map((caseItem) => (
+                          <tr
+                            key={caseItem.id}
+                            className="hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center">
+                              {caseItem.cnr}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                              {caseItem.title}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                              {new Date(
+                                caseItem.created_at,
+                              ).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300">
+                                {caseItem.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                              <Link
+                                href={`/dashboard/cases/${caseItem.cnr}`}
+                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                              >
+                                View Details
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
               ) : (
                 <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 text-center">
                   <p className="text-zinc-500 dark:text-zinc-400 italic">

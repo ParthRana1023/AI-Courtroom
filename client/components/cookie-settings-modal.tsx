@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useState, useEffect } from "react";
 import type { CookieCategory } from "@/lib/cookies";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CookieCategoryInfo {
   id: CookieCategory;
@@ -124,83 +125,85 @@ export default function CookieSettingsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span className="text-2xl">🍪</span>
-            Cookie Preferences
-          </DialogTitle>
-          <DialogDescription>
-            Manage your cookie preferences below. You can enable or disable
-            different categories of cookies. Essential cookies are always
-            enabled as they are required for the website to function.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-h-[85vh] sm:max-w-lg">
+        <ScrollArea className="max-h-[calc(85vh-2rem)]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-2xl">🍪</span>
+              Cookie Preferences
+            </DialogTitle>
+            <DialogDescription>
+              Manage your cookie preferences below. You can enable or disable
+              different categories of cookies. Essential cookies are always
+              enabled as they are required for the website to function.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          {cookieCategories.map((category) => {
-            const isEnabled =
-              category.id === "essential"
-                ? true
-                : pendingConsent[category.id as keyof typeof pendingConsent];
+          <div className="space-y-4 py-4">
+            {cookieCategories.map((category) => {
+              const isEnabled =
+                category.id === "essential"
+                  ? true
+                  : pendingConsent[category.id as keyof typeof pendingConsent];
 
-            return (
-              <div
-                key={category.id}
-                className="flex items-start gap-4 rounded-lg border border-border p-4"
-              >
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground">
-                      {category.name}
-                    </span>
-                    {category.required && (
-                      <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                        Required
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {category.description}
-                  </p>
-                </div>
-
-                {/* Toggle Switch */}
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isEnabled}
-                  aria-label={`Toggle ${category.name}`}
-                  disabled={category.required}
-                  onClick={() => handleToggle(category.id)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    isEnabled ? "bg-primary" : "bg-input"
-                  }`}
+              return (
+                <div
+                  key={category.id}
+                  className="flex items-start gap-4 rounded-lg border border-border p-4"
                 >
-                  <span
-                    className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
-                      isEnabled ? "translate-x-5" : "translate-x-0.5"
-                    }`}
-                  />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">
+                        {category.name}
+                      </span>
+                      {category.required && (
+                        <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          Required
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {category.description}
+                    </p>
+                  </div>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-row">
-          <Button
-            variant="outline"
-            onClick={handleRejectAll}
-            className="sm:mr-auto"
-          >
-            Reject All
-          </Button>
-          <Button variant="outline" onClick={handleAcceptAll}>
-            Accept All
-          </Button>
-          <Button onClick={handleSave}>Save Preferences</Button>
-        </DialogFooter>
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isEnabled}
+                    aria-label={`Toggle ${category.name}`}
+                    disabled={category.required}
+                    onClick={() => handleToggle(category.id)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isEnabled ? "bg-primary" : "bg-input"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                        isEnabled ? "translate-x-5" : "translate-x-0.5"
+                      }`}
+                    />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={handleRejectAll}
+              className="sm:mr-auto"
+            >
+              Reject All
+            </Button>
+            <Button variant="outline" onClick={handleAcceptAll}>
+              Accept All
+            </Button>
+            <Button onClick={handleSave}>Save Preferences</Button>
+          </DialogFooter>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

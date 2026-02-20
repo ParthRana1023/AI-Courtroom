@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import ScalesLoader from "@/components/scales-loader";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
 
@@ -190,131 +191,134 @@ export default function RecycleBin() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 dark:bg-zinc-800">
-                <tr>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                  >
-                    Case Number
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                  >
-                    Title
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                  >
-                    Status
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                  >
-                    Deleted On
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                  >
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-200 dark:divide-gray-700">
-                {deletedCases.map((caseItem) => (
-                  <tr
-                    key={caseItem.cnr}
-                    className="hover:bg-gray-50 dark:hover:bg-zinc-800"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {caseItem.cnr}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="text-sm text-gray-900 dark:text-gray-100">
-                        {caseItem.title || "Untitled Case"}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          caseItem.status === CaseStatus.ACTIVE
-                            ? "bg-green-100 text-green-800"
-                            : caseItem.status === CaseStatus.RESOLVED
-                            ? "bg-gray-100 text-gray-800"
-                            : "bg-yellow-100 text-yellow-800"
-                        }`}
-                      >
-                        {caseItem.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
-                      {caseItem.deleted_at
-                        ? new Date(caseItem.deleted_at).toLocaleDateString()
-                        : "N/A"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                      <div className="flex items-center justify-center gap-2">
-                        {/* Restore Button */}
-                        <button
-                          onClick={() => handleRestoreCase(caseItem.cnr)}
-                          disabled={processingCnr === caseItem.cnr}
-                          className="p-2 text-green-600 hover:text-green-900 hover:bg-green-100 dark:hover:bg-green-900/20 rounded-lg transition-colors disabled:opacity-50"
-                          title="Restore Case"
-                        >
-                          <RotateCcw className="h-5 w-5" />
-                        </button>
-
-                        {/* Permanent Delete Button */}
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <button
-                              disabled={processingCnr === caseItem.cnr}
-                              className="p-2 text-red-600 hover:text-red-900 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-5 w-5" />
-                            </button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Case</AlertDialogTitle>
-                              <AlertDialogDescription className="text-red-600 font-medium">
-                                ⚠️ This action cannot be undone!
-                              </AlertDialogDescription>
-                              <AlertDialogDescription>
-                                This will permanently delete the case and all
-                                associated data. You will not be able to recover
-                                this case.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() =>
-                                  handlePermanentDelete(caseItem.cnr)
-                                }
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </td>
+          <ScrollArea className="w-full">
+            <div className="min-w-full">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50 dark:bg-zinc-800">
+                  <tr>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                    >
+                      Case Number
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                    >
+                      Title
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                    >
+                      Status
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                    >
+                      Deleted On
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                    >
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-200 dark:divide-gray-700">
+                  {deletedCases.map((caseItem) => (
+                    <tr
+                      key={caseItem.cnr}
+                      className="hover:bg-gray-50 dark:hover:bg-zinc-800"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {caseItem.cnr}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="text-sm text-gray-900 dark:text-gray-100">
+                          {caseItem.title || "Untitled Case"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            caseItem.status === CaseStatus.ACTIVE
+                              ? "bg-green-100 text-green-800"
+                              : caseItem.status === CaseStatus.RESOLVED
+                                ? "bg-gray-100 text-gray-800"
+                                : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {caseItem.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
+                        {caseItem.deleted_at
+                          ? new Date(caseItem.deleted_at).toLocaleDateString()
+                          : "N/A"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                        <div className="flex items-center justify-center gap-2">
+                          {/* Restore Button */}
+                          <button
+                            onClick={() => handleRestoreCase(caseItem.cnr)}
+                            disabled={processingCnr === caseItem.cnr}
+                            className="p-2 text-green-600 hover:text-green-900 hover:bg-green-100 dark:hover:bg-green-900/20 rounded-lg transition-colors disabled:opacity-50"
+                            title="Restore Case"
+                          >
+                            <RotateCcw className="h-5 w-5" />
+                          </button>
+
+                          {/* Permanent Delete Button */}
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                disabled={processingCnr === caseItem.cnr}
+                                className="p-2 text-red-600 hover:text-red-900 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Case</AlertDialogTitle>
+                                <AlertDialogDescription className="text-red-600 font-medium">
+                                  ⚠️ This action cannot be undone!
+                                </AlertDialogDescription>
+                                <AlertDialogDescription>
+                                  This will permanently delete the case and all
+                                  associated data. You will not be able to
+                                  recover this case.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() =>
+                                    handlePermanentDelete(caseItem.cnr)
+                                  }
+                                  className="bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
         )}
       </div>
     </div>
