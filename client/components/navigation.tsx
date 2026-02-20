@@ -32,7 +32,7 @@ export default function Navigation({ translucent = false }: NavigationProps) {
   const authUpperItems = [
     { link: "/", text: "Home" },
     { link: "/dashboard/cases", text: "Cases" },
-    { link: "/contact", text: "Feedback" },
+    { link: "/contact", text: "Contact Us" },
     { link: "/settings", text: "Settings" },
     { link: "/about", text: "About" },
   ];
@@ -46,7 +46,7 @@ export default function Navigation({ translucent = false }: NavigationProps) {
   // Menu items for StaggeredMenu - Unauthenticated users (upper section)
   const publicUpperItems = [
     { link: "/", text: "Home" },
-    { link: "/contact", text: "Feedback" },
+    { link: "/contact", text: "Contact Us" },
     { link: "/about", text: "About" },
     { link: "/settings", text: "Settings" },
   ];
@@ -101,7 +101,7 @@ export default function Navigation({ translucent = false }: NavigationProps) {
                       }`}
                     >
                       <MessageSquare className="h-4 w-4 mr-1" />
-                      <span>Feedback</span>
+                      <span>Contact Us</span>
                     </Link>
                     <Link
                       href="/settings"

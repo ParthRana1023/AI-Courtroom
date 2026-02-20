@@ -179,7 +179,7 @@ export default function RootLayout({
                   {
                     "@type": "SiteNavigationElement",
                     position: 3,
-                    name: "Feedback",
+                    name: "Contact Us",
                     description:
                       "Contact us or provide feedback about the platform.",
                     url: "https://ai-courtroom.vercel.app/contact",

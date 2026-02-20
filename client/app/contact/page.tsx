@@ -25,6 +25,8 @@ const feedbackCategories: { value: FeedbackCategory; label: string }[] = [
   { value: "performance", label: "Performance" },
   { value: "bug_report", label: "Bug Report" },
   { value: "feature_request", label: "Feature Request" },
+  { value: "account_support", label: "Account Support" },
+  { value: "legal_inquiry", label: "Legal/Terms Inquiry" },
   { value: "other", label: "Other" },
 ];
 
@@ -57,7 +59,7 @@ export default function Contact() {
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    >,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -103,10 +105,10 @@ export default function Contact() {
         <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-zinc-200 dark:border-zinc-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-zinc-800 dark:text-zinc-100">
-              Feedback Form
+              Contact Us
             </h1>
             <p className="text-zinc-600 dark:text-zinc-400 mt-2">
-              We'd love to hear from you. Please share your valuable insights.
+              Have a question, feedback, or need support? We're here to help.
             </p>
           </div>
 
@@ -114,8 +116,8 @@ export default function Contact() {
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg mb-6 flex items-center">
               <CheckCircle className="h-5 w-5 mr-2" />
               <span>
-                Your feedback has been sent successfully! We're grateful for
-                your feedback!
+                Your message has been sent successfully! We will get back to you
+                soon if a reply is needed.
               </span>
             </div>
           )}
@@ -133,7 +135,7 @@ export default function Contact() {
                 htmlFor="feedback_category"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
               >
-                What would you like to give feedback about?
+                What can we help you with today?
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

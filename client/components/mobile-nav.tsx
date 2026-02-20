@@ -13,14 +13,14 @@ const authMenuItems = [
   { link: "/dashboard/profile", text: "Profile" },
   { link: "/dashboard/settings", text: "Settings" },
   { link: "/about", text: "About" },
-  { link: "/feedback", text: "Feedback" },
+  { link: "/contact", text: "Contact Us" },
 ];
 
 // Menu items for unauthenticated users (upper)
 const publicMenuItems = [
   { link: "/", text: "Home" },
   { link: "/about", text: "About" },
-  { link: "/feedback", text: "Feedback" },
+  { link: "/contact", text: "Contact Us" },
 ];
 
 // Auth actions for unauthenticated users

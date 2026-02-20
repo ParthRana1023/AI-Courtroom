@@ -164,6 +164,8 @@ export type FeedbackCategory =
   | "performance"
   | "bug_report"
   | "feature_request"
+  | "account_support"
+  | "legal_inquiry"
   | "other";
 
 export interface ContactFormData {

@@ -12,6 +12,8 @@ class FeedbackCategory(str, Enum):
     PERFORMANCE = "performance"
     BUG_REPORT = "bug_report"
     FEATURE_REQUEST = "feature_request"
+    ACCOUNT_SUPPORT = "account_support"
+    LEGAL_INQUIRY = "legal_inquiry"
     OTHER = "other"
 
 class FeedbackCreate(BaseModel):

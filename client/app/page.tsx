@@ -18,7 +18,7 @@ const FlowingMenu = dynamic(() => import("@/components/flowing-menu"), {
 const authUpperItems = [
   { link: "/", text: "Home" },
   { link: "/dashboard/cases", text: "Cases" },
-  { link: "/contact", text: "Feedback" },
+  { link: "/contact", text: "Contact Us" },
   { link: "/settings", text: "Settings" },
   { link: "/about", text: "About" },
 ];
@@ -32,7 +32,7 @@ const authLowerItems = [
 // Menu items for unauthenticated users (upper section)
 const publicUpperItems = [
   { link: "/", text: "Home" },
-  { link: "/contact", text: "Feedback" },
+  { link: "/contact", text: "Contact Us" },
   { link: "/about", text: "About" },
   { link: "/settings", text: "Settings" },
 ];
