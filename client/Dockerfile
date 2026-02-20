@@ -1,5 +1,5 @@
 # Use an official Node.js runtime as a parent image
-FROM node:24-slim AS base
+FROM node:25-slim AS base
 
 # Install pnpm
 RUN npm install -g pnpm
