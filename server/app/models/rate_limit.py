@@ -4,6 +4,7 @@ from beanie import Document, Indexed
 from pydantic import Field
 from app.utils.datetime import get_current_datetime
 
+
 class RateLimitEntry(Document):
     user_id: Indexed(str)
     timestamp: datetime = Field(default_factory=get_current_datetime)

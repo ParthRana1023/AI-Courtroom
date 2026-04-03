@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import Field, EmailStr
 from app.utils.datetime import get_current_datetime
 
+
 class Feedback(Document):
     user_id: str
     first_name: str

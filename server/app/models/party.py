@@ -6,6 +6,7 @@ from enum import Enum
 from app.utils.datetime import get_current_datetime
 import uuid
 
+
 class PartyRole(str, Enum):
     APPLICANT = "applicant"
     NON_APPLICANT = "non_applicant"
@@ -13,6 +14,7 @@ class PartyRole(str, Enum):
 
 class PartyInvolved(BaseModel):
     """Model for parties involved in a case"""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     role: PartyRole
@@ -24,6 +26,7 @@ class PartyInvolved(BaseModel):
 
 class PartyChatMessage(BaseModel):
     """Model for chat messages with parties involved"""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     sender: str  # 'user' or 'party'
     content: str

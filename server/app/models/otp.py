@@ -4,6 +4,7 @@ from beanie import Document
 from pydantic import BaseModel, EmailStr
 from app.schemas.user import UserCreate
 
+
 class OTP(Document):
     email: str
     otp: str
@@ -13,13 +14,15 @@ class OTP(Document):
     class Settings:
         name = "otp"
 
+
 class RegistrationVerifyRequest(BaseModel):
     user_data: UserCreate
     otp: str
     remember_me: bool = False
 
+
 class LoginVerifyRequest(BaseModel):
     email: EmailStr
     otp: str
     remember_me: bool = False
-    redirect_path: str | None = None # Add optional redirect_path
+    redirect_path: str | None = None  # Add optional redirect_path

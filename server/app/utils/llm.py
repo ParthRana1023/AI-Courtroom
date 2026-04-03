@@ -1,4 +1,5 @@
 from langchain_groq import ChatGroq
+
 # from langchain_google_genai import ChatGoogleGenerativeAI
 from app.config import settings
 
@@ -15,5 +16,5 @@ llm = ChatGroq(
     model=settings.llm_model,
     temperature=0.1,
     api_key=settings.groq_api_key,
-    max_tokens=2048
+    max_tokens=2048,
 )

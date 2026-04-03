@@ -8,6 +8,7 @@ from typing import Optional, List
 
 class ClientLogEntry(BaseModel):
     """Single log entry from client."""
+
     level: str  # "debug", "info", "warn", "error"
     category: str  # "api", "auth", "courtroom", etc.
     message: str
@@ -25,11 +26,13 @@ class ClientLogEntry(BaseModel):
 
 class ClientLogBatch(BaseModel):
     """Batch of log entries from client."""
+
     logs: List[ClientLogEntry]
 
 
 class ClientLogStats(BaseModel):
     """Response schema for client log statistics."""
+
     period: str
     counts: dict
     total: int
