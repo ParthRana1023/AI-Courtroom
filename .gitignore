@@ -39,3 +39,16 @@ htmlcov/
 oauth_details/
 
 scripts/
+
+.agents/
+.agent/
+
+everything-claude-code/
+
+.cursorrules
+
+.mypy_cache/
+
+.review_venv/
+
+.ruff_cache/

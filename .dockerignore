@@ -1,7 +1,3 @@
-tests/
-venv/
-__pycache__/
-pytest.ini
-server/bnss_embedding/
-
-oauth_details/
+pytest_cache/
+.cursorrules
+.agent/

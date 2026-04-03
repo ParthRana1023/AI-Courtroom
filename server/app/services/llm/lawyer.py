@@ -8,11 +8,20 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-async def generate_counter_argument(history: str, user_input: str, ai_role: str = None, user_role: str = None, case_details: str = None) -> str:
+
+async def generate_counter_argument(
+    history: str,
+    user_input: str,
+    ai_role: str | None = None,
+    user_role: str | None = None,
+    case_details: str | None = None,
+) -> str:
     try:
         logger.info(f"Generating counter argument for {ai_role}")
-        logger.debug(f"History length: {len(history)} chars, user_input length: {len(user_input)} chars")
-        
+        logger.debug(
+            f"History length: {len(history)} chars, user_input length: {len(user_input)} chars"
+        )
+
         template = """
 
             You are an experienced and assertive Indian trial lawyer representing the {ai_role} in a court of law. 
@@ -28,36 +37,40 @@ async def generate_counter_argument(history: str, user_input: str, ai_role: str 
             Do not ask any questions in the end of the response to anyone.
             
         """
-        
-        prompt = ChatPromptTemplate.from_messages([
-            ("human", template + "\n\nUser's argument to respond to: {user_input}")
-        ]) 
+
+        prompt = ChatPromptTemplate.from_messages(
+            [("human", template + "\n\nUser's argument to respond to: {user_input}")]
+        )
 
         chain = prompt | llm | StrOutputParser()
 
         start_time = time.perf_counter()
-        response = chain.invoke({
-            "ai_role": ai_role,
-            "history": history,
-            "case_details": case_details,
-            "user_role": user_role,
-            "user_input": user_input
-        })
+        response = chain.invoke(
+            {
+                "ai_role": ai_role,
+                "history": history,
+                "case_details": case_details,
+                "user_role": user_role,
+                "user_input": user_input,
+            }
+        )
         duration_ms = (time.perf_counter() - start_time) * 1000
-        
+
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
-        
-        logger.info(f"Counter argument generated in {duration_ms:.2f}ms, response length: {len(response)} chars")
+
+        logger.info(
+            f"Counter argument generated in {duration_ms:.2f}ms, response length: {len(response)} chars"
+        )
         return response
     except Exception as e:
         logger.error(f"Error generating counter argument: {str(e)}", exc_info=True)
         return "I apologize, but I'm unable to generate a counter argument at this time. Please try again later."
 
 
-async def opening_statement(ai_role: str, case_details: str, user_role: str) -> str: 
+async def opening_statement(ai_role: str, case_details: str, user_role: str) -> str:
     try:
         logger.info(f"Generating opening statement for {ai_role}")
-        
+
         template = """
             You are an Indian lawyer from the {ai_role}'s side. 
             Just give a brief opening statement in less than 250 words, regarding the case using this information: {case_details} 
@@ -65,24 +78,22 @@ async def opening_statement(ai_role: str, case_details: str, user_role: str) -> 
             Refer to the Judge as "My Lord" or "Your Honour".
             Don't add the words "Opening Statement" or something similar as the heading of the prompt.
             Do not ask any questions in the end of the response to anyone."""
-        
-        prompt = ChatPromptTemplate.from_messages([
-            ("human", template)
-        ])
+
+        prompt = ChatPromptTemplate.from_messages([("human", template)])
 
         chain = prompt | llm | StrOutputParser()
 
         start_time = time.perf_counter()
-        response = chain.invoke({
-            'ai_role' : ai_role,
-            'case_details' : case_details,
-            'user_role': user_role
-        })
+        response = chain.invoke(
+            {"ai_role": ai_role, "case_details": case_details, "user_role": user_role}
+        )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
 
-        logger.info(f"Opening statement generated in {duration_ms:.2f}ms, response length: {len(response)} chars")
+        logger.info(
+            f"Opening statement generated in {duration_ms:.2f}ms, response length: {len(response)} chars"
+        )
         return response
     except Exception as e:
         logger.error(f"Error generating opening statement: {str(e)}", exc_info=True)
@@ -92,7 +103,7 @@ async def opening_statement(ai_role: str, case_details: str, user_role: str) -> 
 async def closing_statement(history: str, ai_role: str, user_role: str) -> str:
     try:
         logger.info(f"Generating closing statement for {ai_role}")
-        
+
         template = """
             You are an Indian lawyer from the {ai_role}'s side, and the user is the {user_role}'s lawyer. 
             You require to give a brief closing statement regarding the case using this information: {history} 
@@ -102,24 +113,22 @@ async def closing_statement(history: str, ai_role: str, user_role: str) -> str:
             Refer to the Judge as "My Lord" or "Your Honour".
             Don't add the words "Closing Statement" or something similar as the heading of the prompt.
         """
-        
-        prompt = ChatPromptTemplate.from_messages([
-            ("human", template)
-        ])
+
+        prompt = ChatPromptTemplate.from_messages([("human", template)])
 
         chain = prompt | llm | StrOutputParser()
 
         start_time = time.perf_counter()
-        response = chain.invoke({
-            'ai_role' : ai_role,
-            'history' : history,
-            'user_role' : user_role
-        })
+        response = chain.invoke(
+            {"ai_role": ai_role, "history": history, "user_role": user_role}
+        )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
 
-        logger.info(f"Closing statement generated in {duration_ms:.2f}ms, response length: {len(response)} chars")
+        logger.info(
+            f"Closing statement generated in {duration_ms:.2f}ms, response length: {len(response)} chars"
+        )
         return response
     except Exception as e:
         logger.error(f"Error generating closing statement: {str(e)}", exc_info=True)

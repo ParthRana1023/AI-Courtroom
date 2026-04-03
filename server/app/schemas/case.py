@@ -4,16 +4,20 @@ from typing import List, Optional, Any
 from datetime import datetime
 from app.models.case import CaseStatus, Roles
 
+
 class CaseCreate(BaseModel):
     sections_involved: int
     section_numbers: list[int]
+
 
 class ArgumentOut(BaseModel):
     type: str
     content: str
     user_id: Optional[Any] = None  # Use Any to accept any type of value
     role: Roles = Roles.NOT_STARTED
-    timestamp: Optional[datetime] = None  # Add timestamp field to track when argument was submitted
+    timestamp: Optional[datetime] = (
+        None  # Add timestamp field to track when argument was submitted
+    )
 
 
 class CourtroomProceedingsEventOut(BaseModel):
@@ -26,6 +30,7 @@ class CourtroomProceedingsEventOut(BaseModel):
     witness_id: Optional[str] = None
     question: Optional[str] = None
     answer: Optional[str] = None
+
 
 class CaseOut(BaseModel):
     id: str

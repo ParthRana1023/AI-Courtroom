@@ -9,6 +9,7 @@ Gender = Literal["male", "female", "others", "prefer-not-to-say"]
 # Case location preference type
 CaseLocationPreference = Literal["user_location", "specific_state", "random"]
 
+
 class UserCreate(BaseModel):
     first_name: str
     last_name: str
@@ -18,8 +19,10 @@ class UserCreate(BaseModel):
     password: str
     google_id: Optional[str] = None  # For Google OAuth registrations
     gender: Gender  # Required - user must select one of the 4 options
-    profile_photo_url: Optional[str] = None  # Optional - from Google OAuth or user upload
-    
+    profile_photo_url: Optional[str] = (
+        None  # Optional - from Google OAuth or user upload
+    )
+
     # Location fields - required for registration
     city: str
     state: str
@@ -28,24 +31,28 @@ class UserCreate(BaseModel):
     country_iso2: str
     phone_code: Optional[str] = None  # Auto-derived from country
 
-    @field_validator('phone_number')
+    @field_validator("phone_number")
     def validate_phone_number(cls, value):
         # Remove any non-digit characters
-        digits = ''.join(filter(str.isdigit, value))
+        digits = "".join(filter(str.isdigit, value))
         if len(digits) != 10:
             raise ValueError("Phone number must be exactly 10 digits")
         return digits
 
-    @field_validator('date_of_birth')
+    @field_validator("date_of_birth")
     def validate_age(cls, value):
         today = date.today()
         # Calculate age
-        age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
+        age = (
+            today.year
+            - value.year
+            - ((today.month, today.day) < (value.month, value.day))
+        )
         if age < 18:
             raise ValueError("You must be at least 18 years old to register")
         return value
 
-    @field_validator('password')
+    @field_validator("password")
     def validate_password(cls, value):
         if len(value) < 8:
             raise ValueError("Password must be at least 8 characters")
@@ -57,18 +64,23 @@ class UserCreate(BaseModel):
             raise ValueError("Password must contain at least 1 special character")
         return value
 
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     first_name: str
     last_name: str
     date_of_birth: date
     phone_number: str
     email: EmailStr
-    gender: Optional[Gender] = None  # Optional for backwards compatibility with existing users
-    profile_photo_url: Optional[str] = None  # Cloudinary URL for profile photo (optional)
+    gender: Optional[Gender] = (
+        None  # Optional for backwards compatibility with existing users
+    )
+    profile_photo_url: Optional[str] = (
+        None  # Cloudinary URL for profile photo (optional)
+    )
     nickname: Optional[str] = None  # User's preferred display name
-    
+
     # Location fields
     city: Optional[str] = None
     state: Optional[str] = None
@@ -76,7 +88,7 @@ class UserOut(BaseModel):
     country: Optional[str] = None
     country_iso2: Optional[str] = None
     phone_code: Optional[str] = None
-    
+
     # Case generation preferences
     case_location_preference: Optional[CaseLocationPreference] = "random"
     preferred_case_state: Optional[str] = None
@@ -84,13 +96,20 @@ class UserOut(BaseModel):
 
 class CaseLocationPreferenceUpdate(BaseModel):
     """Schema for updating case location preference from settings."""
+
     case_location_preference: CaseLocationPreference
-    preferred_case_state: Optional[str] = None  # Required when preference is "specific_state"
-    
-    @model_validator(mode='after')
+    preferred_case_state: Optional[str] = (
+        None  # Required when preference is "specific_state"
+    )
+
+    @model_validator(mode="after")
     def validate_preferred_state(self):
         """Validate that preferred_case_state is provided when preference is 'specific_state'."""
-        if self.case_location_preference == 'specific_state' and not self.preferred_case_state:
-            raise ValueError("preferred_case_state is required when preference is 'specific_state'")
+        if (
+            self.case_location_preference == "specific_state"
+            and not self.preferred_case_state
+        ):
+            raise ValueError(
+                "preferred_case_state is required when preference is 'specific_state'"
+            )
         return self
-

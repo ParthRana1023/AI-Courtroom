@@ -18,9 +18,7 @@ logger = get_logger(__name__)
 
 @router.post("/client")
 async def receive_client_logs(
-    batch: ClientLogBatch,
-    request: Request,
-    background_tasks: BackgroundTasks
+    batch: ClientLogBatch, request: Request, background_tasks: BackgroundTasks
 ):
     """
     Receive and store client-side logs.
@@ -28,7 +26,7 @@ async def receive_client_logs(
     """
     # Add to background task for async processing
     background_tasks.add_task(process_client_logs, batch.logs)
-    
+
     return {"received": len(batch.logs)}
 
 
@@ -44,8 +42,10 @@ async def process_client_logs(logs: List[ClientLogEntry]):
                         "session_id": entry.session_id,
                         "user_id": entry.user_id,
                         "url": entry.url,
-                        "error_stack": entry.error_stack[:500] if entry.error_stack else None
-                    }
+                        "error_stack": (
+                            entry.error_stack[:500] if entry.error_stack else None
+                        ),
+                    },
                 )
             elif entry.level == "warn":
                 logger.info(
@@ -53,10 +53,10 @@ async def process_client_logs(logs: List[ClientLogEntry]):
                     extra={
                         "session_id": entry.session_id,
                         "user_id": entry.user_id,
-                        "url": entry.url
-                    }
+                        "url": entry.url,
+                    },
                 )
-            
+
             # Parse timestamp
             try:
                 # Handle ISO format with Z suffix
@@ -64,7 +64,7 @@ async def process_client_logs(logs: List[ClientLogEntry]):
                 timestamp = datetime.fromisoformat(timestamp_str)
             except ValueError:
                 timestamp = get_current_datetime()
-            
+
             # Store in MongoDB
             client_log = ClientLog(
                 timestamp=timestamp,
@@ -79,10 +79,10 @@ async def process_client_logs(logs: List[ClientLogEntry]):
                 error_stack=entry.error_stack,
                 component_stack=entry.component_stack,
                 context=entry.context,
-                duration_ms=entry.duration_ms
+                duration_ms=entry.duration_ms,
             )
             await client_log.insert()
-            
+
         except Exception as e:
             logger.error(f"Failed to store client log: {e}")
 
@@ -96,23 +96,23 @@ async def get_client_log_stats():
     try:
         # Count logs by level in the last 24 hours
         from datetime import timedelta
-        
+
         since = get_current_datetime() - timedelta(hours=24)
-        
+
         pipeline = [
             {"$match": {"timestamp": {"$gte": since}}},
             {"$group": {"_id": "$level", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}}
+            {"$sort": {"count": -1}},
         ]
-        
+
         results = await ClientLog.aggregate(pipeline).to_list()
-        
+
         stats = {item["_id"]: item["count"] for item in results}
-        
+
         return {
             "period": "last_24_hours",
             "counts": stats,
-            "total": sum(stats.values())
+            "total": sum(stats.values()),
         }
     except Exception as e:
         logger.error(f"Failed to get client log stats: {e}")

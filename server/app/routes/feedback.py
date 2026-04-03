@@ -10,10 +10,15 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+
 @router.post("/submit", response_model=FeedbackOut, status_code=status.HTTP_201_CREATED)
-async def submit_feedback(feedback_data: FeedbackCreate, current_user: User = Depends(get_current_user)):
-    logger.info(f"Feedback submission from user: {current_user.email}, category: {feedback_data.feedback_category.value}")
-    
+async def submit_feedback(
+    feedback_data: FeedbackCreate, current_user: User = Depends(get_current_user)
+):
+    logger.info(
+        f"Feedback submission from user: {current_user.email}, category: {feedback_data.feedback_category.value}"
+    )
+
     try:
         # Create feedback with user details fetched from current user
         feedback = Feedback(
@@ -23,7 +28,7 @@ async def submit_feedback(feedback_data: FeedbackCreate, current_user: User = De
             email=current_user.email,
             phone_number=current_user.phone_number,
             feedback_category=feedback_data.feedback_category.value,
-            message=feedback_data.message
+            message=feedback_data.message,
         )
         await feedback.insert()
         logger.info(f"Feedback saved successfully from user: {current_user.email}")
@@ -33,5 +38,9 @@ async def submit_feedback(feedback_data: FeedbackCreate, current_user: User = De
         feedback_dict["created_at"] = feedback.created_at.isoformat()
         return feedback_dict
     except Exception as e:
-        logger.error(f"Error saving feedback from {current_user.email}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        logger.error(
+            f"Error saving feedback from {current_user.email}: {str(e)}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )

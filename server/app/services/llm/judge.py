@@ -9,12 +9,24 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-async def generate_verdict(plaintiff_arguments: List[str], defendant_arguments: List[str], case_details: str = None, title: str = None) -> str:
+
+async def generate_verdict(
+    plaintiff_arguments: List[str],
+    defendant_arguments: List[str],
+    case_details: str | None = None,
+    title: str | None = None,
+) -> str:
     try:
-        logger.info(f"Generating verdict for case: {title[:50] if title else 'untitled'}...")
-        logger.debug(f"Plaintiff arguments: {len(plaintiff_arguments)}, Defendant arguments: {len(defendant_arguments)}")
-        
-        judge_template = judge_template = """
+        logger.info(
+            f"Generating verdict for case: {title[:50] if title else 'untitled'}..."
+        )
+        logger.debug(
+            f"Plaintiff arguments: {len(plaintiff_arguments)}, Defendant arguments: {len(defendant_arguments)}"
+        )
+
+        judge_template = (
+            judge_template
+        ) = """
 
             You are an impartial Indian Court judge. Draft a formal JUDGMENT in the style used by Indian High Courts / Supreme Court practice, following the rules below.
 
@@ -109,26 +121,28 @@ async def generate_verdict(plaintiff_arguments: List[str], defendant_arguments: 
             
         """
 
-        judge_prompt = ChatPromptTemplate.from_messages([
-            ("human", judge_template)
-        ])
+        judge_prompt = ChatPromptTemplate.from_messages([("human", judge_template)])
 
         judge_chain = judge_prompt | llm | StrOutputParser()
 
         start_time = time.perf_counter()
-        verdict = judge_chain.invoke({
-            "title": title or "No title provided",
-            "case_details": case_details or "No case details provided",
-            "plaintiff_arguments": plaintiff_arguments,
-            "defendant_arguments": defendant_arguments,
-        })
+        verdict = judge_chain.invoke(
+            {
+                "title": title or "No title provided",
+                "case_details": case_details or "No case details provided",
+                "plaintiff_arguments": plaintiff_arguments,
+                "defendant_arguments": defendant_arguments,
+            }
+        )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         verdict = re.sub(r"<think>.*?</think>", "", verdict, flags=re.DOTALL).strip()
 
-        logger.info(f"Verdict generated in {duration_ms:.2f}ms, response length: {len(verdict)} chars")
+        logger.info(
+            f"Verdict generated in {duration_ms:.2f}ms, response length: {len(verdict)} chars"
+        )
         return verdict
-        
+
     except Exception as e:
         logger.error(f"Error generating verdict: {str(e)}", exc_info=True)
         return "I apologize, but I'm unable to generate a verdict at this time. Please try again later."

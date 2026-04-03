@@ -7,6 +7,7 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+
 async def send_email(to_email: str, subject: str, body: str):
     """Send an email using SMTP"""
     message = MIMEMultipart()
@@ -14,11 +15,13 @@ async def send_email(to_email: str, subject: str, body: str):
     message["From"] = f"AI Courtroom <{settings.email_username}>"
     message["To"] = to_email
     message["Subject"] = subject
-    
+
     message.attach(MIMEText(body, "html"))
-    
+
     try:
-        logger.debug(f"Connecting to SMTP server: {settings.smtp_server}:{settings.smtp_port}")
+        logger.debug(
+            f"Connecting to SMTP server: {settings.smtp_server}:{settings.smtp_port}"
+        )
         server = smtplib.SMTP(settings.smtp_server, settings.smtp_port)
         server.starttls()
         server.login(settings.email_username, settings.email_password)
@@ -30,11 +33,12 @@ async def send_email(to_email: str, subject: str, body: str):
         logger.error(f"Failed to send email to {to_email}: {str(e)}", exc_info=True)
         return False
 
+
 async def send_otp_email(email: str, otp: str, is_registration: bool = True):
     """Send OTP verification email"""
     action = "registration" if is_registration else "login"
     logger.info(f"Sending OTP email for {action} to: {email}")
-    
+
     subject = f"Your OTP for {action} - AI Courtroom"
     body = f"""
     <html>
@@ -57,7 +61,7 @@ async def send_otp_email(email: str, otp: str, is_registration: bool = True):
 async def send_contact_email(contact_data):
     """Send contact form submission email"""
     logger.info(f"Sending contact form email from: {contact_data.email}")
-    
+
     subject = f"Contact Form Submission from {contact_data.first_name} {contact_data.last_name}"
     body = f"""
     <html>
@@ -73,4 +77,5 @@ async def send_contact_email(contact_data):
     """
     # Using the same email address as the recipient (admin email)
     from app.config import settings
+
     return await send_email(settings.email_sender, subject, body)

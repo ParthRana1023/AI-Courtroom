@@ -1,0 +1,10 @@
+.env
+.env.*
+.review_venv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+pytest.ini
+oauth_details/
+htmlcov/
+tests/

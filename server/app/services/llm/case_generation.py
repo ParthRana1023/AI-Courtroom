@@ -3,12 +3,10 @@ import random
 import string
 import re
 import time
-import uuid
 from typing import Optional
 from app.utils.llm import llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from app.models.party import PartyRole, PartyInvolved
 from app.services.llm.parties_service import extract_and_assign_parties
 from app.services.high_court_mapping import get_random_high_court, INDIAN_HIGH_COURTS
 from datetime import datetime
@@ -16,13 +14,12 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+
 async def random_names():
     names = []
     template = "Generate 15 random names of Indian people"
 
-    prompt = ChatPromptTemplate.from_messages([
-        ('human', template)
-    ])
+    prompt = ChatPromptTemplate.from_messages([("human", template)])
 
     chain = prompt | llm | StrOutputParser()
 
@@ -33,12 +30,13 @@ async def random_names():
         logger.debug(f"Random names generated in {duration_ms:.2f}ms")
 
         # Split the response into lines and remove empty lines
-        names = [name.strip() for name in llm_response.split('\n') if name.strip()]
+        names = [name.strip() for name in llm_response.split("\n") if name.strip()]
         return random.sample(names, 5) if len(names) >= 5 else names
 
     except Exception as e:
         logger.error(f"Error generating names with LLM: {str(e)}", exc_info=True)
         return []
+
 
 async def random_cities():
     """
@@ -47,9 +45,7 @@ async def random_cities():
     names = []
     template = "Generate 10 random names of Indian cities"
 
-    prompt = ChatPromptTemplate.from_messages([
-        ('human', template)
-    ])
+    prompt = ChatPromptTemplate.from_messages([("human", template)])
 
     chain = prompt | llm | StrOutputParser()
 
@@ -60,7 +56,7 @@ async def random_cities():
         logger.debug(f"Random cities generated in {duration_ms:.2f}ms")
 
         # Split the response into lines and remove empty lines
-        names = [name.strip() for name in llm_response.split('\n') if name.strip()]
+        names = [name.strip() for name in llm_response.split("\n") if name.strip()]
         return random.sample(names, 5) if len(names) >= 5 else names
 
     except Exception as e:
@@ -83,9 +79,7 @@ async def random_organizations():
                     Return only the names, one per line.
                 """
 
-    prompt = ChatPromptTemplate.from_messages([
-        ('human', template)
-    ])
+    prompt = ChatPromptTemplate.from_messages([("human", template)])
 
     chain = prompt | llm | StrOutputParser()
 
@@ -94,28 +88,35 @@ async def random_organizations():
         llm_response = await chain.ainvoke({})
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.debug(f"Random organizations generated in {duration_ms:.2f}ms")
-        
+
         # Split the response into lines and clean up
-        organizations = [org.strip() for org in llm_response.split('\n') if org.strip()]
+        organizations = [org.strip() for org in llm_response.split("\n") if org.strip()]
         # Remove numbering if present (e.g., "1. Company Name" -> "Company Name")
-        organizations = [re.sub(r'^\d+\.\s*', '', org) for org in organizations]
-        return random.sample(organizations, min(5, len(organizations))) if organizations else [
-            "Mumbai Trading Co. Pvt Ltd",
-            "Delhi Textiles Ltd",
-            "Bangalore Tech Solutions",
-            "Chennai Industries Corp",
-            "Kolkata Exports Ltd"
-        ]
+        organizations = [re.sub(r"^\d+\.\s*", "", org) for org in organizations]
+        return (
+            random.sample(organizations, min(5, len(organizations)))
+            if organizations
+            else [
+                "Mumbai Trading Co. Pvt Ltd",
+                "Delhi Textiles Ltd",
+                "Bangalore Tech Solutions",
+                "Chennai Industries Corp",
+                "Kolkata Exports Ltd",
+            ]
+        )
 
     except Exception as e:
-        logger.error(f"Error generating organization names with LLM: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error generating organization names with LLM: {str(e)}", exc_info=True
+        )
         return [
             "Mumbai Trading Co. Pvt Ltd",
             "Delhi Textiles Ltd",
             "Bangalore Tech Solutions",
             "Chennai Industries Corp",
-            "Kolkata Exports Ltd"
+            "Kolkata Exports Ltd",
         ]
+
 
 def generate_realistic_cnr(high_court: str, city: str) -> str:
     """
@@ -126,7 +127,7 @@ def generate_realistic_cnr(high_court: str, city: str) -> str:
     # 1. State Code (2 chars)
     # Create reverse mapping: High Court Name -> State ISO2
     high_court_to_state = {v: k for k, v in INDIAN_HIGH_COURTS.items()}
-    
+
     # Handle bench names that might be slightly different or missing
     # Default to DL (Delhi) if not found, or try to find partial match
     state_code = "DL"
@@ -138,45 +139,53 @@ def generate_realistic_cnr(high_court: str, city: str) -> str:
             if high_court in hc_name or hc_name in high_court:
                 state_code = code
                 break
-    
+
     # 2. District Code (2 chars)
     # Use first two letters of city, or random keys if city is too short
     if city and len(city) >= 2:
         district_code = city[:2].upper()
     else:
-        district_code = ''.join(random.choices(string.ascii_uppercase, k=2))
-        
+        district_code = "".join(random.choices(string.ascii_uppercase, k=2))
+
     # Ensure district code is alpha only
-    district_code = ''.join(c for c in district_code if c.isalpha())
+    district_code = "".join(c for c in district_code if c.isalpha())
     if len(district_code) < 2:
         district_code = (district_code + "X")[:2]
-        
+
     # 3. Establishment Code (2 chars)
     # Random 2 digits
     establishment_code = f"{random.randint(1, 99):02d}"
-    
+
     # 4. Case Number (6 chars)
     # Random 6 digits
     case_number = f"{random.randint(1, 999999):06d}"
-    
+
     # 5. Year (4 chars)
     year = str(datetime.now().year)
-    
+
     cnr = f"{state_code}{district_code}{establishment_code}{case_number}{year}"
-    
+
     # Ensure strictly 16 chars just in case
     if len(cnr) != 16:
         # Fallback to random if something goes wrong with length
-        logger.warning(f"Generated CNR {cnr} length {len(cnr)} != 16. Falling back to structured random.")
+        logger.warning(
+            f"Generated CNR {cnr} length {len(cnr)} != 16. Falling back to structured random."
+        )
         cnr = f"{state_code}{district_code}{establishment_code}{case_number[:6]}{year}"
         if len(cnr) < 16:
-             cnr = cnr.ljust(16, '0')
+            cnr = cnr.ljust(16, "0")
         elif len(cnr) > 16:
-             cnr = cnr[:16]
-             
+            cnr = cnr[:16]
+
     return cnr
 
-async def generate_case(sections: int, numbers: list[int], high_court: Optional[str] = None, city: Optional[str] = None) -> dict:
+
+async def generate_case(
+    sections: int,
+    numbers: list[int],
+    high_court: Optional[str] = None,
+    city: Optional[str] = None,
+) -> dict:
     """
     Generates a hypothetical legal case file using an LLM.
 
@@ -195,11 +204,13 @@ async def generate_case(sections: int, numbers: list[int], high_court: Optional[
     Raises:
         Exception: If any error occurs during LLM invocation or processing.
     """
-    
+
     logger.info(f"Generating case with {sections} IPC sections: {numbers}")
     overall_start_time = time.perf_counter()
-    
-    ipc_section_numbers_str = ", ".join(map(str, numbers)) if numbers else "XXX"  # Default if no numbers provided
+
+    ipc_section_numbers_str = (
+        ", ".join(map(str, numbers)) if numbers else "XXX"
+    )  # Default if no numbers provided
     number_of_ipc_sections = sections
 
     # Generate random names and organizations
@@ -214,12 +225,22 @@ async def generate_case(sections: int, numbers: list[int], high_court: Optional[
         selected_city = random.choice(cities) if cities else "Mumbai"
 
     # Select a few random names, organizations
-    parties_involved_names = random.sample(names, min(len(names), 3)) if names else ["Parth Rana", "Pranav Nagvekar", "Prasiddhi Agarwal", "Yashvi Savla"]
-    orgs_involved = random.sample(organizations, min(len(organizations), 2)) if organizations else ["Mumbai Trading Co. Pvt Ltd", "Delhi Textiles Ltd"]
-    
+    parties_involved_names = (
+        random.sample(names, min(len(names), 3))
+        if names
+        else ["Parth Rana", "Pranav Nagvekar", "Prasiddhi Agarwal", "Yashvi Savla"]
+    )
+    orgs_involved = (
+        random.sample(organizations, min(len(organizations), 2))
+        if organizations
+        else ["Mumbai Trading Co. Pvt Ltd", "Delhi Textiles Ltd"]
+    )
+
     # Use provided high court or fallback to random
     selected_high_court = high_court if high_court else get_random_high_court()
-    logger.info(f"Case generation parameters: High Court={selected_high_court}, City={selected_city}")
+    logger.info(
+        f"Case generation parameters: High Court={selected_high_court}, City={selected_city}"
+    )
 
     template = f""" 
         Draft a hypothetical case file for a legal proceeding involving the Indian Penal Code (IPC). 
@@ -337,9 +358,7 @@ async def generate_case(sections: int, numbers: list[int], high_court: Optional[
         Ensure the final output strictly mimics an official court petition. Use markdown bolding for all specified headers and keywords.
     """
 
-    prompt = ChatPromptTemplate.from_messages([
-        ('human', template)
-    ])
+    prompt = ChatPromptTemplate.from_messages([("human", template)])
 
     chain = prompt | llm | StrOutputParser()
 
@@ -350,47 +369,58 @@ async def generate_case(sections: int, numbers: list[int], high_court: Optional[
         llm_duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Case LLM generation completed in {llm_duration_ms:.2f}ms")
 
-        llm_response_details = re.sub(r"<think>.*?</think>", "", llm_response_details, flags=re.DOTALL).strip()
-        
+        llm_response_details = re.sub(
+            r"<think>.*?</think>", "", llm_response_details, flags=re.DOTALL
+        ).strip()
+
         # Generate a realistic CNR
         cnr = generate_realistic_cnr(selected_high_court, selected_city)
-        
+
         def extract_title(case_text: str) -> str:
             """Extract just the title from case text for display purposes"""
             # Simple regex to extract title from case text
             import re
-            title_match = re.search(r'\*\*IN THE MATTER OF:\*\*\s*\n\*\*(.*?)\*\*', case_text, re.DOTALL)
+
+            title_match = re.search(
+                r"\*\*IN THE MATTER OF:\*\*\s*\n\*\*(.*?)\*\*", case_text, re.DOTALL
+            )
             if title_match:
                 return title_match.group(1).strip()
             # Alternative title pattern
-            title_match = re.search(r'\*\*(Under Section.*?)\*\*', case_text)
+            title_match = re.search(r"\*\*(Under Section.*?)\*\*", case_text)
             if title_match:
                 return title_match.group(1).strip()
             return ""
-            
+
         # Extract title from the raw LLM response
         title = extract_title(llm_response_details)
-        
+
         # Use LLM-based extraction to get parties and assign roles accurately
         logger.debug("Extracting parties from case using LLM...")
         start_time = time.perf_counter()
         try:
             extracted_parties = await extract_and_assign_parties(llm_response_details)
             parties_duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.info(f"Extracted {len(extracted_parties)} parties in {parties_duration_ms:.2f}ms")
+            logger.info(
+                f"Extracted {len(extracted_parties)} parties in {parties_duration_ms:.2f}ms"
+            )
         except Exception as llm_err:
             logger.error(f"LLM extraction failed: {str(llm_err)}", exc_info=True)
             extracted_parties = []
-        
+
         overall_duration_ms = (time.perf_counter() - overall_start_time) * 1000
-        logger.info(f"Case generation completed - CNR: {cnr}, title: {title[:50] if title else 'N/A'}..., total time: {overall_duration_ms:.2f}ms")
-        
+        logger.info(
+            f"Case generation completed - CNR: {cnr}, title: {title[:50] if title else 'N/A'}..., total time: {overall_duration_ms:.2f}ms"
+        )
+
         return {
             "cnr": cnr,
             "details": llm_response_details,  # Raw LLM output
             "title": title,  # Store title directly in the Case model
             "status": "not started",
-            "parties_involved": [p.model_dump() for p in extracted_parties]  # Party data
+            "parties_involved": [
+                p.model_dump() for p in extracted_parties
+            ],  # Party data
         }
 
     except Exception as e:

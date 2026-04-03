@@ -1,8 +1,8 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from beanie.odm.fields import PydanticObjectId as ObjectId
 from datetime import datetime
-from typing import Literal
 from enum import Enum
+
 
 class FeedbackCategory(str, Enum):
     GENERAL = "general"
@@ -16,9 +16,13 @@ class FeedbackCategory(str, Enum):
     LEGAL_INQUIRY = "legal_inquiry"
     OTHER = "other"
 
+
 class FeedbackCreate(BaseModel):
-    feedback_category: FeedbackCategory = Field(..., description="Category of the feedback")
+    feedback_category: FeedbackCategory = Field(
+        ..., description="Category of the feedback"
+    )
     message: str = Field(..., min_length=10, max_length=2000)
+
 
 class FeedbackOut(BaseModel):
     id: str = Field(..., alias="_id")
@@ -34,7 +38,4 @@ class FeedbackOut(BaseModel):
     class ConfigDict:
         from_attributes = True
         populate_by_name = True
-        json_encoders = {
-            ObjectId: str,
-            datetime: lambda dt: dt.isoformat()
-        }
+        json_encoders = {ObjectId: str, datetime: lambda dt: dt.isoformat()}

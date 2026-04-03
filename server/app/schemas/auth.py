@@ -1,13 +1,15 @@
 # app/schemas/auth.py
 """Authentication-related Pydantic schemas."""
+
 from pydantic import BaseModel
 from typing import Optional
 
 
 class GoogleLoginRequest(BaseModel):
     """Request body for Google OAuth login."""
+
     credential: Optional[str] = None  # ID Token from legacy flow
-    access_token: Optional[str] = None # Access Token from implicit flow
+    access_token: Optional[str] = None  # Access Token from implicit flow
     code: Optional[str] = None  # Auth Code from authorization code flow
     state: Optional[str] = None  # State parameter for CSRF protection
     remember_me: bool = False
@@ -15,6 +17,7 @@ class GoogleLoginRequest(BaseModel):
 
 class GoogleLoginResponse(BaseModel):
     """Response for Google OAuth login - may include user data for new users."""
+
     access_token: Optional[str] = None
     token_type: str = "bearer"
     is_new_user: bool = False
@@ -24,6 +27,7 @@ class GoogleLoginResponse(BaseModel):
 
 class ProfileUpdateRequest(BaseModel):
     """Request body for updating user profile."""
+
     # Required fields for existing update functionality
     phone_number: Optional[str] = None
     date_of_birth: Optional[str] = None  # Will be parsed as date
@@ -39,4 +43,3 @@ class ProfileUpdateRequest(BaseModel):
     country: Optional[str] = None
     country_iso2: Optional[str] = None
     phone_code: Optional[str] = None
-
