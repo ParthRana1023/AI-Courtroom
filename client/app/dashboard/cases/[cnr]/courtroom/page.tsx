@@ -712,13 +712,13 @@ export default function Courtroom({
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden pb-0">
-      <header className="shrink-0 mt-4 max-w-7xl mx-auto w-full">
+      <header className="shrink-0 mt-2 sm:mt-4 max-w-7xl mx-auto w-full px-2 sm:px-0">
         <div className="bg-white dark:bg-zinc-900 shadow-sm py-4 rounded-lg border border-gray-200 dark:border-zinc-700">
-          <div className="px-4 sm:px-6">
+          <div className="px-3 sm:px-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               {/* Left side - Case info */}
               <div className="flex flex-col gap-2">
-                <h1 className="text-xl md:text-2xl font-bold leading-tight text-gray-900 dark:text-white">
+                <h1 className="text-base sm:text-xl md:text-2xl font-bold leading-tight text-gray-900 dark:text-white line-clamp-2">
                   {caseData.title}
                 </h1>
                 <div className="flex flex-wrap items-center gap-2">
@@ -746,15 +746,18 @@ export default function Courtroom({
                   >
                     {caseData.status}
                   </span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                  <span className="hidden sm:inline text-sm text-gray-500 dark:text-gray-400">
                     Case #{caseData.cnr} • Filed{" "}
                     {formatToLocaleDateString(caseData.created_at)}
+                  </span>
+                  <span className="sm:hidden text-xs text-gray-500 dark:text-gray-400">
+                    #{caseData.cnr}
                   </span>
                 </div>
               </div>
 
               {/* Right side - Action buttons */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 {/* Witness Panel */}
                 <WitnessPanel
                   key={refreshWitnessPanel}
@@ -922,9 +925,9 @@ export default function Courtroom({
 
       {/* Arguments display area - scrollable */}
       <div
-        className={`flex-1 min-h-0 mt-4 ${
-          caseData.status === CaseStatus.RESOLVED ? "mb-6" : "mb-2"
-        } bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 max-w-7xl mx-auto w-full`}
+        className={`flex-1 min-h-0 mt-2 sm:mt-4 ${
+          caseData.status === CaseStatus.RESOLVED ? "mb-6" : "mb-1 sm:mb-2"
+        } bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 max-w-7xl w-full mx-2 sm:mx-auto`}
       >
         {/* Chat messages */}
         <ScrollArea className="h-full">
@@ -978,7 +981,7 @@ export default function Courtroom({
                       className={`flex ${isExaminerUserSide ? "justify-end" : "justify-start"} mb-2`}
                     >
                       <div
-                        className={`max-w-[75%] rounded-lg p-3 border-l-4 shadow-sm ${isExaminerUserSide ? "bg-blue-50 dark:bg-blue-900/10 border-blue-600" : "bg-purple-50 dark:bg-purple-900/10 border-purple-600"}`}
+                        className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${isExaminerUserSide ? "bg-blue-50 dark:bg-blue-900/10 border-blue-600" : "bg-purple-50 dark:bg-purple-900/10 border-purple-600"}`}
                       >
                         <div
                           className={`text-xs font-bold mb-1 ${isExaminerUserSide ? "text-blue-600" : "text-purple-600"}`}
@@ -1003,7 +1006,7 @@ export default function Courtroom({
                       key={`${event.timestamp}-${index}`}
                       className="flex justify-center mb-4"
                     >
-                      <div className="max-w-[85%] rounded-lg p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm relative">
+                      <div className="max-w-[95%] sm:max-w-[85%] rounded-lg p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm relative">
                         <div className="absolute -top-3 left-4 bg-amber-100 dark:bg-amber-900/80 px-2 py-0.5 rounded text-[10px] font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
                           Witness Testimony
                         </div>
@@ -1027,7 +1030,7 @@ export default function Courtroom({
                     className={`flex ${isUserArg ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[75%] rounded-lg p-3 border-l-4 shadow-sm ${isUserArg ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600" : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"}`}
+                      className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${isUserArg ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600" : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"}`}
                     >
                       <div
                         className={`text-xs font-medium mb-1 flex justify-between ${isUserArg ? "text-blue-600 dark:text-blue-400" : "text-purple-600 dark:text-purple-400"}`}
@@ -1083,7 +1086,7 @@ export default function Courtroom({
                   className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[75%] rounded-lg p-3 border-l-4 ${
+                    className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 ${
                       isUser
                         ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
                         : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"
@@ -1254,14 +1257,14 @@ export default function Courtroom({
 
       {/* Fixed input area at bottom */}
       {caseData.status !== CaseStatus.RESOLVED && (
-        <div className="shrink-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-700 p-4 shadow-lg w-full">
+        <div className="shrink-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-700 p-2.5 sm:p-4 shadow-lg w-full">
           <div className="max-w-7xl mx-auto">
             {/* Rate limit information */}
             {rateLimit && (
-              <div className="p-3 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg flex items-end space-x-2">
-                <div className="w-full flex justify-between items-center">
+              <div className="p-2 sm:p-3 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg">
+                <div className="w-full flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
                   <div>
-                    <span className="text-s text-gray-700 dark:text-gray-300">
+                    <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">
                       Daily argument limit:
                     </span>{" "}
                     <span
@@ -1293,7 +1296,8 @@ export default function Courtroom({
                             d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                           />
                         </svg>
-                        <span>Next submission in: </span>
+                        <span className="hidden sm:inline">Next submission in: </span>
+                        <span className="sm:hidden">Next in: </span>
                         <span className="ml-1 bg-orange-100 text-orange-800 px-2 py-1 rounded font-mono">
                           {/* Format timeRemaining in HH:MM:SS */}
                           {`${Math.floor(timeRemaining / 3600)
@@ -1318,7 +1322,7 @@ export default function Courtroom({
                 </div>
               </div>
             )}
-            <div className="flex items-start space-x-4 pt-3">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 pt-2 sm:pt-3 gap-2 sm:gap-0">
               <div className="flex-1">
                 <SettingsAwareTextArea
                   ref={argumentTextareaRef}
@@ -1338,7 +1342,7 @@ export default function Courtroom({
               </div>
 
               {/* Vertically stacked buttons */}
-              <div className="flex flex-col space-y-2 min-w-[140px]">
+              <div className="flex flex-row sm:flex-col gap-2 sm:space-y-2 sm:gap-0 sm:min-w-[140px]">
                 <button
                   onClick={handleSubmitArgument}
                   disabled={
@@ -1346,7 +1350,7 @@ export default function Courtroom({
                     !argument.trim() ||
                     (timeRemaining !== null && timeRemaining > 0)
                   }
-                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                 >
                   {isSubmitting ? "Submitting..." : "Submit Argument"}
                 </button>
@@ -1359,7 +1363,7 @@ export default function Courtroom({
                       !argument.trim() ||
                       (timeRemaining !== null && timeRemaining > 0)
                     }
-                    className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                   >
                     {isSubmitting ? "Submitting..." : "Submit Closing"}
                   </button>

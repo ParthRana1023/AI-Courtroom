@@ -248,7 +248,7 @@ export default function SettingsPage() {
     <HexagonBackground className="min-h-screen">
       <Navigation />
       <SidebarProvider defaultOpen={true}>
-        <Sidebar variant="inset" collapsible="icon" className="pt-16">
+        <Sidebar variant="inset" collapsible="icon" className="pt-16 hidden md:flex">
           <SidebarHeader className="pt-4 pb-6">
             <div className="flex items-center gap-2 px-2">
               <Settings className="h-5 w-5 shrink-0" />
@@ -308,16 +308,16 @@ export default function SettingsPage() {
         </Sidebar>
 
         <SidebarInset className="pt-16">
-          <div className="max-w-4xl mx-auto p-6">
+          <div className="max-w-4xl mx-auto p-3 sm:p-6">
             {/* ============================================ */}
             {/* ACCESSIBILITY SETTINGS - Visible to Everyone */}
             {/* ============================================ */}
             <div
               ref={accessibilityRef}
               id="accessibility"
-              className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 mb-6 transition-all duration-200 scroll-mt-24"
+              className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6 transition-all duration-200 scroll-mt-24"
             >
-              <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 flex items-center gap-2">
                 <Type className="h-5 w-5 text-blue-600" />
                 Accessibility Settings
               </h2>
@@ -409,9 +409,9 @@ export default function SettingsPage() {
             <div
               ref={privacyRef}
               id="privacy"
-              className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 mb-6 transition-all duration-200 scroll-mt-24"
+              className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6 transition-all duration-200 scroll-mt-24"
             >
-              <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 flex items-center gap-2">
                 <Shield className="h-5 w-5 text-blue-600" />
                 Privacy Settings
               </h2>
@@ -491,9 +491,9 @@ export default function SettingsPage() {
               <div
                 ref={caseManagementRef}
                 id="case-management"
-                className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 mb-6 transition-all duration-200 scroll-mt-24"
+                className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6 transition-all duration-200 scroll-mt-24"
               >
-                <h2 className="text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 flex items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 flex items-center gap-2">
                   <FolderCog className="h-5 w-5 text-blue-600" />
                   Case Management Settings
                 </h2>
@@ -715,7 +715,7 @@ export default function SettingsPage() {
                       hasChanges
                         ? "bg-blue-600 hover:bg-blue-700"
                         : "bg-gray-400 cursor-not-allowed"
-                    } text-white font-bold py-2 px-6 rounded-lg flex items-center transition-all duration-200 transform hover:scale-105 active:scale-95`}
+                    } text-white font-bold py-2.5 sm:py-2 px-4 sm:px-6 rounded-lg flex items-center transition-all duration-200 transform hover:scale-105 active:scale-95 text-sm sm:text-base`}
                   >
                     {saveMessage ? (
                       <>

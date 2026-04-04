@@ -24,7 +24,6 @@ export function UserNav() {
     setIsLoggingOut(true);
     try {
       logout();
-      router.push("/login");
     } catch (error) {
       console.error("Logout failed:", error);
     } finally {
@@ -90,7 +89,7 @@ export function UserNav() {
             className="cursor-pointer"
           >
             <LogOut className="mr-2 h-4 w-4" />
-            {isLoggingOut ? "Logging out..." : "Log out"}
+            {isLoggingOut ? "Logging out..." : "Logout"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

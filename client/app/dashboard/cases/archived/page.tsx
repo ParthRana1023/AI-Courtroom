@@ -130,8 +130,8 @@ export default function RecycleBin() {
   }
 
   return (
-    <div className="grow container mx-auto px-4 py-8">
-      <div className="bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900">
+    <div className="grow container mx-auto px-2 sm:px-4 py-4 sm:py-8">
+      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 dark:bg-zinc-900">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
             <button
@@ -198,7 +198,7 @@ export default function RecycleBin() {
                   <tr>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                      className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
                     >
                       Case Number
                     </th>
@@ -234,17 +234,17 @@ export default function RecycleBin() {
                       key={caseItem.cnr}
                       className="hover:bg-gray-50 dark:hover:bg-zinc-800"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-center">
                         <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {caseItem.cnr}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="text-sm text-gray-900 dark:text-gray-100">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-center">
+                        <div className="text-sm text-gray-900 dark:text-gray-100 line-clamp-2">
                           {caseItem.title || "Untitled Case"}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-center">
                         <span
                           className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             caseItem.status === CaseStatus.ACTIVE
@@ -257,21 +257,21 @@ export default function RecycleBin() {
                           {caseItem.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
                         {caseItem.deleted_at
                           ? new Date(caseItem.deleted_at).toLocaleDateString()
                           : "N/A"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                        <div className="flex items-center justify-center gap-2">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-center text-sm font-medium">
+                        <div className="flex items-center justify-center gap-1 sm:gap-2">
                           {/* Restore Button */}
                           <button
                             onClick={() => handleRestoreCase(caseItem.cnr)}
                             disabled={processingCnr === caseItem.cnr}
-                            className="p-2 text-green-600 hover:text-green-900 hover:bg-green-100 dark:hover:bg-green-900/20 rounded-lg transition-colors disabled:opacity-50"
+                            className="p-1.5 sm:p-2 text-green-600 hover:text-green-900 hover:bg-green-100 dark:hover:bg-green-900/20 rounded-lg transition-colors disabled:opacity-50"
                             title="Restore Case"
                           >
-                            <RotateCcw className="h-5 w-5" />
+                            <RotateCcw className="h-4 w-4 sm:h-5 sm:w-5" />
                           </button>
 
                           {/* Permanent Delete Button */}
@@ -279,10 +279,10 @@ export default function RecycleBin() {
                             <AlertDialogTrigger asChild>
                               <button
                                 disabled={processingCnr === caseItem.cnr}
-                                className="p-2 text-red-600 hover:text-red-900 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                                className="p-1.5 sm:p-2 text-red-600 hover:text-red-900 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
                                 title="Delete"
                               >
-                                <Trash2 className="h-5 w-5" />
+                                <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
                               </button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>

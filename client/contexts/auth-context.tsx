@@ -210,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authAPI.logout();
     setUser(null);
     setIsAuthenticated(false);
+    router.replace("/login");
   };
 
   const loginWithGoogle = async (

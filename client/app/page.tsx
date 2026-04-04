@@ -5,6 +5,12 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/auth-context";
 import { useLifecycleLogger } from "@/hooks/use-performance-logger";
+import {
+  authenticatedPrimaryNavItems,
+  authenticatedSecondaryNavItems,
+  publicPrimaryNavItems,
+  publicSecondaryNavItems,
+} from "@/lib/navigation";
 
 // Dynamic imports for heavy animation components (reduces initial bundle)
 const StaggeredMenu = dynamic(() => import("@/components/staggered-menu"), {
@@ -14,39 +20,18 @@ const FlowingMenu = dynamic(() => import("@/components/flowing-menu"), {
   ssr: false,
 });
 
-// Menu items for authenticated users (upper section)
-const authUpperItems = [
-  { link: "/", text: "Home" },
-  { link: "/dashboard/cases", text: "Cases" },
-  { link: "/contact", text: "Contact Us" },
-  { link: "/settings", text: "Settings" },
-  { link: "/about", text: "About" },
-];
-
-// Menu items for authenticated users (lower section)
-const authLowerItems = [
-  { link: "/dashboard/profile", text: "Profile" },
-  { link: "/logout", text: "Logout" },
-];
-
-// Menu items for unauthenticated users (upper section)
-const publicUpperItems = [
-  { link: "/", text: "Home" },
-  { link: "/contact", text: "Contact Us" },
-  { link: "/about", text: "About" },
-  { link: "/settings", text: "Settings" },
-];
-
-// Menu items for unauthenticated users (lower section)
-const publicLowerItems = [
-  { link: "/login", text: "Login" },
-  { link: "/register", text: "Register" },
-];
-
 export default function Home() {
   useLifecycleLogger("Home");
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
+  const primaryItems = isAuthenticated
+    ? authenticatedPrimaryNavItems
+    : publicPrimaryNavItems;
+  const secondaryItems = isAuthenticated
+    ? authenticatedSecondaryNavItems.map((item) =>
+        item.link === "/logout" ? { ...item, onClick: logout } : item
+      )
+    : publicSecondaryNavItems;
 
   return (
     <main className="h-screen flex flex-col overflow-hidden relative">
@@ -66,7 +51,7 @@ export default function Home() {
         <div className="flex flex-col h-full">
           <div className="flex-2 min-h-0">
             <FlowingMenu
-              items={isAuthenticated ? authUpperItems : publicUpperItems}
+              items={primaryItems}
               textColor="#000"
               bgColor="transparent"
               marqueeBgColor="#2563eb"
@@ -82,7 +67,7 @@ export default function Home() {
           {/* Lower Section */}
           <div className="h-32">
             <FlowingMenu
-              items={isAuthenticated ? authLowerItems : publicLowerItems}
+              items={secondaryItems}
               textColor="#000"
               bgColor="transparent"
               marqueeBgColor={isAuthenticated ? "#dc2626" : "#16a34a"}
@@ -116,7 +101,7 @@ export default function Home() {
       />
 
       {/* Content positioned on the left (darker side) */}
-      <div className="grow flex flex-col items-start justify-center pl-12 md:pl-24 pt-10">
+      <div className="grow flex flex-col items-center sm:items-start justify-center px-6 sm:px-12 md:pl-24 pt-10 sm:pt-0 pb-20 sm:pb-0 text-center sm:text-left">
         {/* Hero Text */}
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 max-w-xl">
           AI Courtroom: AI-Powered Legal Simulation
@@ -127,16 +112,16 @@ export default function Home() {
         </p>
 
         {/* Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto px-4 sm:px-0">
           <Link
             href="/register"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors text-lg shadow-lg text-center"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors text-lg shadow-lg text-center w-full sm:w-auto"
           >
             Get Started
           </Link>
           <Link
             href="/login"
-            className="bg-white/90 hover:bg-white text-gray-800 font-bold py-3 px-8 rounded-lg transition-colors text-lg shadow-lg backdrop-blur-sm text-center"
+            className="bg-white/90 hover:bg-white text-gray-800 font-bold py-3 px-8 rounded-lg transition-colors text-lg shadow-lg backdrop-blur-sm text-center w-full sm:w-auto"
           >
             Login
           </Link>

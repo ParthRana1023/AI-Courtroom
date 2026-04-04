@@ -101,8 +101,8 @@ export default function Contact() {
     <HexagonBackground className="min-h-screen flex flex-col flex-1 p-0 pt-16">
       <Navigation />
 
-      <div className="grow container mx-auto px-4 py-8">
-        <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-zinc-200 dark:border-zinc-800">
+      <div className="grow container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-5 sm:p-8 border border-zinc-200 dark:border-zinc-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-zinc-800 dark:text-zinc-100">
               Contact Us
@@ -197,7 +197,7 @@ export default function Contact() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 disabled:opacity-50 transition-colors flex items-center"
+                className="w-full sm:w-auto justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 disabled:opacity-50 transition-colors flex items-center"
               >
                 {isLoading ? (
                   <>

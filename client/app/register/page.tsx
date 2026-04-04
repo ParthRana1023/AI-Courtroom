@@ -302,9 +302,9 @@ export default function Register() {
     <HexagonBackground className="min-h-screen flex flex-col">
       <Navigation />
 
-      <div className="grow flex items-center justify-center p-4 pt-20">
+      <div className="grow flex items-center justify-center p-3 sm:p-4 pt-20">
         <div
-          className={`w-full max-w-3xl rounded-xl shadow-lg p-6 border transition-colors duration-500 ${
+          className={`w-full max-w-3xl rounded-xl shadow-lg p-4 sm:p-6 border transition-colors duration-500 ${
             formData.gender === "male"
               ? "bg-slate-50 border-slate-200 dark:bg-slate-900 dark:border-slate-700"
               : formData.gender === "female"

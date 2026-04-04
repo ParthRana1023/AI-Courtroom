@@ -134,7 +134,7 @@ export default function Login() {
     setIsLoading(true);
     try {
       // Pass email, otp, and rememberMe as separate arguments
-      await verifyLogin(formData.email, otp.join(""), rememberMe);
+      await verifyLogin(formData.email, otp.join(""), rememberMe, redirectPath);
       // Redirect is handled in the auth context
     } catch (error: any) {
       if (error.response?.data?.detail) {
@@ -165,8 +165,8 @@ export default function Login() {
     <HexagonBackground className="min-h-screen flex flex-col">
       <Navigation />
 
-      <div className="grow flex items-center justify-center p-6 pt-20">
-        <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8 border border-zinc-200 dark:border-gray-800">
+      <div className="grow flex items-center justify-center p-4 sm:p-6 pt-20">
+        <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-6 sm:p-8 border border-zinc-200 dark:border-gray-800">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-zinc-800 dark:text-white">
               {isOtpSent ? "Verify OTP" : "Welcome Back"}

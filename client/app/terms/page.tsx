@@ -23,8 +23,8 @@ export default function TermsOfService() {
       <Navigation />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden py-20 lg:py-28">
-        <div className="container px-4 mx-auto text-center relative z-10">
+      <section className="relative overflow-hidden py-16 sm:py-20 lg:py-28">
+        <div className="container px-4 sm:px-6 mx-auto text-center relative z-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm font-medium mb-8">
             <FileText className="h-4 w-4" />
             Legal Agreement
@@ -44,8 +44,8 @@ export default function TermsOfService() {
       </section>
 
       {/* Terms Content */}
-      <section className="py-16">
-        <div className="container px-4 mx-auto max-w-4xl space-y-8">
+      <section className="py-12 sm:py-16">
+        <div className="container px-4 sm:px-6 mx-auto max-w-4xl space-y-6 sm:space-y-8">
           <TermsCard
             icon={<Scale className="h-5 w-5" />}
             iconColor="text-blue-500"
@@ -210,7 +210,7 @@ export default function TermsOfService() {
             <p>
               © {new Date().getFullYear()} AI Courtroom. All rights reserved.
             </p>
-            <div className="flex gap-6">
+            <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
               <Link
                 href="/about"
                 className="hover:text-foreground transition-colors underline underline-offset-4"
@@ -253,7 +253,7 @@ function TermsCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-card/80 backdrop-blur-sm p-8 rounded-2xl border border-border hover:border-amber-500/20 transition-all duration-300 hover:shadow-lg">
+    <div className="bg-card/80 backdrop-blur-sm p-6 sm:p-8 rounded-2xl border border-border hover:border-amber-500/20 transition-all duration-300 hover:shadow-lg">
       <div className="flex items-center gap-3 mb-5">
         <div className={`p-2.5 rounded-xl ${iconBg}`}>
           <div className={iconColor}>{icon}</div>

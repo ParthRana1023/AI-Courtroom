@@ -13,14 +13,17 @@ import {
 } from "lucide-react";
 import Navigation from "@/components/navigation";
 import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function AboutPage() {
+  const { isAuthenticated, isLoading } = useAuth();
+
   return (
     <HexagonBackground className="min-h-screen flex flex-col p-0 pt-16">
       <Navigation />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden py-24 lg:py-32">
+      <section className="relative overflow-hidden py-16 sm:py-24 lg:py-32">
         <div className="container px-4 mx-auto text-center relative z-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-sm font-medium mb-8">
             <Sparkles className="h-4 w-4" />
@@ -39,8 +42,8 @@ export default function AboutPage() {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20">
-        <div className="container px-4 mx-auto">
+      <section className="py-12 sm:py-20">
+        <div className="container px-4 sm:px-6 mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">How It Works</h2>
             <p className="text-muted-foreground max-w-lg mx-auto">
@@ -91,8 +94,8 @@ export default function AboutPage() {
       </section>
 
       {/* Features Section */}
-      <section className="py-24">
-        <div className="container px-4 mx-auto">
+      <section className="py-16 sm:py-24">
+        <div className="container px-4 sm:px-6 mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">Platform Features</h2>
             <p className="text-muted-foreground max-w-lg mx-auto">
@@ -129,9 +132,9 @@ export default function AboutPage() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-16">
-        <div className="container px-4 mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+      <section className="py-12 sm:py-16 bg-blue-50/50 dark:bg-blue-900/10">
+        <div className="container px-4 sm:px-6 mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-4xl mx-auto">
             <StatCard
               icon={<Users className="h-5 w-5" />}
               value="AI-Driven"
@@ -166,21 +169,35 @@ export default function AboutPage() {
             Start building your legal argumentation skills with AI-powered
             simulations today.
           </p>
-          <div className="flex justify-center gap-4 mb-12">
-            <Link
-              href="/register"
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-full transition-all hover:shadow-lg hover:shadow-blue-500/25"
-            >
-              Start for Free
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/login"
-              className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-semibold py-3 px-8 rounded-full transition-colors"
-            >
-              Login
-            </Link>
-          </div>
+          {!isLoading ? (
+            <div className="flex flex-col sm:flex-row justify-center gap-4 mb-12">
+              {isAuthenticated ? (
+                <Link
+                  href="/dashboard/cases"
+                  className="inline-flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-full transition-all hover:shadow-lg hover:shadow-blue-500/25 w-full sm:w-auto"
+                >
+                  Go to Cases
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/register"
+                    className="inline-flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-full transition-all hover:shadow-lg hover:shadow-blue-500/25 w-full sm:w-auto"
+                  >
+                    Get Started
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-semibold py-3 px-8 rounded-full transition-colors justify-center flex w-full sm:w-auto"
+                  >
+                    Login
+                  </Link>
+                </>
+              )}
+            </div>
+          ) : null}
 
           <div className="flex flex-col md:flex-row justify-center items-center gap-6 text-sm text-muted-foreground border-t border-border/50 pt-8 max-w-2xl mx-auto">
             <p>

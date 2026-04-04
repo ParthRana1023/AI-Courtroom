@@ -383,16 +383,16 @@ export default function CasesListing() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] container mx-auto px-4 py-8">
-      <div className="flex flex-col flex-1 min-h-0 bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900">
-        <div className="shrink-0 flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">My Cases</h1>
-          <div className="flex gap-3 items-center">
+    <div className="flex flex-col h-[calc(100vh-4rem)] container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <div className="flex flex-col flex-1 min-h-0 bg-white rounded-lg shadow-md p-3 sm:p-6 dark:bg-zinc-900">
+        <div className="shrink-0 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold">My Cases</h1>
+          <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
             {/* Animated Search Bar - expands to the left */}
             <div ref={searchRef} className="relative flex items-center">
               <div
-                className={`absolute right-full mr-2 overflow-hidden transition-all duration-500 ease-out ${
-                  searchExpanded ? "w-72 opacity-100" : "w-0 opacity-0"
+                className={`absolute right-0 sm:right-full sm:mr-2 top-full mt-2 sm:top-auto sm:mt-0 overflow-hidden transition-all duration-500 ease-out ${
+                  searchExpanded ? "w-[calc(100vw-3rem)] sm:w-72 opacity-100" : "w-0 opacity-0"
                 }`}
               >
                 <input
@@ -402,7 +402,7 @@ export default function CasesListing() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by title or case number..."
-                  className="w-72 px-4 py-2 border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 shadow-lg"
+                  className="w-full sm:w-72 px-4 py-2.5 sm:py-2 border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 shadow-lg text-sm"
                   autoFocus={searchExpanded}
                   autoComplete="search"
                 />
@@ -547,14 +547,14 @@ export default function CasesListing() {
             </button>
             <button
               onClick={() => router.push("/dashboard/cases/archived")}
-              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg flex items-center gap-2"
+              className="px-3 sm:px-4 py-2.5 sm:py-2 bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg flex items-center gap-2 text-sm active:scale-95 transition-all"
             >
               <Archive className="h-4 w-4" />
-              Archived Cases
+              <span className="hidden sm:inline">Archived Cases</span>
             </button>
             <button
               onClick={() => router.push("/dashboard/generate-case")}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
+              className="px-3 sm:px-4 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm active:scale-95 transition-all"
             >
               New Case
             </button>
@@ -584,7 +584,7 @@ export default function CasesListing() {
 
             {/* Fixed Bulk Action Bar - Bottom Right */}
             {selectedCases.size > 0 && (
-              <div className="fixed bottom-6 right-6 z-50 flex items-center gap-4 p-4 bg-white dark:bg-zinc-800 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700">
+              <div className="fixed bottom-4 left-3 right-3 sm:left-auto sm:bottom-6 sm:right-6 z-50 flex items-center gap-2 sm:gap-4 p-3 sm:p-4 bg-white dark:bg-zinc-800 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700">
                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
                   {selectedCases.size} case(s) selected
                 </span>
@@ -673,8 +673,8 @@ export default function CasesListing() {
             )}
 
             <ScrollArea className="flex-1 min-h-0">
-              <div className="min-w-full">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <div className="min-w-full overflow-x-auto">
+                <table className="min-w-[640px] w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-zinc-800">
                     <tr>
                       {/* Checkbox column header - only when multi-select mode is on */}
@@ -721,15 +721,16 @@ export default function CasesListing() {
                       <th
                         scope="col"
                         onClick={() => handleSort("cnr")}
-                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
+                        className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
                       >
-                        Case Number
+                        <span className="hidden sm:inline">Case Number</span>
+                        <span className="sm:hidden">CNR</span>
                         <SortIcon field="cnr" />
                       </th>
                       <th
                         scope="col"
                         onClick={() => handleSort("title")}
-                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
+                        className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
                       >
                         Title
                         <SortIcon field="title" />
@@ -737,7 +738,7 @@ export default function CasesListing() {
                       <th
                         scope="col"
                         onClick={() => handleSort("status")}
-                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
+                        className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
                       >
                         Status
                         <SortIcon field="status" />
@@ -745,14 +746,15 @@ export default function CasesListing() {
                       <th
                         scope="col"
                         onClick={() => handleSort("created_at")}
-                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
+                        className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 select-none table-cell-divider"
                       >
-                        Date Filed
+                        <span className="hidden sm:inline">Date Filed</span>
+                        <span className="sm:hidden">Date</span>
                         <SortIcon field="created_at" />
                       </th>
                       <th
                         scope="col"
-                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
                       >
                         Actions
                       </th>
@@ -799,17 +801,17 @@ export default function CasesListing() {
                             </div>
                           </td>
                         )}
-                        <td className="px-6 py-4 whitespace-nowrap text-center table-cell-divider">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-center table-cell-divider">
                           <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                             {caseItem.cnr}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-center table-cell-divider">
-                          <div className="text-sm text-gray-900 dark:text-gray-100">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-center table-cell-divider">
+                          <div className="text-sm text-gray-900 dark:text-gray-100 line-clamp-2">
                             {caseItem.title || "Untitled Case"}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center table-cell-divider">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-center table-cell-divider">
                           <span
                             className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                               caseItem.status === CaseStatus.ACTIVE
@@ -824,12 +826,12 @@ export default function CasesListing() {
                             {caseItem.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center table-cell-divider">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center table-cell-divider">
                           {caseItem.created_at
                             ? new Date(caseItem.created_at).toLocaleDateString()
                             : "N/A"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-center text-sm font-medium">
                           <div className="flex items-center justify-center gap-2">
                             {/* Archive Button (Move to Archived Cases) */}
                             {skipArchiveConfirmation ? (

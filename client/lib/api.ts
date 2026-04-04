@@ -166,7 +166,6 @@ export const authAPI = {
     if (typeof window !== "undefined") {
       localStorage.removeItem("token");
       clearAuthTokenCookie();
-      window.location.href = "/";
     }
   },
 

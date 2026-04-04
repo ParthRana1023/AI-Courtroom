@@ -142,11 +142,11 @@ export default function CaseDetails({
 
   return (
     <div className="min-h-screen flex flex-col">
-      <div className="flex-1 container max-w-7xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6 dark:bg-zinc-900 dark:border-zinc-800">
-          <div className="flex justify-between items-center mb-6">
+      <div className="flex-1 container max-w-7xl mx-auto px-4 py-4 sm:py-8">
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 dark:bg-zinc-900 dark:border-zinc-800">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6">
             <h1 className="text-2xl font-bold">Case Details</h1>
-            <div className="flex items-center">
+            <div className="flex items-center w-full sm:w-auto justify-between sm:justify-end">
               <span
                 className={`px-3 py-1 rounded-full text-sm font-medium ${
                   caseData.status === CaseStatus.ACTIVE
@@ -204,7 +204,7 @@ export default function CaseDetails({
                 </p>
                 <button
                   onClick={handleToPartiesInvolved}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
+                  className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors text-center"
                 >
                   Proceed to Chat with Parties Involved
                 </button>
@@ -219,7 +219,7 @@ export default function CaseDetails({
                   <div title="Represent the plaintiff/applicant side">
                     <button
                       onClick={() => handleRoleSelection("plaintiff")}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
+                      className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors text-center"
                     >
                       Plaintiff Lawyer
                     </button>
@@ -227,7 +227,7 @@ export default function CaseDetails({
                   <div title="Represent the defendant/respondent side">
                     <button
                       onClick={() => handleRoleSelection("defendant")}
-                      className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors"
+                      className="w-full sm:w-auto px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors text-center"
                     >
                       Defendant Lawyer
                     </button>

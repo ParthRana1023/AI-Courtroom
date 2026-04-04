@@ -7,6 +7,7 @@ interface MenuItemData {
   link: string;
   text: string;
   image?: string;
+  onClick?: () => void;
 }
 
 interface FlowingMenuProps {
@@ -64,6 +65,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
   link,
   text,
   image,
+  onClick,
   speed,
   textColor,
   marqueeBgColor,
@@ -194,6 +196,10 @@ const MenuItem: React.FC<MenuItemProps> = ({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={() => {
+        if (onClick) {
+          onClick();
+          return;
+        }
         window.location.href = link;
       }}
     >
@@ -201,7 +207,14 @@ const MenuItem: React.FC<MenuItemProps> = ({
         className="flex items-center justify-center w-full h-full relative uppercase no-underline font-semibold text-[3vh] md:text-[4vh]"
         href={link}
         style={{ color: textColor }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          if (onClick) {
+            e.preventDefault();
+            onClick();
+            return;
+          }
+          e.stopPropagation();
+        }}
       >
         {text}
       </a>

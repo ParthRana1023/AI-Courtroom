@@ -6,36 +6,25 @@ import { useTheme } from "next-themes";
 import StaggeredMenu from "@/components/staggered-menu";
 import FlowingMenu from "@/components/flowing-menu";
 import { Sun, Moon } from "lucide-react";
-
-// Menu items for authenticated users
-const authMenuItems = [
-  { link: "/dashboard/cases", text: "Cases" },
-  { link: "/dashboard/profile", text: "Profile" },
-  { link: "/dashboard/settings", text: "Settings" },
-  { link: "/about", text: "About" },
-  { link: "/contact", text: "Contact Us" },
-];
-
-// Menu items for unauthenticated users (upper)
-const publicMenuItems = [
-  { link: "/", text: "Home" },
-  { link: "/about", text: "About" },
-  { link: "/contact", text: "Contact Us" },
-];
-
-// Auth actions for unauthenticated users
-const authActionItems = [
-  { link: "/login", text: "Login" },
-  { link: "/register", text: "Register" },
-];
-
-// Logout action for authenticated users
-const logoutItem = [{ link: "/logout", text: "Logout" }];
+import {
+  authenticatedPrimaryNavItems,
+  authenticatedSecondaryNavItems,
+  publicPrimaryNavItems,
+  publicSecondaryNavItems,
+} from "@/lib/navigation";
 
 export default function MobileNav() {
   const pathname = usePathname();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  const primaryItems = isAuthenticated
+    ? authenticatedPrimaryNavItems.filter((item) => item.link !== "/")
+    : publicPrimaryNavItems;
+  const secondaryItems = isAuthenticated
+    ? authenticatedSecondaryNavItems.map((item) =>
+        item.link === "/logout" ? { ...item, onClick: logout } : item
+      )
+    : publicSecondaryNavItems;
 
   // Don't show on landing page (it has its own menu)
   if (pathname === "/") {
@@ -68,7 +57,7 @@ export default function MobileNav() {
           {/* Main navigation items */}
           <div className="flex-2 min-h-0">
             <FlowingMenu
-              items={isAuthenticated ? authMenuItems : publicMenuItems}
+              items={primaryItems}
               textColor="#000"
               bgColor="transparent"
               marqueeBgColor="#2563eb"
@@ -103,7 +92,7 @@ export default function MobileNav() {
           {/* Auth actions */}
           <div className="h-32">
             <FlowingMenu
-              items={isAuthenticated ? logoutItem : authActionItems}
+              items={secondaryItems}
               textColor="#000"
               bgColor="transparent"
               marqueeBgColor={isAuthenticated ? "#dc2626" : "#16a34a"}

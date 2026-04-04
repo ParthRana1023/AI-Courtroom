@@ -176,8 +176,8 @@ export default function PartiesPage({
     <div className="flex flex-col min-h-screen">
       <main className="flex-1 mt-4 max-w-7xl mx-auto w-full px-4 pb-8">
         {/* Header */}
-        <div className="bg-white dark:bg-zinc-900 shadow-sm py-4 px-6 rounded-lg border border-gray-200 dark:border-zinc-700 mb-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-white dark:bg-zinc-900 shadow-sm py-4 px-4 sm:px-6 rounded-lg border border-gray-200 dark:border-zinc-700 mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 Parties Involved
@@ -188,31 +188,32 @@ export default function PartiesPage({
                 Lawyer
               </p>
             </div>
-            <Button
-              onClick={async () => {
-                try {
-                  // Only set status to ACTIVE if case is NOT resolved
-                  if (caseStatus !== "resolved") {
-                    await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
+              <Button
+                className="w-full sm:w-auto"
+                onClick={async () => {
+                  try {
+                    // Only set status to ACTIVE if case is NOT resolved
+                    if (caseStatus !== "resolved") {
+                      await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
+                    }
+                    router.push(`/dashboard/cases/${cnr}/courtroom`);
+                  } catch (error) {
+                    logger.error(
+                      "Failed to start courtroom session",
+                      error as Error,
+                    );
+                    setError(
+                      "Failed to start courtroom session. Please try again.",
+                    );
                   }
-                  router.push(`/dashboard/cases/${cnr}/courtroom`);
-                } catch (error) {
-                  logger.error(
-                    "Failed to start courtroom session",
-                    error as Error,
-                  );
-                  setError(
-                    "Failed to start courtroom session. Please try again.",
-                  );
-                }
-              }}
-            >
-              {caseStatus === "resolved"
-                ? "View Courtroom"
-                : "Proceed to Courtroom"}
-            </Button>
+                }}
+              >
+                {caseStatus === "resolved"
+                  ? "View Courtroom"
+                  : "Proceed to Courtroom"}
+              </Button>
+            </div>
           </div>
-        </div>
 
         {/* Error Alert */}
         {error && (
@@ -257,9 +258,9 @@ export default function PartiesPage({
             </p>
           </div>
         ) : (
-          <div className="flex gap-6 h-[calc(100vh-200px)]">
+          <div className="flex flex-col md:flex-row gap-6 h-auto md:h-[calc(100vh-200px)]">
             {/* Left Sidebar - Parties List */}
-            <div className="w-80 shrink-0">
+            <div className="w-full md:w-80 shrink-0 h-[400px] md:h-full">
               <div className="bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 h-full overflow-hidden">
                 <div className="p-4 border-b border-gray-200 dark:border-zinc-700">
                   <h2 className="font-semibold text-gray-900 dark:text-white">
@@ -340,12 +341,12 @@ export default function PartiesPage({
             </div>
 
             {/* Right Panel - Person Details */}
-            <div className="flex-1 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 overflow-hidden">
+            <div className="flex-1 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 overflow-hidden h-[500px] md:h-full">
               {selectedPerson ? (
                 <div className="h-full flex flex-col">
                   {/* Person Header */}
                   <div className="p-6 border-b border-gray-200 dark:border-zinc-700">
-                    <div className="flex items-start justify-between">
+                    <div className="flex flex-col sm:flex-row items-start justify-between">
                       <div>
                         <div className="flex items-center gap-3">
                           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -376,28 +377,32 @@ export default function PartiesPage({
                         </div>
                       </div>
                       {/* Show Chat button if can chat, or View Chat History if in session but is user's client */}
-                      {selectedPerson.can_chat ? (
-                        <Button
-                          onClick={() => handleSelectPerson(selectedPerson)}
-                        >
-                          💬 Chat
-                        </Button>
-                      ) : (
-                        /* Show read-only chat access when in courtroom session for user's clients */
-                        isInCourtroomSession &&
-                        ((userRole === "plaintiff" &&
-                          selectedPerson.role === PersonRole.APPLICANT) ||
-                          (userRole === "defendant" &&
-                            selectedPerson.role ===
-                              PersonRole.NON_APPLICANT)) && (
+                      <div className="mt-4 sm:mt-0 w-full sm:w-auto">
+                        {selectedPerson.can_chat ? (
                           <Button
-                            variant="outline"
+                            className="w-full sm:w-auto"
                             onClick={() => handleSelectPerson(selectedPerson)}
                           >
-                            👁️ View Chat History
+                            💬 Chat
                           </Button>
-                        )
-                      )}
+                        ) : (
+                          /* Show read-only chat access when in courtroom session for user's clients */
+                          isInCourtroomSession &&
+                          ((userRole === "plaintiff" &&
+                            selectedPerson.role === PersonRole.APPLICANT) ||
+                            (userRole === "defendant" &&
+                              selectedPerson.role ===
+                                PersonRole.NON_APPLICANT)) && (
+                            <Button
+                              variant="outline"
+                              className="w-full sm:w-auto"
+                              onClick={() => handleSelectPerson(selectedPerson)}
+                            >
+                              👁️ View Chat History
+                            </Button>
+                          )
+                        )}
+                      </div>
                     </div>
                   </div>
 
