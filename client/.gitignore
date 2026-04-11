@@ -27,3 +27,9 @@ yarn-error.log*
 next-env.d.ts
 
 public/googlecfd061ea0c9357aa.html
+
+# serwist (PWA service worker - generated at build time)
+public/sw.js
+public/sw.js.map
+public/serwist-worker-*.js
+public/serwist-worker-*.js.map

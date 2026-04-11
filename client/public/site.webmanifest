@@ -4,20 +4,31 @@
   "description": "Experience the future of legal education. Argue your case and challenge the AI.",
   "start_url": "/",
   "scope": "/",
+  "id": "/",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/android-chrome-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "theme_color": "#1d4ed8",
   "background_color": "#0f172a",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "categories": ["education", "utilities"],
+  "prefer_related_applications": false
 }

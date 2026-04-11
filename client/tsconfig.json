@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext"],
+    "types": ["@serwist/next/typings"],
     "allowJs": true,
     "target": "ES6",
     "skipLibCheck": true,
