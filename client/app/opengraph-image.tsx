@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const dynamic = "force-static";
+export const runtime = "edge";
 
 export const alt = "AI Courtroom - AI-Powered Legal Simulation Platform";
 export const size = {

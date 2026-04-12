@@ -12,9 +12,15 @@ importers:
 
   .:
     dependencies:
+      '@capacitor/android':
+        specifier: ^8.3.0
+        version: 8.3.0(@capacitor/core@8.3.0)
       '@capacitor/core':
         specifier: ^8.3.0
         version: 8.3.0
+      '@capacitor/ios':
+        specifier: ^8.3.0
+        version: 8.3.0(@capacitor/core@8.3.0)
       '@floating-ui/react':
         specifier: ^0.27.19
         version: 0.27.19(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -248,7 +254,7 @@ importers:
         specifier: ^25.6.0
         version: 25.6.0
       '@types/react':
-        specifier: ^19.2.14
+        specifier: ^19.2.8
         version: 19.2.14
       '@types/react-dom':
         specifier: ^19.2.3
@@ -465,6 +471,11 @@ packages:
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
 
+  '@capacitor/android@8.3.0':
+    resolution: {integrity: sha512-EQy6ByUuKayQBJmMm/e0byJiHavqsQHrvW23BuT2GNVQvenAvipqwaePiJHzrv2PZr7A0T0+se4kgDCeROj0mQ==}
+    peerDependencies:
+      '@capacitor/core': ^8.3.0
+
   '@capacitor/cli@8.3.0':
     resolution: {integrity: sha512-n3QDUimtFNbagoo8kLdjvTz3i3Y4jX1fOjvo6ptUKLzErmuqeamL8kECASoyQvg/OzJisZToGZrgLphBsptJcw==}
     engines: {node: '>=22.0.0'}
@@ -472,6 +483,11 @@ packages:
 
   '@capacitor/core@8.3.0':
     resolution: {integrity: sha512-S4ajn4G/fS3VJj8salxqH/3LO5PPWv1VxGKQ27OCajnDcLJjEg9VXwgMPnlypgkIOqCJ2fmQLtk8GT+BlI9/rw==}
+
+  '@capacitor/ios@8.3.0':
+    resolution: {integrity: sha512-5Rtwv8SITKlYTt8lAZG+khnVIdzPtqbocH3eP+JkEmX1vpSMwx4TOKtT8OBz8gpQ+pUJDRp7DBYOv3U6l/obCw==}
+    peerDependencies:
+      '@capacitor/core': ^8.3.0
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -4818,6 +4834,10 @@ snapshots:
 
   '@bcoe/v8-coverage@0.2.3': {}
 
+  '@capacitor/android@8.3.0(@capacitor/core@8.3.0)':
+    dependencies:
+      '@capacitor/core': 8.3.0
+
   '@capacitor/cli@8.3.0':
     dependencies:
       '@ionic/cli-framework-output': 2.2.8
@@ -4843,6 +4863,10 @@ snapshots:
   '@capacitor/core@8.3.0':
     dependencies:
       tslib: 2.8.1
+
+  '@capacitor/ios@8.3.0(@capacitor/core@8.3.0)':
+    dependencies:
+      '@capacitor/core': 8.3.0
 
   '@csstools/color-helpers@5.1.0': {}
 

@@ -1,6 +1,6 @@
 {
   "name": "ai-courtroom",
-  "version": "4.3.1",
+  "version": "4.3.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,11 +15,15 @@
     "cap:sync": "npx cap sync",
     "build:android": "pnpm build:mobile && npx cap sync android",
     "build:ios": "pnpm build:mobile && npx cap sync ios",
+    "cap:android": "npx cap sync android && npx cap open android",
+    "cap:ios": "npx cap sync ios && npx cap open ios",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.0",
     "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
     "@floating-ui/react": "^0.27.19",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",

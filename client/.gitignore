@@ -33,3 +33,7 @@ public/sw.js
 public/sw.js.map
 public/serwist-worker-*.js
 public/serwist-worker-*.js.map
+
+# capacitor (native platform projects - generated via `npx cap add`)
+/android/
+/ios/

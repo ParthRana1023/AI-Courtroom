@@ -1,7 +1,5 @@
 import { MetadataRoute } from "next";
 
-export const dynamic = "force-static";
-
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = "https://ai-courtroom.vercel.app";
   const currentDate = new Date().toISOString().split("T")[0];
