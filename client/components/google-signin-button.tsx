@@ -1,8 +1,9 @@
 "use client";
 
+import { Capacitor } from "@capacitor/core";
 import { useGoogleLogin } from "@react-oauth/google";
 import { Loader2 } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 
 interface GoogleSignInButtonProps {
   onSuccess: (response: {
@@ -26,6 +27,9 @@ export default function GoogleSignInButton({
   isLoading = false,
   disabled = false,
 }: GoogleSignInButtonProps) {
+  const nativeGoogleInitializedRef = useRef(false);
+  const isNativePlatform = Capacitor.isNativePlatform();
+
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       // Handle Authorization Code Flow
@@ -50,21 +54,97 @@ export default function GoogleSignInButton({
       onError?.();
     },
     flow: "auth-code", // Use Authorization Code flow for security
+    ux_mode: "popup",
     // We can't set state dynamically here easily with the hook's current config unless we override the click handler completely
     // flexible solution: The hook usually handles state internally if we don't interfere,
     // but for our backend verification we need to send OUR state.
     // The useGoogleLogin hook allows passing `state` in the login() function options.
   });
 
+  const handleNativeLogin = async () => {
+    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+    if (!googleClientId) {
+      throw new Error("Missing NEXT_PUBLIC_GOOGLE_CLIENT_ID");
+    }
+
+    const state = await authAPI.getOAuthState();
+    sessionStorage.setItem("oauth_state", state);
+
+    const { GoogleSignIn } =
+      await import("@capawesome/capacitor-google-sign-in");
+
+    if (!nativeGoogleInitializedRef.current) {
+      await GoogleSignIn.initialize({
+        clientId: googleClientId,
+        scopes: ["openid", "email", "profile"],
+      });
+      nativeGoogleInitializedRef.current = true;
+    }
+
+    const result = await GoogleSignIn.signIn();
+
+    if (!result.serverAuthCode) {
+      throw new Error(
+        "No server auth code received from native Google sign-in",
+      );
+    }
+
+    await onSuccess({
+      code: result.serverAuthCode,
+      state,
+    });
+  };
+
+  const [oauthState, setOauthState] = useState<string | null>(null);
+  const [isPreparingWebLogin, setIsPreparingWebLogin] = useState(!isNativePlatform);
+
+  // Prefetch state to prevent popup blockers from intercepting an async onClick function (essential for mobile view/DevTools)
+  useEffect(() => {
+    if (isNativePlatform) {
+      setIsPreparingWebLogin(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    setIsPreparingWebLogin(true);
+    authAPI
+      .getOAuthState()
+      .then((state) => {
+        if (!isMounted) return;
+        setOauthState(state);
+        sessionStorage.setItem("oauth_state", state);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error("Failed to prefetch OAuth state", err);
+        setOauthState(null);
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsPreparingWebLogin(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isNativePlatform]);
+
   const handleLogin = async () => {
     try {
-      // Get secure state from backend
-      const state = await authAPI.getOAuthState();
-      sessionStorage.setItem("oauth_state", state);
+      if (isNativePlatform) {
+        await handleNativeLogin();
+        return;
+      }
 
-      // Trigger login with our state
+      if (!oauthState) {
+        throw new Error("Google OAuth state is not ready yet");
+      }
+
+      // Trigger login synchronously without awaiting APIs (prevents popups from being blocked on mobile)
       // @ts-ignore
-      login({ state });
+      login({ state: oauthState });
     } catch (err) {
       console.error("Failed to initialize Google login:", err);
       onError?.();
@@ -75,8 +155,8 @@ export default function GoogleSignInButton({
     text === "signin"
       ? "Sign in with Google"
       : text === "signup"
-      ? "Sign up with Google"
-      : "Continue with Google";
+        ? "Sign up with Google"
+        : "Continue with Google";
 
   return (
     <div className="relative w-full">
@@ -84,10 +164,10 @@ export default function GoogleSignInButton({
       <button
         type="button"
         onClick={handleLogin}
-        disabled={disabled || isLoading}
+        disabled={disabled || isLoading || (!isNativePlatform && isPreparingWebLogin)}
         className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 dark:border-zinc-600 rounded-lg shadow-sm bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isLoading ? (
+        {isLoading || (!isNativePlatform && isPreparingWebLogin) ? (
           <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
         ) : (
           <svg className="w-5 h-5" viewBox="0 0 24 24">

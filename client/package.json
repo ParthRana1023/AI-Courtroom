@@ -1,6 +1,6 @@
 {
   "name": "ai-courtroom",
-  "version": "4.3.2",
+  "version": "4.3.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,11 +12,11 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "build:mobile": "cross-env CAPACITOR_BUILD=true next build --webpack",
-    "cap:sync": "npx cap sync",
-    "build:android": "pnpm build:mobile && npx cap sync android",
-    "build:ios": "pnpm build:mobile && npx cap sync ios",
-    "cap:android": "npx cap sync android && npx cap open android",
-    "cap:ios": "npx cap sync ios && npx cap open ios",
+    "cap:sync": "cap sync",
+    "build:android": "pnpm build:mobile && cap sync android",
+    "build:ios": "pnpm build:mobile && cap sync ios",
+    "cap:android": "cap sync android && cap open android",
+    "cap:ios": "cap sync ios && cap open ios",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -24,6 +24,7 @@
     "@capacitor/android": "^8.3.0",
     "@capacitor/core": "^8.3.0",
     "@capacitor/ios": "^8.3.0",
+    "@capawesome/capacitor-google-sign-in": "^0.1.2",
     "@floating-ui/react": "^0.27.19",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",

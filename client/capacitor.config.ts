@@ -1,6 +1,16 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-const config: CapacitorConfig = {
+const googleServerClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+
+type ExtendedCapacitorConfig = CapacitorConfig & {
+  plugins?: NonNullable<CapacitorConfig['plugins']> & {
+    GoogleSignIn?: {
+      serverClientId: string;
+    };
+  };
+};
+
+const config: ExtendedCapacitorConfig = {
   appId: 'com.aicourtroom.app',
   appName: 'AI Courtroom',
   // webDir is required by Capacitor even in server mode.
@@ -17,6 +27,11 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
   },
   plugins: {
+    // The native Google Sign-In flow uses the web client ID as the server client ID.
+    // The login component also initializes the plugin at runtime with the same value.
+    GoogleSignIn: {
+      serverClientId: googleServerClientId,
+    },
     SplashScreen: {
       launchAutoHide: true,
       launchShowDuration: 2000,

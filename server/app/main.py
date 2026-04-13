@@ -146,7 +146,9 @@ app.add_middleware(
         "http://localhost:3000",
         "https://ai-courtroom-backend-v2.onrender.com",
         "https://ai-courtroom.vercel.app",
-    ],  # Next.js default development port
+        "capacitor://localhost",
+        "ionic://localhost",
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=[
