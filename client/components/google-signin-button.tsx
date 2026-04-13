@@ -97,7 +97,8 @@ export default function GoogleSignInButton({
   };
 
   const [oauthState, setOauthState] = useState<string | null>(null);
-  const [isPreparingWebLogin, setIsPreparingWebLogin] = useState(!isNativePlatform);
+  const [isPreparingWebLogin, setIsPreparingWebLogin] =
+    useState(!isNativePlatform);
 
   // Prefetch state to prevent popup blockers from intercepting an async onClick function (essential for mobile view/DevTools)
   useEffect(() => {
@@ -164,7 +165,9 @@ export default function GoogleSignInButton({
       <button
         type="button"
         onClick={handleLogin}
-        disabled={disabled || isLoading || (!isNativePlatform && isPreparingWebLogin)}
+        disabled={
+          disabled || isLoading || (!isNativePlatform && isPreparingWebLogin)
+        }
         className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 dark:border-zinc-600 rounded-lg shadow-sm bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isLoading || (!isNativePlatform && isPreparingWebLogin) ? (
