@@ -2,6 +2,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { useGoogleLogin } from "@react-oauth/google";
+import axios from "axios";
 import { Loader2 } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 
@@ -12,13 +13,13 @@ interface GoogleSignInButtonProps {
     code?: string;
     state?: string;
   }) => Promise<void>;
-  onError?: () => void;
+  onError?: (error?: Error) => void;
   text?: "signin" | "signup" | "continue";
   isLoading?: boolean;
   disabled?: boolean;
 }
 
-import { authAPI } from "@/lib/api";
+import { apiBaseUrl, authAPI } from "@/lib/api";
 
 export default function GoogleSignInButton({
   onSuccess,
@@ -51,7 +52,7 @@ export default function GoogleSignInButton({
 
     onError: () => {
       console.error("Google Login Failed");
-      onError?.();
+      onError?.(new Error("Google rejected the sign-in popup request."));
     },
     flow: "auth-code", // Use Authorization Code flow for security
     ux_mode: "popup",
@@ -121,6 +122,11 @@ export default function GoogleSignInButton({
         if (!isMounted) return;
         console.error("Failed to prefetch OAuth state", err);
         setOauthState(null);
+        onError?.(
+          new Error(
+            `Could not reach the auth service at ${apiBaseUrl}. Google sign-in cannot start until /auth/oauth/state responds.`,
+          ),
+        );
       })
       .finally(() => {
         if (!isMounted) return;
@@ -148,7 +154,19 @@ export default function GoogleSignInButton({
       login({ state: oauthState });
     } catch (err) {
       console.error("Failed to initialize Google login:", err);
-      onError?.();
+      if (axios.isAxiosError(err)) {
+        const detail =
+          typeof err.response?.data?.detail === "string"
+            ? err.response.data.detail
+            : err.message;
+        onError?.(
+          new Error(
+            `${detail} (API base URL: ${apiBaseUrl}${err.config?.url || ""})`,
+          ),
+        );
+        return;
+      }
+      onError?.(err instanceof Error ? err : new Error(String(err)));
     }
   };
 

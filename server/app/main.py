@@ -144,7 +144,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://ai-courtroom-backend-v2.onrender.com",
+        "https://ai-courtroom-558s.onrender.com",
         "https://ai-courtroom.vercel.app",
         "capacitor://localhost",
         "ionic://localhost",

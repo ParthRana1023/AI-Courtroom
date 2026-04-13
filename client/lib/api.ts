@@ -30,7 +30,8 @@ function logApiError(error: unknown, context?: string): void {
 }
 
 // Create axios instance with base URL from environment variables
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const apiBaseUrl =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 logger.info("API initialized", { baseUrl: apiBaseUrl });
 
 const api = axios.create({

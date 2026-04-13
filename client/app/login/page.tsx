@@ -284,9 +284,11 @@ export default function Login() {
                     setIsLoading(false);
                   }
                 }}
-                onError={() => {
+                onError={(error) => {
                   setErrors({
-                    form: "Google sign-in failed. Please try again.",
+                    form:
+                      error?.message ||
+                      "Google sign-in failed. Please try again.",
                   });
                 }}
                 text="signin"

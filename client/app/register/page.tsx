@@ -669,9 +669,11 @@ export default function Register() {
                         setIsLoading(false);
                       }
                     }}
-                    onError={() => {
+                    onError={(error) => {
                       setErrors({
-                        form: "Google sign-up failed. Please try again.",
+                        form:
+                          error?.message ||
+                          "Google sign-up failed. Please try again.",
                       });
                     }}
                     text="signup"
