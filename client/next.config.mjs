@@ -28,6 +28,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   turbopack: {},
+  allowedDevOrigins: ["192.168.29.33", "localhost", "127.0.0.1"],
   images: {
     formats: ["image/avif", "image/webp"],
   },

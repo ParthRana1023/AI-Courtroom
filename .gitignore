@@ -52,3 +52,5 @@ everything-claude-code/
 .review_venv/
 
 .ruff_cache/
+
+.claude/

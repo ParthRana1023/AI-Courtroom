@@ -69,31 +69,25 @@ export default function GoogleSignInButton({
       throw new Error("Missing NEXT_PUBLIC_GOOGLE_CLIENT_ID");
     }
 
-    const state = await authAPI.getOAuthState();
-    sessionStorage.setItem("oauth_state", state);
-
     const { GoogleSignIn } =
       await import("@capawesome/capacitor-google-sign-in");
 
     if (!nativeGoogleInitializedRef.current) {
       await GoogleSignIn.initialize({
         clientId: googleClientId,
-        scopes: ["openid", "email", "profile"],
       });
       nativeGoogleInitializedRef.current = true;
     }
 
     const result = await GoogleSignIn.signIn();
 
-    if (!result.serverAuthCode) {
-      throw new Error(
-        "No server auth code received from native Google sign-in",
-      );
+    if (!result.idToken) {
+      throw new Error("No ID token received from native Google sign-in");
     }
 
     await onSuccess({
-      code: result.serverAuthCode,
-      state,
+      credential: result.idToken,
+      access_token: result.accessToken || undefined,
     });
   };
 

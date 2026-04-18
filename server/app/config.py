@@ -1,4 +1,5 @@
 # app/config.py
+import re
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -48,11 +49,36 @@ class Settings(BaseSettings):
     log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR
     log_format: str = "json"  # json (production) or text (development)
 
+    # CORS settings
+    cors_allowed_origins: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "http://10.0.2.2:3000,"
+        "capacitor://localhost,"
+        "ionic://localhost"
+    )
+    cors_allow_origin_regex: str = (
+        r"^https?://("
+        r"localhost|127\.0\.0\.1|10\.0\.2\.2|"
+        r"192\.168\.\d{1,3}\.\d{1,3}|"
+        r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+        r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}"
+        r")(:\d+)?$"
+    )
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
     def current_db_name(self) -> str:
         return self.test_mongodb_db_name if self.testing else self.mongodb_db_name
+
+    @property
+    def parsed_cors_allowed_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
 
 settings = Settings()
@@ -117,6 +143,11 @@ def log_environment_status():
         # Logging
         "LOG_LEVEL": settings.log_level,
         "LOG_FORMAT": settings.log_format,
+        # CORS
+        "CORS_ALLOWED_ORIGINS": settings.parsed_cors_allowed_origins,
+        "CORS_ALLOW_ORIGIN_REGEX_SET": "Yes"
+        if settings.cors_allow_origin_regex
+        else "No",
     }
 
     logger.info("Environment configuration loaded", extra={"env_config": env_status})

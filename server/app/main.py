@@ -142,13 +142,8 @@ app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://ai-courtroom-558s.onrender.com",
-        "https://ai-courtroom.vercel.app",
-        "capacitor://localhost",
-        "ionic://localhost",
-    ],
+    allow_origins=settings.parsed_cors_allowed_origins,
+    allow_origin_regex=settings.cors_allow_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=[
