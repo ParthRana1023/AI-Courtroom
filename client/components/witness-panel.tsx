@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getLogger } from "@/lib/logger";
+import { getErrorDetail } from "@/lib/error-utils";
 import type {
   WitnessInfo,
   CurrentWitnessResponse,
@@ -27,12 +28,6 @@ type ExaminationState =
   | "ai_examining_first"
   | "awaiting_user_choice"
   | "awaiting_user_cross";
-
-interface AICrossExaminationItem {
-  question: string;
-  answer: string;
-  question_number: number;
-}
 
 interface WitnessPanelProps {
   cnr: string;
@@ -74,7 +69,6 @@ export default function WitnessPanel({
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null); // Kept if needed, but unused for autoscroll now
   const isCrossExaminingRef = useRef(isCrossExamining);
 
   useEffect(() => {
@@ -157,7 +151,7 @@ export default function WitnessPanel({
     } finally {
       setIsLoading(false);
     }
-  }, [cnr, isActive]);
+  }, [cnr, isActive, examinationState, userRole]);
 
   useEffect(() => {
     if (isOpen && isActive) {
@@ -183,9 +177,9 @@ export default function WitnessPanel({
       setExaminationState("user_questioning");
       onWitnessUpdate?.();
       logger.info("Witness called successfully");
-    } catch (err: any) {
-      logger.error("Failed to call witness", err);
-      setError(err.response?.data?.detail || "Failed to call witness");
+    } catch (err: unknown) {
+      logger.error("Failed to call witness", err as Error);
+      setError(getErrorDetail(err) || "Failed to call witness");
     } finally {
       setIsLoading(false);
     }
@@ -217,9 +211,9 @@ export default function WitnessPanel({
 
       setQuestion("");
       inputRef.current?.focus();
-    } catch (err: any) {
-      logger.error("Failed to examine witness", err);
-      setError(err.response?.data?.detail || "Failed to examine witness");
+    } catch (err: unknown) {
+      logger.error("Failed to examine witness", err as Error);
+      setError(getErrorDetail(err) || "Failed to examine witness");
     } finally {
       setIsExamining(false);
     }
@@ -235,10 +229,10 @@ export default function WitnessPanel({
       // Trigger background task (returns immediately)
       await witnessAPI.aiCrossExamine(cnr);
       // Polling effect will handle updates and state transition
-    } catch (err: any) {
-      logger.error("Failed to get AI cross-examination", err);
+    } catch (err: unknown) {
+      logger.error("Failed to get AI cross-examination", err as Error);
       setError(
-        err.response?.data?.detail || "Failed to get AI cross-examination",
+        getErrorDetail(err) || "Failed to get AI cross-examination",
       );
       // Revert to user questioning on error
       setExaminationState("user_questioning");
@@ -266,10 +260,10 @@ export default function WitnessPanel({
       onWitnessUpdate?.();
 
       logger.info("Witness concluded", { message: response.message });
-    } catch (err: any) {
-      logger.error("Failed to conclude witness", err);
+    } catch (err: unknown) {
+      logger.error("Failed to conclude witness", err as Error);
       setError(
-        err.response?.data?.detail || "Failed to conclude witness examination",
+        getErrorDetail(err) || "Failed to conclude witness examination",
       );
     } finally {
       setIsLoading(false);

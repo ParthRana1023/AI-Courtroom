@@ -1,6 +1,17 @@
-import type { CapacitorConfig } from "@capacitor/cli";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+
+type CapacitorConfig = {
+  appId: string;
+  appName: string;
+  webDir: string;
+  server?: {
+    url?: string;
+    cleartext?: boolean;
+    androidScheme?: string;
+  };
+  plugins?: Record<string, unknown>;
+};
 
 function readEnvFile() {
   const envPath = path.resolve(process.cwd(), ".env");

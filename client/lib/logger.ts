@@ -56,7 +56,7 @@ const SENSITIVE_PATTERNS = {
   // Mask JWT tokens
   token: /(eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*)/g,
   // Mask passwords
-  password: /(password["']?\s*[:=]\s*["']?)([^"'\}\s]+)/gi,
+  password: /(password["']?\s*[:=]\s*["']?)([^"'}\s]+)/gi,
   // Mask API keys
   apiKey: /(api[_-]?key["']?\s*[:=]\s*["']?)([a-zA-Z0-9_-]{20,})/gi,
 };
@@ -149,15 +149,9 @@ class ConsoleTransport implements LogTransport {
           entry.message,
           contextStr
         );
-      } else if (entry.level === "info") {
-        console.info(
-          `%c${prefix}`,
-          `color: ${color}`,
-          entry.message,
-          contextStr
-        );
       } else {
-        console.debug(
+        const logMethod = entry.level === "info" ? "info" : "debug";
+        globalThis.console[logMethod](
           `%c${prefix}`,
           `color: ${color}`,
           entry.message,
@@ -402,7 +396,7 @@ export class Logger {
     for (const transport of Logger.transports) {
       try {
         transport.log(entry);
-      } catch (e) {
+      } catch {
         // Silently ignore transport errors
       }
     }

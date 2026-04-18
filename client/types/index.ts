@@ -59,7 +59,7 @@ export enum CaseStatus {
 
 export enum CourtroomProceedingsEventType {
   OPENING_STATEMENT = "opening_statement",
-  ARGUMENT = "argument",
+  ARGUMENT = "user_argument",
   AI_ARGUMENT = "ai_argument",
   WITNESS_CALLED = "witness_called",
   WITNESS_DISMISSED = "witness_dismissed",

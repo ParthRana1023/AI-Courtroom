@@ -1,5 +1,10 @@
 import axios, { type AxiosError } from "axios";
-import { ContactFormData } from "@/types";
+import type {
+  CaseGenerationFormData,
+  ContactFormData,
+  LoginFormData,
+  RegisterFormData,
+} from "@/types";
 import {
   getCookie,
   setAuthTokenCookie,
@@ -10,6 +15,27 @@ import { getLogger } from "./logger";
 
 // Initialize logger for API calls
 const logger = getLogger("api");
+
+type RegistrationPayload = Omit<RegisterFormData, "date_of_birth"> & {
+  date_of_birth: string;
+  google_id?: string;
+};
+
+interface VerifyRegistrationPayload {
+  user_data: RegistrationPayload;
+  otp: string;
+  remember_me: boolean;
+}
+
+type LoginPayload = LoginFormData & {
+  remember_me: boolean;
+};
+
+interface VerifyLoginPayload {
+  email: string;
+  otp: string;
+  remember_me: boolean;
+}
 
 /**
  * Helper function to log API errors in a structured way
@@ -96,7 +122,7 @@ const setAuthToken = (token: string, rememberMe = false) => {
 
 // Auth API calls
 export const authAPI = {
-  register: async (userData: any) => {
+  register: async (userData: RegistrationPayload) => {
     try {
       const response = await api.post("/auth/register/initiate", userData);
       return response.data;
@@ -115,7 +141,7 @@ export const authAPI = {
     }
   },
 
-  verifyRegistration: async (data: any) => {
+  verifyRegistration: async (data: VerifyRegistrationPayload) => {
     try {
       const response = await api.post("/auth/register/verify", data);
       if (response.data.access_token) {
@@ -128,7 +154,7 @@ export const authAPI = {
     }
   },
 
-  login: async (loginData: any) => {
+  login: async (loginData: LoginPayload) => {
     try {
       const response = await api.post("/auth/login/initiate", loginData);
       return response.data;
@@ -138,7 +164,7 @@ export const authAPI = {
     }
   },
 
-  verifyLogin: async (data: any) => {
+  verifyLogin: async (data: VerifyLoginPayload) => {
     try {
       logger.debug("Verifying login");
       const response = await api.post("/auth/login/verify", data);
@@ -394,7 +420,7 @@ export const caseAPI = {
     }
   },
 
-  generateCase: async (caseData: any) => {
+  generateCase: async (caseData: CaseGenerationFormData) => {
     try {
       logger.info("Generating new case");
       const response = await api.post("/cases/generate", caseData);

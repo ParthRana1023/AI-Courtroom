@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
+import Image from "next/image";
 import { Camera, Trash2, Loader2 } from "lucide-react";
 import { authAPI } from "@/lib/api";
+import { getErrorDetail } from "@/lib/error-utils";
 
 interface ProfilePhotoProps {
   /** Current photo URL */
@@ -107,8 +109,8 @@ export default function ProfilePhoto({
       await onRefreshUser?.();
       setMessage({ type: "success", text: "Photo updated!" });
       setTimeout(() => setMessage(null), 3000);
-    } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "Upload failed" });
+    } catch (error: unknown) {
+      setMessage({ type: "error", text: getErrorDetail(error) || "Upload failed" });
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -128,8 +130,8 @@ export default function ProfilePhoto({
       await onRefreshUser?.();
       setMessage({ type: "success", text: "Photo removed!" });
       setTimeout(() => setMessage(null), 3000);
-    } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "Delete failed" });
+    } catch (error: unknown) {
+      setMessage({ type: "error", text: getErrorDetail(error) || "Delete failed" });
     } finally {
       setIsDeleting(false);
     }
@@ -146,12 +148,15 @@ export default function ProfilePhoto({
       {/* Avatar */}
       <div className="relative">
         <div
-          className={`${sizeClasses[size].container} rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shadow-md text-zinc-600 dark:text-zinc-300 ${sizeClasses[size].text} font-bold`}
+          className={`relative ${sizeClasses[size].container} rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shadow-md text-zinc-600 dark:text-zinc-300 ${sizeClasses[size].text} font-bold`}
         >
           {currentPhotoUrl ? (
-            <img
+            <Image
               src={currentPhotoUrl}
               alt="Profile"
+              fill
+              sizes={size === "lg" ? "96px" : size === "md" ? "80px" : "64px"}
+              unoptimized
               className="w-full h-full object-cover"
             />
           ) : (

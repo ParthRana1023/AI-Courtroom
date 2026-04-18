@@ -6,7 +6,6 @@ import { User } from "@/types";
 import {
   Phone,
   Calendar,
-  FileText,
   CheckCircle,
   Clock,
   Pencil,
@@ -529,9 +528,9 @@ const useMobileDetection = () => {
 const ProfileBento: React.FC<ProfileBentoProps> = ({
   user,
   caseStats,
-  enableStars = true,
+  enableStars: _enableStars = true,
   enableSpotlight = true,
-  enableBorderGlow = true,
+  enableBorderGlow: _enableBorderGlow = true,
   disableAnimations = false,
   spotlightRadius = DEFAULT_SPOTLIGHT_RADIUS,
   particleCount = DEFAULT_PARTICLE_COUNT,
@@ -539,7 +538,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
   glowColor = DEFAULT_GLOW_COLOR,
   clickEffect = true,
   enableMagnetism = true,
-  onRefreshUser,
+  onRefreshUser: _onRefreshUser,
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
   const isMobile = useMobileDetection();
@@ -555,50 +554,6 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
     const last = user.last_name?.[0] || "";
     return (first + last).toUpperCase() || "?";
   };
-
-  // Personal info cards (left side)
-  const personalCards: ProfileBentoCardProps[] = [
-    {
-      title: "Phone",
-      value: user.phone_number || "Not set",
-      icon: <Phone className="w-5 h-5" />,
-      label: "Contact",
-    },
-    {
-      title: "Date of Birth",
-      value: formatDate(user.date_of_birth),
-      icon: <Calendar className="w-5 h-5" />,
-      label: "Personal",
-    },
-    {
-      title: "Gender",
-      value: user.gender?.replace(/-/g, " ") || "Not set",
-      icon: <UserIcon className="w-5 h-5" />,
-      label: "Identity",
-    },
-  ];
-
-  // Case info cards (right side)
-  const caseCards: ProfileBentoCardProps[] = [
-    {
-      title: "Total Cases",
-      value: caseStats.total,
-      icon: <FileText className="w-5 h-5" />,
-      label: "Cases",
-    },
-    {
-      title: "Active",
-      value: caseStats.active,
-      icon: <Clock className="w-5 h-5" />,
-      label: "In Progress",
-    },
-    {
-      title: "Completed",
-      value: caseStats.completed,
-      icon: <CheckCircle className="w-5 h-5" />,
-      label: "Done",
-    },
-  ];
 
   return (
     <>

@@ -2,6 +2,7 @@
 
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
@@ -13,23 +14,32 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
+type MarkdownComponentProps<T extends keyof React.JSX.IntrinsicElements> =
+  React.ComponentPropsWithoutRef<T> & {
+    node?: unknown;
+  };
+
+type CodeProps = MarkdownComponentProps<"code"> & {
+  inline?: boolean;
+};
+
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   markdown,
   className = "",
 }) => {
   // Custom components for legal document formatting
-  const components = {
+  const components: Components = {
     // Handle headings with special styling for legal documents
-    h1: ({ node, ...props }: any) => (
+    h1: ({ node: _node, ...props }: MarkdownComponentProps<"h1">) => (
       <h1
         className="text-center my-6 text-xl font-bold uppercase tracking-wider"
         {...props}
       />
     ),
-    h2: ({ node, ...props }: any) => (
+    h2: ({ node: _node, ...props }: MarkdownComponentProps<"h2">) => (
       <h2 className="text-center my-5 text-lg font-bold" {...props} />
     ),
-    h3: ({ node, ...props }: any) => (
+    h3: ({ node: _node, ...props }: MarkdownComponentProps<"h3">) => (
       <h3
         className="my-4 text-base font-bold uppercase tracking-wide"
         {...props}
@@ -37,7 +47,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     ),
 
     // Handle paragraphs with special styling for legal documents
-    p: ({ node, ...props }: any) => {
+    p: ({ node: _node, ...props }: MarkdownComponentProps<"p">) => {
       const text = props.children?.toString() || "";
 
       // Special styling for case numbers and other legal identifiers
@@ -76,13 +86,13 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     },
 
     // Handle lists with special styling for legal documents
-    ol: ({ node, ...props }: any) => (
+    ol: ({ node: _node, ...props }: MarkdownComponentProps<"ol">) => (
       <ol className="list-decimal pl-8 my-4 space-y-3" {...props} />
     ),
-    ul: ({ node, ...props }: any) => (
+    ul: ({ node: _node, ...props }: MarkdownComponentProps<"ul">) => (
       <ul className="list-disc pl-8 my-4 space-y-3" {...props} />
     ),
-    li: ({ node, ...props }: any) => {
+    li: ({ node: _node, ...props }: MarkdownComponentProps<"li">) => {
       const text = props.children?.toString() || "";
 
       // Special styling for respondent/accused items
@@ -99,7 +109,10 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     },
 
     // Handle blockquotes with special styling for legal documents
-    blockquote: ({ node, ...props }: any) => (
+    blockquote: ({
+      node: _node,
+      ...props
+    }: MarkdownComponentProps<"blockquote">) => (
       <blockquote
         className="mx-8 my-5 py-2 px-4 border-t border-b border-gray-400"
         {...props}
@@ -107,7 +120,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     ),
 
     // Handle code blocks with syntax highlighting
-    code: ({ node, inline, className, children, ...props }: any) => {
+    code: ({ node: _node, inline, className, children, ...props }: CodeProps) => {
       return !inline ? (
         <pre className="bg-gray-100 p-4 rounded overflow-x-auto my-4">
           <code className={className} {...props}>
@@ -122,7 +135,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     },
 
     // Handle horizontal rules as section breaks
-    hr: ({ node, ...props }: any) => (
+    hr: ({ node: _node, ...props }: MarkdownComponentProps<"hr">) => (
       <hr
         className="w-3/4 mx-auto my-6 border-t border-dashed border-gray-500"
         {...props}

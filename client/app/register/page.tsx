@@ -3,6 +3,7 @@
 import type React from "react";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
@@ -16,10 +17,8 @@ import {
   User,
   Mail,
   Phone,
-  Calendar,
   Lock,
   AlertCircle,
-  Loader2,
   ChevronDown,
 } from "lucide-react";
 import GoogleSignInButton from "@/components/google-signin-button";
@@ -33,6 +32,7 @@ import {
 import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
+import { getErrorDetail, getValidationErrorDetail } from "@/lib/error-utils";
 
 const logger = getLogger("auth");
 
@@ -235,21 +235,10 @@ export default function Register() {
       // Regular registration - show OTP form
       setIsOtpSent(true);
       setSuccessMessage("OTP sent successfully to your email.");
-    } catch (error: any) {
-      if (error.response?.data?.detail) {
-        // Handle Pydantic validation errors (422) which return an array of error objects
-        const detail = error.response.data.detail;
-        if (Array.isArray(detail)) {
-          // Extract the first validation error message
-          const firstError = detail[0];
-          const fieldName = firstError.loc?.slice(-1)[0] || "field";
-          const message = firstError.msg || "Validation error";
-          setErrors({ form: `${fieldName}: ${message}` });
-        } else if (typeof detail === "string") {
-          setErrors({ form: detail });
-        } else {
-          setErrors({ form: "Validation failed. Please check your input." });
-        }
+    } catch (error: unknown) {
+      const detail = getValidationErrorDetail(error);
+      if (detail) {
+        setErrors({ form: detail });
       } else {
         setErrors({ form: "Registration failed. Please try again." });
       }
@@ -277,7 +266,7 @@ export default function Register() {
         sessionStorage.removeItem("googleUserData");
       }
       router.push("/dashboard/cases");
-    } catch (error: any) {
+    } catch {
       setErrors({ otp: "OTP verification failed. Please try again." });
     } finally {
       setIsLoading(false);
@@ -291,8 +280,8 @@ export default function Register() {
       const formattedDob = formData.date_of_birth.toISOString().split("T")[0];
       await register({ ...formData, date_of_birth: formattedDob });
       setErrors({});
-    } catch (err: any) {
-      setErrors({ form: err.message || "Failed to resend OTP." });
+    } catch (err: unknown) {
+      setErrors({ form: getErrorDetail(err) || "Failed to resend OTP." });
     } finally {
       setIsLoading(false);
     }
@@ -346,11 +335,14 @@ export default function Register() {
               {isGoogleSignUp && (
                 <div className="flex justify-center mb-4">
                   <div className="text-center">
-                    <div className="w-20 h-20 mx-auto rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shadow-md text-zinc-600 dark:text-zinc-300 text-xl font-bold">
+                    <div className="relative w-20 h-20 mx-auto rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shadow-md text-zinc-600 dark:text-zinc-300 text-xl font-bold">
                       {profilePhotoUrl ? (
-                        <img
+                        <Image
                           src={profilePhotoUrl}
                           alt="Profile"
+                          fill
+                          sizes="80px"
+                          unoptimized
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -659,10 +651,10 @@ export default function Register() {
                       try {
                         setIsLoading(true);
                         await loginWithGoogle(authData, false);
-                      } catch (error: any) {
+                      } catch (error: unknown) {
                         setErrors({
                           form:
-                            error.response?.data?.detail ||
+                            getErrorDetail(error) ||
                             "Google sign-up failed. Please try again.",
                         });
                       } finally {

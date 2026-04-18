@@ -64,9 +64,7 @@ export default function DatePicker({
   const [selectedMonth, setSelectedMonth] = useState<number | null>(
     value?.getMonth() ?? null
   );
-  const [selectedDay, setSelectedDay] = useState<number | null>(
-    value?.getDate() ?? null
-  );
+  const [, setSelectedDay] = useState<number | null>(value?.getDate() ?? null);
   const [yearRangeStart, setYearRangeStart] = useState(
     Math.floor((value?.getFullYear() ?? maxYear - 11) / 12) * 12
   );

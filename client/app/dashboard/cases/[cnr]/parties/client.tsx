@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { use } from "react";
 import { caseAPI, partiesAPI } from "@/lib/api";
-import { useAuth } from "@/contexts/auth-context";
 import {
   type PersonInvolved,
   type ChatMessage,
@@ -55,13 +54,11 @@ export default function PartiesPage({
 
   const { cnr } = use(params);
   const router = useRouter();
-  const { user } = useAuth();
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [parties, setParties] = useState<PersonInvolved[]>([]);
   const [userRole, setUserRole] = useState<string>("");
-  const [canAccessCourtroom, setCanAccessCourtroom] = useState(false);
   const [isInCourtroomSession, setIsInCourtroomSession] = useState(false);
   const [caseStatus, setCaseStatus] = useState<string>("not_started");
   const [selectedPerson, setSelectedPerson] = useState<PersonInvolved | null>(
@@ -86,7 +83,6 @@ export default function PartiesPage({
         const data: PartiesListResponse = await partiesAPI.getParties(cnr);
         setParties(data.parties);
         setUserRole(data.user_role);
-        setCanAccessCourtroom(data.can_access_courtroom);
         setIsInCourtroomSession(data.is_in_courtroom);
         setCaseStatus(data.case_status || "not_started");
       } catch (error) {
@@ -468,7 +464,7 @@ export default function PartiesPage({
 
       {/* Chat Drawer - Outside main, slides up from bottom with snap points */}
       <Drawer open={showChat} onOpenChange={setShowChat}>
-        <DrawerContent size="panel" className="flex flex-col">
+        <DrawerContent size="panel" className="flex h-[85vh] flex-col">
           <DrawerHeader className="border-b dark:border-zinc-700 shrink-0">
             <DrawerTitle>
               Chat with {stripMarkdown(selectedPerson?.name || "Person")}
@@ -482,64 +478,66 @@ export default function PartiesPage({
           </DrawerHeader>
 
           {/* Chat Messages - takes remaining space minus input */}
-          <ScrollArea className="flex-1 p-4 min-h-0">
+          <ScrollArea className="min-h-0 flex-1">
             {isLoadingPerson ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              <div className="flex h-32 items-center justify-center p-4">
+                <div className="h-8 w-8 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
               </div>
             ) : chatMessages.length === 0 ? (
-              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                <p>No messages yet.</p>
-                <p className="text-sm mt-1">
-                  Start a conversation with{" "}
-                  {stripMarkdown(selectedPerson?.name || "them")}!
-                </p>
+              <div className="p-4">
+                <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                  <p>No messages yet.</p>
+                  <p className="mt-1 text-sm">
+                    Start a conversation with{" "}
+                    {stripMarkdown(selectedPerson?.name || "them")}!
+                  </p>
+                </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                {chatMessages
-                  .filter((msg) => msg && msg.sender)
-                  .map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${
-                        msg.sender === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
+              <div className="p-4">
+                <div className="space-y-4">
+                  {chatMessages
+                    .filter((msg) => msg && msg.sender)
+                    .map((msg) => (
                       <div
-                        className={`max-w-[75%] rounded-lg p-3 border-l-4 ${
+                        key={msg.id}
+                        className={`flex ${
                           msg.sender === "user"
-                            ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
-                            : "bg-gray-100 dark:bg-zinc-800 border-amber-500"
+                            ? "justify-end"
+                            : "justify-start"
                         }`}
                       >
                         <div
-                          className={`text-xs font-medium mb-1 ${
+                          className={`max-w-[75%] rounded-lg border-l-4 p-3 ${
                             msg.sender === "user"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-amber-600 dark:text-amber-400"
+                              ? "border-blue-600 bg-blue-100 dark:bg-blue-900/20"
+                              : "border-amber-500 bg-gray-100 dark:bg-zinc-800"
                           }`}
                         >
-                          {msg.sender === "user"
-                            ? "You"
-                            : stripMarkdown(selectedPerson?.name || "Person")}
-                        </div>
-                        <div
-                          className={`text-gray-900 dark:text-gray-100 ${
-                            msg.sender !== "user" ? "" : ""
-                          }`}
-                        >
-                          <ChatMarkdownRenderer markdown={msg.content} />
-                        </div>
-                        {msg.timestamp && (
-                          <div className="text-xs mt-1 text-gray-500 dark:text-gray-400">
-                            {formatToLocaleString(msg.timestamp)}
+                          <div
+                            className={`mb-1 text-xs font-medium ${
+                              msg.sender === "user"
+                                ? "text-blue-600 dark:text-blue-400"
+                                : "text-amber-600 dark:text-amber-400"
+                            }`}
+                          >
+                            {msg.sender === "user"
+                              ? "You"
+                              : stripMarkdown(selectedPerson?.name || "Person")}
                           </div>
-                        )}
+                          <div className="text-gray-900 dark:text-gray-100">
+                            <ChatMarkdownRenderer markdown={msg.content} />
+                          </div>
+                          {msg.timestamp && (
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {formatToLocaleString(msg.timestamp)}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                <div ref={messagesEndRef} />
+                    ))}
+                  <div ref={messagesEndRef} />
+                </div>
               </div>
             )}
           </ScrollArea>

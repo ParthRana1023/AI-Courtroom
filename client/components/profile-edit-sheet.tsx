@@ -23,6 +23,7 @@ import {
 import ProfilePhoto from "@/components/profile-photo";
 import { Pencil, Loader2, Check, ChevronDown } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getErrorDetail } from "@/lib/error-utils";
 
 interface ProfileEditSheetProps {
   children?: React.ReactNode;
@@ -84,8 +85,11 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
       await refreshUser();
       showNotification("Profile updated successfully!", "success");
       setOpen(false);
-    } catch (error: any) {
-      showNotification(error.message || "Failed to update profile", "error");
+    } catch (error: unknown) {
+      showNotification(
+        getErrorDetail(error) || "Failed to update profile",
+        "error",
+      );
     } finally {
       setIsLoading(false);
     }

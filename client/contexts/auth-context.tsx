@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { authAPI } from "@/lib/api";
 import { getLogger, Logger } from "@/lib/logger";
 
-import { User } from "@/types";
+import type { RegisterFormData, User } from "@/types";
 
 // Initialize logger for auth context
 const logger = getLogger("auth");
@@ -21,15 +21,22 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string, rememberMe: boolean) => Promise<any>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe: boolean
+  ) => Promise<unknown>;
   verifyLogin: (
     email: string,
     otp: string,
     rememberMe: boolean,
     redirectPath?: string
-  ) => Promise<any>;
-  register: (userData: any) => Promise<any>;
-  verifyRegistration: (userData: any, otp: string) => Promise<void>;
+  ) => Promise<unknown>;
+  register: (userData: RegistrationPayload) => Promise<unknown>;
+  verifyRegistration: (
+    userData: RegistrationPayload,
+    otp: string
+  ) => Promise<void>;
   logout: () => void;
   redirectToDashboard: () => void;
   loginWithGoogle: (
@@ -40,11 +47,23 @@ interface AuthContextType {
       state?: string;
     },
     rememberMe?: boolean
-  ) => Promise<any>;
+  ) => Promise<unknown>;
   refreshUser: () => Promise<void>; // Refresh user data from server
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+type RegistrationPayload = Omit<RegisterFormData, "date_of_birth"> & {
+  date_of_birth: string;
+  google_id?: string;
+};
+
+type LoginResponse = {
+  skip_otp?: boolean;
+  access_token?: string;
+  is_new_user?: boolean;
+  google_user_data?: unknown;
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -65,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           Logger.setUserId(userData.id);
           logger.info("User session restored", { userId: userData.id });
         }
-      } catch (error) {
+      } catch {
         // If error, clear auth state
         logger.debug("Auth check failed, clearing state");
         if (typeof window !== "undefined") {
@@ -93,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(() => {
           window.location.href = "/dashboard/cases";
         }, 100);
-      } catch (error) {
+      } catch {
         // Fallback approach
         window.location.replace("/dashboard/cases");
       }
@@ -152,10 +171,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (userData: any) => {
+  const register = async (userData: RegistrationPayload) => {
     setIsLoading(true);
     try {
-      const response = await authAPI.register(userData);
+      const response = (await authAPI.register(userData)) as LoginResponse;
 
       // If Google registration (skip_otp), set auth state immediately
       if (response.skip_otp && response.access_token) {
@@ -184,7 +203,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const verifyRegistration = async (registrationData: any, otp: string) => {
+  const verifyRegistration = async (
+    registrationData: RegistrationPayload,
+    otp: string
+  ) => {
     setIsLoading(true);
     try {
       const { access_token } = await authAPI.verifyRegistration({
@@ -224,10 +246,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ) => {
     logger.info("Google login initiated");
     try {
-      const response = await authAPI.googleLogin({
+      const response = (await authAPI.googleLogin({
         ...authData,
         rememberMe,
-      });
+      })) as LoginResponse;
 
       // If this is a new Google user, redirect to register page with pre-filled data
       if (response.is_new_user && response.google_user_data) {

@@ -7,6 +7,7 @@ import React, {
   useState,
   useEffect,
 } from "react";
+import Image from "next/image";
 import { gsap } from "gsap";
 
 export interface StaggeredMenuItem {
@@ -481,7 +482,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
             className="sm-logo flex items-center select-none pointer-events-auto"
             aria-label="Logo"
           >
-            <img
+            <Image
               src={logoUrl}
               alt="Logo"
               className={`sm-logo-img block h-8 w-auto object-contain${
@@ -490,6 +491,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
               draggable={false}
               width={110}
               height={24}
+              unoptimized
             />
           </div>
         )}
@@ -584,7 +586,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
                 colors && colors.length
                   ? colors.slice(0, 4)
                   : ["#1e1e22", "#35353c"];
-              let arr = [...raw];
+              const arr = [...raw];
               if (arr.length >= 3) {
                 const mid = Math.floor(arr.length / 2);
                 arr.splice(mid, 1);

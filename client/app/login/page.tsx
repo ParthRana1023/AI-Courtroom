@@ -15,6 +15,7 @@ import GoogleSignInButton from "@/components/google-signin-button";
 import { Checkbox } from "@/components/animate-ui/components/radix/checkbox";
 import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 import { useLifecycleLogger } from "@/hooks/use-performance-logger";
+import { getErrorDetail } from "@/lib/error-utils";
 
 export default function Login() {
   useLifecycleLogger("Login");
@@ -92,9 +93,10 @@ export default function Login() {
       setIsOtpSent(true);
       setSuccessMessage("OTP sent successfully to your email.");
       setErrors({}); // Clear any previous errors
-    } catch (error: any) {
-      if (error.response?.data?.detail) {
-        setErrors({ form: error.response.data.detail });
+    } catch (error: unknown) {
+      const detail = getErrorDetail(error);
+      if (detail) {
+        setErrors({ form: detail });
       } else {
         setErrors({ form: "Login failed. Please try again." });
       }
@@ -112,9 +114,10 @@ export default function Login() {
       setOtp(Array(6).fill(""));
       setIsOtpSent(true); // Ensure OTP form is shown after requesting again
       setSuccessMessage("New OTP sent successfully.");
-    } catch (error: any) {
-      if (error.response?.data?.detail) {
-        setErrors({ form: error.response.data.detail });
+    } catch (error: unknown) {
+      const detail = getErrorDetail(error);
+      if (detail) {
+        setErrors({ form: detail });
       } else {
         setErrors({ form: "Failed to request OTP again. Please try again." });
       }
@@ -136,9 +139,10 @@ export default function Login() {
       // Pass email, otp, and rememberMe as separate arguments
       await verifyLogin(formData.email, otp.join(""), rememberMe, redirectPath);
       // Redirect is handled in the auth context
-    } catch (error: any) {
-      if (error.response?.data?.detail) {
-        setErrors({ otp: error.response.data.detail });
+    } catch (error: unknown) {
+      const detail = getErrorDetail(error);
+      if (detail) {
+        setErrors({ otp: detail });
       } else {
         setErrors({ otp: "OTP verification failed. Please try again." });
       }
@@ -274,10 +278,10 @@ export default function Login() {
                   try {
                     setIsLoading(true);
                     await loginWithGoogle(authData, rememberMe);
-                  } catch (error: any) {
+                  } catch (error: unknown) {
                     setErrors({
                       form:
-                        error.response?.data?.detail ||
+                        getErrorDetail(error) ||
                         "Google sign-in failed. Please try again.",
                     });
                   } finally {

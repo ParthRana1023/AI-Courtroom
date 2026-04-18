@@ -1,7 +1,6 @@
 "use client";
 
 import React, {
-  useState,
   useRef,
   useEffect,
   KeyboardEvent,
@@ -82,14 +81,6 @@ const SettingsAwareTextArea = forwardRef<
 
     // Handle key presses for Enter key behavior
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      console.log(
-        "Key pressed:",
-        e.key,
-        "Enter submits:",
-        enterKeySubmits,
-        "Shift pressed:",
-        e.shiftKey
-      );
       // Handle Enter key based on settings
       if (e.key === "Enter") {
         if (enterKeySubmits && !e.shiftKey) {

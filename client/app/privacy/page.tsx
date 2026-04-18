@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Navigation from "@/components/navigation";
-import { Shield, Cookie, Eye, Lock, Mail, Users, Sparkles } from "lucide-react";
+import { Shield, Cookie, Eye, Lock, Mail, Users } from "lucide-react";
 import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 
 export default function PrivacyPage() {

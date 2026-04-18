@@ -7,7 +7,6 @@ import { type Case, CaseStatus } from "@/types";
 import { toast } from "sonner";
 import {
   Trash2,
-  Trash,
   Archive,
   Search,
   ChevronUp,
@@ -55,7 +54,7 @@ export default function CasesListing() {
   const { skipArchiveConfirmation, skipDeleteConfirmation } = useSettings();
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error] = useState("");
   const [deletingCnr, setDeletingCnr] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<Set<CaseStatus>>(

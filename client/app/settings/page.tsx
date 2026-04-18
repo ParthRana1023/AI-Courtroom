@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import {
   Settings,
   Save,
@@ -71,7 +70,6 @@ function SidebarToggleButton() {
 export default function SettingsPage() {
   useLifecycleLogger("SettingsPage");
 
-  const router = useRouter();
   const { isAuthenticated } = useAuth();
   const {
     enterKeySubmits,
@@ -111,7 +109,7 @@ export default function SettingsPage() {
     useState<CaseLocationPreference>("random");
   const [preferredCaseState, setPreferredCaseState] = useState<string>("");
   const [indianStates, setIndianStates] = useState<IndianState[]>([]);
-  const [isLoadingStates, setIsLoadingStates] = useState(false);
+  const [, setIsLoadingStates] = useState(false);
   const [originalCaseLocationPreference, setOriginalCaseLocationPreference] =
     useState<CaseLocationPreference>("random");
   const [originalPreferredCaseState, setOriginalPreferredCaseState] =

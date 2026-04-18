@@ -20,6 +20,9 @@ interface GoogleSignInButtonProps {
 }
 
 import { apiBaseUrl, authAPI } from "@/lib/api";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("auth");
 
 export default function GoogleSignInButton({
   onSuccess,
@@ -35,7 +38,7 @@ export default function GoogleSignInButton({
     onSuccess: async (tokenResponse) => {
       // Handle Authorization Code Flow
       if (tokenResponse.code) {
-        console.log("Google Auth Code received");
+        logger.debug("Google auth code received");
 
         // Retrieve state from session storage for validation
         const storedState = sessionStorage.getItem("oauth_state");
@@ -43,7 +46,7 @@ export default function GoogleSignInButton({
         await onSuccess({
           code: tokenResponse.code,
           state: storedState || undefined,
-        } as any);
+        });
       } else {
         // Fallback or error case
         console.error("No code received in Google login response");
@@ -114,7 +117,7 @@ export default function GoogleSignInButton({
       })
       .catch((err) => {
         if (!isMounted) return;
-        console.error("Failed to prefetch OAuth state", err);
+        logger.error("Failed to prefetch OAuth state", err as Error);
         setOauthState(null);
         onError?.(
           new Error(
@@ -130,7 +133,7 @@ export default function GoogleSignInButton({
     return () => {
       isMounted = false;
     };
-  }, [isNativePlatform]);
+  }, [isNativePlatform, onError]);
 
   const handleLogin = async () => {
     try {
@@ -144,8 +147,8 @@ export default function GoogleSignInButton({
       }
 
       // Trigger login synchronously without awaiting APIs (prevents popups from being blocked on mobile)
-      // @ts-ignore
-      login({ state: oauthState });
+      const loginWithState = login as (options: { state: string }) => void;
+      loginWithState({ state: oauthState });
     } catch (err) {
       console.error("Failed to initialize Google login:", err);
       if (axios.isAxiosError(err)) {

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { caseAPI } from "@/lib/api";
+import type { Case } from "@/types";
+import { getLogger } from "@/lib/logger";
 import {
   Card,
   CardContent,
@@ -16,8 +18,10 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+const logger = getLogger("cases");
+
 export function CaseHistory() {
-  const [cases, setCases] = useState<any[]>([]);
+  const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +32,7 @@ export function CaseHistory() {
         setCases(data);
       } catch (err) {
         setError("Failed to load cases. Please try again.");
-        console.error(err);
+        logger.error("Failed to load cases", err as Error);
       } finally {
         setLoading(false);
       }
@@ -87,7 +91,7 @@ export function CaseHistory() {
     );
   }
 
-  const renderCaseList = (caseList: any[]) => {
+  const renderCaseList = (caseList: Case[]) => {
     if (caseList.length === 0) {
       return (
         <Card>
@@ -101,7 +105,7 @@ export function CaseHistory() {
     return (
       <div className="space-y-4">
         {caseList.map((caseItem) => (
-          <Card key={caseItem.id}>
+          <Card key={caseItem.cnr}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Case #{caseItem.cnr}</CardTitle>
@@ -113,10 +117,10 @@ export function CaseHistory() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground line-clamp-2">
-                {caseItem.details}
+                {caseItem.case_text || caseItem.title}
               </p>
               <div className="mt-4">
-                <Link href={`/dashboard/cases/${caseItem.id}`} passHref>
+                <Link href={`/dashboard/cases/${caseItem.cnr}`} passHref>
                   <Button size="sm">
                     View Case <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>

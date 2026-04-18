@@ -3,9 +3,9 @@
 import type React from "react";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Navigation from "@/components/navigation";
 import { contactAPI, authAPI } from "@/lib/api";
+import { getErrorDetail, getErrorStatus } from "@/lib/error-utils";
 import type { ContactFormData, FeedbackCategory } from "@/types";
 import {
   MessageSquare,
@@ -33,7 +33,6 @@ const feedbackCategories: { value: FeedbackCategory; label: string }[] = [
 export default function Contact() {
   useLifecycleLogger("Contact");
 
-  const router = useRouter();
   const [formData, setFormData] = useState<ContactFormData>({
     feedback_category: "general",
     message: "",
@@ -84,11 +83,13 @@ export default function Contact() {
         feedback_category: "general",
         message: "",
       });
-    } catch (error: any) {
-      if (error.response?.status === 401) {
+    } catch (error: unknown) {
+      const detail = getErrorDetail(error);
+
+      if (getErrorStatus(error) === 401) {
         setErrors({ form: "Please login to submit feedback." });
-      } else if (error.response?.data?.detail) {
-        setErrors({ form: error.response.data.detail });
+      } else if (detail) {
+        setErrors({ form: detail });
       } else {
         setErrors({ form: "Failed to submit form. Please try again." });
       }

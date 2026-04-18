@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
@@ -44,9 +45,11 @@ export default function Navigation({ translucent = false }: NavigationProps) {
             <div className="flex items-center">
               <div className="shrink-0">
                 <Link href="/" className="text-xl font-bold flex items-center">
-                  <img
+                  <Image
                     src="/favicon.ico"
                     alt="AI Courtroom Logo"
+                    width={32}
+                    height={32}
                     className="h-8 w-8 mr-2"
                   />
                   <span>AI Courtroom</span>

@@ -15,6 +15,7 @@ import {
   useLifecycleLogger,
 } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
+import { getErrorDetail } from "@/lib/error-utils";
 
 const logger = getLogger("cases");
 
@@ -141,11 +142,12 @@ export default function GenerateCase() {
       const newCase = await caseAPI.generateCase(formData);
       // Don't set isLoading to false here - let the page navigate while showing loading
       router.push(`/dashboard/cases/${newCase.cnr}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Only reset loading on error
       setIsLoading(false);
-      if (error.response?.data?.detail) {
-        setErrors({ form: error.response.data.detail });
+      const detail = getErrorDetail(error);
+      if (detail) {
+        setErrors({ form: detail });
       } else {
         setErrors({ form: "Failed to generate case. Please try again." });
       }

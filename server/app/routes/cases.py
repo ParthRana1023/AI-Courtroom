@@ -79,6 +79,9 @@ async def get_case(cnr: str, current_user: User = Depends(get_current_user)):
         "session_args_at_start": case_dict.get(
             "session_args_at_start", 0
         ),  # User args when session started
+        "courtroom_proceedings": case_dict.get("courtroom_proceedings", []),
+        "is_ai_examining": case_dict.get("is_ai_examining", False),
+        "current_witness_id": case_dict.get("current_witness_id"),
     }
 
 

@@ -17,9 +17,6 @@ import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
-const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
 export const viewport: Viewport = {
   themeColor: "#0f172a",
   width: "device-width",

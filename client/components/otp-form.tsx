@@ -21,8 +21,8 @@ export default function OtpForm({
   error,
   onRequestAgain,
   successMessage,
-  title,
-  description,
+  title: _title,
+  description: _description,
 }: OtpFormProps) {
   const [resendTimer, setResendTimer] = React.useState(30); // Initialize with 30 to display timer on load
 

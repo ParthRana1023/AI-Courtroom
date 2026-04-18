@@ -1,23 +1,14 @@
-import withSerwistInit from "@serwist/next";
-
 const apiOrigin = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-const withSerwist = withSerwistInit({
-  swSrc: "app/sw.ts",
-  swDest: "public/sw.js",
-  reloadOnOnline: true,
-  disable: process.env.NODE_ENV === "development",
-});
 
 let userConfig = undefined;
 try {
   // try to import ESM first
   userConfig = await import("./v0-user-next.config.mjs");
-} catch (e) {
+} catch {
   try {
     // fallback to CJS import
     userConfig = await import("./v0-user-next.config");
-  } catch (innerError) {
+  } catch {
     // ignore error
   }
 }
@@ -98,4 +89,4 @@ if (userConfig) {
   }
 }
 
-export default withSerwist(nextConfig);
+export default nextConfig;

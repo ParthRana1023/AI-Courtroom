@@ -6,21 +6,16 @@ import { use } from "react";
 import { caseAPI, argumentAPI, witnessAPI } from "@/lib/api";
 import WitnessPanel from "@/components/witness-panel";
 import { argumentRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
-import { useAuth } from "@/contexts/auth-context";
 import {
   type Case,
   CaseStatus,
-  type Argument,
   Roles,
   CourtroomProceedingsEventType,
   type CourtroomProceedingsEvent,
 } from "@/types";
 import {
-  createArgumentTimestamp,
-  createOffsetTimestamp,
   formatToLocaleDateString,
   formatToLocaleString,
-  sortByTimestamp,
 } from "@/lib/datetime";
 import SettingsAwareTextArea, {
   SettingsAwareTextAreaRef,
@@ -28,6 +23,7 @@ import SettingsAwareTextArea, {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -43,20 +39,37 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import GavelLoader from "@/components/gavel-loader";
 import {
   useRenderLogger,
   useLifecycleLogger,
 } from "@/hooks/use-performance-logger";
+import { getLogger } from "@/lib/logger";
+import { getErrorDetail } from "@/lib/error-utils";
+
+const logger = getLogger("courtroom");
+
+function countUserArguments(
+  proceedings?: CourtroomProceedingsEvent[],
+): number {
+  return (
+    proceedings?.filter(
+      (event) => event.type === CourtroomProceedingsEventType.ARGUMENT,
+    ).length ?? 0
+  );
+}
+
+function hasPlaintiffOpening(
+  proceedings?: CourtroomProceedingsEvent[],
+): boolean {
+  return Boolean(
+    proceedings?.some(
+      (event) =>
+        event.type === CourtroomProceedingsEventType.OPENING_STATEMENT &&
+        event.speaker_role === Roles.PLAINTIFF,
+    ),
+  );
+}
 
 export default function Courtroom({
   params,
@@ -73,14 +86,8 @@ export default function Courtroom({
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlRole = searchParams.get("role") || "";
-  const { user } = useAuth();
 
   const [caseData, setCaseData] = useState<Case | null>(null);
-  const [caseHistory, setCaseHistory] = useState<{
-    plaintiff_arguments: Argument[];
-    defendant_arguments: Argument[];
-    verdict: string | null;
-  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [argument, setArgument] = useState("");
@@ -89,7 +96,6 @@ export default function Courtroom({
     (urlRole as Roles) || Roles.PLAINTIFF,
   );
   const [showClosingButton, setShowClosingButton] = useState(false);
-  const [counterArgument, setCounterArgument] = useState<string | null>(null);
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [showVerdict, setShowVerdict] = useState(false);
@@ -118,25 +124,12 @@ export default function Courtroom({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const argumentTextareaRef = useRef<SettingsAwareTextAreaRef>(null);
+  const previousCaseStatusRef = useRef<CaseStatus | null>(null);
 
-  // Combine and sort all arguments chronologically
-  const timelineEvents = useMemo(() => {
-    if (
-      caseData?.courtroom_proceedings &&
-      caseData.courtroom_proceedings.length > 0
-    ) {
-      return caseData.courtroom_proceedings;
-    }
-
-    if (!caseHistory) return [];
-
-    // Fallback logic for old cases
-    const combined = [
-      ...(caseHistory.plaintiff_arguments || []),
-      ...(caseHistory.defendant_arguments || []),
-    ];
-    return sortByTimestamp(combined);
-  }, [caseHistory, caseData]);
+  const timelineEvents = useMemo<CourtroomProceedingsEvent[]>(
+    () => caseData?.courtroom_proceedings ?? [],
+    [caseData?.courtroom_proceedings],
+  );
 
   // Auto-scroll to bottom when timeline events change (e.g., AI responds)
   useEffect(() => {
@@ -158,7 +151,7 @@ export default function Courtroom({
         setTimeRemaining(null);
       }
     } catch (error) {
-      console.error("Error fetching rate limit info:", error);
+      logger.error("Error fetching rate limit info", error as Error);
     }
   }, []);
 
@@ -173,45 +166,16 @@ export default function Courtroom({
         const data = await caseAPI.getCase(cnr);
         setCaseData(data);
 
-        // Fetch case history
-        const history = await caseAPI.getCaseHistory(cnr);
-        setCaseHistory(history);
-
-        // Determine if we should show the closing statement button
-        const userArguments =
-          history.plaintiff_arguments.filter(
-            (arg: Argument) => arg.type === "user",
-          ).length +
-          history.defendant_arguments.filter(
-            (arg: Argument) => arg.type === "user",
-          ).length;
-
-        setShowClosingButton(userArguments >= 3);
+        setShowClosingButton(countUserArguments(data.courtroom_proceedings) >= 3);
 
         // Role detection (skip if polling to avoid UI flickering/resets)
         if (!isPolling) {
-          let detectedRole: Roles = Roles.NOT_STARTED;
-          const participatedAsPlaintiff = history.plaintiff_arguments.some(
-            (arg: Argument) => arg.user_id && arg.type === "user",
-          );
-          const participatedAsDefendant = history.defendant_arguments.some(
-            (arg: Argument) => arg.user_id && arg.type === "user",
-          );
-
-          if (participatedAsPlaintiff) {
-            detectedRole = Roles.PLAINTIFF;
-          } else if (participatedAsDefendant) {
-            detectedRole = Roles.DEFENDANT;
-          }
-
           if (
             data.user_role &&
             data.user_role !== Roles.NOT_STARTED &&
             data.user_role !== "not_started"
           ) {
             setCurrentRole(data.user_role as Roles);
-          } else if (participatedAsPlaintiff || participatedAsDefendant) {
-            setCurrentRole(detectedRole);
           } else if (urlRole && urlRole !== Roles.NOT_STARTED) {
             setCurrentRole(urlRole as Roles);
           } else {
@@ -228,7 +192,7 @@ export default function Courtroom({
         if (!isPolling) {
           setError("Failed to load case details. Please try again later.");
         }
-        console.error("Error fetching case details:", error);
+        logger.error("Error fetching case details", error as Error);
       } finally {
         if (!isPolling) {
           setIsLoading(false);
@@ -268,40 +232,49 @@ export default function Courtroom({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeRemaining]);
+  }, [timeRemaining, fetchRateLimitInfo]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [caseHistory, counterArgument]);
+  }, [timelineEvents]);
 
-  // Show "Court in Session" popup when entering courtroom
+  // Show "Court in Session" popup only when entering or resuming an active session.
   useEffect(() => {
-    if (caseData && caseData.status === CaseStatus.ACTIVE && !isLoading) {
+    const currentStatus = caseData?.status ?? null;
+
+    if (!currentStatus || isLoading) {
+      return;
+    }
+
+    const previousStatus = previousCaseStatusRef.current;
+
+    if (
+      currentStatus === CaseStatus.ACTIVE &&
+      previousStatus !== CaseStatus.ACTIVE
+    ) {
       setShowSessionPopup(true);
       const timer = setTimeout(() => {
         setShowSessionPopup(false);
       }, 3000);
+      previousCaseStatusRef.current = currentStatus;
       return () => clearTimeout(timer);
     }
-  }, [caseData, isLoading]);
+
+    previousCaseStatusRef.current = currentStatus;
+  }, [caseData?.status, isLoading]);
 
   // Calculate user arguments submitted THIS SESSION (not total)
   // session_args_at_start is set when status becomes ACTIVE
   const sessionUserArguments = useMemo(() => {
-    if (!caseHistory || !caseData) return 0;
-    // User-submitted arguments have user_id set, AI arguments have user_id as null
-    const totalUserArgs = [
-      ...caseHistory.plaintiff_arguments,
-      ...caseHistory.defendant_arguments,
-    ].filter((arg) => arg.user_id !== null).length;
-
+    if (!caseData) return 0;
+    const totalUserArgs = countUserArguments(caseData.courtroom_proceedings);
     // Subtract the count when session started to get session-specific count
     const sessionStart = caseData.session_args_at_start || 0;
     return Math.max(0, totalUserArgs - sessionStart);
-  }, [caseHistory, caseData]);
+  }, [caseData]);
 
   // Handle ending the court session
   const handleEndSession = async () => {
@@ -321,144 +294,62 @@ export default function Courtroom({
         window.location.reload();
       }, 3000);
     } catch (error) {
-      console.error("Error ending session:", error);
+      logger.error("Error ending session", error as Error);
     }
   };
 
-  // Poll for case history updates to catch plaintiff opening statement
+  // Poll for courtroom proceedings updates to catch plaintiff opening statement
   // This is especially important when user selects defendant role
   useEffect(() => {
     // Only set up polling if we have case data and the case is active
     if (!caseData || caseData.status !== CaseStatus.ACTIVE) return;
 
-    // Check if user is defendant and there are no plaintiff arguments yet
+    // Check if user is defendant and there is no plaintiff opening yet
     const isDefendantWithNoPlaintiffArgs =
-      currentRole === "defendant" &&
-      caseHistory &&
-      caseHistory.plaintiff_arguments.length === 0;
+      currentRole === Roles.DEFENDANT &&
+      !hasPlaintiffOpening(caseData.courtroom_proceedings);
 
     // If we're in this state, poll for updates
     if (isDefendantWithNoPlaintiffArgs) {
-      console.log("Setting up polling for plaintiff opening statement");
+      logger.debug("Setting up polling for plaintiff opening statement");
 
       const pollInterval = setInterval(async () => {
         try {
-          console.log("Polling for case history updates...");
-          const updatedHistory = await caseAPI.getCaseHistory(cnr);
+          logger.debug("Polling for courtroom proceedings updates");
+          const updatedCase = await caseAPI.getCase(cnr);
 
-          // Check if there are new plaintiff arguments
-          if (updatedHistory.plaintiff_arguments.length > 0) {
-            console.log("Found new plaintiff arguments, updating case history");
-            setCaseHistory(updatedHistory);
+          if (hasPlaintiffOpening(updatedCase.courtroom_proceedings)) {
+            logger.debug(
+              "Found plaintiff opening statement, updating case data",
+            );
+            setCaseData(updatedCase);
             clearInterval(pollInterval); // Stop polling once we find the opening statement
           }
         } catch (pollError) {
-          console.error("Error polling case history:", pollError);
+          logger.error("Error polling courtroom proceedings", pollError as Error);
         }
       }, 2000); // Poll every 2 seconds
 
       return () => {
-        console.log("Cleaning up polling interval");
+        logger.debug("Cleaning up polling interval");
         clearInterval(pollInterval);
       };
     }
-  }, [caseData, caseHistory, currentRole, cnr]);
+  }, [caseData, currentRole, cnr]);
 
   const handleSubmitArgument = async () => {
     if (!argument.trim()) return;
 
     setIsSubmitting(true);
     try {
-      const response = await argumentAPI.submitArgument(
+      await argumentAPI.submitArgument(
         cnr,
         currentRole.toLowerCase() as "plaintiff" | "defendant",
         argument,
       );
 
-      // Initialize updatedHistory once, ensuring arrays are properly initialized
-      const updatedHistory = {
-        ...caseHistory!, // Spread existing history
-        plaintiff_arguments: [...(caseHistory?.plaintiff_arguments || [])],
-        defendant_arguments: [...(caseHistory?.defendant_arguments || [])],
-      };
-
-      // In handleSubmitArgument function, ensure consistent timestamp format
-      const userArgumentTimestamp = createArgumentTimestamp();
-
-      // Add User's argument based on their role
-      if (currentRole === "plaintiff") {
-        updatedHistory.plaintiff_arguments.push({
-          type: "user",
-          content: argument,
-          user_id: "current-user",
-          user_role: currentRole,
-          timestamp: userArgumentTimestamp, // Ensure this is always set
-        });
-      } else if (currentRole === "defendant") {
-        updatedHistory.defendant_arguments.push({
-          type: "user",
-          content: argument,
-          user_id: "current-user",
-          user_role: currentRole,
-          timestamp: userArgumentTimestamp, // Ensure this is always set
-        });
-      }
-
-      // Add AI Opening Statement if present in the response
-      if (response.ai_opening_statement && response.ai_opening_role) {
-        const aiOpeningTimestamp = createOffsetTimestamp(1); // 1 second offset to appear after user argument
-        if (response.ai_opening_role === "plaintiff") {
-          updatedHistory.plaintiff_arguments.push({
-            type: "opening",
-            content: response.ai_opening_statement,
-            user_id: null,
-            user_role: Roles.PLAINTIFF,
-            timestamp: aiOpeningTimestamp,
-          });
-        } else if (response.ai_opening_role === "defendant") {
-          updatedHistory.defendant_arguments.push({
-            type: "opening",
-            content: response.ai_opening_statement,
-            user_id: null,
-            user_role: Roles.DEFENDANT,
-            timestamp: aiOpeningTimestamp,
-          });
-        }
-      }
-
-      // Add AI Counter-Argument if present in the response
-      if (response.ai_counter_argument && response.ai_counter_role) {
-        console.log("Counter-argument found in response:", {
-          role: response.ai_counter_role,
-          content: response.ai_counter_argument.substring(0, 100) + "...",
-        });
-
-        const aiCounterArgumentTimestamp = createOffsetTimestamp(2); // 2 second offset to appear after opening statement
-        if (response.ai_counter_role === "plaintiff") {
-          console.log("Adding plaintiff counter-argument to history");
-          updatedHistory.plaintiff_arguments.push({
-            type: "counter",
-            content: response.ai_counter_argument,
-            user_id: null,
-            user_role: Roles.PLAINTIFF,
-            timestamp: aiCounterArgumentTimestamp, // Use consistent format
-          });
-        } else if (response.ai_counter_role === "defendant") {
-          console.log("Adding defendant counter-argument to history");
-          updatedHistory.defendant_arguments.push({
-            type: "counter",
-            content: response.ai_counter_argument,
-            user_id: null,
-            user_role: Roles.DEFENDANT,
-            timestamp: aiCounterArgumentTimestamp, // Use consistent format
-          });
-        }
-      } else {
-        console.log("No counter-argument in response:", response);
-      }
-
-      // Update the state with the new history
-      setCaseHistory(updatedHistory);
+      const updatedCase = await caseAPI.getCase(cnr);
+      setCaseData(updatedCase);
 
       setIsSubmitting(false);
       setArgument("");
@@ -469,14 +360,9 @@ export default function Courtroom({
       // Refresh rate limit info after successful submission
       fetchRateLimitInfo();
 
-      // Check if closing statement button should be shown
-      const totalUserArguments =
-        updatedHistory.plaintiff_arguments.filter((arg) => arg.type === "user")
-          .length +
-        updatedHistory.defendant_arguments.filter((arg) => arg.type === "user")
-          .length;
-
-      setShowClosingButton(totalUserArguments >= 3);
+      setShowClosingButton(
+        countUserArguments(updatedCase.courtroom_proceedings) >= 3,
+      );
 
       // Check if AI wants to call a witness (only if no witness is currently on stand)
       // We do this after the argument flow is updated
@@ -501,11 +387,11 @@ export default function Courtroom({
             }
           }
         } catch (err) {
-          console.error("Failed to check for AI witness call", err);
+          logger.error("Failed to check for AI witness call", err as Error);
         }
       }, 2000); // Small delay to let the user read the argument first
     } catch (error) {
-      console.error("Error submitting argument:", error);
+      logger.error("Error submitting argument", error as Error);
       setError("Failed to submit argument. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -513,14 +399,14 @@ export default function Courtroom({
   };
 
   const handleAnalyzeCase = async () => {
-    console.log("🔍 handleAnalyzeCase called");
-    console.log("📊 Current caseAnalysis state:", caseAnalysis);
-    console.log("👁️ Current showAnalysis state:", showAnalysis);
+    logger.debug("Analyze case requested", {
+      hasCaseAnalysis: Boolean(caseAnalysis),
+      showAnalysis,
+    });
 
     if (caseAnalysis) {
-      console.log("✅ Case analysis already exists, showing dialog");
+      logger.debug("Case analysis already exists, showing dialog");
       setShowAnalysis(true);
-      console.log("🔄 setShowAnalysis(true) called");
       return;
     }
 
@@ -532,17 +418,16 @@ export default function Courtroom({
         // The analysis field contains the formatted markdown
         setCaseAnalysis(analysis.analysis || "");
       } else {
-        console.log("No analysis in response");
+        logger.debug("No analysis in response");
       }
 
       setShowAnalysis(true);
-    } catch (error: any) {
-      console.error("Error fetching case analysis:", error);
-      const errorMessage =
-        error?.response?.data?.detail ||
-        error?.message ||
-        "Failed to load case analysis. Please try again.";
-      setAnalysisError(errorMessage);
+    } catch (error: unknown) {
+      logger.error("Error fetching case analysis", error as Error);
+      setAnalysisError(
+        getErrorDetail(error) ||
+          "Failed to load case analysis. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -559,64 +444,7 @@ export default function Courtroom({
         argument,
       );
 
-      // Update the UI with the closing statement and verdict
-      const updatedHistory = { ...caseHistory! };
-      const userTimestamp = createArgumentTimestamp();
-      const aiTimestamp = createOffsetTimestamp(1); // 1 second after user's timestamp
-
-      // Add user's closing statement
-      if (currentRole === "plaintiff") {
-        updatedHistory.plaintiff_arguments = [
-          ...updatedHistory.plaintiff_arguments,
-          {
-            type: "closing",
-            content: argument,
-            user_id: "current-user",
-            user_role: currentRole,
-            timestamp: userTimestamp,
-          },
-        ];
-        // Add AI's closing statement for defendant if present
-        if (response.ai_closing_statement) {
-          updatedHistory.defendant_arguments = [
-            ...updatedHistory.defendant_arguments,
-            {
-              type: "closing",
-              content: response.ai_closing_statement,
-              user_id: null,
-              user_role: Roles.DEFENDANT,
-              timestamp: aiTimestamp,
-            },
-          ];
-        }
-      } else {
-        updatedHistory.defendant_arguments = [
-          ...updatedHistory.defendant_arguments,
-          {
-            type: "closing",
-            content: argument,
-            user_id: "current-user",
-            user_role: currentRole,
-            timestamp: userTimestamp,
-          },
-        ];
-        // Add AI's closing statement for plaintiff if present
-        if (response.ai_closing_statement) {
-          updatedHistory.plaintiff_arguments = [
-            ...updatedHistory.plaintiff_arguments,
-            {
-              type: "closing",
-              content: response.ai_closing_statement,
-              user_id: null,
-              user_role: Roles.PLAINTIFF,
-              timestamp: aiTimestamp,
-            },
-          ];
-        }
-      }
-
       if (response.verdict) {
-        updatedHistory.verdict = response.verdict;
         setTimeout(() => {
           setShowVerdict(true);
         }, 3000);
@@ -624,20 +452,19 @@ export default function Courtroom({
         // Call the case analysis endpoint
         try {
           await caseAPI.analyzeCase(cnr);
-          console.log("Case analysis initiated successfully.");
-        } catch (analysisErr: any) {
-          console.error("Failed to initiate case analysis:", analysisErr);
-          const errorMessage =
-            analysisErr?.response?.data?.detail ||
-            analysisErr?.message ||
-            "Failed to generate case analysis.";
-          setAnalysisError(errorMessage);
+          logger.debug("Case analysis initiated successfully");
+        } catch (analysisErr: unknown) {
+          logger.error(
+            "Failed to initiate case analysis",
+            analysisErr as Error,
+          );
+          setAnalysisError(
+            getErrorDetail(analysisErr) || "Failed to generate case analysis.",
+          );
         }
       }
 
-      setCaseHistory(updatedHistory);
       setArgument("");
-      setCounterArgument(null);
       setIsSubmitting(false);
 
       // Auto-focus the textarea for next input
@@ -649,10 +476,11 @@ export default function Courtroom({
 
       // Refresh rate limit information
       await fetchRateLimitInfo();
-    } catch (error: any) {
-      console.error("Error submitting closing statement:", error);
-      if (error.response?.data?.detail) {
-        setError(error.response.data.detail);
+    } catch (error: unknown) {
+      logger.error("Error submitting closing statement", error as Error);
+      const detail = getErrorDetail(error);
+      if (detail) {
+        setError(detail);
       } else {
         setError("Failed to submit closing statement. Please try again.");
       }
@@ -688,7 +516,7 @@ export default function Courtroom({
     );
   }
 
-  if (!caseData || !caseHistory) {
+  if (!caseData) {
     return (
       <div className="min-h-screen flex flex-col">
         <div className="flex-1 flex items-center justify-center">
@@ -740,8 +568,8 @@ export default function Courtroom({
                       caseData.status === CaseStatus.ACTIVE
                         ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"
                         : caseData.status === CaseStatus.RESOLVED
-                          ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-gray-300"
-                          : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300"
+                        ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-gray-300"
+                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300"
                     }`}
                   >
                     {caseData.status}
@@ -932,14 +760,7 @@ export default function Courtroom({
         {/* Chat messages */}
         <ScrollArea className="h-full">
           <div className="p-4 space-y-4">
-            {timelineEvents.map((item: any, index: number) => {
-              // Check if it's a proceeding event (has speaker_role)
-              const isProceedingEvent = "speaker_role" in item;
-
-              if (isProceedingEvent) {
-                const event = item as CourtroomProceedingsEvent;
-                const isUserSide = event.speaker_role === currentRole;
-
+            {timelineEvents.map((event, index: number) => {
                 // System Messages (Witness Called/Dismissed)
                 if (
                   event.type === CourtroomProceedingsEventType.WITNESS_CALLED ||
@@ -958,9 +779,9 @@ export default function Courtroom({
                           CourtroomProceedingsEventType.WITNESS_CALLED
                             ? "🏛️ Witness Stand:"
                             : event.type ===
-                                CourtroomProceedingsEventType.WITNESS_DISMISSED
-                              ? "⚖️ Court Order:"
-                              : "ℹ️ Info:"}
+                              CourtroomProceedingsEventType.WITNESS_DISMISSED
+                            ? "⚖️ Court Order:"
+                            : "ℹ️ Info:"}
                         </span>
                         {event.content}
                       </div>
@@ -978,13 +799,23 @@ export default function Courtroom({
                   return (
                     <div
                       key={`${event.timestamp}-${index}`}
-                      className={`flex ${isExaminerUserSide ? "justify-end" : "justify-start"} mb-2`}
+                      className={`flex ${
+                        isExaminerUserSide ? "justify-end" : "justify-start"
+                      } mb-2`}
                     >
                       <div
-                        className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${isExaminerUserSide ? "bg-blue-50 dark:bg-blue-900/10 border-blue-600" : "bg-purple-50 dark:bg-purple-900/10 border-purple-600"}`}
+                        className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
+                          isExaminerUserSide
+                            ? "bg-blue-50 dark:bg-blue-900/10 border-blue-600"
+                            : "bg-purple-50 dark:bg-purple-900/10 border-purple-600"
+                        }`}
                       >
                         <div
-                          className={`text-xs font-bold mb-1 ${isExaminerUserSide ? "text-blue-600" : "text-purple-600"}`}
+                          className={`text-xs font-bold mb-1 ${
+                            isExaminerUserSide
+                              ? "text-blue-600"
+                              : "text-purple-600"
+                          }`}
                         >
                           {event.speaker_name} (Examiner)
                         </div>
@@ -1027,13 +858,23 @@ export default function Courtroom({
                 return (
                   <div
                     key={`${event.timestamp}-${index}`}
-                    className={`flex ${isUserArg ? "justify-end" : "justify-start"}`}
+                    className={`flex ${
+                      isUserArg ? "justify-end" : "justify-start"
+                    }`}
                   >
                     <div
-                      className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${isUserArg ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600" : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"}`}
+                      className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
+                        isUserArg
+                          ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
+                          : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"
+                      }`}
                     >
                       <div
-                        className={`text-xs font-medium mb-1 flex justify-between ${isUserArg ? "text-blue-600 dark:text-blue-400" : "text-purple-600 dark:text-purple-400"}`}
+                        className={`text-xs font-medium mb-1 flex justify-between ${
+                          isUserArg
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-purple-600 dark:text-purple-400"
+                        }`}
                       >
                         <span>
                           {event.speaker_name}
@@ -1058,71 +899,13 @@ export default function Courtroom({
                     </div>
                   </div>
                 );
-              }
-
-              // Fallback for Legacy Arguments
-              const isPlaintiff =
-                caseHistory?.plaintiff_arguments.some(
-                  (pArg) =>
-                    pArg.timestamp === item.timestamp &&
-                    pArg.content === item.content,
-                ) ?? item.user_role === Roles.PLAINTIFF; // Fallback check
-
-              const role = isPlaintiff ? "plaintiff" : "defendant";
-              const isUser =
-                item.user_id === "current-user" ||
-                (item.user_id && currentRole === role);
-
-              const formattedContent = item.content;
-
-              // Create a unique key using timestamp and content hash
-              const uniqueKey = `${item.timestamp || index}-${
-                item.type
-              }-${item.content.substring(0, 20)}`;
-
-              return (
-                <div
-                  key={uniqueKey}
-                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 ${
-                      isUser
-                        ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
-                        : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"
-                    }`}
-                  >
-                    <div
-                      className={`text-xs font-medium mb-1 flex justify-between ${
-                        isUser
-                          ? "text-blue-600 dark:text-blue-400"
-                          : "text-purple-600 dark:text-purple-400"
-                      }`}
-                    >
-                      <span>
-                        {isPlaintiff ? "Plaintiff" : "Defendant"}{" "}
-                        {item.type === "opening" && "(Opening Statement)"}
-                        {item.type === "closing" && "(Closing Statement)"}
-                      </span>
-                      {item.timestamp && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                          {formatToLocaleString(item.timestamp)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-gray-900 dark:text-gray-100">
-                      <ChatMarkdownRenderer markdown={formattedContent} />
-                    </div>
-                  </div>
-                </div>
-              );
             })}
             <div ref={messagesEndRef} />
-            {caseHistory?.verdict &&
+            {caseData.verdict &&
               caseData?.status === CaseStatus.RESOLVED && (
                 <div>
                   <Dialog
-                    open={showVerdict && !!caseHistory?.verdict}
+                    open={showVerdict && !!caseData.verdict}
                     onOpenChange={setShowVerdict}
                   >
                     <DialogContent className="max-w-3xl max-h-[90vh] p-0">
@@ -1130,10 +913,13 @@ export default function Courtroom({
                         <DialogTitle className="flex items-center justify-between">
                           Case Verdict
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                          Final verdict for case {caseData.cnr}.
+                        </DialogDescription>
                       </DialogHeader>
                       <ScrollArea className="h-[calc(90vh-6rem)] p-6">
                         <MarkdownRenderer
-                          markdown={caseHistory.verdict}
+                          markdown={caseData.verdict}
                           className="prose prose-lg max-w-none font-serif dark:prose-invert"
                         />
                       </ScrollArea>
@@ -1162,6 +948,9 @@ export default function Courtroom({
                             Analysis Complete
                           </span>
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                          Detailed analysis for case {caseData.cnr}.
+                        </DialogDescription>
                       </DialogHeader>
                       <ScrollArea className="max-h-[calc(90vh-12rem)]">
                         <div className="px-6 py-4">
@@ -1193,11 +982,11 @@ export default function Courtroom({
                   </Dialog>
                 </div>
               )}
-            {caseHistory?.verdict &&
+            {caseData.verdict &&
               caseData?.status === CaseStatus.RESOLVED && (
                 <div>
                   <Dialog
-                    open={showVerdict && !!caseHistory?.verdict}
+                    open={showVerdict && !!caseData.verdict}
                     onOpenChange={setShowVerdict}
                   >
                     <DialogContent className="max-w-3xl max-h-[90vh] p-0">
@@ -1218,13 +1007,16 @@ export default function Courtroom({
                             Verdict Passed
                           </span>
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                          Final verdict details for case {caseData.cnr}.
+                        </DialogDescription>
                       </DialogHeader>
                       <ScrollArea className="max-h-[calc(90vh-12rem)]">
                         <div className="px-6 py-4">
                           <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-inner overflow-hidden">
                             <div className="p-6">
                               <MarkdownRenderer
-                                markdown={caseHistory?.verdict || ""}
+                                markdown={caseData.verdict || ""}
                                 className="prose prose-lg max-w-none font-serif prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100"
                               />
                             </div>
@@ -1296,7 +1088,9 @@ export default function Courtroom({
                             d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                           />
                         </svg>
-                        <span className="hidden sm:inline">Next submission in: </span>
+                        <span className="hidden sm:inline">
+                          Next submission in:{" "}
+                        </span>
                         <span className="sm:hidden">Next in: </span>
                         <span className="ml-1 bg-orange-100 text-orange-800 px-2 py-1 rounded font-mono">
                           {/* Format timeRemaining in HH:MM:SS */}
