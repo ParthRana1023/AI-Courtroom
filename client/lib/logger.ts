@@ -233,9 +233,12 @@ class RemoteTransport implements LogTransport {
     try {
       // Use sendBeacon for reliability on page unload
       if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+        const payload = new Blob([JSON.stringify({ logs })], {
+          type: "application/json",
+        });
         const sent = navigator.sendBeacon(
           this.endpoint,
-          JSON.stringify({ logs })
+          payload
         );
         if (!sent) {
           // Fallback to fetch if sendBeacon fails

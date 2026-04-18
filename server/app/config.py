@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     log_format: str = "json"  # json (production) or text (development)
 
     # CORS settings
+    frontend_url: Optional[str] = None
     cors_allowed_origins: str = (
         "http://localhost:3000,"
         "http://127.0.0.1:3000,"
@@ -60,6 +61,7 @@ class Settings(BaseSettings):
     cors_allow_origin_regex: str = (
         r"^https?://("
         r"localhost|127\.0\.0\.1|10\.0\.2\.2|"
+        r"[a-z0-9-]+\.vercel\.app|"
         r"192\.168\.\d{1,3}\.\d{1,3}|"
         r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
         r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}"
@@ -74,11 +76,17 @@ class Settings(BaseSettings):
 
     @property
     def parsed_cors_allowed_origins(self) -> list[str]:
-        return [
-            origin.strip()
+        origins = [
+            origin.strip().rstrip("/")
             for origin in self.cors_allowed_origins.split(",")
             if origin.strip()
         ]
+
+        if self.frontend_url:
+            origins.append(self.frontend_url.strip().rstrip("/"))
+
+        # Preserve order while removing duplicates.
+        return list(dict.fromkeys(origins))
 
 
 settings = Settings()
