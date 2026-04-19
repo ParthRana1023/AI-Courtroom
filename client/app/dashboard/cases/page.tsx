@@ -5,13 +5,7 @@ import { useRouter } from "next/navigation";
 import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus } from "@/types";
 import { toast } from "sonner";
-import {
-  Trash2,
-  Archive,
-  Search,
-  ChevronUp,
-  ChevronDown,
-} from "lucide-react";
+import { Trash2, Archive, Search, ChevronUp, ChevronDown } from "lucide-react";
 import React, { useMemo } from "react";
 import {
   AlertDialog,
@@ -42,6 +36,8 @@ import {
   useLifecycleLogger,
 } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
+import { BulkActionBar } from "@/components/bulk-action-bar";
+import { BulkActionDialog } from "@/components/bulk-action-dialog";
 
 const logger = getLogger("cases");
 
@@ -391,7 +387,9 @@ export default function CasesListing() {
             <div ref={searchRef} className="relative flex items-center">
               <div
                 className={`absolute right-0 sm:right-full sm:mr-2 top-full mt-2 sm:top-auto sm:mt-0 overflow-hidden transition-all duration-500 ease-out ${
-                  searchExpanded ? "w-[calc(100vw-3rem)] sm:w-72 opacity-100" : "w-0 opacity-0"
+                  searchExpanded
+                    ? "w-[calc(100vw-3rem)] sm:w-72 opacity-100"
+                    : "w-0 opacity-0"
                 }`}
               >
                 <input
@@ -582,94 +580,38 @@ export default function CasesListing() {
             )}
 
             {/* Fixed Bulk Action Bar - Bottom Right */}
-            {selectedCases.size > 0 && (
-              <div className="fixed bottom-4 left-3 right-3 sm:left-auto sm:bottom-6 sm:right-6 z-50 flex items-center gap-2 sm:gap-4 p-3 sm:p-4 bg-white dark:bg-zinc-800 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700">
-                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                  {selectedCases.size} case(s) selected
-                </span>
-                <button
-                  onClick={() => {
-                    setSelectedCases(new Set());
-                    setMultiSelectMode(false);
-                  }}
-                  className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  Clear
-                </button>
-                <div className="h-6 w-px bg-gray-300 dark:bg-zinc-600" />
-                <div className="flex gap-2">
-                  {/* Bulk Archive with Confirmation */}
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <button
-                        disabled={deletingCnr === "bulk"}
-                        className="px-3 py-1.5 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        <Archive className="h-4 w-4" />
-                        Archive
-                      </button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          Archive {selectedCases.size} Case(s)?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          These cases will be moved to the archive. You can
-                          restore them later from Archived Cases.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={handleBulkArchive}
-                          className="bg-orange-500 hover:bg-orange-600 text-white"
-                        >
-                          Archive
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+            <BulkActionBar
+              selectedCount={selectedCases.size}
+              onClear={() => {
+                setSelectedCases(new Set());
+                setMultiSelectMode(false);
+              }}
+            >
+              <BulkActionDialog
+                triggerIcon={<Archive className="h-4 w-4" />}
+                triggerLabel="Archive"
+                triggerClassName="bg-orange-500 hover:bg-orange-600 font-medium text-white"
+                isDisabled={deletingCnr === "bulk"}
+                title={`Archive ${selectedCases.size} Case(s)?`}
+                description="These cases will be moved to the archive. You can restore them later from Archived Cases."
+                actionLabel="Archive"
+                actionClassName="bg-orange-500 hover:bg-orange-600 text-white"
+                onConfirm={handleBulkArchive}
+              />
 
-                  {/* Bulk Delete with Confirmation */}
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <button
-                        disabled={deletingCnr === "bulk"}
-                        className="px-3 py-1.5 text-sm bg-red-500 hover:bg-red-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete
-                      </button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          Delete {selectedCases.size} Case(s)?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-red-600 font-medium">
-                          ⚠️ This will permanently delete the selected cases!
-                        </AlertDialogDescription>
-                        <AlertDialogDescription>
-                          You will have 5 seconds to undo after confirming.
-                          After that, the cases and all associated data will be
-                          permanently removed.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={handleBulkDelete}
-                          className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </div>
-            )}
+              <BulkActionDialog
+                triggerIcon={<Trash2 className="h-4 w-4" />}
+                triggerLabel="Delete"
+                triggerClassName="bg-red-500 hover:bg-red-600 font-medium text-white"
+                isDisabled={deletingCnr === "bulk"}
+                title={`Delete ${selectedCases.size} Case(s)?`}
+                warningMessage="⚠️ This will permanently delete the selected cases!"
+                description="You will have 5 seconds to undo after confirming. After that, the cases and all associated data will be permanently removed."
+                actionLabel="Delete"
+                actionClassName="bg-red-600 hover:bg-red-700 text-white"
+                onConfirm={handleBulkDelete}
+              />
+            </BulkActionBar>
 
             <ScrollArea className="flex-1 min-h-0">
               <div className="min-w-full overflow-x-auto">

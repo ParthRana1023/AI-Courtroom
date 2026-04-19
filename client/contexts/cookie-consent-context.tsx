@@ -35,7 +35,7 @@ interface CookieConsentContextType {
   acceptCategories: (categories: CookieCategory[]) => void;
   // Update consent for all categories at once
   updateConsent: (
-    updates: Partial<Omit<CookieConsent, "timestamp" | "version">>
+    updates: Partial<Omit<CookieConsent, "timestamp" | "version">>,
   ) => void;
   // Open settings modal
   openSettings: () => void;
@@ -76,7 +76,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
       if (category === "essential") return true; // Essential always allowed
       return consent[category] ?? false;
     },
-    [consent]
+    [consent],
   );
 
   // Accept all cookies
@@ -163,7 +163,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
       setShowBanner(false);
       setShowSettings(false);
     },
-    [consent]
+    [consent],
   );
 
   // Open settings modal
@@ -225,7 +225,7 @@ export function useCookieConsent() {
   const context = useContext(CookieConsentContext);
   if (context === undefined) {
     throw new Error(
-      "useCookieConsent must be used within a CookieConsentProvider"
+      "useCookieConsent must be used within a CookieConsentProvider",
     );
   }
   return context;

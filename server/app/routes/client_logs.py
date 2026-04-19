@@ -12,8 +12,9 @@ from app.schemas.client_log import ClientLogEntry, ClientLogBatch
 from app.logging_config import get_logger
 from app.utils.datetime import get_current_datetime
 
-router = APIRouter(prefix="/logs", tags=["Client Logs"])
 logger = get_logger(__name__)
+
+router = APIRouter()
 
 
 @router.post("/client")

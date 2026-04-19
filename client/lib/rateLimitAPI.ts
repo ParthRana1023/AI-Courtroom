@@ -12,7 +12,7 @@ export const argumentRateLimitAPI = {
     const response = await fetchWithAuth("/limit/argument");
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || "Failed to get rate limit information");
+      throw new Error(error.detail || "Failed to get rate limit information", { cause: error });
     }
     return response.json();
   },
@@ -23,7 +23,7 @@ export const caseGenerationRateLimitAPI = {
     const response = await fetchWithAuth("/limit/case-generation");
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || "Failed to get rate limit information");
+      throw new Error(error.detail || "Failed to get rate limit information", { cause: error });
     }
     return response.json();
   },

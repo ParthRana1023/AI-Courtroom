@@ -231,9 +231,7 @@ export default function WitnessPanel({
       // Polling effect will handle updates and state transition
     } catch (err: unknown) {
       logger.error("Failed to get AI cross-examination", err as Error);
-      setError(
-        getErrorDetail(err) || "Failed to get AI cross-examination",
-      );
+      setError(getErrorDetail(err) || "Failed to get AI cross-examination");
       // Revert to user questioning on error
       setExaminationState("user_questioning");
       setIsCrossExamining(false);
@@ -262,9 +260,7 @@ export default function WitnessPanel({
       logger.info("Witness concluded", { message: response.message });
     } catch (err: unknown) {
       logger.error("Failed to conclude witness", err as Error);
-      setError(
-        getErrorDetail(err) || "Failed to conclude witness examination",
-      );
+      setError(getErrorDetail(err) || "Failed to conclude witness examination");
     } finally {
       setIsLoading(false);
     }

@@ -119,7 +119,7 @@ export class LoggingErrorBoundary extends Component<Props, State> {
  */
 export function withErrorBoundary<P extends object>(
   WrappedComponent: React.ComponentType<P>,
-  fallback?: ReactNode
+  fallback?: ReactNode,
 ): React.FC<P> {
   const WithErrorBoundary: React.FC<P> = (props) => (
     <LoggingErrorBoundary fallback={fallback}>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { gsap } from "gsap";
+import gsap from "gsap";
 import { User } from "@/types";
 import {
   Phone,
@@ -54,7 +54,7 @@ const MOBILE_BREAKPOINT = 768;
 const createParticleElement = (
   x: number,
   y: number,
-  color: string = DEFAULT_GLOW_COLOR
+  color: string = DEFAULT_GLOW_COLOR,
 ): HTMLDivElement => {
   const el = document.createElement("div");
   el.className = "particle";
@@ -83,7 +83,7 @@ const updateCardGlowProperties = (
   mouseX: number,
   mouseY: number,
   glow: number,
-  radius: number
+  radius: number,
 ) => {
   const rect = card.getBoundingClientRect();
   const relativeX = ((mouseX - rect.left) / rect.width) * 100;
@@ -132,8 +132,8 @@ const ParticleCard: React.FC<{
       createParticleElement(
         Math.random() * width,
         Math.random() * height,
-        glowColor
-      )
+        glowColor,
+      ),
     );
     particlesInitialized.current = true;
   }, [particleCount, glowColor]);
@@ -175,7 +175,7 @@ const ParticleCard: React.FC<{
         gsap.fromTo(
           clone,
           { scale: 0, opacity: 0 },
-          { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(1.7)" }
+          { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(1.7)" },
         );
 
         gsap.to(clone, {
@@ -290,7 +290,7 @@ const ParticleCard: React.FC<{
         Math.hypot(x, y),
         Math.hypot(x - rect.width, y),
         Math.hypot(x, y - rect.height),
-        Math.hypot(x - rect.width, y - rect.height)
+        Math.hypot(x - rect.width, y - rect.height),
       );
 
       const ripple = document.createElement("div");
@@ -320,7 +320,7 @@ const ParticleCard: React.FC<{
           duration: 0.8,
           ease: "power2.out",
           onComplete: () => ripple.remove(),
-        }
+        },
       );
     };
 
@@ -457,7 +457,7 @@ const GlobalSpotlight: React.FC<{
           e.clientX,
           e.clientY,
           glowIntensity,
-          spotlightRadius
+          spotlightRadius,
         );
       });
 
@@ -472,8 +472,8 @@ const GlobalSpotlight: React.FC<{
         minDistance <= proximity
           ? 0.6
           : minDistance <= fadeDistance
-          ? ((fadeDistance - minDistance) / (fadeDistance - proximity)) * 0.6
-          : 0;
+            ? ((fadeDistance - minDistance) / (fadeDistance - proximity)) * 0.6
+            : 0;
 
       gsap.to(spotlightRef.current, {
         opacity: targetOpacity,

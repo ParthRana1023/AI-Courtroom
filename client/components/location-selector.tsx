@@ -92,7 +92,7 @@ export default function LocationSelector({
         country: string;
         country_iso2: string;
         phone_code: string;
-      }>
+      }>,
     ) => {
       const newCity = updates.city ?? city;
       const newState = updates.state ?? state;
@@ -110,7 +110,7 @@ export default function LocationSelector({
         phone_code: newPhoneCode,
       });
     },
-    [city, state, stateIso2, country, countryIso2, phoneCode, onLocationSelect]
+    [city, state, stateIso2, country, countryIso2, phoneCode, onLocationSelect],
   );
 
   // Search cities
@@ -123,7 +123,7 @@ export default function LocationSelector({
     try {
       const results = await locationAPI.search(query, 10);
       const cities = results.filter(
-        (r: LocationSearchResult) => r.type === "city"
+        (r: LocationSearchResult) => r.type === "city",
       );
       setCityResults(
         cities.map((r: LocationSearchResult) => ({
@@ -134,7 +134,7 @@ export default function LocationSelector({
           country_iso2: r.country_iso2,
           phone_code: r.phone_code,
           type: r.type,
-        }))
+        })),
       );
     } catch (error) {
       console.error("City search error:", error);
@@ -154,7 +154,7 @@ export default function LocationSelector({
     try {
       const results = await locationAPI.search(query, 10);
       const states = results.filter(
-        (r: LocationSearchResult) => r.type === "state"
+        (r: LocationSearchResult) => r.type === "state",
       );
       setStateResults(
         states.map((r: LocationSearchResult) => ({
@@ -164,7 +164,7 @@ export default function LocationSelector({
           phone_code: r.phone_code,
           state_iso2: r.state_iso2 || undefined,
           type: r.type,
-        }))
+        })),
       );
     } catch (error) {
       console.error("State search error:", error);
@@ -184,7 +184,7 @@ export default function LocationSelector({
     try {
       const results = await locationAPI.search(query, 10);
       const countries = results.filter(
-        (r: LocationSearchResult) => r.type === "country"
+        (r: LocationSearchResult) => r.type === "country",
       );
       setCountryResults(
         countries.map((r: LocationSearchResult) => ({
@@ -193,7 +193,7 @@ export default function LocationSelector({
           country_iso2: r.country_iso2,
           phone_code: r.phone_code,
           type: r.type,
-        }))
+        })),
       );
     } catch (error) {
       console.error("Country search error:", error);
@@ -327,8 +327,8 @@ export default function LocationSelector({
               errors?.city
                 ? "text-red-500 dark:text-red-400"
                 : cityFocused
-                ? "text-blue-500 dark:text-blue-400"
-                : "text-zinc-500 dark:text-zinc-400"
+                  ? "text-blue-500 dark:text-blue-400"
+                  : "text-zinc-500 dark:text-zinc-400"
             }
             z-10
           `}
@@ -444,8 +444,8 @@ export default function LocationSelector({
               errors?.state
                 ? "text-red-500 dark:text-red-400"
                 : stateFocused
-                ? "text-blue-500 dark:text-blue-400"
-                : "text-zinc-500 dark:text-zinc-400"
+                  ? "text-blue-500 dark:text-blue-400"
+                  : "text-zinc-500 dark:text-zinc-400"
             }
             z-10
           `}
@@ -556,8 +556,8 @@ export default function LocationSelector({
               errors?.country
                 ? "text-red-500 dark:text-red-400"
                 : countryFocused
-                ? "text-blue-500 dark:text-blue-400"
-                : "text-zinc-500 dark:text-zinc-400"
+                  ? "text-blue-500 dark:text-blue-400"
+                  : "text-zinc-500 dark:text-zinc-400"
             }
             z-10
           `}

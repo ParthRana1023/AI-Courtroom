@@ -57,7 +57,7 @@ export const COOKIE_NAMES = {
 export function setCookie(
   name: string,
   value: string,
-  options: CookieOptions = {}
+  options: CookieOptions = {},
 ): void {
   if (typeof document === "undefined") return;
 
@@ -118,7 +118,7 @@ export function deleteCookie(name: string, path: string = "/"): void {
   if (typeof document === "undefined") return;
 
   document.cookie = `${encodeURIComponent(
-    name
+    name,
   )}=; path=${path}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
 }
 
@@ -215,7 +215,7 @@ export function clearNonEssentialCookies(): void {
  */
 export function setAuthTokenCookie(
   token: string,
-  rememberMe: boolean = false
+  rememberMe: boolean = false,
 ): void {
   const expirationDays = rememberMe ? 7 : 1;
   setCookie(COOKIE_NAMES.AUTH_TOKEN, token, {

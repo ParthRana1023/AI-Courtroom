@@ -71,15 +71,9 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Try to get token from localStorage first, then from cookie
-    let token = null;
-
     if (typeof window !== "undefined") {
-      token = localStorage.getItem("token");
-
-      // If token not in localStorage, try to get from cookie using our utility
-      if (!token) {
-        token = getCookie(COOKIE_NAMES.AUTH_TOKEN);
-      }
+      const token =
+        localStorage.getItem("token") ?? getCookie(COOKIE_NAMES.AUTH_TOKEN);
 
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -133,6 +127,7 @@ export const authAPI = {
           throw new Error(
             serverError.response.data.detail ||
               "Too many case generation requests. Please try again later.",
+            { cause: error },
           );
         }
       }
@@ -272,7 +267,7 @@ export const authAPI = {
     } catch (error) {
       logApiError(error, "Failed to upload profile photo");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(error.response.data.detail || "Failed to upload photo");
+        throw new Error(error.response.data.detail || "Failed to upload photo", { cause: error });
       }
       throw error;
     }
@@ -287,7 +282,7 @@ export const authAPI = {
     } catch (error) {
       logApiError(error, "Failed to delete profile photo");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(error.response.data.detail || "Failed to delete photo");
+        throw new Error(error.response.data.detail || "Failed to delete photo", { cause: error });
       }
       throw error;
     }
@@ -315,6 +310,7 @@ export const authAPI = {
       if (axios.isAxiosError(error) && error.response) {
         throw new Error(
           error.response.data.detail || "Failed to update profile",
+          { cause: error },
         );
       }
       throw error;
@@ -811,6 +807,7 @@ export const locationAPI = {
       if (axios.isAxiosError(error) && error.response) {
         throw new Error(
           error.response?.data?.detail || "Failed to update preference",
+          { cause: error },
         );
       }
       throw error;

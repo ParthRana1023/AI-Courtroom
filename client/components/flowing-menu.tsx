@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState } from "react";
-import { gsap } from "gsap";
+import gsap from "gsap";
 
 interface MenuItemData {
   link: string;
@@ -85,7 +85,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
     mouseX: number,
     mouseY: number,
     width: number,
-    height: number
+    height: number,
   ): "top" | "bottom" => {
     const topEdgeDist = Math.pow(mouseX - width / 2, 2) + Math.pow(mouseY, 2);
     const bottomEdgeDist =
@@ -97,7 +97,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
     const calculateRepetitions = () => {
       if (!marqueeInnerRef.current) return;
       const marqueeContent = marqueeInnerRef.current.querySelector(
-        ".marquee-part"
+        ".marquee-part",
       ) as HTMLElement;
       if (!marqueeContent) return;
       const contentWidth = marqueeContent.offsetWidth;
@@ -125,7 +125,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
     const setupMarquee = () => {
       if (!marqueeInnerRef.current) return;
       const marqueeContent = marqueeInnerRef.current.querySelector(
-        ".marquee-part"
+        ".marquee-part",
       ) as HTMLElement;
       if (!marqueeContent) return;
       const contentWidth = marqueeContent.offsetWidth;
@@ -161,7 +161,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
       ev.clientX - rect.left,
       ev.clientY - rect.top,
       rect.width,
-      rect.height
+      rect.height,
     );
 
     gsap
@@ -179,7 +179,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
       ev.clientX - rect.left,
       ev.clientY - rect.top,
       rect.width,
-      rect.height
+      rect.height,
     );
 
     gsap

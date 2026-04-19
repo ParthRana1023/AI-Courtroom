@@ -22,7 +22,7 @@ export default function MobileNav() {
     : publicPrimaryNavItems;
   const secondaryItems = isAuthenticated
     ? authenticatedSecondaryNavItems.map((item) =>
-        item.link === "/logout" ? { ...item, onClick: logout } : item
+        item.link === "/logout" ? { ...item, onClick: logout } : item,
       )
     : publicSecondaryNavItems;
 

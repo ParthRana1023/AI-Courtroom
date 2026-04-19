@@ -153,9 +153,9 @@ def log_environment_status():
         "LOG_FORMAT": settings.log_format,
         # CORS
         "CORS_ALLOWED_ORIGINS": settings.parsed_cors_allowed_origins,
-        "CORS_ALLOW_ORIGIN_REGEX_SET": "Yes"
-        if settings.cors_allow_origin_regex
-        else "No",
+        "CORS_ALLOW_ORIGIN_REGEX_SET": (
+            "Yes" if settings.cors_allow_origin_regex else "No"
+        ),
     }
 
     logger.info("Environment configuration loaded", extra={"env_config": env_status})

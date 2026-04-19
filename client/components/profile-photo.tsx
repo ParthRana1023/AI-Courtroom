@@ -40,7 +40,7 @@ export default function ProfilePhoto({
 }: ProfilePhotoProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(
-    photoUrl || null
+    photoUrl || null,
   );
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -110,7 +110,10 @@ export default function ProfilePhoto({
       setMessage({ type: "success", text: "Photo updated!" });
       setTimeout(() => setMessage(null), 3000);
     } catch (error: unknown) {
-      setMessage({ type: "error", text: getErrorDetail(error) || "Upload failed" });
+      setMessage({
+        type: "error",
+        text: getErrorDetail(error) || "Upload failed",
+      });
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -131,7 +134,10 @@ export default function ProfilePhoto({
       setMessage({ type: "success", text: "Photo removed!" });
       setTimeout(() => setMessage(null), 3000);
     } catch (error: unknown) {
-      setMessage({ type: "error", text: getErrorDetail(error) || "Delete failed" });
+      setMessage({
+        type: "error",
+        text: getErrorDetail(error) || "Delete failed",
+      });
     } finally {
       setIsDeleting(false);
     }

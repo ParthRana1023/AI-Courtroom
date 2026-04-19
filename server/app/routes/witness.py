@@ -37,7 +37,7 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["witness"])
+router = APIRouter()
 
 
 def get_party_by_id(case: Case, party_id: str):

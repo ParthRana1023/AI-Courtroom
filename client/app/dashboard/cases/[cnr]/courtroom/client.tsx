@@ -13,10 +13,7 @@ import {
   CourtroomProceedingsEventType,
   type CourtroomProceedingsEvent,
 } from "@/types";
-import {
-  formatToLocaleDateString,
-  formatToLocaleString,
-} from "@/lib/datetime";
+import { formatToLocaleDateString, formatToLocaleString } from "@/lib/datetime";
 import SettingsAwareTextArea, {
   SettingsAwareTextAreaRef,
 } from "@/components/settings-aware-textarea";
@@ -49,9 +46,7 @@ import { getErrorDetail } from "@/lib/error-utils";
 
 const logger = getLogger("courtroom");
 
-function countUserArguments(
-  proceedings?: CourtroomProceedingsEvent[],
-): number {
+function countUserArguments(proceedings?: CourtroomProceedingsEvent[]): number {
   return (
     proceedings?.filter(
       (event) => event.type === CourtroomProceedingsEventType.ARGUMENT,
@@ -166,7 +161,9 @@ export default function Courtroom({
         const data = await caseAPI.getCase(cnr);
         setCaseData(data);
 
-        setShowClosingButton(countUserArguments(data.courtroom_proceedings) >= 3);
+        setShowClosingButton(
+          countUserArguments(data.courtroom_proceedings) >= 3,
+        );
 
         // Role detection (skip if polling to avoid UI flickering/resets)
         if (!isPolling) {
@@ -326,7 +323,10 @@ export default function Courtroom({
             clearInterval(pollInterval); // Stop polling once we find the opening statement
           }
         } catch (pollError) {
-          logger.error("Error polling courtroom proceedings", pollError as Error);
+          logger.error(
+            "Error polling courtroom proceedings",
+            pollError as Error,
+          );
         }
       }, 2000); // Poll every 2 seconds
 
@@ -568,8 +568,8 @@ export default function Courtroom({
                       caseData.status === CaseStatus.ACTIVE
                         ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"
                         : caseData.status === CaseStatus.RESOLVED
-                        ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-gray-300"
-                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300"
+                          ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-gray-300"
+                          : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300"
                     }`}
                   >
                     {caseData.status}
@@ -761,137 +761,86 @@ export default function Courtroom({
         <ScrollArea className="h-full">
           <div className="p-4 space-y-4">
             {timelineEvents.map((event, index: number) => {
-                // System Messages (Witness Called/Dismissed)
-                if (
-                  event.type === CourtroomProceedingsEventType.WITNESS_CALLED ||
-                  event.type ===
-                    CourtroomProceedingsEventType.WITNESS_DISMISSED ||
-                  event.type === CourtroomProceedingsEventType.SYSTEM_MESSAGE
-                ) {
-                  return (
-                    <div
-                      key={`${event.timestamp}-${index}`}
-                      className="flex justify-center my-4"
-                    >
-                      <div className="bg-gray-100 dark:bg-zinc-700 px-4 py-2 rounded-full text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-600 shadow-sm">
-                        <span className="font-semibold mr-1">
-                          {event.type ===
-                          CourtroomProceedingsEventType.WITNESS_CALLED
-                            ? "🏛️ Witness Stand:"
-                            : event.type ===
+              // System Messages (Witness Called/Dismissed)
+              if (
+                event.type === CourtroomProceedingsEventType.WITNESS_CALLED ||
+                event.type ===
+                  CourtroomProceedingsEventType.WITNESS_DISMISSED ||
+                event.type === CourtroomProceedingsEventType.SYSTEM_MESSAGE
+              ) {
+                return (
+                  <div
+                    key={`${event.timestamp}-${index}`}
+                    className="flex justify-center my-4"
+                  >
+                    <div className="bg-gray-100 dark:bg-zinc-700 px-4 py-2 rounded-full text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-600 shadow-sm">
+                      <span className="font-semibold mr-1">
+                        {event.type ===
+                        CourtroomProceedingsEventType.WITNESS_CALLED
+                          ? "🏛️ Witness Stand:"
+                          : event.type ===
                               CourtroomProceedingsEventType.WITNESS_DISMISSED
                             ? "⚖️ Court Order:"
                             : "ℹ️ Info:"}
-                        </span>
-                        {event.content}
-                      </div>
+                      </span>
+                      {event.content}
                     </div>
-                  );
-                }
+                  </div>
+                );
+              }
 
-                // Witness Question (Examiner)
-                if (
-                  event.type ===
-                  CourtroomProceedingsEventType.WITNESS_EXAMINED_Q
-                ) {
-                  // Examiner is usually on the side of their role
-                  const isExaminerUserSide = event.speaker_role === currentRole;
-                  return (
-                    <div
-                      key={`${event.timestamp}-${index}`}
-                      className={`flex ${
-                        isExaminerUserSide ? "justify-end" : "justify-start"
-                      } mb-2`}
-                    >
-                      <div
-                        className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
-                          isExaminerUserSide
-                            ? "bg-blue-50 dark:bg-blue-900/10 border-blue-600"
-                            : "bg-purple-50 dark:bg-purple-900/10 border-purple-600"
-                        }`}
-                      >
-                        <div
-                          className={`text-xs font-bold mb-1 ${
-                            isExaminerUserSide
-                              ? "text-blue-600"
-                              : "text-purple-600"
-                          }`}
-                        >
-                          {event.speaker_name} (Examiner)
-                        </div>
-                        <div className="text-sm font-medium italic text-gray-800 dark:text-gray-200">
-                          "{event.content}"
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Witness Answer
-                if (
-                  event.type ===
-                  CourtroomProceedingsEventType.WITNESS_EXAMINED_A
-                ) {
-                  return (
-                    <div
-                      key={`${event.timestamp}-${index}`}
-                      className="flex justify-center mb-4"
-                    >
-                      <div className="max-w-[95%] sm:max-w-[85%] rounded-lg p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm relative">
-                        <div className="absolute -top-3 left-4 bg-amber-100 dark:bg-amber-900/80 px-2 py-0.5 rounded text-[10px] font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
-                          Witness Testimony
-                        </div>
-                        <div className="text-xs font-bold mb-1 text-amber-700 dark:text-amber-400 mt-1">
-                          {event.speaker_name}
-                        </div>
-                        <div className="text-gray-900 dark:text-gray-100">
-                          <ChatMarkdownRenderer markdown={event.content} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Regular Arguments / Opening / Closing
-                const isUserArg = event.speaker_role === currentRole;
-
+              // Witness Question (Examiner)
+              if (
+                event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_Q
+              ) {
+                // Examiner is usually on the side of their role
+                const isExaminerUserSide = event.speaker_role === currentRole;
                 return (
                   <div
                     key={`${event.timestamp}-${index}`}
                     className={`flex ${
-                      isUserArg ? "justify-end" : "justify-start"
-                    }`}
+                      isExaminerUserSide ? "justify-end" : "justify-start"
+                    } mb-2`}
                   >
                     <div
                       className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
-                        isUserArg
-                          ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
-                          : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"
+                        isExaminerUserSide
+                          ? "bg-blue-50 dark:bg-blue-900/10 border-blue-600"
+                          : "bg-purple-50 dark:bg-purple-900/10 border-purple-600"
                       }`}
                     >
                       <div
-                        className={`text-xs font-medium mb-1 flex justify-between ${
-                          isUserArg
-                            ? "text-blue-600 dark:text-blue-400"
-                            : "text-purple-600 dark:text-purple-400"
+                        className={`text-xs font-bold mb-1 ${
+                          isExaminerUserSide
+                            ? "text-blue-600"
+                            : "text-purple-600"
                         }`}
                       >
-                        <span>
-                          {event.speaker_name}
-                          {event.type ===
-                            CourtroomProceedingsEventType.OPENING_STATEMENT && (
-                            <span className="ml-1 font-bold">(Opening)</span>
-                          )}
-                          {event.type ===
-                            CourtroomProceedingsEventType.AI_ARGUMENT && (
-                            <span className="ml-1 opacity-75">(AI)</span>
-                          )}
-                        </span>
-                        {event.timestamp && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                            {formatToLocaleString(event.timestamp)}
-                          </span>
-                        )}
+                        {event.speaker_name} (Examiner)
+                      </div>
+                      <div className="text-sm font-medium italic text-gray-800 dark:text-gray-200">
+                        "{event.content}"
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Witness Answer
+              if (
+                event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_A
+              ) {
+                return (
+                  <div
+                    key={`${event.timestamp}-${index}`}
+                    className="flex justify-center mb-4"
+                  >
+                    <div className="max-w-[95%] sm:max-w-[85%] rounded-lg p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm relative">
+                      <div className="absolute -top-3 left-4 bg-amber-100 dark:bg-amber-900/80 px-2 py-0.5 rounded text-[10px] font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
+                        Witness Testimony
+                      </div>
+                      <div className="text-xs font-bold mb-1 text-amber-700 dark:text-amber-400 mt-1">
+                        {event.speaker_name}
                       </div>
                       <div className="text-gray-900 dark:text-gray-100">
                         <ChatMarkdownRenderer markdown={event.content} />
@@ -899,150 +848,197 @@ export default function Courtroom({
                     </div>
                   </div>
                 );
+              }
+
+              // Regular Arguments / Opening / Closing
+              const isUserArg = event.speaker_role === currentRole;
+
+              return (
+                <div
+                  key={`${event.timestamp}-${index}`}
+                  className={`flex ${
+                    isUserArg ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <div
+                    className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
+                      isUserArg
+                        ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
+                        : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"
+                    }`}
+                  >
+                    <div
+                      className={`text-xs font-medium mb-1 flex justify-between ${
+                        isUserArg
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-purple-600 dark:text-purple-400"
+                      }`}
+                    >
+                      <span>
+                        {event.speaker_name}
+                        {event.type ===
+                          CourtroomProceedingsEventType.OPENING_STATEMENT && (
+                          <span className="ml-1 font-bold">(Opening)</span>
+                        )}
+                        {event.type ===
+                          CourtroomProceedingsEventType.AI_ARGUMENT && (
+                          <span className="ml-1 opacity-75">(AI)</span>
+                        )}
+                      </span>
+                      {event.timestamp && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                          {formatToLocaleString(event.timestamp)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-gray-900 dark:text-gray-100">
+                      <ChatMarkdownRenderer markdown={event.content} />
+                    </div>
+                  </div>
+                </div>
+              );
             })}
             <div ref={messagesEndRef} />
-            {caseData.verdict &&
-              caseData?.status === CaseStatus.RESOLVED && (
-                <div>
-                  <Dialog
-                    open={showVerdict && !!caseData.verdict}
-                    onOpenChange={setShowVerdict}
-                  >
-                    <DialogContent className="max-w-3xl max-h-[90vh] p-0">
-                      <DialogHeader className="px-6 py-4 border-b">
-                        <DialogTitle className="flex items-center justify-between">
-                          Case Verdict
-                        </DialogTitle>
-                        <DialogDescription className="sr-only">
-                          Final verdict for case {caseData.cnr}.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <ScrollArea className="h-[calc(90vh-6rem)] p-6">
-                        <MarkdownRenderer
-                          markdown={caseData.verdict}
-                          className="prose prose-lg max-w-none font-serif dark:prose-invert"
-                        />
-                      </ScrollArea>
-                    </DialogContent>
-                  </Dialog>
+            {caseData.verdict && caseData?.status === CaseStatus.RESOLVED && (
+              <div>
+                <Dialog
+                  open={showVerdict && !!caseData.verdict}
+                  onOpenChange={setShowVerdict}
+                >
+                  <DialogContent className="max-w-3xl max-h-[90vh] p-0">
+                    <DialogHeader className="px-6 py-4 border-b">
+                      <DialogTitle className="flex items-center justify-between">
+                        Case Verdict
+                      </DialogTitle>
+                      <DialogDescription className="sr-only">
+                        Final verdict for case {caseData.cnr}.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="h-[calc(90vh-6rem)] p-6">
+                      <MarkdownRenderer
+                        markdown={caseData.verdict}
+                        className="prose prose-lg max-w-none font-serif dark:prose-invert"
+                      />
+                    </ScrollArea>
+                  </DialogContent>
+                </Dialog>
 
-                  <Dialog
-                    open={showAnalysis && !!caseAnalysis}
-                    onOpenChange={setShowAnalysis}
-                  >
-                    <DialogContent className="max-w-3xl max-h-[90vh] p-0">
-                      <DialogHeader className="px-6 py-4 border-b">
-                        <DialogTitle className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-1 h-8 bg-blue-500 rounded"></div>
-                            <div className="max-w-md">
-                              <h2 className="text-xl font-bold truncate">
-                                Case Analysis
-                              </h2>
-                              <p className="text-sm text-gray-500 mt-1 truncate">
-                                Case #{caseData.cnr} • {caseData.title}
-                              </p>
-                            </div>
-                          </div>
-                          <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            Analysis Complete
-                          </span>
-                        </DialogTitle>
-                        <DialogDescription className="sr-only">
-                          Detailed analysis for case {caseData.cnr}.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <ScrollArea className="max-h-[calc(90vh-12rem)]">
-                        <div className="px-6 py-4">
-                          <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-inner overflow-hidden">
-                            <div className="p-6">
-                              <MarkdownRenderer
-                                markdown={caseAnalysis || ""}
-                                className="prose prose-lg max-w-none font-serif prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100"
-                              />
-                            </div>
+                <Dialog
+                  open={showAnalysis && !!caseAnalysis}
+                  onOpenChange={setShowAnalysis}
+                >
+                  <DialogContent className="max-w-3xl max-h-[90vh] p-0">
+                    <DialogHeader className="px-6 py-4 border-b">
+                      <DialogTitle className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-1 h-8 bg-blue-500 rounded"></div>
+                          <div className="max-w-md">
+                            <h2 className="text-xl font-bold truncate">
+                              Case Analysis
+                            </h2>
+                            <p className="text-sm text-gray-500 mt-1 truncate">
+                              Case #{caseData.cnr} • {caseData.title}
+                            </p>
                           </div>
                         </div>
-                      </ScrollArea>
-                      <div className="px-6 py-4 border-t bg-gray-50 dark:bg-zinc-900">
-                        <div className="flex items-center justify-between text-sm text-gray-500">
-                          <div className="flex items-center">
-                            <span className="inline-block w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                            Analysis generated on{" "}
-                            {formatToLocaleDateString(caseData.created_at)}
+                        <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          Analysis Complete
+                        </span>
+                      </DialogTitle>
+                      <DialogDescription className="sr-only">
+                        Detailed analysis for case {caseData.cnr}.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[calc(90vh-12rem)]">
+                      <div className="px-6 py-4">
+                        <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-inner overflow-hidden">
+                          <div className="p-6">
+                            <MarkdownRenderer
+                              markdown={caseAnalysis || ""}
+                              className="prose prose-lg max-w-none font-serif prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100"
+                            />
                           </div>
-                          {caseData.court && (
-                            <div className="flex items-center text-gray-500">
-                              <span>{caseData.court}</span>
-                            </div>
-                          )}
                         </div>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              )}
-            {caseData.verdict &&
-              caseData?.status === CaseStatus.RESOLVED && (
-                <div>
-                  <Dialog
-                    open={showVerdict && !!caseData.verdict}
-                    onOpenChange={setShowVerdict}
-                  >
-                    <DialogContent className="max-w-3xl max-h-[90vh] p-0">
-                      <DialogHeader className="px-6 py-4 border-b">
-                        <DialogTitle className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-1 h-8 bg-green-500 rounded"></div>
-                            <div className="max-w-md">
-                              <h2 className="text-xl font-bold truncate">
-                                Final Verdict
-                              </h2>
-                              <p className="text-sm text-gray-500 mt-1 truncate">
-                                Case #{caseData.cnr} • {caseData.title}
-                              </p>
-                            </div>
+                    </ScrollArea>
+                    <div className="px-6 py-4 border-t bg-gray-50 dark:bg-zinc-900">
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <div className="flex items-center">
+                          <span className="inline-block w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                          Analysis generated on{" "}
+                          {formatToLocaleDateString(caseData.created_at)}
+                        </div>
+                        {caseData.court && (
+                          <div className="flex items-center text-gray-500">
+                            <span>{caseData.court}</span>
                           </div>
-                          <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                            Verdict Passed
-                          </span>
-                        </DialogTitle>
-                        <DialogDescription className="sr-only">
-                          Final verdict details for case {caseData.cnr}.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <ScrollArea className="max-h-[calc(90vh-12rem)]">
-                        <div className="px-6 py-4">
-                          <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-inner overflow-hidden">
-                            <div className="p-6">
-                              <MarkdownRenderer
-                                markdown={caseData.verdict || ""}
-                                className="prose prose-lg max-w-none font-serif prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100"
-                              />
-                            </div>
+                        )}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
+            {caseData.verdict && caseData?.status === CaseStatus.RESOLVED && (
+              <div>
+                <Dialog
+                  open={showVerdict && !!caseData.verdict}
+                  onOpenChange={setShowVerdict}
+                >
+                  <DialogContent className="max-w-3xl max-h-[90vh] p-0">
+                    <DialogHeader className="px-6 py-4 border-b">
+                      <DialogTitle className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-1 h-8 bg-green-500 rounded"></div>
+                          <div className="max-w-md">
+                            <h2 className="text-xl font-bold truncate">
+                              Final Verdict
+                            </h2>
+                            <p className="text-sm text-gray-500 mt-1 truncate">
+                              Case #{caseData.cnr} • {caseData.title}
+                            </p>
                           </div>
                         </div>
-                      </ScrollArea>
-                      <div className="px-6 py-4 border-t bg-gray-50 dark:bg-zinc-900">
-                        <div className="flex items-center justify-between text-sm text-gray-500">
-                          <div className="flex items-center">
-                            <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                            Verdict passed on{" "}
-                            {formatToLocaleDateString(caseData.created_at)}
+                        <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          Verdict Passed
+                        </span>
+                      </DialogTitle>
+                      <DialogDescription className="sr-only">
+                        Final verdict details for case {caseData.cnr}.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[calc(90vh-12rem)]">
+                      <div className="px-6 py-4">
+                        <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-inner overflow-hidden">
+                          <div className="p-6">
+                            <MarkdownRenderer
+                              markdown={caseData.verdict || ""}
+                              className="prose prose-lg max-w-none font-serif prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100"
+                            />
                           </div>
-                          {caseData.court && (
-                            <div className="flex items-center text-gray-500">
-                              <span>{caseData.court}</span>
-                            </div>
-                          )}
                         </div>
                       </div>
-                    </DialogContent>
-                  </Dialog>
+                    </ScrollArea>
+                    <div className="px-6 py-4 border-t bg-gray-50 dark:bg-zinc-900">
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <div className="flex items-center">
+                          <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                          Verdict passed on{" "}
+                          {formatToLocaleDateString(caseData.created_at)}
+                        </div>
+                        {caseData.court && (
+                          <div className="flex items-center text-gray-500">
+                            <span>{caseData.court}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
 
-                  <div ref={messagesEndRef} />
-                </div>
-              )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
           </div>
         </ScrollArea>
       </div>

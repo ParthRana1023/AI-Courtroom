@@ -14,7 +14,7 @@ export function getCurrentDateTime(): string {
   const kolkataTime = new Date(
     now.toLocaleString("en-US", {
       timeZone: DEFAULT_TIMEZONE,
-    })
+    }),
   );
   return kolkataTime.toISOString();
 }
@@ -27,7 +27,7 @@ export function getCurrentDateTimeAsDate(): Date {
   return new Date(
     now.toLocaleString("en-US", {
       timeZone: DEFAULT_TIMEZONE,
-    })
+    }),
   );
 }
 
@@ -70,7 +70,7 @@ export function createOffsetTimestamp(offsetSeconds: number): string {
   const kolkataTime = new Date(
     now.toLocaleString("en-US", {
       timeZone: DEFAULT_TIMEZONE,
-    })
+    }),
   );
   kolkataTime.setSeconds(kolkataTime.getSeconds() + offsetSeconds);
   return kolkataTime.toISOString();
@@ -109,7 +109,7 @@ export function isValidBirthDate(dateValue: string): boolean {
  * Sort arguments by timestamp in chronological order
  */
 export function sortByTimestamp<T extends { timestamp?: string }>(
-  items: T[]
+  items: T[],
 ): T[] {
   return items.sort((a, b) => {
     if (a.timestamp && b.timestamp) {

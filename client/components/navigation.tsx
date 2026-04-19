@@ -28,7 +28,7 @@ export default function Navigation({ translucent = false }: NavigationProps) {
     : publicPrimaryNavItems;
   const secondaryItems = isAuthenticated
     ? authenticatedSecondaryNavItems.map((item) =>
-        item.link === "/logout" ? { ...item, onClick: logout } : item
+        item.link === "/logout" ? { ...item, onClick: logout } : item,
       )
     : publicSecondaryNavItems;
 

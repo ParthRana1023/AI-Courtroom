@@ -246,7 +246,11 @@ export default function SettingsPage() {
     <HexagonBackground className="min-h-screen">
       <Navigation />
       <SidebarProvider defaultOpen={true}>
-        <Sidebar variant="inset" collapsible="icon" className="pt-16 hidden md:flex">
+        <Sidebar
+          variant="inset"
+          collapsible="icon"
+          className="pt-16 hidden md:flex"
+        >
           <SidebarHeader className="pt-4 pb-6">
             <div className="flex items-center gap-2 px-2">
               <Settings className="h-5 w-5 shrink-0" />
@@ -577,7 +581,7 @@ export default function SettingsPage() {
                         checked={localSkipArchiveConfirmation}
                         onChange={() =>
                           setLocalSkipArchiveConfirmation(
-                            !localSkipArchiveConfirmation
+                            !localSkipArchiveConfirmation,
                           )
                         }
                         className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
@@ -592,7 +596,7 @@ export default function SettingsPage() {
                         checked={localSkipDeleteConfirmation}
                         onChange={() =>
                           setLocalSkipDeleteConfirmation(
-                            !localSkipDeleteConfirmation
+                            !localSkipDeleteConfirmation,
                           )
                         }
                         className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"

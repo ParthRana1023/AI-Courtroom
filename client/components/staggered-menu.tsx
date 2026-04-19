@@ -8,7 +8,7 @@ import React, {
   useEffect,
 } from "react";
 import Image from "next/image";
-import { gsap } from "gsap";
+import gsap from "gsap";
 
 export interface StaggeredMenuItem {
   label: string;
@@ -106,7 +106,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
       let preLayers: HTMLElement[] = [];
       if (preContainer) {
         preLayers = Array.from(
-          preContainer.querySelectorAll(".sm-prelayer")
+          preContainer.querySelectorAll(".sm-prelayer"),
         ) as HTMLElement[];
       }
       preLayerElsRef.current = preLayers;
@@ -144,16 +144,16 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
     itemEntranceTweenRef.current?.kill();
 
     const itemEls = Array.from(
-      panel.querySelectorAll(".sm-panel-itemLabel")
+      panel.querySelectorAll(".sm-panel-itemLabel"),
     ) as HTMLElement[];
     const numberEls = Array.from(
-      panel.querySelectorAll(".sm-panel-list[data-numbering] .sm-panel-item")
+      panel.querySelectorAll(".sm-panel-list[data-numbering] .sm-panel-item"),
     ) as HTMLElement[];
     const socialTitle = panel.querySelector(
-      ".sm-socials-title"
+      ".sm-socials-title",
     ) as HTMLElement | null;
     const socialLinks = Array.from(
-      panel.querySelectorAll(".sm-socials-link")
+      panel.querySelectorAll(".sm-socials-link"),
     ) as HTMLElement[];
 
     const layerStates = layers.map((el) => ({
@@ -175,7 +175,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
         ls.el,
         { xPercent: ls.start },
         { xPercent: 0, duration: 0.5, ease: "power4.out" },
-        i * 0.07
+        i * 0.07,
       );
     });
 
@@ -187,7 +187,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
       panel,
       { xPercent: panelStart },
       { xPercent: 0, duration: panelDuration, ease: "power4.out" },
-      panelInsertTime
+      panelInsertTime,
     );
 
     if (itemEls.length) {
@@ -203,7 +203,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
           ease: "power4.out",
           stagger: { each: 0.1, from: "start" },
         },
-        itemsStart
+        itemsStart,
       );
 
       if (numberEls.length) {
@@ -215,7 +215,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
             ["--sm-num-opacity" as string]: 1,
             stagger: { each: 0.08, from: "start" },
           },
-          itemsStart + 0.1
+          itemsStart + 0.1,
         );
       }
     }
@@ -227,7 +227,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
         tl.to(
           socialTitle,
           { opacity: 1, duration: 0.5, ease: "power2.out" },
-          socialsStart
+          socialsStart,
         );
       if (socialLinks.length) {
         tl.to(
@@ -242,7 +242,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
               gsap.set(socialLinks, { clearProps: "opacity" });
             },
           },
-          socialsStart + 0.04
+          socialsStart + 0.04,
         );
       }
     }
@@ -290,23 +290,23 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
       overwrite: "auto",
       onComplete: () => {
         const itemEls = Array.from(
-          panel.querySelectorAll(".sm-panel-itemLabel")
+          panel.querySelectorAll(".sm-panel-itemLabel"),
         ) as HTMLElement[];
         if (itemEls.length) gsap.set(itemEls, { yPercent: 140, rotate: 10 });
 
         const numberEls = Array.from(
           panel.querySelectorAll(
-            ".sm-panel-list[data-numbering] .sm-panel-item"
-          )
+            ".sm-panel-list[data-numbering] .sm-panel-item",
+          ),
         ) as HTMLElement[];
         if (numberEls.length)
           gsap.set(numberEls, { ["--sm-num-opacity" as string]: 0 });
 
         const socialTitle = panel.querySelector(
-          ".sm-socials-title"
+          ".sm-socials-title",
         ) as HTMLElement | null;
         const socialLinks = Array.from(
-          panel.querySelectorAll(".sm-socials-link")
+          panel.querySelectorAll(".sm-socials-link"),
         ) as HTMLElement[];
         if (socialTitle) gsap.set(socialTitle, { opacity: 0 });
         if (socialLinks.length) gsap.set(socialLinks, { y: 25, opacity: 0 });
@@ -361,7 +361,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
         gsap.set(btn, { color: menuButtonColor });
       }
     },
-    [openMenuButtonColor, menuButtonColor, changeMenuColorOnOpen]
+    [openMenuButtonColor, menuButtonColor, changeMenuColorOnOpen],
   );
 
   useEffect(() => {
@@ -473,7 +473,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
           gets hidden and never causes the overlay to intercept touches. */}
       <header
         className={`sm-btn-header pointer-events-none ${
-          mobileOnly ? "md:hidden" : ""
+          mobileOnly ? "sm-mobile-only" : ""
         }`}
         aria-label="Main navigation header"
       >
@@ -553,7 +553,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
       <div
         ref={overlayRef}
         className={`sm-scope z-60 pointer-events-none ${
-          mobileOnly ? "md:hidden" : ""
+          mobileOnly ? "sm-mobile-only" : ""
         } ${
           isFixed
             ? "fixed top-0 left-0 w-screen h-screen overflow-hidden"
@@ -606,9 +606,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
             ref={panelRef}
             className={`staggered-menu-panel ${
               open ? "pointer-events-auto" : "pointer-events-none"
-            } ${
-              children ? "no-padding" : "has-padding"
-            }`}
+            } ${children ? "no-padding" : "has-padding"}`}
             style={{ WebkitBackdropFilter: "blur(12px)" }}
             aria-hidden={!open}
           >
@@ -733,6 +731,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
 .sm-scope .sm-panel-list[data-numbering] .sm-panel-item::after { counter-increment: smItem; content: counter(smItem, decimal-leading-zero); position: absolute; top: 0.1em; right: 3.2em; font-size: 18px; font-weight: 400; color: var(--sm-accent, #ff0000); letter-spacing: 0; pointer-events: none; user-select: none; opacity: var(--sm-num-opacity, 0); }
 @media (max-width: 1024px) { .sm-scope .staggered-menu-panel { width: 100%; left: 0; right: 0; } }
 @media (max-width: 640px) { .sm-scope .staggered-menu-panel { width: 100%; left: 0; right: 0; } }
+@media (min-width: 768px) { .sm-mobile-only { display: none !important; } }
         `}</style>
       </div>
     </>

@@ -17,12 +17,12 @@ export default function TextSizeProvider({
     document.documentElement.classList.remove(
       "text-size-small",
       "text-size-medium",
-      "text-size-large"
+      "text-size-large",
     );
     document.body.classList.remove(
       "text-size-small",
       "text-size-medium",
-      "text-size-large"
+      "text-size-large",
     );
 
     // Add the appropriate class based on the current setting to both html and body
@@ -37,13 +37,13 @@ export default function TextSizeProvider({
         document.body.classList.add("theme-dark");
         document.documentElement.style.setProperty(
           "--foreground-rgb",
-          "255, 255, 255"
+          "255, 255, 255",
         );
       } else {
         document.body.classList.remove("theme-dark");
         document.documentElement.style.setProperty(
           "--foreground-rgb",
-          "0, 0, 0"
+          "0, 0, 0",
         );
       }
     };

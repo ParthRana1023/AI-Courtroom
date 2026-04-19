@@ -5,11 +5,11 @@ import dynamic from "next/dynamic";
 // Lazy load cookie components (not critical for initial render)
 const CookieConsentBanner = dynamic(
   () => import("@/components/cookie-consent-banner"),
-  { ssr: false }
+  { ssr: false },
 );
 const CookieSettingsModal = dynamic(
   () => import("@/components/cookie-settings-modal"),
-  { ssr: false }
+  { ssr: false },
 );
 
 export default function CookieConsentWrapper() {

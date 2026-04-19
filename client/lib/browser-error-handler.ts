@@ -35,7 +35,7 @@ export function initBrowserErrorHandlers(): void {
     source?: string,
     lineno?: number,
     colno?: number,
-    error?: Error
+    error?: Error,
   ): boolean => {
     const errorMessage =
       typeof message === "string" ? message : "Unknown error";
@@ -48,7 +48,7 @@ export function initBrowserErrorHandlers(): void {
         source: source || "unknown",
         line: lineno,
         column: colno,
-      }
+      },
     );
 
     // Call original handler if it exists
@@ -59,7 +59,7 @@ export function initBrowserErrorHandlers(): void {
         source,
         lineno,
         colno,
-        error
+        error,
       );
     }
 
@@ -120,7 +120,7 @@ export function initBrowserErrorHandlers(): void {
         });
       }
     },
-    true // Use capture phase
+    true, // Use capture phase
   );
 
   // Log that error handlers are initialized
@@ -132,7 +132,7 @@ export function initBrowserErrorHandlers(): void {
  */
 export function withErrorLogging<T extends (...args: unknown[]) => unknown>(
   fn: T,
-  context?: Record<string, unknown>
+  context?: Record<string, unknown>,
 ): T {
   return ((...args: unknown[]) => {
     try {

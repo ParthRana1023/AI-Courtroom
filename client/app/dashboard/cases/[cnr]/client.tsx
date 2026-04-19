@@ -64,7 +64,7 @@ export default function CaseDetails({
         // Wait 2 seconds before generating the plaintiff opening statement
         setTimeout(async () => {
           logger.info(
-            "Generating plaintiff opening statement for defendant user"
+            "Generating plaintiff opening statement for defendant user",
           );
           try {
             await caseAPI.generatePlaintiffOpening(cnr);
@@ -72,7 +72,7 @@ export default function CaseDetails({
           } catch (error) {
             logger.error(
               "Failed to generate plaintiff opening statement",
-              error as Error
+              error as Error,
             );
           }
         }, 2000); // 2 second delay
@@ -152,10 +152,10 @@ export default function CaseDetails({
                   caseData.status === CaseStatus.ACTIVE
                     ? "bg-green-100 text-green-800"
                     : caseData.status === CaseStatus.RESOLVED
-                    ? "bg-gray-100 text-gray-800"
-                    : caseData.status === CaseStatus.ADJOURNED
-                    ? "bg-amber-100 text-amber-800"
-                    : "bg-yellow-100 text-yellow-800"
+                      ? "bg-gray-100 text-gray-800"
+                      : caseData.status === CaseStatus.ADJOURNED
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-yellow-100 text-yellow-800"
                 }`}
               >
                 {caseData.status}

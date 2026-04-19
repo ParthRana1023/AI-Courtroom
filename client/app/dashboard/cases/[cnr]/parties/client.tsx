@@ -184,32 +184,32 @@ export default function PartiesPage({
                 Lawyer
               </p>
             </div>
-              <Button
-                className="w-full sm:w-auto"
-                onClick={async () => {
-                  try {
-                    // Only set status to ACTIVE if case is NOT resolved
-                    if (caseStatus !== "resolved") {
-                      await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
-                    }
-                    router.push(`/dashboard/cases/${cnr}/courtroom`);
-                  } catch (error) {
-                    logger.error(
-                      "Failed to start courtroom session",
-                      error as Error,
-                    );
-                    setError(
-                      "Failed to start courtroom session. Please try again.",
-                    );
+            <Button
+              className="w-full sm:w-auto"
+              onClick={async () => {
+                try {
+                  // Only set status to ACTIVE if case is NOT resolved
+                  if (caseStatus !== "resolved") {
+                    await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
                   }
-                }}
-              >
-                {caseStatus === "resolved"
-                  ? "View Courtroom"
-                  : "Proceed to Courtroom"}
-              </Button>
-            </div>
+                  router.push(`/dashboard/cases/${cnr}/courtroom`);
+                } catch (error) {
+                  logger.error(
+                    "Failed to start courtroom session",
+                    error as Error,
+                  );
+                  setError(
+                    "Failed to start courtroom session. Please try again.",
+                  );
+                }
+              }}
+            >
+              {caseStatus === "resolved"
+                ? "View Courtroom"
+                : "Proceed to Courtroom"}
+            </Button>
           </div>
+        </div>
 
         {/* Error Alert */}
         {error && (

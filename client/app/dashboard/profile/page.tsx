@@ -184,7 +184,9 @@ export default function ProfilePage() {
             <div ref={searchRef} className="relative flex items-center">
               <div
                 className={`absolute right-0 sm:right-full sm:mr-2 top-full mt-2 sm:top-auto sm:mt-0 overflow-hidden transition-all duration-500 ease-out ${
-                  searchExpanded ? "w-[calc(100vw-3rem)] sm:w-72 opacity-100" : "w-0 opacity-0"
+                  searchExpanded
+                    ? "w-[calc(100vw-3rem)] sm:w-72 opacity-100"
+                    : "w-0 opacity-0"
                 }`}
               >
                 <input
@@ -247,7 +249,9 @@ export default function ProfilePage() {
                       <thead className="bg-zinc-50 dark:bg-zinc-800">
                         <tr>
                           <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                            <span className="hidden sm:inline">Case Number</span>
+                            <span className="hidden sm:inline">
+                              Case Number
+                            </span>
                             <span className="sm:hidden">CNR</span>
                           </th>
                           <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
@@ -260,7 +264,9 @@ export default function ProfilePage() {
                             Status
                           </th>
                           <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                            <span className="hidden sm:inline">Case Details</span>
+                            <span className="hidden sm:inline">
+                              Case Details
+                            </span>
                             <span className="sm:hidden">Details</span>
                           </th>
                         </tr>
@@ -333,7 +339,9 @@ export default function ProfilePage() {
                       <thead className="bg-zinc-50 dark:bg-zinc-800">
                         <tr>
                           <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                            <span className="hidden sm:inline">Case Number</span>
+                            <span className="hidden sm:inline">
+                              Case Number
+                            </span>
                             <span className="sm:hidden">CNR</span>
                           </th>
                           <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
@@ -346,7 +354,9 @@ export default function ProfilePage() {
                             Status
                           </th>
                           <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                            <span className="hidden sm:inline">Case Details</span>
+                            <span className="hidden sm:inline">
+                              Case Details
+                            </span>
                             <span className="sm:hidden">Details</span>
                           </th>
                         </tr>

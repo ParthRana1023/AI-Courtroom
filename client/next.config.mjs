@@ -35,8 +35,7 @@ const nextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value:
-              `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://*.vercel-scripts.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 ${apiOrigin} https://accounts.google.com https://*.vercel-insights.com https://*.vercel-analytics.com; frame-src https://accounts.google.com;`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://*.vercel-scripts.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 ${apiOrigin} https://accounts.google.com https://*.vercel-insights.com https://*.vercel-analytics.com; frame-src https://accounts.google.com;`,
           },
           {
             key: "X-Frame-Options",

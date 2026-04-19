@@ -207,7 +207,7 @@ export default function Register() {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault();
 
     if (!validateForm()) return;
@@ -221,7 +221,9 @@ export default function Register() {
       const registrationData = googleId
         ? { ...formData, date_of_birth: formattedDob, google_id: googleId }
         : { ...formData, date_of_birth: formattedDob };
-      const response = await register(registrationData);
+      const response = (await register(registrationData)) as {
+        skip_otp?: boolean;
+      };
 
       // If Google registration, auth context handles redirect, nothing more to do here
       if (response?.skip_otp) {
@@ -247,7 +249,7 @@ export default function Register() {
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.SyntheticEvent) => {
     e.preventDefault();
 
     if (!otp) {
@@ -297,12 +299,12 @@ export default function Register() {
             formData.gender === "male"
               ? "bg-slate-50 border-slate-200 dark:bg-slate-900 dark:border-slate-700"
               : formData.gender === "female"
-              ? "bg-rose-50 border-rose-100 dark:bg-rose-950 dark:border-rose-900"
-              : formData.gender === "others"
-              ? "bg-violet-50 border-violet-100 dark:bg-violet-950 dark:border-violet-900"
-              : formData.gender === "prefer-not-to-say"
-              ? "bg-stone-50 border-stone-200 dark:bg-stone-900 dark:border-stone-700"
-              : "bg-white border-zinc-200 dark:bg-zinc-900 dark:border-gray-800"
+                ? "bg-rose-50 border-rose-100 dark:bg-rose-950 dark:border-rose-900"
+                : formData.gender === "others"
+                  ? "bg-violet-50 border-violet-100 dark:bg-violet-950 dark:border-violet-900"
+                  : formData.gender === "prefer-not-to-say"
+                    ? "bg-stone-50 border-stone-200 dark:bg-stone-900 dark:border-stone-700"
+                    : "bg-white border-zinc-200 dark:bg-zinc-900 dark:border-gray-800"
           }`}
         >
           <div className="text-center mb-6">
@@ -310,15 +312,15 @@ export default function Register() {
               {isOtpSent
                 ? "Verify OTP"
                 : isGoogleSignUp
-                ? "Complete Registration"
-                : "Create Account"}
+                  ? "Complete Registration"
+                  : "Create Account"}
             </h1>
             <p className="text-zinc-600 mt-2 dark:text-gray-300">
               {isOtpSent
                 ? "Enter the code sent to your email"
                 : isGoogleSignUp
-                ? "Please set a password and complete your registration"
-                : "Join the AI Courtroom simulation"}
+                  ? "Please set a password and complete your registration"
+                  : "Join the AI Courtroom simulation"}
             </p>
           </div>
 
@@ -376,12 +378,12 @@ export default function Register() {
                     formData.gender === "male"
                       ? "bg-slate-50 dark:bg-slate-900"
                       : formData.gender === "female"
-                      ? "bg-rose-50 dark:bg-rose-950"
-                      : formData.gender === "others"
-                      ? "bg-violet-50 dark:bg-violet-950"
-                      : formData.gender === "prefer-not-to-say"
-                      ? "bg-stone-50 dark:bg-stone-900"
-                      : "bg-white dark:bg-zinc-900"
+                        ? "bg-rose-50 dark:bg-rose-950"
+                        : formData.gender === "others"
+                          ? "bg-violet-50 dark:bg-violet-950"
+                          : formData.gender === "prefer-not-to-say"
+                            ? "bg-stone-50 dark:bg-stone-900"
+                            : "bg-white dark:bg-zinc-900"
                   }
                   autoComplete="given-name"
                 />
@@ -399,12 +401,12 @@ export default function Register() {
                     formData.gender === "male"
                       ? "bg-slate-50 dark:bg-slate-900"
                       : formData.gender === "female"
-                      ? "bg-rose-50 dark:bg-rose-950"
-                      : formData.gender === "others"
-                      ? "bg-violet-50 dark:bg-violet-950"
-                      : formData.gender === "prefer-not-to-say"
-                      ? "bg-stone-50 dark:bg-stone-900"
-                      : "bg-white dark:bg-zinc-900"
+                        ? "bg-rose-50 dark:bg-rose-950"
+                        : formData.gender === "others"
+                          ? "bg-violet-50 dark:bg-violet-950"
+                          : formData.gender === "prefer-not-to-say"
+                            ? "bg-stone-50 dark:bg-stone-900"
+                            : "bg-white dark:bg-zinc-900"
                   }
                   autoComplete="family-name"
                 />
@@ -437,12 +439,12 @@ export default function Register() {
                         formData.gender === "male"
                           ? "bg-slate-50 dark:bg-slate-900"
                           : formData.gender === "female"
-                          ? "bg-rose-50 dark:bg-rose-950"
-                          : formData.gender === "others"
-                          ? "bg-violet-50 dark:bg-violet-950"
-                          : formData.gender === "prefer-not-to-say"
-                          ? "bg-stone-50 dark:bg-stone-900"
-                          : "bg-white dark:bg-zinc-900"
+                            ? "bg-rose-50 dark:bg-rose-950"
+                            : formData.gender === "others"
+                              ? "bg-violet-50 dark:bg-violet-950"
+                              : formData.gender === "prefer-not-to-say"
+                                ? "bg-stone-50 dark:bg-stone-900"
+                                : "bg-white dark:bg-zinc-900"
                       }
                     />
                   </div>
@@ -528,12 +530,12 @@ export default function Register() {
                   formData.gender === "male"
                     ? "bg-slate-50 dark:bg-slate-900"
                     : formData.gender === "female"
-                    ? "bg-rose-50 dark:bg-rose-950"
-                    : formData.gender === "others"
-                    ? "bg-violet-50 dark:bg-violet-950"
-                    : formData.gender === "prefer-not-to-say"
-                    ? "bg-stone-50 dark:bg-stone-900"
-                    : "bg-white dark:bg-zinc-900"
+                      ? "bg-rose-50 dark:bg-rose-950"
+                      : formData.gender === "others"
+                        ? "bg-violet-50 dark:bg-violet-950"
+                        : formData.gender === "prefer-not-to-say"
+                          ? "bg-stone-50 dark:bg-stone-900"
+                          : "bg-white dark:bg-zinc-900"
                 }
               />
 
@@ -553,12 +555,12 @@ export default function Register() {
                     formData.gender === "male"
                       ? "bg-slate-50 dark:bg-slate-900"
                       : formData.gender === "female"
-                      ? "bg-rose-50 dark:bg-rose-950"
-                      : formData.gender === "others"
-                      ? "bg-violet-50 dark:bg-violet-950"
-                      : formData.gender === "prefer-not-to-say"
-                      ? "bg-stone-50 dark:bg-stone-900"
-                      : "bg-white dark:bg-zinc-900"
+                        ? "bg-rose-50 dark:bg-rose-950"
+                        : formData.gender === "others"
+                          ? "bg-violet-50 dark:bg-violet-950"
+                          : formData.gender === "prefer-not-to-say"
+                            ? "bg-stone-50 dark:bg-stone-900"
+                            : "bg-white dark:bg-zinc-900"
                   }
                   autoComplete="email"
                 />
@@ -576,12 +578,12 @@ export default function Register() {
                     formData.gender === "male"
                       ? "bg-slate-50 dark:bg-slate-900"
                       : formData.gender === "female"
-                      ? "bg-rose-50 dark:bg-rose-950"
-                      : formData.gender === "others"
-                      ? "bg-violet-50 dark:bg-violet-950"
-                      : formData.gender === "prefer-not-to-say"
-                      ? "bg-stone-50 dark:bg-stone-900"
-                      : "bg-white dark:bg-zinc-900"
+                        ? "bg-rose-50 dark:bg-rose-950"
+                        : formData.gender === "others"
+                          ? "bg-violet-50 dark:bg-violet-950"
+                          : formData.gender === "prefer-not-to-say"
+                            ? "bg-stone-50 dark:bg-stone-900"
+                            : "bg-white dark:bg-zinc-900"
                   }
                   autoComplete="new-password"
                 />
@@ -632,12 +634,12 @@ export default function Register() {
                           formData.gender === "male"
                             ? "bg-slate-50 dark:bg-slate-900"
                             : formData.gender === "female"
-                            ? "bg-rose-50 dark:bg-rose-950"
-                            : formData.gender === "others"
-                            ? "bg-violet-50 dark:bg-violet-950"
-                            : formData.gender === "prefer-not-to-say"
-                            ? "bg-stone-50 dark:bg-stone-900"
-                            : "bg-white dark:bg-zinc-900"
+                              ? "bg-rose-50 dark:bg-rose-950"
+                              : formData.gender === "others"
+                                ? "bg-violet-50 dark:bg-violet-950"
+                                : formData.gender === "prefer-not-to-say"
+                                  ? "bg-stone-50 dark:bg-stone-900"
+                                  : "bg-white dark:bg-zinc-900"
                         }`}
                       >
                         Or continue with

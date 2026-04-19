@@ -41,7 +41,7 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | undefined>(
-    undefined
+    undefined,
   );
 
   // Redirect if already authenticated

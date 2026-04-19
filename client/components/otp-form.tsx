@@ -100,17 +100,20 @@ export default function OtpForm({
                 // Move focus to the next input field after pasting
                 const targetIndex = Math.min(
                   index + filteredPastedData.length,
-                  otp.length - 1
+                  otp.length - 1,
                 );
                 const targetInput = document.getElementById(
-                  `otp-${targetIndex}`
+                  `otp-${targetIndex}`,
                 );
                 targetInput?.focus();
               }}
               onKeyDown={(e) => {
                 // Allow only digits, backspace, delete, tab, escape, enter, and arrow keys
                 // Allow Ctrl+C (copy) and Ctrl+V (paste) combinations
-                if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v')) {
+                if (
+                  (e.ctrlKey || e.metaKey) &&
+                  (e.key === "c" || e.key === "v")
+                ) {
                   return; // Allow the default behavior for copy/paste
                 }
 

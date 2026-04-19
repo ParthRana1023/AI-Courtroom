@@ -16,7 +16,7 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/location", tags=["location"])
+router = APIRouter()
 
 
 @router.get("/countries")

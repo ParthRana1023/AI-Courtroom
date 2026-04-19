@@ -3,8 +3,7 @@
 import React, { useState, forwardRef } from "react";
 import type { LucideIcon } from "lucide-react";
 
-interface FloatingLabelInputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+interface FloatingLabelInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   icon?: LucideIcon;
   error?: string;
@@ -26,7 +25,7 @@ const FloatingLabelInput = forwardRef<
       labelBg = "bg-white dark:bg-zinc-900",
       ...props
     },
-    ref
+    ref,
   ) => {
     const [isFocused, setIsFocused] = useState(false);
     const hasValue = value !== undefined && value !== "";
@@ -70,8 +69,8 @@ const FloatingLabelInput = forwardRef<
                 error
                   ? "border-red-500 dark:border-red-500"
                   : isFocused
-                  ? "border-blue-500 dark:border-blue-400"
-                  : "border-zinc-300 dark:border-zinc-600"
+                    ? "border-blue-500 dark:border-blue-400"
+                    : "border-zinc-300 dark:border-zinc-600"
               }
               ${
                 props.disabled
@@ -100,8 +99,8 @@ const FloatingLabelInput = forwardRef<
                 error
                   ? "text-red-500 dark:text-red-400"
                   : isFocused
-                  ? "text-blue-500 dark:text-blue-400"
-                  : "text-zinc-500 dark:text-zinc-400"
+                    ? "text-blue-500 dark:text-blue-400"
+                    : "text-zinc-500 dark:text-zinc-400"
               }
             `}
           >
@@ -113,7 +112,7 @@ const FloatingLabelInput = forwardRef<
         )}
       </div>
     );
-  }
+  },
 );
 
 FloatingLabelInput.displayName = "FloatingLabelInput";

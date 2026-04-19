@@ -59,14 +59,14 @@ export default function DatePicker({
   const [isOpen, setIsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("year");
   const [selectedYear, setSelectedYear] = useState<number | null>(
-    value?.getFullYear() ?? null
+    value?.getFullYear() ?? null,
   );
   const [selectedMonth, setSelectedMonth] = useState<number | null>(
-    value?.getMonth() ?? null
+    value?.getMonth() ?? null,
   );
   const [, setSelectedDay] = useState<number | null>(value?.getDate() ?? null);
   const [yearRangeStart, setYearRangeStart] = useState(
-    Math.floor((value?.getFullYear() ?? maxYear - 11) / 12) * 12
+    Math.floor((value?.getFullYear() ?? maxYear - 11) / 12) * 12,
   );
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -137,7 +137,7 @@ export default function DatePicker({
 
   // Generate years for the current range (12 years at a time)
   const years = Array.from({ length: 12 }, (_, i) => yearRangeStart + i).filter(
-    (y) => y >= minYear && y <= maxYear
+    (y) => y >= minYear && y <= maxYear,
   );
 
   // Generate days for the selected month
@@ -176,12 +176,12 @@ export default function DatePicker({
               isSelected
                 ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900"
                 : isToday
-                ? "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800"
-                : "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                  ? "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800"
+                  : "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
             }`}
         >
           {day}
-        </button>
+        </button>,
       );
     }
 
@@ -220,8 +220,8 @@ export default function DatePicker({
               error
                 ? "border-red-500 dark:border-red-500"
                 : isOpen
-                ? "border-blue-500 dark:border-blue-400"
-                : "border-zinc-300 dark:border-zinc-600"
+                  ? "border-blue-500 dark:border-blue-400"
+                  : "border-zinc-300 dark:border-zinc-600"
             }
           `}
         >
@@ -242,8 +242,8 @@ export default function DatePicker({
               error
                 ? "text-red-500 dark:text-red-400"
                 : isOpen
-                ? "text-blue-500 dark:text-blue-400"
-                : "text-zinc-500 dark:text-zinc-400"
+                  ? "text-blue-500 dark:text-blue-400"
+                  : "text-zinc-500 dark:text-zinc-400"
             }
           `}
         >
@@ -299,7 +299,7 @@ export default function DatePicker({
               onClick={() => {
                 if (viewMode === "year") {
                   setYearRangeStart((prev) =>
-                    Math.min(maxYear - 11, prev + 12)
+                    Math.min(maxYear - 11, prev + 12),
                   );
                 } else if (viewMode === "month" && selectedYear !== null) {
                   setSelectedYear(Math.min(maxYear, selectedYear + 1));

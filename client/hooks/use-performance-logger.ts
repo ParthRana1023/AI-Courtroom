@@ -23,7 +23,7 @@ const logger = getLogger("performance");
  */
 export function useRenderLogger(
   componentName: string,
-  threshold: number = 16
+  threshold: number = 16,
 ): void {
   const renderStart = useRef(performance.now());
   const renderCount = useRef(0);
@@ -109,14 +109,14 @@ export function useApiTimer(): {
 export function useEffectLogger(
   effectName: string,
   dependencies: unknown[],
-  effect: () => void | Promise<void> | (() => void)
+  effect: () => void | Promise<void> | (() => void),
 ): void {
   useEffect(() => {
     const startTime = performance.now();
 
     logger.debug(`Effect starting: ${effectName}`, {
       dependencies: dependencies.map((d) =>
-        typeof d === "object" ? "[object]" : String(d)
+        typeof d === "object" ? "[object]" : String(d),
       ),
     });
 

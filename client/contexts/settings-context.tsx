@@ -31,23 +31,23 @@ const defaultSettings = {
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [enterKeySubmits, setEnterKeySubmits] = useState<boolean>(
-    defaultSettings.enterKeySubmits
+    defaultSettings.enterKeySubmits,
   );
   const [autoExpandTextAreas, setAutoExpandTextAreas] = useState<boolean>(
-    defaultSettings.autoExpandTextAreas
+    defaultSettings.autoExpandTextAreas,
   );
   const [textSize, setTextSize] = useState<"small" | "medium" | "large">(
-    defaultSettings.textSize
+    defaultSettings.textSize,
   );
   const [skipArchiveConfirmation, setSkipArchiveConfirmation] =
     useState<boolean>(defaultSettings.skipArchiveConfirmation);
   const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState<boolean>(
-    defaultSettings.skipDeleteConfirmation
+    defaultSettings.skipDeleteConfirmation,
   );
 
   // Load settings from localStorage on initial render
@@ -58,20 +58,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (savedSettings) {
           const parsedSettings = JSON.parse(savedSettings);
           setEnterKeySubmits(
-            parsedSettings.enterKeySubmits ?? defaultSettings.enterKeySubmits
+            parsedSettings.enterKeySubmits ?? defaultSettings.enterKeySubmits,
           );
           setAutoExpandTextAreas(
             parsedSettings.autoExpandTextAreas ??
-              defaultSettings.autoExpandTextAreas
+              defaultSettings.autoExpandTextAreas,
           );
           setTextSize(parsedSettings.textSize ?? defaultSettings.textSize);
           setSkipArchiveConfirmation(
             parsedSettings.skipArchiveConfirmation ??
-              defaultSettings.skipArchiveConfirmation
+              defaultSettings.skipArchiveConfirmation,
           );
           setSkipDeleteConfirmation(
             parsedSettings.skipDeleteConfirmation ??
-              defaultSettings.skipDeleteConfirmation
+              defaultSettings.skipDeleteConfirmation,
           );
         }
       } catch (error) {
@@ -93,7 +93,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           textSize,
           skipArchiveConfirmation,
           skipDeleteConfirmation,
-        })
+        }),
       );
     } catch (error) {
       console.error("Failed to save settings to localStorage:", error);

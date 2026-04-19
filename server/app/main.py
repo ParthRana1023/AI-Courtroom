@@ -178,16 +178,16 @@ async def health_check():
     }
 
 
-app.include_router(auth.router, prefix="/auth")
-app.include_router(cases.router, prefix="/cases")
-app.include_router(arguments.router, prefix="/cases")
-app.include_router(parties.router, prefix="/cases")
-app.include_router(witness.router, prefix="/cases")
-app.include_router(rate_limit.router, prefix="/limit")
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+app.include_router(cases.router, prefix="/cases", tags=["Cases"])
+app.include_router(arguments.router, prefix="/cases", tags=["Arguments"])
+app.include_router(parties.router, prefix="/cases", tags=["Parties"])
+app.include_router(witness.router, prefix="/cases", tags=["Witness"])
+app.include_router(rate_limit.router, prefix="/limit", tags=["Rate Limit"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
-app.include_router(location.router)
-app.include_router(client_logs.router)
+app.include_router(location.router, prefix="/location", tags=["location"])
+app.include_router(client_logs.router, prefix="/logs", tags=["Client Logs"])
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=settings.port, reload=True)

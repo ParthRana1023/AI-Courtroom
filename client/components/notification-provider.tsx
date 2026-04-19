@@ -34,8 +34,8 @@ function Notification({
     type === "success"
       ? "bg-green-600"
       : type === "error"
-      ? "bg-red-600"
-      : "bg-blue-600";
+        ? "bg-red-600"
+        : "bg-blue-600";
 
   const Icon = type === "success" ? CheckCircle : AlertCircle;
 
@@ -67,7 +67,7 @@ let addNotificationCallback:
 
 export function showNotification(
   text: string,
-  type: "success" | "error" | "info" = "success"
+  type: "success" | "error" | "info" = "success",
 ) {
   if (addNotificationCallback) {
     addNotificationCallback({ text, type });

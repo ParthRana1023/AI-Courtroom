@@ -40,7 +40,7 @@ const SettingsAwareTextArea = forwardRef<
       minHeight = 100,
       maxHeight = 400,
     },
-    ref
+    ref,
   ) => {
     const { enterKeySubmits, autoExpandTextAreas, textSize } = useSettings();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -61,7 +61,7 @@ const SettingsAwareTextArea = forwardRef<
         // Set the height to the scrollHeight, but constrain between min and max
         const newHeight = Math.max(
           minHeight,
-          Math.min(textarea.scrollHeight, maxHeight)
+          Math.min(textarea.scrollHeight, maxHeight),
         );
         textarea.style.height = `${newHeight}px`;
       }
@@ -117,7 +117,7 @@ const SettingsAwareTextArea = forwardRef<
         }}
       />
     );
-  }
+  },
 );
 
 SettingsAwareTextArea.displayName = "SettingsAwareTextArea";

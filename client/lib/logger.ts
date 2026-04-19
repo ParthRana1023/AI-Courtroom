@@ -137,7 +137,7 @@ class ConsoleTransport implements LogTransport {
           `%c${prefix}`,
           `color: ${color}; font-weight: bold`,
           entry.message,
-          contextStr
+          contextStr,
         );
         if (entry.error_stack) {
           console.error(entry.error_stack);
@@ -147,7 +147,7 @@ class ConsoleTransport implements LogTransport {
           `%c${prefix}`,
           `color: ${color}; font-weight: bold`,
           entry.message,
-          contextStr
+          contextStr,
         );
       } else {
         const logMethod = entry.level === "info" ? "info" : "debug";
@@ -155,7 +155,7 @@ class ConsoleTransport implements LogTransport {
           `%c${prefix}`,
           `color: ${color}`,
           entry.message,
-          contextStr
+          contextStr,
         );
       }
     } else {
@@ -236,10 +236,7 @@ class RemoteTransport implements LogTransport {
         const payload = new Blob([JSON.stringify({ logs })], {
           type: "application/json",
         });
-        const sent = navigator.sendBeacon(
-          this.endpoint,
-          payload
-        );
+        const sent = navigator.sendBeacon(this.endpoint, payload);
         if (!sent) {
           // Fallback to fetch if sendBeacon fails
           await this.sendWithFetch(logs);
@@ -323,7 +320,7 @@ export class Logger {
     // Mask emails: john.doe@email.com -> j***@email.com
     result = result.replace(
       SENSITIVE_PATTERNS.email,
-      (_, user, domain) => `${user[0]}***@${domain}`
+      (_, user, domain) => `${user[0]}***@${domain}`,
     );
 
     // Mask JWT tokens
@@ -342,7 +339,7 @@ export class Logger {
    * Mask sensitive data in context object
    */
   private maskContext(
-    context: Record<string, unknown>
+    context: Record<string, unknown>,
   ): Record<string, unknown> {
     const masked: Record<string, unknown> = {};
 
@@ -367,7 +364,7 @@ export class Logger {
     levelName: "debug" | "info" | "warn" | "error",
     message: string,
     context?: Record<string, unknown>,
-    error?: Error
+    error?: Error,
   ): void {
     // Check log level
     if (level < Logger.level) return;
@@ -432,7 +429,7 @@ export class Logger {
   error(
     message: string,
     error?: Error,
-    context?: Record<string, unknown>
+    context?: Record<string, unknown>,
   ): void {
     this.log(LogLevel.ERROR, "error", message, context, error);
   }

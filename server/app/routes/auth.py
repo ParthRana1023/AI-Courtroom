@@ -23,7 +23,7 @@ from app.dependencies import get_current_user
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["Authentication"])
+router = APIRouter()
 
 
 @router.post("/register/initiate")

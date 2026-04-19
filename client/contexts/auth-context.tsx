@@ -24,18 +24,18 @@ interface AuthContextType {
   login: (
     email: string,
     password: string,
-    rememberMe: boolean
+    rememberMe: boolean,
   ) => Promise<unknown>;
   verifyLogin: (
     email: string,
     otp: string,
     rememberMe: boolean,
-    redirectPath?: string
+    redirectPath?: string,
   ) => Promise<unknown>;
   register: (userData: RegistrationPayload) => Promise<unknown>;
   verifyRegistration: (
     userData: RegistrationPayload,
-    otp: string
+    otp: string,
   ) => Promise<void>;
   logout: () => void;
   redirectToDashboard: () => void;
@@ -46,7 +46,7 @@ interface AuthContextType {
       code?: string;
       state?: string;
     },
-    rememberMe?: boolean
+    rememberMe?: boolean,
   ) => Promise<unknown>;
   refreshUser: () => Promise<void>; // Refresh user data from server
 }
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (
     email: string,
     password: string,
-    rememberMe: boolean
+    rememberMe: boolean,
   ) => {
     logger.info("Login initiated");
     try {
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     otp: string,
     rememberMe: boolean,
-    redirectPath: string = "/dashboard/cases"
+    redirectPath: string = "/dashboard/cases",
   ) => {
     try {
       const dataToSend = {
@@ -205,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyRegistration = async (
     registrationData: RegistrationPayload,
-    otp: string
+    otp: string,
   ) => {
     setIsLoading(true);
     try {
@@ -242,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       code?: string;
       state?: string;
     },
-    rememberMe: boolean = false
+    rememberMe: boolean = false,
   ) => {
     logger.info("Google login initiated");
     try {
@@ -258,7 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (typeof window !== "undefined") {
           sessionStorage.setItem(
             "googleUserData",
-            JSON.stringify(response.google_user_data)
+            JSON.stringify(response.google_user_data),
           );
         }
         router.push("/register?google=true");
