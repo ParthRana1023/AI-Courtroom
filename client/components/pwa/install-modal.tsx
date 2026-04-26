@@ -8,13 +8,13 @@ const DISMISS_KEY = "pwa-install-modal-dismissed";
 
 /**
  * A popup modal shown on the landing page encouraging the user to install
- * the PWA. It is shown once per session (dismissed state stored in
- * sessionStorage) and only when the browser fires `beforeinstallprompt`.
+ * the PWA or download the APK. It is shown once per session (dismissed state
+ * stored in sessionStorage) and only when installation is available.
  *
  * Themed to match the site's neutral/zinc palette with dark-mode support.
  */
 export function PwaInstallModal() {
-  const { canInstall, promptInstall } = usePwaInstall();
+  const { canInstall, promptInstall, installMode } = usePwaInstall();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -39,6 +39,8 @@ export function PwaInstallModal() {
   };
 
   if (!visible) return null;
+
+  const isApk = installMode === "apk";
 
   return (
     <>
@@ -68,7 +70,7 @@ export function PwaInstallModal() {
               </div>
               <div>
                 <h2 className="text-lg font-bold leading-tight">
-                  Install AI Courtroom
+                  {isApk ? "Download AI Courtroom" : "Install AI Courtroom"}
                 </h2>
                 <p className="text-sm text-zinc-400">
                   Get the full app experience
@@ -80,16 +82,24 @@ export function PwaInstallModal() {
           {/* Body */}
           <div className="px-6 py-5 space-y-4">
             <p className="text-sm text-neutral-600 dark:text-zinc-400 leading-relaxed">
-              Add AI Courtroom to your home screen for instant access, faster
-              loading, and offline support.
+              {isApk
+                ? "Download the AI Courtroom Android app for the best mobile experience with native performance."
+                : "Add AI Courtroom to your home screen for instant access, faster loading, and offline support."}
             </p>
 
             <ul className="space-y-2 text-sm">
-              {[
-                "Works offline — view past cases anytime",
-                "Instant launch from your home screen",
-                "No app store needed",
-              ].map((feature) => (
+              {(isApk
+                ? [
+                    "Native Android app — smooth performance",
+                    "Instant launch from your home screen",
+                    "Full offline support",
+                  ]
+                : [
+                    "Works offline — view past cases anytime",
+                    "Instant launch from your home screen",
+                    "No app store needed",
+                  ]
+              ).map((feature) => (
                 <li
                   key={feature}
                   className="flex items-start gap-2 text-neutral-700 dark:text-zinc-300"
@@ -110,7 +120,7 @@ export function PwaInstallModal() {
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-black dark:bg-white text-white dark:text-black font-semibold rounded-lg hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors shadow-sm"
               >
                 <Download className="w-4 h-4" />
-                Install
+                {isApk ? "Download APK" : "Install"}
               </button>
               <button
                 type="button"

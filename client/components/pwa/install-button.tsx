@@ -8,9 +8,13 @@ import { usePwaInstall } from "@/contexts/pwa-install-context";
  * Styled to match the navbar's zinc theme (same as nav links & theme toggle).
  * Renders nothing if the browser doesn't support installation or
  * the app is already installed.
+ *
+ * On mobile Android (when no PWA prompt is available), it shows
+ * "Download" and triggers an APK download instead.
  */
 export function PwaInstallButton() {
-  const { canInstall, isInstalled, promptInstall } = usePwaInstall();
+  const { canInstall, isInstalled, promptInstall, installMode } =
+    usePwaInstall();
 
   if (isInstalled) {
     return null;
@@ -18,15 +22,21 @@ export function PwaInstallButton() {
 
   if (!canInstall) return null;
 
+  const label = installMode === "apk" ? "Download" : "Install";
+
   return (
     <button
       type="button"
       onClick={promptInstall}
       className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-700 rounded-md transition-colors"
-      title="Install AI Courtroom"
+      title={
+        installMode === "apk"
+          ? "Download AI Courtroom APK"
+          : "Install AI Courtroom"
+      }
     >
       <Download className="w-4 h-4" />
-      Install
+      {label}
     </button>
   );
 }
