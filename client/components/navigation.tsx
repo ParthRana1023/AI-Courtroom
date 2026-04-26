@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { User } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { PwaInstallButton } from "./pwa/install-button";
+import { PwaSidebarInstallButton } from "./pwa/sidebar-install-button";
 import { UserNav } from "./user-nav";
 import StaggeredMenu from "./staggered-menu";
 import FlowingMenu from "./flowing-menu";
@@ -85,6 +87,7 @@ export default function Navigation({ translucent = false }: NavigationProps) {
 
             {/* Right Side - Auth Links */}
             <div className="hidden md:flex items-center space-x-4">
+              <PwaInstallButton />
               <ThemeToggle />
 
               {isAuthenticated ? (
@@ -134,6 +137,10 @@ export default function Navigation({ translucent = false }: NavigationProps) {
       >
         {/* FlowingMenu as children - matching landing page structure */}
         <div className="flex flex-col h-full">
+          {/* PWA Install — always visible, above nav links */}
+          <PwaSidebarInstallButton />
+          <div className="border-t-2 border-gray-300" />
+
           <div className="flex-2 min-h-0">
             <FlowingMenu
               items={primaryItems}

@@ -11,6 +11,8 @@ import {
   publicPrimaryNavItems,
   publicSecondaryNavItems,
 } from "@/lib/navigation";
+import { PwaInstallModal } from "@/components/pwa/install-modal";
+import { PwaSidebarInstallButton } from "@/components/pwa/sidebar-install-button";
 
 // Dynamic imports for heavy animation components (reduces initial bundle)
 const StaggeredMenu = dynamic(() => import("@/components/staggered-menu"), {
@@ -35,6 +37,8 @@ export default function Home() {
 
   return (
     <main className="h-screen flex flex-col overflow-hidden relative">
+      {/* PWA Install Modal - appears once per session */}
+      <PwaInstallModal />
       {/* Staggered Menu - Top Right */}
       <StaggeredMenu
         position="right"
@@ -49,6 +53,10 @@ export default function Home() {
       >
         {/* FlowingMenu as children */}
         <div className="flex flex-col h-full">
+          {/* PWA Install — always visible, above nav links */}
+          <PwaSidebarInstallButton />
+          <div className="border-t-2 border-gray-300" />
+
           <div className="flex-2 min-h-0">
             <FlowingMenu
               items={primaryItems}

@@ -14,6 +14,7 @@ import { LoggerProvider } from "@/contexts/logger-context";
 import { LoggingErrorBoundary } from "@/components/error-boundary";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "@/components/ui/sonner";
+import { PwaInstallProvider } from "@/contexts/pwa-install-context";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -127,6 +128,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.__deferredPrompt = null;
+              window.__appInstalled = false;
+              window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                window.__deferredPrompt = e;
+              });
+              window.addEventListener('appinstalled', () => {
+                window.__appInstalled = true;
+              });
+            `,
+          }}
+        />
+      </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider defaultTheme="system" storageKey="ai-courtroom-theme">
           <CookieConsentProvider>
@@ -138,7 +156,11 @@ export default function RootLayout({
                   <AuthProvider>
                     <LoggerProvider>
                       <LoggingErrorBoundary>
-                        <NotificationProvider>{children}</NotificationProvider>
+                        <NotificationProvider>
+                          <PwaInstallProvider>
+                            {children}
+                          </PwaInstallProvider>
+                        </NotificationProvider>
                       </LoggingErrorBoundary>
                     </LoggerProvider>
                   </AuthProvider>

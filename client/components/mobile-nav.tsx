@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useTheme } from "next-themes";
 import StaggeredMenu from "@/components/staggered-menu";
 import FlowingMenu from "@/components/flowing-menu";
+import { PwaSidebarInstallButton } from "@/components/pwa/sidebar-install-button";
 import { Sun, Moon } from "lucide-react";
 import {
   authenticatedPrimaryNavItems,
@@ -54,6 +55,10 @@ export default function MobileNav() {
         displayItemNumbering={false}
       >
         <div className="flex flex-col h-full">
+          {/* PWA Install — always visible, above nav links */}
+          <PwaSidebarInstallButton />
+          <div className="border-t-2 border-gray-300" />
+
           {/* Main navigation items */}
           <div className="flex-2 min-h-0">
             <FlowingMenu

@@ -1,6 +1,6 @@
 "use client";
 
-import { Capacitor } from "@capacitor/core";
+import { isNativePlatform } from "@/lib/platform";
 import { useGoogleLogin } from "@react-oauth/google";
 import axios from "axios";
 import { Loader2 } from "lucide-react";
@@ -32,7 +32,7 @@ export default function GoogleSignInButton({
   disabled = false,
 }: GoogleSignInButtonProps) {
   const nativeGoogleInitializedRef = useRef(false);
-  const isNativePlatform = Capacitor.isNativePlatform();
+  const isNative = isNativePlatform();
 
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -96,11 +96,11 @@ export default function GoogleSignInButton({
 
   const [oauthState, setOauthState] = useState<string | null>(null);
   const [isPreparingWebLogin, setIsPreparingWebLogin] =
-    useState(!isNativePlatform);
+    useState(!isNative);
 
   // Prefetch state to prevent popup blockers from intercepting an async onClick function (essential for mobile view/DevTools)
   useEffect(() => {
-    if (isNativePlatform) {
+    if (isNative) {
       setIsPreparingWebLogin(false);
       return;
     }
@@ -133,11 +133,11 @@ export default function GoogleSignInButton({
     return () => {
       isMounted = false;
     };
-  }, [isNativePlatform, onError]);
+  }, [isNative, onError]);
 
   const handleLogin = async () => {
     try {
-      if (isNativePlatform) {
+      if (isNative) {
         await handleNativeLogin();
         return;
       }
@@ -181,11 +181,11 @@ export default function GoogleSignInButton({
         type="button"
         onClick={handleLogin}
         disabled={
-          disabled || isLoading || (!isNativePlatform && isPreparingWebLogin)
+          disabled || isLoading || (!isNative && isPreparingWebLogin)
         }
         className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 dark:border-zinc-600 rounded-lg shadow-sm bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isLoading || (!isNativePlatform && isPreparingWebLogin) ? (
+        {isLoading || (!isNative && isPreparingWebLogin) ? (
           <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
         ) : (
           <svg className="w-5 h-5" viewBox="0 0 24 24">

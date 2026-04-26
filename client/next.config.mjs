@@ -1,4 +1,26 @@
+import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
+import withSerwistInit from "@serwist/next";
+
 const apiOrigin = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// Revision for the offline fallback precache entry – based on the current
+// git commit so that the cached page is updated on each deploy.
+const revision =
+  spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf-8" }).stdout?.trim() ||
+  crypto.randomUUID();
+
+const isCapacitorBuild = process.env.CAPACITOR_BUILD === "true";
+const isDev = process.env.NODE_ENV === "development";
+
+const withSerwist = withSerwistInit({
+  swSrc: "app/sw.ts",
+  swDest: "public/sw.js",
+  additionalPrecacheEntries: [{ url: "/~offline", revision }],
+  // Disable SW in dev mode and Capacitor native builds.
+  // Test PWA features via: pnpm build && pnpm start
+  disable: isDev || isCapacitorBuild,
+});
 
 let userConfig = undefined;
 try {
@@ -88,4 +110,4 @@ if (userConfig) {
   }
 }
 
-export default nextConfig;
+export default withSerwist(nextConfig);
