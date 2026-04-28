@@ -7,11 +7,13 @@ import { caseAPI, partiesAPI } from "@/lib/api";
 import {
   type PersonInvolved,
   type ChatMessage,
+  type EvidenceItem,
   type PartiesListResponse,
   PersonRole,
   CaseStatus,
 } from "@/types";
 import { Button } from "@/components/ui/button";
+import EvidencePanel from "@/components/evidence-panel";
 import {
   Drawer,
   DrawerContent,
@@ -19,6 +21,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { formatToLocaleString } from "@/lib/datetime";
@@ -44,13 +47,13 @@ const stripMarkdown = (text: string): string => {
     .trim();
 };
 
-export default function PartiesPage({
+export default function CasePrepPage({
   params,
 }: {
   params: Promise<{ cnr: string }>;
 }) {
-  useRenderLogger("PartiesPage", 32);
-  useLifecycleLogger("PartiesPage");
+  useRenderLogger("CasePrepPage", 32);
+  useLifecycleLogger("CasePrepPage");
 
   const { cnr } = use(params);
   const router = useRouter();
@@ -58,6 +61,7 @@ export default function PartiesPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [parties, setParties] = useState<PersonInvolved[]>([]);
+  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [userRole, setUserRole] = useState<string>("");
   const [isInCourtroomSession, setIsInCourtroomSession] = useState(false);
   const [caseStatus, setCaseStatus] = useState<string>("not_started");
@@ -73,27 +77,34 @@ export default function PartiesPage({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch parties on mount
+  // Fetch case prep data on mount
   useEffect(() => {
-    const fetchParties = async () => {
+    const fetchCasePrep = async () => {
       try {
         // DEV DELAY - Remove in production
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        const data: PartiesListResponse = await partiesAPI.getParties(cnr);
+        const [data, evidenceData]: [
+          PartiesListResponse,
+          { evidence: EvidenceItem[] },
+        ] = await Promise.all([
+          partiesAPI.getParties(cnr),
+          caseAPI.getEvidence(cnr),
+        ]);
         setParties(data.parties);
+        setEvidence(evidenceData.evidence || []);
         setUserRole(data.user_role);
         setIsInCourtroomSession(data.is_in_courtroom);
         setCaseStatus(data.case_status || "not_started");
       } catch (error) {
-        setError("Failed to load parties. Please try again later.");
-        logger.error("Failed to fetch parties", error as Error);
+        setError("Failed to load case prep. Please try again later.");
+        logger.error("Failed to fetch case prep", error as Error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchParties();
+    fetchCasePrep();
   }, [cnr]);
 
   // Scroll to bottom when new messages arrive
@@ -163,7 +174,7 @@ export default function PartiesPage({
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <GavelLoader message="Loading parties details..." />
+        <GavelLoader message="Loading case prep..." />
       </div>
     );
   }
@@ -176,7 +187,7 @@ export default function PartiesPage({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Parties Involved
+                Case Prep
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 Case #{cnr} • You are the{" "}
@@ -243,223 +254,243 @@ export default function PartiesPage({
             </div>
           </div>
         )}
-        {/* Left/Right Layout */}
-        {parties.length === 0 ? (
-          <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700">
-            <p className="text-gray-500 dark:text-gray-400">
-              No parties found in this case.
-            </p>
-            <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-              Generate a new case to see parties involved.
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col md:flex-row gap-6 h-auto md:h-[calc(100vh-200px)]">
-            {/* Left Sidebar - Parties List */}
-            <div className="w-full md:w-80 shrink-0 h-[400px] md:h-full">
-              <div className="bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 h-full overflow-hidden">
-                <div className="p-4 border-b border-gray-200 dark:border-zinc-700">
-                  <h2 className="font-semibold text-gray-900 dark:text-white">
-                    Parties Involved
-                  </h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Select a person to view details
-                  </p>
-                </div>
-                <ScrollArea className="h-[calc(100%-60px)]">
-                  <div className="p-2 space-y-2">
-                    {parties.map((person) => (
-                      <button
-                        key={person.id}
-                        onClick={() => {
-                          setSelectedPerson(person);
-                          // Fetch person details if not already loaded
-                          if (!person.bio) {
-                            setIsLoadingPerson(true);
-                            partiesAPI
-                              .getPartyDetails(cnr, person.id)
-                              .then((details) => {
-                                setSelectedPerson(details);
-                                setIsLoadingPerson(false);
-                              })
-                              .catch(() => setIsLoadingPerson(false));
-                          }
-                        }}
-                        title={
-                          !person.can_chat
-                            ? `As a ${userRole} lawyer, you can only chat with ${
-                                userRole === "plaintiff"
-                                  ? "Applicants"
-                                  : "Non-Applicants"
-                              }`
-                            : undefined
-                        }
-                        className={`w-full text-left p-3 rounded-lg transition-all ${
-                          selectedPerson?.id === person.id
-                            ? "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800"
-                            : "hover:bg-gray-50 dark:hover:bg-zinc-800"
-                        } ${
-                          !person.can_chat
-                            ? "opacity-60 cursor-not-allowed"
-                            : ""
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-gray-900 dark:text-white text-sm truncate flex-1 min-w-0">
-                            {stripMarkdown(person.name)}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
-                              person.role === PersonRole.APPLICANT
-                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-                                : "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
-                            }`}
-                          >
-                            {person.role === PersonRole.APPLICANT ? "A" : "NA"}
-                          </span>
-                        </div>
-                        {person.occupation && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate w-full">
-                            {person.occupation}
-                          </p>
-                        )}
-                        {/* Only show "Not your client" when NOT in courtroom session and can't chat */}
-                        {!person.can_chat && !isInCourtroomSession && (
-                          <p className="text-xs text-orange-500 dark:text-orange-400 mt-1">
-                            Not your client
-                          </p>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
+
+        <Tabs defaultValue="parties" className="w-full">
+          <TabsList className="mb-6 grid w-full grid-cols-2 sm:w-[360px]">
+            <TabsTrigger value="parties">Parties</TabsTrigger>
+            <TabsTrigger value="evidence">Evidence</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="parties" className="mt-0">
+            {/* Left/Right Layout */}
+            {parties.length === 0 ? (
+              <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700">
+                <p className="text-gray-500 dark:text-gray-400">
+                  No parties found in this case.
+                </p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+                  Generate a new case to see parties involved.
+                </p>
               </div>
-            </div>
-
-            {/* Right Panel - Person Details */}
-            <div className="flex-1 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 overflow-hidden h-[500px] md:h-full">
-              {selectedPerson ? (
-                <div className="h-full flex flex-col">
-                  {/* Person Header */}
-                  <div className="p-6 border-b border-gray-200 dark:border-zinc-700">
-                    <div className="flex flex-col sm:flex-row items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                            {stripMarkdown(selectedPerson.name)}
-                          </h2>
-                          <span
-                            className={`px-3 py-1 rounded-full text-sm font-medium ${
-                              selectedPerson.role === PersonRole.APPLICANT
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300"
-                                : "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300"
+            ) : (
+              <div className="flex flex-col md:flex-row gap-6 h-auto md:h-[calc(100vh-250px)]">
+                {/* Left Sidebar - Parties List */}
+                <div className="w-full md:w-80 shrink-0 h-[400px] md:h-full">
+                  <div className="bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 h-full overflow-hidden">
+                    <div className="p-4 border-b border-gray-200 dark:border-zinc-700">
+                      <h2 className="font-semibold text-gray-900 dark:text-white">
+                        Parties
+                      </h2>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Select a person to view details
+                      </p>
+                    </div>
+                    <ScrollArea className="h-[calc(100%-60px)]">
+                      <div className="p-2 space-y-2">
+                        {parties.map((person) => (
+                          <button
+                            key={person.id}
+                            onClick={() => {
+                              setSelectedPerson(person);
+                              // Fetch person details if not already loaded
+                              if (!person.bio) {
+                                setIsLoadingPerson(true);
+                                partiesAPI
+                                  .getPartyDetails(cnr, person.id)
+                                  .then((details) => {
+                                    setSelectedPerson(details);
+                                    setIsLoadingPerson(false);
+                                  })
+                                  .catch(() => setIsLoadingPerson(false));
+                              }
+                            }}
+                            title={
+                              !person.can_chat
+                                ? `As a ${userRole} lawyer, you can only chat with ${
+                                    userRole === "plaintiff"
+                                      ? "Applicants"
+                                      : "Non-Applicants"
+                                  }`
+                                : undefined
+                            }
+                            className={`w-full text-left p-3 rounded-lg transition-all ${
+                              selectedPerson?.id === person.id
+                                ? "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800"
+                                : "hover:bg-gray-50 dark:hover:bg-zinc-800"
+                            } ${
+                              !person.can_chat
+                                ? "opacity-60 cursor-not-allowed"
+                                : ""
                             }`}
                           >
-                            {selectedPerson.role === PersonRole.APPLICANT
-                              ? "Applicant"
-                              : "Non-Applicant"}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-                          {selectedPerson.occupation && (
-                            <span>📋 {selectedPerson.occupation}</span>
-                          )}
-                          {selectedPerson.age && (
-                            <span>🎂 {selectedPerson.age} years old</span>
-                          )}
-                          {selectedPerson.address && (
-                            <span>📍 {selectedPerson.address}</span>
-                          )}
-                        </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium text-gray-900 dark:text-white text-sm truncate flex-1 min-w-0">
+                                {stripMarkdown(person.name)}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
+                                  person.role === PersonRole.APPLICANT
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                                    : "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
+                                }`}
+                              >
+                                {person.role === PersonRole.APPLICANT
+                                  ? "A"
+                                  : "NA"}
+                              </span>
+                            </div>
+                            {person.occupation && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate w-full">
+                                {person.occupation}
+                              </p>
+                            )}
+                            {/* Only show "Not your client" when NOT in courtroom session and can't chat */}
+                            {!person.can_chat && !isInCourtroomSession && (
+                              <p className="text-xs text-orange-500 dark:text-orange-400 mt-1">
+                                Not your client
+                              </p>
+                            )}
+                          </button>
+                        ))}
                       </div>
-                      {/* Show Chat button if can chat, or View Chat History if in session but is user's client */}
-                      <div className="mt-4 sm:mt-0 w-full sm:w-auto">
-                        {selectedPerson.can_chat ? (
-                          <Button
-                            className="w-full sm:w-auto"
-                            onClick={() => handleSelectPerson(selectedPerson)}
-                          >
-                            💬 Chat
-                          </Button>
-                        ) : (
-                          /* Show read-only chat access when in courtroom session for user's clients */
-                          isInCourtroomSession &&
-                          ((userRole === "plaintiff" &&
-                            selectedPerson.role === PersonRole.APPLICANT) ||
-                            (userRole === "defendant" &&
-                              selectedPerson.role ===
-                                PersonRole.NON_APPLICANT)) && (
-                            <Button
-                              variant="outline"
-                              className="w-full sm:w-auto"
-                              onClick={() => handleSelectPerson(selectedPerson)}
-                            >
-                              👁️ View Chat History
-                            </Button>
-                          )
-                        )}
-                      </div>
-                    </div>
+                    </ScrollArea>
                   </div>
+                </div>
 
-                  {/* Person Bio/Background */}
-                  <ScrollArea className="flex-1 p-6">
-                    {isLoadingPerson ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                            Loading details...
-                          </p>
+                {/* Right Panel - Person Details */}
+                <div className="flex-1 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 overflow-hidden h-[500px] md:h-full">
+                  {selectedPerson ? (
+                    <div className="h-full flex flex-col">
+                      {/* Person Header */}
+                      <div className="p-6 border-b border-gray-200 dark:border-zinc-700">
+                        <div className="flex flex-col sm:flex-row items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-3">
+                              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                                {stripMarkdown(selectedPerson.name)}
+                              </h2>
+                              <span
+                                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                  selectedPerson.role === PersonRole.APPLICANT
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300"
+                                    : "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300"
+                                }`}
+                              >
+                                {selectedPerson.role === PersonRole.APPLICANT
+                                  ? "Applicant"
+                                  : "Non-Applicant"}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
+                              {selectedPerson.occupation && (
+                                <span>📋 {selectedPerson.occupation}</span>
+                              )}
+                              {selectedPerson.age && (
+                                <span>🎂 {selectedPerson.age} years old</span>
+                              )}
+                              {selectedPerson.address && (
+                                <span>📍 {selectedPerson.address}</span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Show Chat button if can chat, or View Chat History if in session but is user's client */}
+                          <div className="mt-4 sm:mt-0 w-full sm:w-auto">
+                            {selectedPerson.can_chat ? (
+                              <Button
+                                className="w-full sm:w-auto"
+                                onClick={() =>
+                                  handleSelectPerson(selectedPerson)
+                                }
+                              >
+                                💬 Chat
+                              </Button>
+                            ) : (
+                              /* Show read-only chat access when in courtroom session for user's clients */
+                              isInCourtroomSession &&
+                              ((userRole === "plaintiff" &&
+                                selectedPerson.role === PersonRole.APPLICANT) ||
+                                (userRole === "defendant" &&
+                                  selectedPerson.role ===
+                                    PersonRole.NON_APPLICANT)) && (
+                                <Button
+                                  variant="outline"
+                                  className="w-full sm:w-auto"
+                                  onClick={() =>
+                                    handleSelectPerson(selectedPerson)
+                                  }
+                                >
+                                  👁️ View Chat History
+                                </Button>
+                              )
+                            )}
+                          </div>
                         </div>
                       </div>
-                    ) : selectedPerson.bio ? (
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                          Background & Story
-                        </h3>
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <MarkdownRenderer markdown={selectedPerson.bio} />
+
+                      {/* Person Bio/Background */}
+                      <ScrollArea className="flex-1 p-6">
+                        {isLoadingPerson ? (
+                          <div className="flex items-center justify-center h-full">
+                            <div className="text-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                Loading details...
+                              </p>
+                            </div>
+                          </div>
+                        ) : selectedPerson.bio ? (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                              Background & Story
+                            </h3>
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                              <MarkdownRenderer markdown={selectedPerson.bio} />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                            <p>No background information available yet.</p>
+                            <p className="text-sm mt-1">
+                              Click Chat to start a conversation!
+                            </p>
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center text-gray-500 dark:text-gray-400">
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-zinc-800 flex items-center justify-center">
+                          <svg
+                            className="w-8 h-8 text-gray-400 dark:text-gray-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                            />
+                          </svg>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                        <p>No background information available yet.</p>
+                        <p className="font-medium">Select a person</p>
                         <p className="text-sm mt-1">
-                          Click Chat to start a conversation!
+                          Choose someone from the list to view their details
                         </p>
                       </div>
-                    )}
-                  </ScrollArea>
-                </div>
-              ) : (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center text-gray-500 dark:text-gray-400">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-zinc-800 flex items-center justify-center">
-                      <svg
-                        className="w-8 h-8 text-gray-400 dark:text-gray-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                        />
-                      </svg>
                     </div>
-                    <p className="font-medium">Select a person</p>
-                    <p className="text-sm mt-1">
-                      Choose someone from the list to view their details
-                    </p>
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        )}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="evidence" className="mt-0">
+            <EvidencePanel evidence={evidence} />
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Chat Drawer - Outside main, slides up from bottom with snap points */}

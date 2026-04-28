@@ -601,9 +601,11 @@ export default function Courtroom({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => router.push(`/dashboard/cases/${cnr}/parties`)}
+                  onClick={() =>
+                    router.push(`/dashboard/cases/${cnr}/case-prep`)
+                  }
                 >
-                  View Parties
+                  View Case Prep
                 </Button>
 
                 <Drawer

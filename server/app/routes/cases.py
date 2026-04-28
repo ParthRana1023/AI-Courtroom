@@ -7,6 +7,7 @@ from app.models.case import Case, CaseStatus, Roles
 from app.schemas.case import CaseCreate, CaseOut
 from app.dependencies import get_current_user
 from app.services.llm.case_generation import generate_case
+from app.services.evidence_service import extract_evidence_items
 from app.utils.rate_limiter import case_generation_rate_limiter
 from app.models.user import User
 from app.logging_config import get_logger
@@ -82,7 +83,44 @@ async def get_case(cnr: str, current_user: User = Depends(get_current_user)):
         "courtroom_proceedings": case_dict.get("courtroom_proceedings", []),
         "is_ai_examining": case_dict.get("is_ai_examining", False),
         "current_witness_id": case_dict.get("current_witness_id"),
+        "evidence": case_dict.get("evidence", []),
     }
+
+
+@router.get("/{cnr}/evidence")
+async def get_case_evidence(cnr: str, current_user: User = Depends(get_current_user)):
+    """Get structured evidence for a case, backfilling legacy cases when needed."""
+    logger.debug(f"Fetching evidence for case {cnr}")
+
+    case = await Case.find_one(Case.cnr == cnr)
+    if not case:
+        logger.warning(f"Case not found for evidence: {cnr}")
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    if str(case.user_id) != str(current_user.id):
+        logger.warning(
+            f"Unauthorized evidence access for case {cnr} by user: {current_user.email}"
+        )
+        raise HTTPException(
+            status_code=403, detail="You don't have permission to access this case"
+        )
+
+    if not case.evidence:
+        logger.info(f"Backfilling evidence for legacy case {cnr}")
+        case.evidence = extract_evidence_items(case.details)
+        try:
+            await case.save()
+        except Exception as e:
+            logger.error(
+                f"Error saving backfilled evidence for case {cnr}: {str(e)}",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to prepare evidence. Please try again.",
+            )
+
+    return {"evidence": [item.model_dump(mode="json") for item in case.evidence]}
 
 
 @router.put("/{cnr}/status")

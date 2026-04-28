@@ -54,3 +54,5 @@ everything-claude-code/
 .ruff_cache/
 
 .claude/
+
+future_plans/

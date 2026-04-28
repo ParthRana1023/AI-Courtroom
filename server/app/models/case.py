@@ -22,6 +22,20 @@ class Roles(str, Enum):
     NOT_STARTED = "not_started"
 
 
+class EvidenceSide(str, Enum):
+    PLAINTIFF = "plaintiff"
+    DEFENDANT = "defendant"
+    BOTH = "both"
+    UNKNOWN = "unknown"
+
+
+class EvidenceMediaStatus(str, Enum):
+    NOT_REQUESTED = "not_requested"
+    PENDING = "pending"
+    GENERATED = "generated"
+    FAILED = "failed"
+
+
 class Sides(BaseModel):
     user_role: Roles = Field(default=Roles.NOT_STARTED)
     ai_role: Roles = Field(default=Roles.NOT_STARTED)
@@ -67,6 +81,24 @@ class CourtroomProceedingsEvent(BaseModel):
     witness_id: Optional[str] = None
     question: Optional[str] = None
     answer: Optional[str] = None
+
+
+class EvidenceItem(BaseModel):
+    """Structured textual evidence for a case, with future image metadata."""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    exhibit_ref: str
+    title: str
+    evidence_type: str
+    description: str
+    source: Optional[str] = None
+    relevance: Optional[str] = None
+    supports_side: EvidenceSide = Field(default=EvidenceSide.UNKNOWN)
+    ipc_sections: List[str] = Field(default_factory=list)
+    image_prompt: Optional[str] = None
+    image_url: Optional[str] = None
+    image_public_id: Optional[str] = None
+    media_status: EvidenceMediaStatus = Field(default=EvidenceMediaStatus.NOT_REQUESTED)
 
 
 # Witness examination models
@@ -136,6 +168,10 @@ class Case(Document):
     parties_involved: List[PartyInvolved] = Field(
         default_factory=list,
         description="List of parties involved in the case with their roles",
+    )
+    evidence: List[EvidenceItem] = Field(
+        default_factory=list,
+        description="Structured evidence and exhibit metadata for the case",
     )
     # Chat history with parties involved (keyed by party_id (same as person_id historically))
     party_chats: dict = Field(

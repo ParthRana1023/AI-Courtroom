@@ -87,6 +87,30 @@ export interface CaseListItem {
   status: CaseStatus;
 }
 
+export type EvidenceSide = "plaintiff" | "defendant" | "both" | "unknown";
+
+export type EvidenceMediaStatus =
+  | "not_requested"
+  | "pending"
+  | "generated"
+  | "failed";
+
+export interface EvidenceItem {
+  id: string;
+  exhibit_ref: string;
+  title: string;
+  evidence_type: string;
+  description: string;
+  source?: string | null;
+  relevance?: string | null;
+  supports_side: EvidenceSide;
+  ipc_sections: string[];
+  image_prompt?: string | null;
+  image_url?: string | null;
+  image_public_id?: string | null;
+  media_status: EvidenceMediaStatus;
+}
+
 export interface Argument {
   id?: string; // Added optional id field
   type: string;
@@ -114,6 +138,7 @@ export interface Case {
   courtroom_proceedings?: CourtroomProceedingsEvent[];
   is_ai_examining?: boolean;
   current_witness_id?: string;
+  evidence?: EvidenceItem[];
 }
 
 export interface CaseHistory {

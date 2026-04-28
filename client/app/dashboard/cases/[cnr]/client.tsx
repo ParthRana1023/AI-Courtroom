@@ -58,8 +58,8 @@ export default function CaseDetails({
 
       // If user selects defendant role, navigate first, then generate plaintiff opening statement after a delay
       if (role === "defendant") {
-        // Navigate to parties page first
-        router.push(`/dashboard/cases/${cnr}/parties?role=${role}`);
+        // Navigate to case prep first
+        router.push(`/dashboard/cases/${cnr}/case-prep?role=${role}`);
 
         // Wait 2 seconds before generating the plaintiff opening statement
         setTimeout(async () => {
@@ -77,8 +77,8 @@ export default function CaseDetails({
           }
         }, 2000); // 2 second delay
       } else {
-        // For plaintiff role, navigate to parties page first
-        router.push(`/dashboard/cases/${cnr}/parties?role=${role}`);
+        // For plaintiff role, navigate to case prep first
+        router.push(`/dashboard/cases/${cnr}/case-prep?role=${role}`);
       }
     } catch (error) {
       logger.error("Failed to update case role", error as Error);
@@ -87,8 +87,8 @@ export default function CaseDetails({
     }
   };
 
-  const handleToPartiesInvolved = () => {
-    router.push(`/dashboard/cases/${cnr}/parties`);
+  const handleToCasePrep = () => {
+    router.push(`/dashboard/cases/${cnr}/case-prep`);
   };
 
   if (isLoading) {
@@ -203,10 +203,10 @@ export default function CaseDetails({
                   Lawyer
                 </p>
                 <button
-                  onClick={handleToPartiesInvolved}
+                  onClick={handleToCasePrep}
                   className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors text-center"
                 >
-                  Proceed to Chat with Parties Involved
+                  Open Case Prep
                 </button>
               </>
             ) : (

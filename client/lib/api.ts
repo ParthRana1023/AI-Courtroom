@@ -366,6 +366,16 @@ export const caseAPI = {
     }
   },
 
+  getEvidence: async (cnr: string) => {
+    try {
+      const response = await api.get(`/cases/${cnr}/evidence`);
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to get case evidence");
+      throw error;
+    }
+  },
+
   analyzeCase: async (caseId: string) => {
     try {
       logger.info("Analyzing case", { caseId });

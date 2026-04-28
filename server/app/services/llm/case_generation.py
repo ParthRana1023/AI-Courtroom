@@ -8,6 +8,7 @@ from app.utils.llm import llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.services.llm.parties_service import extract_and_assign_parties
+from app.services.evidence_service import extract_evidence_items
 from app.services.high_court_mapping import get_random_high_court, INDIAN_HIGH_COURTS
 from datetime import datetime
 from app.logging_config import get_logger
@@ -15,9 +16,100 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+FALLBACK_NAMES = [
+    "Parth Rana",
+    "Pranav Nagvekar",
+    "Prasiddhi Agarwal",
+    "Yashvi Savla",
+]
+
+FALLBACK_ORGANIZATIONS = [
+    "Mumbai Trading Co. Pvt Ltd",
+    "Delhi Textiles Ltd",
+    "Bangalore Tech Solutions",
+    "Chennai Industries Corp",
+    "Kolkata Exports Ltd",
+]
+
+
+def _clean_generated_line(line: str) -> str:
+    line = re.sub(r"^\s*[-*•]?\s*\d+[.)]\s*", "", line).strip()
+    line = line.strip("`'\"[]{}")
+    line = re.sub(r"^\*\*(.*?)\*\*$", r"\1", line).strip()
+    return line.rstrip(",;")
+
+
+def _looks_like_explanation(line: str) -> bool:
+    lowered = line.lower()
+    explanation_terms = (
+        "generate",
+        "random",
+        "shuffle",
+        "python",
+        "following",
+        "arrived",
+        "requested",
+        "category",
+        "example",
+        "pool",
+        "using",
+        "here",
+    )
+    return any(term in lowered for term in explanation_terms) or any(
+        marker in line for marker in ("```", "---", "–", "—")
+    )
+
+
+def _extract_simple_names(llm_response: str) -> list[str]:
+    names: list[str] = []
+    for raw_line in llm_response.splitlines():
+        line = _clean_generated_line(raw_line)
+        if not line or _looks_like_explanation(line) or len(line) > 45:
+            continue
+        if not re.fullmatch(r"[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}", line):
+            continue
+        names.append(line)
+    return list(dict.fromkeys(names))
+
+
+def _extract_simple_organizations(llm_response: str) -> list[str]:
+    organizations: list[str] = []
+    allowed_suffixes = (
+        "Ltd",
+        "Limited",
+        "Pvt Ltd",
+        "Private Limited",
+        "Corp",
+        "Corporation",
+        "Co.",
+        "Company",
+        "Foundation",
+        "Trust",
+        "Bank",
+        "Industries",
+        "Solutions",
+        "Enterprises",
+        "Exports",
+        "Services",
+    )
+
+    for raw_line in llm_response.splitlines():
+        line = _clean_generated_line(raw_line)
+        if not line or _looks_like_explanation(line) or len(line) > 70:
+            continue
+        if ":" in line or line.count(",") > 1:
+            continue
+        if not any(suffix.lower() in line.lower() for suffix in allowed_suffixes):
+            continue
+        organizations.append(line)
+    return list(dict.fromkeys(organizations))
+
+
 async def random_names():
-    names = []
-    template = "Generate 15 random names of Indian people"
+    template = (
+        "Generate 15 realistic Indian full names. Return only names, one per line. "
+        "No numbering, no bullets, no explanation."
+    )
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
 
@@ -29,13 +121,15 @@ async def random_names():
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.debug(f"Random names generated in {duration_ms:.2f}ms")
 
-        # Split the response into lines and remove empty lines
-        names = [name.strip() for name in llm_response.split("\n") if name.strip()]
-        return random.sample(names, 5) if len(names) >= 5 else names
+        names = _extract_simple_names(llm_response)
+        if not names:
+            logger.warning("Random name response had no usable names; using fallback")
+            return FALLBACK_NAMES
+        return random.sample(names, min(5, len(names)))
 
     except Exception as e:
         logger.error(f"Error generating names with LLM: {str(e)}", exc_info=True)
-        return []
+        return FALLBACK_NAMES
 
 
 async def random_cities():
@@ -89,33 +183,19 @@ async def random_organizations():
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.debug(f"Random organizations generated in {duration_ms:.2f}ms")
 
-        # Split the response into lines and clean up
-        organizations = [org.strip() for org in llm_response.split("\n") if org.strip()]
-        # Remove numbering if present (e.g., "1. Company Name" -> "Company Name")
-        organizations = [re.sub(r"^\d+\.\s*", "", org) for org in organizations]
-        return (
-            random.sample(organizations, min(5, len(organizations)))
-            if organizations
-            else [
-                "Mumbai Trading Co. Pvt Ltd",
-                "Delhi Textiles Ltd",
-                "Bangalore Tech Solutions",
-                "Chennai Industries Corp",
-                "Kolkata Exports Ltd",
-            ]
-        )
+        organizations = _extract_simple_organizations(llm_response)
+        if not organizations:
+            logger.warning(
+                "Random organization response had no usable organizations; using fallback"
+            )
+            return FALLBACK_ORGANIZATIONS
+        return random.sample(organizations, min(5, len(organizations)))
 
     except Exception as e:
         logger.error(
             f"Error generating organization names with LLM: {str(e)}", exc_info=True
         )
-        return [
-            "Mumbai Trading Co. Pvt Ltd",
-            "Delhi Textiles Ltd",
-            "Bangalore Tech Solutions",
-            "Chennai Industries Corp",
-            "Kolkata Exports Ltd",
-        ]
+        return FALLBACK_ORGANIZATIONS
 
 
 def generate_realistic_cnr(high_court: str, city: str) -> str:
@@ -228,12 +308,12 @@ async def generate_case(
     parties_involved_names = (
         random.sample(names, min(len(names), 3))
         if names
-        else ["Parth Rana", "Pranav Nagvekar", "Prasiddhi Agarwal", "Yashvi Savla"]
+        else FALLBACK_NAMES
     )
     orgs_involved = (
         random.sample(organizations, min(len(organizations), 2))
         if organizations
-        else ["Mumbai Trading Co. Pvt Ltd", "Delhi Textiles Ltd"]
+        else FALLBACK_ORGANIZATIONS[:2]
     )
 
     # Use provided high court or fallback to random
@@ -408,6 +488,9 @@ async def generate_case(
             logger.error(f"LLM extraction failed: {str(llm_err)}", exc_info=True)
             extracted_parties = []
 
+        extracted_evidence = extract_evidence_items(llm_response_details)
+        logger.info(f"Extracted {len(extracted_evidence)} evidence items from case")
+
         overall_duration_ms = (time.perf_counter() - overall_start_time) * 1000
         logger.info(
             f"Case generation completed - CNR: {cnr}, title: {title[:50] if title else 'N/A'}..., total time: {overall_duration_ms:.2f}ms"
@@ -421,6 +504,7 @@ async def generate_case(
             "parties_involved": [
                 p.model_dump() for p in extracted_parties
             ],  # Party data
+            "evidence": [item.model_dump() for item in extracted_evidence],
         }
 
     except Exception as e:

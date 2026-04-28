@@ -32,6 +32,24 @@ class CourtroomProceedingsEventOut(BaseModel):
     answer: Optional[str] = None
 
 
+class EvidenceOut(BaseModel):
+    id: str
+    exhibit_ref: str
+    title: str
+    evidence_type: str
+    description: str
+    source: Optional[str] = None
+    relevance: Optional[str] = None
+    supports_side: str = "unknown"
+    ipc_sections: List[str] = []
+    image_prompt: Optional[str] = None
+    image_url: Optional[str] = None
+    image_public_id: Optional[str] = None
+    media_status: str = "not_requested"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CaseOut(BaseModel):
     id: str
     cnr: str
@@ -47,5 +65,6 @@ class CaseOut(BaseModel):
     verdict: Optional[str] = None
     analysis: Optional[str] = None
     current_witness_id: Optional[str] = None
+    evidence: List[EvidenceOut] = []
 
     model_config = ConfigDict(from_attributes=True)
