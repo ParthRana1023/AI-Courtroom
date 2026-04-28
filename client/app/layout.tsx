@@ -1,5 +1,6 @@
 import type React from "react";
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/auth-context";
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
     template: "%s | AI Courtroom",
   },
   description:
-    "Experience the future of legal education and practice. AI Courtroom offers realistic AI-powered courtroom simulations where you can argue cases, challenge AI opponents, and sharpen your legal skills.",
+    "Generate Indian legal case scenarios, choose a side, review parties and evidence, examine witnesses, argue against AI, and receive verdict-style analysis in a simulated courtroom.",
   keywords: [
     "AI courtroom",
     "legal simulation",
@@ -43,6 +44,8 @@ export const metadata: Metadata = {
     "legal education",
     "mock trial",
     "legal training",
+    "Indian legal cases",
+    "AI case generation",
   ],
   authors: [{ name: "AI Courtroom Team" }],
   creator: "AI Courtroom",
@@ -73,7 +76,7 @@ export const metadata: Metadata = {
     siteName: "AI Courtroom",
     title: "AI Courtroom - AI-Powered Legal Simulation Platform",
     description:
-      "Experience the future of legal education. Argue your case, challenge the AI, and step into the courtroom where justice is decided.",
+      "Generate Indian legal case scenarios, prepare your side, examine witnesses, argue against AI, and review verdict-style analysis.",
     images: [
       {
         url: "/android-chrome-512x512.png",
@@ -89,7 +92,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "AI Courtroom - AI-Powered Legal Simulation",
     description:
-      "Experience the future of legal education. Argue your case, challenge the AI, and step into the courtroom where justice is decided.",
+      "Generate Indian legal cases, prepare arguments, challenge AI, and review verdict-style analysis.",
     images: ["/android-chrome-512x512.png"],
     creator: "@aicourtroom",
   },
@@ -126,10 +129,68 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const structuredData = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "AI Courtroom",
+      alternateName: ["AI-Courtroom", "AICourtroom"],
+      url: "https://ai-courtroom.vercel.app/",
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      itemListElement: [
+        {
+          "@type": "SiteNavigationElement",
+          position: 1,
+          name: "Register",
+          description: "Create your account to start simulating legal cases.",
+          url: "https://ai-courtroom.vercel.app/register",
+        },
+        {
+          "@type": "SiteNavigationElement",
+          position: 2,
+          name: "Login",
+          description: "Access your dashboard and continue your cases.",
+          url: "https://ai-courtroom.vercel.app/login",
+        },
+        {
+          "@type": "SiteNavigationElement",
+          position: 3,
+          name: "Contact Us",
+          description: "Contact us or provide feedback about the platform.",
+          url: "https://ai-courtroom.vercel.app/contact",
+        },
+        {
+          "@type": "SiteNavigationElement",
+          position: 4,
+          name: "Dashboard",
+          description: "Manage your legal cases and view simulation history.",
+          url: "https://ai-courtroom.vercel.app/dashboard/cases",
+        },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "AI Courtroom",
+      applicationCategory: "EducationalApplication",
+      operatingSystem: "Web",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+    },
+  ];
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script
+        <Script
+          id="pwa-install-listeners"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               window.__deferredPrompt = null;
@@ -144,6 +205,14 @@ export default function RootLayout({
             `,
           }}
         />
+        <Script
+          id="structured-data"
+          type="application/ld+json"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(structuredData),
+          }}
+        />
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider defaultTheme="system" storageKey="ai-courtroom-theme">
@@ -154,7 +223,7 @@ export default function RootLayout({
                   clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
                 >
                   <AuthProvider>
-                    <LoggerProvider>
+                     <LoggerProvider>
                       <LoggingErrorBoundary>
                         <NotificationProvider>
                           <PwaInstallProvider>
@@ -172,70 +241,6 @@ export default function RootLayout({
             </SettingsProvider>
           </CookieConsentProvider>
         </ThemeProvider>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify([
-              {
-                "@context": "https://schema.org",
-                "@type": "WebSite",
-                name: "AI Courtroom",
-                alternateName: ["AI-Courtroom", "AICourtroom"],
-                url: "https://ai-courtroom.vercel.app/",
-              },
-              {
-                "@context": "https://schema.org",
-                "@type": "ItemList",
-                itemListElement: [
-                  {
-                    "@type": "SiteNavigationElement",
-                    position: 1,
-                    name: "Register",
-                    description:
-                      "Create your account to start simulating legal cases.",
-                    url: "https://ai-courtroom.vercel.app/register",
-                  },
-                  {
-                    "@type": "SiteNavigationElement",
-                    position: 2,
-                    name: "Login",
-                    description:
-                      "Access your dashboard and continue your cases.",
-                    url: "https://ai-courtroom.vercel.app/login",
-                  },
-                  {
-                    "@type": "SiteNavigationElement",
-                    position: 3,
-                    name: "Contact Us",
-                    description:
-                      "Contact us or provide feedback about the platform.",
-                    url: "https://ai-courtroom.vercel.app/contact",
-                  },
-                  {
-                    "@type": "SiteNavigationElement",
-                    position: 4,
-                    name: "Dashboard",
-                    description:
-                      "Manage your legal cases and view simulation history.",
-                    url: "https://ai-courtroom.vercel.app/dashboard/cases",
-                  },
-                ],
-              },
-              {
-                "@context": "https://schema.org",
-                "@type": "SoftwareApplication",
-                name: "AI Courtroom",
-                applicationCategory: "EducationalApplication",
-                operatingSystem: "Web",
-                offers: {
-                  "@type": "Offer",
-                  price: "0",
-                  priceCurrency: "USD",
-                },
-              },
-            ]),
-          }}
-        />
       </body>
     </html>
   );
