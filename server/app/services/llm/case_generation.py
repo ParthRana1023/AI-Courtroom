@@ -4,7 +4,7 @@ import string
 import re
 import time
 from typing import Optional
-from app.utils.llm import llm
+from app.utils.llm import get_llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.services.llm.parties_service import extract_and_assign_parties
@@ -113,7 +113,7 @@ async def random_names():
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
 
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("drafter") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()
@@ -141,7 +141,7 @@ async def random_cities():
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
 
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("drafter") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()
@@ -175,7 +175,7 @@ async def random_organizations():
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
 
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("drafter") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()
@@ -270,8 +270,8 @@ async def generate_case(
     Generates a hypothetical legal case file using an LLM.
 
     Args:
-        sections (int): The number of IPC sections involved.
-        numbers (list[int]): A list of IPC section numbers provided by the user.
+        sections (int): The number of BNS sections involved.
+        numbers (list[int]): A list of BNS section numbers provided by the user.
         high_court (Optional[str]): The specific high court to use. If None, random is used.
         city (Optional[str]): The specific city to use. If None, random city is generated.
 
@@ -285,13 +285,13 @@ async def generate_case(
         Exception: If any error occurs during LLM invocation or processing.
     """
 
-    logger.info(f"Generating case with {sections} IPC sections: {numbers}")
+    logger.info(f"Generating case with {sections} BNS sections: {numbers}")
     overall_start_time = time.perf_counter()
 
-    ipc_section_numbers_str = (
+    bns_section_numbers_str = (
         ", ".join(map(str, numbers)) if numbers else "XXX"
     )  # Default if no numbers provided
-    number_of_ipc_sections = sections
+    number_of_bns_sections = sections
 
     # Generate random names and organizations
     names = await random_names()
@@ -323,9 +323,9 @@ async def generate_case(
     )
 
     template = f""" 
-        Draft a hypothetical case file for a legal proceeding involving the Indian Penal Code (IPC). 
+        Draft a hypothetical case file for a legal proceeding involving the Bharatiya Nyaya Sanhita (BNS). 
         
-        The case should primarily focus on sections {ipc_section_numbers_str}, but you should also identify and incorporate 2-3 additional related IPC sections that would naturally be involved in such a case based on legal context and typical offense groupings.
+        The case should primarily focus on sections {bns_section_numbers_str}, but you should also identify and incorporate 2-3 additional related BNS sections that would naturally be involved in such a case based on legal context and typical offense groupings.
         
         IMPORTANT CREATIVITY REQUIREMENTS:
         - Create a UNIQUE and CREATIVE case scenario that differs significantly from previous cases involving these same sections
@@ -333,18 +333,18 @@ async def generate_case(
         - You may also use these organizations/companies as parties if appropriate for the case: {', '.join(orgs_involved)}
         - Vary the locations, circumstances, timelines, and specific details to ensure each case feels distinct. Use this city: {selected_city}
         - Consider different socioeconomic backgrounds, occupations, and contexts for the parties involved
-        - Ensure each generated case has a different fact pattern even when the same IPC sections are requested
+        - Ensure each generated case has a different fact pattern even when the same BNS sections are requested
         
-        RELATED IPC SECTIONS REQUIREMENT:
-        - In the petition, include a specific subsection titled "**RELATED IPC SECTIONS:**" after the main petition section
-        - List each additional related IPC section you've incorporated beyond those explicitly requested
+        RELATED BNS SECTIONS REQUIREMENT:
+        - In the petition, include a specific subsection titled "**RELATED BNS SECTIONS:**" after the main petition section
+        - List each additional related BNS section you've incorporated beyond those explicitly requested
         - For each related section, provide a brief explanation of how it connects to the primary sections and its relevance to this specific case
         The final document MUST strictly follow official court petition format, using precise legal language, markdown for emphasis, and comprehensive details.
         Pay close attention to the formatting requirements, especially the use of markdown bolding (`**Header:**`) for all section titles and keywords as specified.
 
         **FORMATTING REQUIREMENTS:**
         - All main section headers (e.g., "COURT DETAILS & CASE NUMBER", "PARTIES INVOLVED") MUST be in uppercase and bolded (e.g., `**COURT DETAILS & CASE NUMBER:**`).
-        - Sub-headers or key terms within sections (e.g., "Petitioner:", "Respondents:", "IPC Sections:") MUST be bolded.
+        - Sub-headers or key terms within sections (e.g., "Petitioner:", "Respondents:", "BNS Sections:") MUST be bolded.
         - Lists should use numbered or bulleted points as appropriate.
         - Ensure all text adheres to the structure outlined below.
 
@@ -374,47 +374,47 @@ async def generate_case(
         ... **NON-APPLICANT**
         - Note: Add more NON-APPLICANTS if needed for the case. NON-APPLICANT can be an individual or an organization/company depending on the case generated
 
-        **PETITION UNDER SECTION [Relevant Act, e.g., 482 of Cr.P.C. or Article 226 of the Constitution] READ WITH IPC SECTIONS:**
-        - Clearly title the petition, incorporating BOTH the provided IPC sections {ipc_section_numbers_str} AND the additional related IPC sections you've identified.
-        - Example: `**PETITION UNDER SECTION 482 OF THE CODE OF CRIMINAL PROCEDURE, 1973 READ WITH IPC SECTIONS {ipc_section_numbers_str} AND RELATED SECTIONS [list additional sections] FOR QUASHING OF FIR NO. [XYZ/YYYY]**`
+        **PETITION UNDER SECTION [Relevant Act, e.g., 482 of Cr.P.C. or Article 226 of the Constitution] READ WITH BNS SECTIONS:**
+        - Clearly title the petition, incorporating BOTH the provided BNS sections {bns_section_numbers_str} AND the additional related BNS sections you've identified.
+        - Example: `**PETITION UNDER SECTION 482 OF THE CODE OF CRIMINAL PROCEDURE, 1973 READ WITH BNS SECTIONS {bns_section_numbers_str} AND RELATED SECTIONS [list additional sections] FOR QUASHING OF FIR NO. [XYZ/YYYY]**`
         
-        **IPC SECTIONS:**
-        - After introducing the petition, include this dedicated section explaining the IPC sections you've incorporated
+        **BNS SECTIONS:**
+        - After introducing the petition, include this dedicated section explaining the BNS sections you've incorporated
         - For each section, provide its number, title, and a brief explanation of how it connects to this case and its relevance to this specific case
         - Format as: `- **Section [Number] - [Title]:** [Brief explanation of relevance to this case]`
 
         **MOST RESPECTFULLY SHEWETH (FORMAL PETITION):**
-        1. That the present petition is being filed by the Petitioner/Applicant seeking [Specific Relief, e.g., quashing of FIR, grant of bail, etc.] in connection with IPC Sections {ipc_section_numbers_str}.
-        2. [Further points summarizing the purpose of the application, legal heirs, claims, etc., incorporating the {number_of_ipc_sections} IPC sections involved.]
+        1. That the present petition is being filed by the Petitioner/Applicant seeking [Specific Relief, e.g., quashing of FIR, grant of bail, etc.] in connection with BNS Sections {bns_section_numbers_str}.
+        2. [Further points summarizing the purpose of the application, legal heirs, claims, etc., incorporating the {number_of_bns_sections} BNS sections involved.]
         ---
 
         **BACKGROUND AND CHRONOLOGY OF EVENTS:**
         - Provide a structured timeline of key events. Use the format: `- **[Date in DD/MM/YYYY or Month Day, YYYY format]:** [Description of event]`
-        - Example: `- **15/07/2023:** FIR No. [XYZ/YYYY] was registered at Police Station [Name] under IPC Sections {ipc_section_numbers_str}.`
-        - Highlight any events involving alleged breaches or issues related to the applicable IPC sections {ipc_section_numbers_str}.
+        - Example: `- **15/07/2023:** FIR No. [XYZ/YYYY] was registered at Police Station [Name] under BNS Sections {bns_section_numbers_str}.`
+        - Highlight any events involving alleged breaches or issues related to the applicable BNS sections {bns_section_numbers_str}.
         ---
 
         **GROUNDS:**
-        - List the specific legal grounds for the petition. Use the format: `1. **[Ground Title, e.g., Lack of Prima Facie Case]:** [Detailed explanation of the ground, explicitly referencing BOTH the primary IPC sections and the related sections you've identified.]`
-        - Example: `1. **Violation of Fundamental Rights (Article 21):** The investigation conducted by the police was unfair and biased, violating the petitioner's right to life and personal liberty, particularly in the context of the allegations under IPC Section {numbers[0] if numbers else 'XXX'} and related Section [additional section].`
+        - List the specific legal grounds for the petition. Use the format: `1. **[Ground Title, e.g., Lack of Prima Facie Case]:** [Detailed explanation of the ground, explicitly referencing BOTH the primary BNS sections and the related sections you've identified.]`
+        - Example: `1. **Violation of Fundamental Rights (Article 21):** The investigation conducted by the police was unfair and biased, violating the petitioner's right to life and personal liberty, particularly in the context of the allegations under BNS Section {numbers[0] if numbers else 'XXX'} and related Section [additional section].`
         - Detail allegations such as fraud, suppression of facts, procedural defects, citing discrepancies, medical conditions, or suspicious circumstances.
-        - IMPORTANT: Ensure you reference BOTH the primary IPC sections ({ipc_section_numbers_str}) AND your identified related sections throughout the grounds, showing how they interconnect in this specific case scenario.
+        - IMPORTANT: Ensure you reference BOTH the primary BNS sections ({bns_section_numbers_str}) AND your identified related sections throughout the grounds, showing how they interconnect in this specific case scenario.
         ---
 
         **EVIDENCE:**
-        - Provide a detailed presentation of evidence that supports allegations related to BOTH primary and related IPC sections.
+        - Provide a detailed presentation of evidence that supports allegations related to BOTH primary and related BNS sections.
         - **Eyewitness Testimonies:**
           - `- **Witness Name:** [Full Name], Age: [Age], Address: [Full Address]`
-          - `  **Testimony:** [Detailed summary of testimony, including date, time, location of event, and how it supports the case. Reference BOTH the primary IPC sections {ipc_section_numbers_str} AND the related sections you've identified. Ensure the testimony is a narrative, not just bullet points.]`
+          - `  **Testimony:** [Detailed summary of testimony, including date, time, location of event, and how it supports the case. Reference BOTH the primary BNS sections {bns_section_numbers_str} AND the related sections you've identified. Ensure the testimony is a narrative, not just bullet points.]`
         - **Physical/Digital Evidence:**
-          - `- **[Evidence Title/Type, e.g., Medical Report]:** (Reference No: [Ref No]) [Detailed description and its relevance to both primary IPC Sections {ipc_section_numbers_str} and the related sections you've identified.]`
+          - `- **[Evidence Title/Type, e.g., Medical Report]:** (Reference No: [Ref No]) [Detailed description and its relevance to both primary BNS Sections {bns_section_numbers_str} and the related sections you've identified.]`
         - Note: Create fictitious witness names and use real-world Indian locations.
-        - IMPORTANT: Ensure different pieces of evidence connect to different IPC sections (both primary and related) to show how all sections are relevant to the case.
+        - IMPORTANT: Ensure different pieces of evidence connect to different BNS sections (both primary and related) to show how all sections are relevant to the case.
         ---
 
         **PRAYER (RELIEFS SOUGHT):**
         The Petitioner/Applicant therefore most humbly prays that this Hon'ble Court may be pleased to:
-        1. [Specific prayer, e.g., Quash FIR No. [XYZ/YYYY] registered under IPC Sections {ipc_section_numbers_str} and related sections you've identified.]  
+        1. [Specific prayer, e.g., Quash FIR No. [XYZ/YYYY] registered under BNS Sections {bns_section_numbers_str} and related sections you've identified.]  
         2. [Another specific prayer, e.g., Grant interim stay on further proceedings.]
         3. Pass any other order(s) as this Hon'ble Court may deem fit and proper in the facts and circumstances of the case.
         ---
@@ -440,7 +440,7 @@ async def generate_case(
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
 
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("drafter") | StrOutputParser()
 
     try:
         # Use await for async chain invocation as llm is ChatOpenAI and the function is async
@@ -452,6 +452,10 @@ async def generate_case(
         llm_response_details = re.sub(
             r"<think>.*?</think>", "", llm_response_details, flags=re.DOTALL
         ).strip()
+        
+        # If the LLM spent all its tokens on thinking or returned an empty response, raise an error
+        if not llm_response_details:
+            raise ValueError("LLM generated an empty response or spent all tokens on reasoning. Consider using a non-reasoning model or increasing max_new_tokens.")
 
         # Generate a realistic CNR
         cnr = generate_realistic_cnr(selected_high_court, selected_city)

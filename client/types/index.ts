@@ -104,7 +104,7 @@ export interface EvidenceItem {
   source?: string | null;
   relevance?: string | null;
   supports_side: EvidenceSide;
-  ipc_sections: string[];
+  bns_sections: string[];
   image_prompt?: string | null;
   image_url?: string | null;
   image_public_id?: string | null;

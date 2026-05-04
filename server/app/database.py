@@ -14,6 +14,10 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+if not hasattr(AsyncIOMotorClient, "append_metadata"):
+    AsyncIOMotorClient.append_metadata = lambda self, *a, **kw: None
+
+
 async def init_db(motor_client: AsyncIOMotorClient):
     """Initialize Beanie with explicit Motor client"""
     try:

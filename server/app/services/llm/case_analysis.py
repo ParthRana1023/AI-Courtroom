@@ -2,7 +2,7 @@ import re
 from typing import List
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from app.utils.llm import llm
+from app.utils.llm import get_llm
 from app.logging_config import get_logger, log_execution_time
 
 logger = get_logger(__name__)
@@ -99,7 +99,7 @@ class CaseAnalysisService:
         analysis_prompt = ChatPromptTemplate.from_messages([("human", prompt)])
 
         try:
-            chain = analysis_prompt | llm | StrOutputParser()
+            chain = analysis_prompt | get_llm("analyzer") | StrOutputParser()
             logger.debug("Invoking LLM for case analysis")
             response = chain.invoke(
                 {

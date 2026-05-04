@@ -57,7 +57,7 @@ def extract_evidence_items(case_text: str | None) -> List[EvidenceItem]:
                     source=_infer_source(title, current_category),
                     relevance=_infer_relevance(description),
                     supports_side=_infer_supported_side(description),
-                    ipc_sections=_extract_ipc_sections(description),
+                    bns_sections=_extract_bns_sections(description),
                     image_prompt=_build_image_prompt(title, description),
                 )
             )
@@ -178,9 +178,9 @@ def _infer_supported_side(description: str) -> EvidenceSide:
     return EvidenceSide.UNKNOWN
 
 
-def _extract_ipc_sections(description: str) -> list[str]:
+def _extract_bns_sections(description: str) -> list[str]:
     sections = re.findall(
-        r"(?:IPC\s*)?Section\s+(\d+[A-Z]?)", description, re.IGNORECASE
+        r"(?:BNS\s*)?Section\s+(\d+[A-Z]?)", description, re.IGNORECASE
     )
     return sorted({f"Section {section.upper()}" for section in sections})
 

@@ -3,7 +3,7 @@ import time
 import re
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from app.utils.llm import llm
+from app.utils.llm import get_llm
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -42,7 +42,7 @@ async def generate_counter_argument(
             [("human", template + "\n\nUser's argument to respond to: {user_input}")]
         )
 
-        chain = prompt | llm | StrOutputParser()
+        chain = prompt | get_llm("lawyer") | StrOutputParser()
 
         start_time = time.perf_counter()
         response = chain.invoke(
@@ -81,7 +81,7 @@ async def opening_statement(ai_role: str, case_details: str, user_role: str) -> 
 
         prompt = ChatPromptTemplate.from_messages([("human", template)])
 
-        chain = prompt | llm | StrOutputParser()
+        chain = prompt | get_llm("lawyer") | StrOutputParser()
 
         start_time = time.perf_counter()
         response = chain.invoke(
@@ -116,7 +116,7 @@ async def closing_statement(history: str, ai_role: str, user_role: str) -> str:
 
         prompt = ChatPromptTemplate.from_messages([("human", template)])
 
-        chain = prompt | llm | StrOutputParser()
+        chain = prompt | get_llm("lawyer") | StrOutputParser()
 
         start_time = time.perf_counter()
         response = chain.invoke(

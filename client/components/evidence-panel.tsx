@@ -77,9 +77,9 @@ export default function EvidencePanel({ evidence = [] }: EvidencePanelProps) {
             </div>
           )}
 
-          {item.ipc_sections.length > 0 && (
+          {item.bns_sections.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
-              {item.ipc_sections.map((section) => (
+              {item.bns_sections.map((section) => (
                 <Badge key={section} variant="outline">
                   {section}
                 </Badge>

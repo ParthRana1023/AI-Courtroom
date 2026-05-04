@@ -7,7 +7,7 @@ Handles: extraction, role assignment, bio generation, and chat.
 import time
 import re
 from typing import List
-from app.utils.llm import llm
+from app.utils.llm import get_llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.models.party import PartyRole, PartyInvolved
@@ -45,7 +45,7 @@ Mumbai Trading Co. Pvt Ltd
 """
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("drafter") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()
@@ -111,7 +111,7 @@ Important: Base everything on the case text. For the role, look for keywords lik
 """
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("drafter") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()
@@ -291,7 +291,7 @@ Respond as {party_name}:
 """
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("drafter") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()

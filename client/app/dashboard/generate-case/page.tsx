@@ -314,8 +314,8 @@ export default function GenerateCase() {
           )}
           <br />
           <p className="text-sm text-gray-600 dark:text-zinc-400 mb-6">
-            Note: Enter the number of sections involved and specific section
-            numbers (eg. 420, 315, 149, etc) to generate a new case. The AI will
+            Note: Enter the number of sections involved and specific BNS section
+            numbers (eg. 103, 318, 74, etc) to generate a new case. The AI will
             use these section numbers to determine the type of case (e.g.,
             criminal, civil, constitutional) and generate a detailed case
             summary and analysis accordingly.

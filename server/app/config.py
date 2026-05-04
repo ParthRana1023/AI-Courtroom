@@ -14,8 +14,40 @@ class Settings(BaseSettings):
     extended_token_expire_days: int = 7
     testing: bool = False
     groq_api_key: Optional[str] = None
+    openrouter_api_key: Optional[str] = None
     csc_api_key: Optional[str] = None  # Country State City API key
-    llm_model: str = "meta-llama/llama-4-maverick-17b-128e-instruct"
+
+    # Per-task LLM configuration
+    drafter_model: str = "llama-3.3-70b-versatile"
+    drafter_provider: str = "groq"
+    drafter_fallback_model: str = "qwen/qwen3-next-80b-a3b-instruct:free"
+    drafter_fallback_provider: str = "openrouter"
+
+    lawyer_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    lawyer_provider: str = "openrouter"
+    lawyer_fallback_model: str = "llama-3.3-70b-versatile"
+    lawyer_fallback_provider: str = "groq"
+
+    judge_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    judge_provider: str = "openrouter"
+    judge_fallback_model: str = "llama-3.3-70b-versatile"
+    judge_fallback_provider: str = "groq"
+
+    analyzer_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    analyzer_provider: str = "openrouter"
+    analyzer_fallback_model: str = "llama-3.3-70b-versatile"
+    analyzer_fallback_provider: str = "groq"
+
+    party_model: str = "llama-3.3-70b-versatile"
+    party_provider: str = "groq"
+    party_fallback_model: str = "qwen/qwen3-next-80b-a3b-instruct:free"
+    party_fallback_provider: str = "openrouter"
+
+    witness_model: str = "llama-3.3-70b-versatile"
+    witness_provider: str = "groq"
+    witness_fallback_model: str = "qwen/qwen3-next-80b-a3b-instruct:free"
+    witness_fallback_provider: str = "openrouter"
+
     port: int = 8000
 
     # Google OAuth settings
@@ -123,6 +155,7 @@ def log_environment_status():
         "PORT": settings.port,
         # API Keys & External Services
         "GROQ_API_KEY": is_set(settings.groq_api_key),
+        "OPENROUTER_API_KEY": is_set(settings.openrouter_api_key),
         "CSC_API_KEY": is_set(settings.csc_api_key),
         # Google OAuth
         "GOOGLE_CLIENT_ID": is_set(settings.google_client_id),
@@ -161,8 +194,8 @@ def log_environment_status():
     logger.info("Environment configuration loaded", extra={"env_config": env_status})
 
     # Log warnings for critical missing variables
-    if not settings.groq_api_key:
-        logger.warning("GROQ_API_KEY not set - LLM features will not work")
+    if not settings.groq_api_key and not settings.openrouter_api_key:
+        logger.warning("No LLM API keys set (Groq/OpenRouter) - LLM features will not work")
     if settings.secret_key == "secret":
         logger.warning("SECRET_KEY using default value - not secure for production")
     if not settings.google_client_id or not settings.google_client_secret:

@@ -41,7 +41,7 @@ class EvidenceOut(BaseModel):
     source: Optional[str] = None
     relevance: Optional[str] = None
     supports_side: str = "unknown"
-    ipc_sections: List[str] = []
+    bns_sections: List[str] = []
     image_prompt: Optional[str] = None
     image_url: Optional[str] = None
     image_public_id: Optional[str] = None

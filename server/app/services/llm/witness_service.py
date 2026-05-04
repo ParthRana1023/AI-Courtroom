@@ -7,7 +7,7 @@ Handles witness responses, cross-examination, and judge moderation.
 import time
 import re
 from typing import List, Optional, Dict
-from app.utils.llm import llm
+from app.utils.llm import get_llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.logging_config import get_logger
@@ -94,7 +94,7 @@ Respond as {witness_name} (witness):
 """
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("lawyer") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()
@@ -184,7 +184,7 @@ Respond with ONLY the question, no preamble or explanation. Start directly with 
 """
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("lawyer") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()
@@ -274,7 +274,7 @@ Your response:
 """
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("lawyer") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()
@@ -412,7 +412,7 @@ Your decision:
 """
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | get_llm("lawyer") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()

@@ -4,7 +4,7 @@ import re
 from typing import List
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from app.utils.llm import llm
+from app.utils.llm import get_llm
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -123,7 +123,7 @@ async def generate_verdict(
 
         judge_prompt = ChatPromptTemplate.from_messages([("human", judge_template)])
 
-        judge_chain = judge_prompt | llm | StrOutputParser()
+        judge_chain = judge_prompt | get_llm("judge") | StrOutputParser()
 
         start_time = time.perf_counter()
         verdict = judge_chain.invoke(

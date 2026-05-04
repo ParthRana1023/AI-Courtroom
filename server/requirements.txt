@@ -39,6 +39,7 @@ nest_asyncio
 langchain-community
 langchain-google-genai
 langchain-groq
+langchain-openai
 
 # Google Authentication & OAuth
 google-auth

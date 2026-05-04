@@ -94,7 +94,7 @@ class EvidenceItem(BaseModel):
     source: Optional[str] = None
     relevance: Optional[str] = None
     supports_side: EvidenceSide = Field(default=EvidenceSide.UNKNOWN)
-    ipc_sections: List[str] = Field(default_factory=list)
+    bns_sections: List[str] = Field(default_factory=list)
     image_prompt: Optional[str] = None
     image_url: Optional[str] = None
     image_public_id: Optional[str] = None
