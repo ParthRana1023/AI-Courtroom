@@ -15,6 +15,7 @@ async def generate_counter_argument(
     ai_role: str | None = None,
     user_role: str | None = None,
     case_details: str | None = None,
+    rag_context: str | None = None,
 ) -> str:
     try:
         logger.info(f"Generating counter argument for {ai_role}")
@@ -22,11 +23,13 @@ async def generate_counter_argument(
             f"History length: {len(history)} chars, user_input length: {len(user_input)} chars"
         )
 
+        case_context = rag_context or case_details or "No case details provided"
+
         template = """
 
             You are an experienced and assertive Indian trial lawyer representing the {ai_role} in a court of law. 
             The user is acting as the lawyer for the {user_role}. 
-            The case details are: {case_details}
+            The relevant case context is: {case_context}
             Below is the case history so far: {history} 
             Refer to the Judge as "My Lord" or "Your Honour".
             Present your next arguments in a consise manner, and by not using all the facts available to you in a single argument.
@@ -49,7 +52,7 @@ async def generate_counter_argument(
             {
                 "ai_role": ai_role,
                 "history": history,
-                "case_details": case_details,
+                "case_context": case_context,
                 "user_role": user_role,
                 "user_input": user_input,
             }
@@ -67,13 +70,20 @@ async def generate_counter_argument(
         return "I apologize, but I'm unable to generate a counter argument at this time. Please try again later."
 
 
-async def opening_statement(ai_role: str, case_details: str, user_role: str) -> str:
+async def opening_statement(
+    ai_role: str,
+    case_details: str,
+    user_role: str,
+    rag_context: str | None = None,
+) -> str:
     try:
         logger.info(f"Generating opening statement for {ai_role}")
 
+        case_context = rag_context or case_details or "No case details provided"
+
         template = """
             You are an Indian lawyer from the {ai_role}'s side. 
-            Just give a brief opening statement in less than 250 words, regarding the case using this information: {case_details} 
+            Just give a brief opening statement in less than 250 words, regarding the case using this information: {case_context} 
             The user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them, do not be too polite.
             Refer to the Judge as "My Lord" or "Your Honour".
             Don't add the words "Opening Statement" or something similar as the heading of the prompt.
@@ -85,7 +95,7 @@ async def opening_statement(ai_role: str, case_details: str, user_role: str) -> 
 
         start_time = time.perf_counter()
         response = chain.invoke(
-            {"ai_role": ai_role, "case_details": case_details, "user_role": user_role}
+            {"ai_role": ai_role, "case_context": case_context, "user_role": user_role}
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
@@ -100,13 +110,20 @@ async def opening_statement(ai_role: str, case_details: str, user_role: str) -> 
         return "I apologize, but I'm unable to generate an opening statement at this time. Please try again later."
 
 
-async def closing_statement(history: str, ai_role: str, user_role: str) -> str:
+async def closing_statement(
+    history: str,
+    ai_role: str,
+    user_role: str,
+    rag_context: str | None = None,
+) -> str:
     try:
         logger.info(f"Generating closing statement for {ai_role}")
 
+        closing_context = rag_context or history
+
         template = """
             You are an Indian lawyer from the {ai_role}'s side, and the user is the {user_role}'s lawyer. 
-            You require to give a brief closing statement regarding the case using this information: {history} 
+            You require to give a brief closing statement regarding the case using this information: {closing_context} 
             The closing statement should be around 250 words. Use the words "I rest my case here" at the end. 
             Remember to reiterate key points from your side of the argument, try to include a highlight the evidence supporting your client's position. 
             Do not be too polite, the user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them.
@@ -120,7 +137,11 @@ async def closing_statement(history: str, ai_role: str, user_role: str) -> str:
 
         start_time = time.perf_counter()
         response = chain.invoke(
-            {"ai_role": ai_role, "history": history, "user_role": user_role}
+            {
+                "ai_role": ai_role,
+                "closing_context": closing_context,
+                "user_role": user_role,
+            }
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 

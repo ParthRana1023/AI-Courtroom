@@ -69,6 +69,31 @@ class SensitiveDataFilter(logging.Filter):
         return text
 
 
+class CompactDebugFilter(logging.Filter):
+    """Keep noisy SDK debug records readable in development logs."""
+
+    MAX_DEBUG_MESSAGE_LENGTH = 700
+    COMPACT_LOGGERS = ("groq", "openai")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno != logging.DEBUG:
+            return True
+        if not record.name.startswith(self.COMPACT_LOGGERS):
+            return True
+
+        message = record.getMessage()
+        if len(message) <= self.MAX_DEBUG_MESSAGE_LENGTH:
+            return True
+
+        omitted = len(message) - self.MAX_DEBUG_MESSAGE_LENGTH
+        record.msg = (
+            f"{message[: self.MAX_DEBUG_MESSAGE_LENGTH]} "
+            f"... [truncated {omitted} chars from SDK debug log]"
+        )
+        record.args = ()
+        return True
+
+
 class ColoredFormatter(logging.Formatter):
     """Colored formatter for development console output."""
 
@@ -151,6 +176,7 @@ def setup_logging(log_level: str = "INFO", log_format: str = "text") -> None:
     # Add filters
     console_handler.addFilter(RequestIdFilter())
     console_handler.addFilter(SensitiveDataFilter())
+    console_handler.addFilter(CompactDebugFilter())
 
     # Set formatter based on environment
     if log_format.lower() == "json":

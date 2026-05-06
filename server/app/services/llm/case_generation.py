@@ -306,9 +306,7 @@ async def generate_case(
 
     # Select a few random names, organizations
     parties_involved_names = (
-        random.sample(names, min(len(names), 3))
-        if names
-        else FALLBACK_NAMES
+        random.sample(names, min(len(names), 3)) if names else FALLBACK_NAMES
     )
     orgs_involved = (
         random.sample(organizations, min(len(organizations), 2))
@@ -452,10 +450,12 @@ async def generate_case(
         llm_response_details = re.sub(
             r"<think>.*?</think>", "", llm_response_details, flags=re.DOTALL
         ).strip()
-        
+
         # If the LLM spent all its tokens on thinking or returned an empty response, raise an error
         if not llm_response_details:
-            raise ValueError("LLM generated an empty response or spent all tokens on reasoning. Consider using a non-reasoning model or increasing max_new_tokens.")
+            raise ValueError(
+                "LLM generated an empty response or spent all tokens on reasoning. Consider using a non-reasoning model or increasing max_new_tokens."
+            )
 
         # Generate a realistic CNR
         cnr = generate_realistic_cnr(selected_high_court, selected_city)

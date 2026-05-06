@@ -74,7 +74,11 @@ Mumbai Trading Co. Pvt Ltd
         return []
 
 
-async def generate_party_details(party_name: str, case_text: str) -> PartyInvolved:
+async def generate_party_details(
+    party_name: str,
+    case_text: str,
+    rag_context: str | None = None,
+) -> PartyInvolved:
     """
     Generate complete details for a party using LLM.
     Returns the raw markdown response stored in the bio field.
@@ -88,10 +92,12 @@ async def generate_party_details(party_name: str, case_text: str) -> PartyInvolv
     """
     logger.debug(f"Generating details for party: {party_name}")
 
+    case_context = rag_context or case_text[:6000]
+
     template = """Analyze this legal case and provide details about **{party_name}**.
 
 CASE TEXT:
-{case_text}
+{case_context}
 
 Provide the following information about {party_name} in markdown format:
 
@@ -116,7 +122,7 @@ Important: Base everything on the case text. For the role, look for keywords lik
     try:
         start_time = time.perf_counter()
         response = await chain.ainvoke(
-            {"party_name": party_name, "case_text": case_text[:6000]}
+            {"party_name": party_name, "case_context": case_context}
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
@@ -233,6 +239,7 @@ async def chat_with_party(
     case_details: str,
     chat_history: list,
     user_message: str,
+    rag_context: str | None = None,
 ) -> str:
     """
     Generate a response from a party involved in the case to a chat message.
@@ -263,6 +270,8 @@ async def chat_with_party(
             sender = "User (Lawyer)" if msg.get("sender") == "user" else party_name
             history_text += f"{sender}: {msg.get('content', '')}\n"
 
+    case_context = rag_context or case_details[:3000]
+
     template = f"""You are role-playing as {party_name}, a {role_description} in a legal case.
 You are being interviewed by a lawyer to gather context about the case.
 
@@ -270,7 +279,7 @@ Your Background:
 {party_bio}
 
 Case Context (for reference only, do not quote directly):
-{case_details[:3000]}
+{case_context}
 
 Important Guidelines:
 - Stay in character as {party_name} at all times

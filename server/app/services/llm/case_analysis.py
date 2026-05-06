@@ -19,6 +19,7 @@ class CaseAnalysisService:
         judges_verdict: str | None = None,
         user_role: str | None = None,
         ai_role: str | None = None,
+        rag_context: str | None = None,
     ) -> str:
         """Uses LLM to analyze the user's arguments and provides suggestions for improvement.
         :param defendant_args: List of arguments presented by the user.
@@ -42,11 +43,13 @@ class CaseAnalysisService:
             logger.warning("No arguments provided for analysis")
             return "No analysis generated."
 
+        case_context = rag_context or case_details or "No case details provided"
+
         prompt = """
             You are a legal expert AI tasked with analyzing a legal case. Your role is to evaluate the arguments presented and provide constructive feedback.
 
             CASE TITLE: {title}
-            CASE DETAILS: {case_details}
+            RELEVANT CASE CONTEXT: {case_context}
 
             USER'S ROLE: {user_role}
             AI'S ROLE: {ai_role}
@@ -104,7 +107,7 @@ class CaseAnalysisService:
             response = chain.invoke(
                 {
                     "title": title,
-                    "case_details": case_details,
+                    "case_context": case_context,
                     "user_role": user_role.upper(),
                     "ai_role": ai_role.upper(),
                     "defendant_args": chr(10).join(defendant_args),

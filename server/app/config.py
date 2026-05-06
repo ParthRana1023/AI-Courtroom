@@ -77,6 +77,13 @@ class Settings(BaseSettings):
     argument_rate_limit: int = 10  # Number of arguments allowed per window
     argument_rate_window: int = 86400  # Window in seconds (86400 = 24 hours)
 
+    # RAG / local embeddings settings
+    rag_enabled: bool = True
+    embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_dimension: int = 384
+    rag_top_k: int = 8
+    rag_min_score: float = 0.25
+
     # Logging settings
     log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR
     log_format: str = "json"  # json (production) or text (development)
@@ -181,6 +188,11 @@ def log_environment_status():
         "CASE_GENERATION_RATE_WINDOW": settings.case_generation_rate_window,
         "ARGUMENT_RATE_LIMIT": settings.argument_rate_limit,
         "ARGUMENT_RATE_WINDOW": settings.argument_rate_window,
+        "RAG_ENABLED": settings.rag_enabled,
+        "EMBEDDING_MODEL_NAME": settings.embedding_model_name,
+        "EMBEDDING_DIMENSION": settings.embedding_dimension,
+        "RAG_TOP_K": settings.rag_top_k,
+        "RAG_MIN_SCORE": settings.rag_min_score,
         # Logging
         "LOG_LEVEL": settings.log_level,
         "LOG_FORMAT": settings.log_format,
@@ -195,7 +207,9 @@ def log_environment_status():
 
     # Log warnings for critical missing variables
     if not settings.groq_api_key and not settings.openrouter_api_key:
-        logger.warning("No LLM API keys set (Groq/OpenRouter) - LLM features will not work")
+        logger.warning(
+            "No LLM API keys set (Groq/OpenRouter) - LLM features will not work"
+        )
     if settings.secret_key == "secret":
         logger.warning("SECRET_KEY using default value - not secure for production")
     if not settings.google_client_id or not settings.google_client_secret:

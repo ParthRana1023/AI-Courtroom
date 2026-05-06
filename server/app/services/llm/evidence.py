@@ -107,9 +107,7 @@ RULES:
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         # Strip thinking tags if present
-        response = re.sub(
-            r"<think>.*?</think>", "", response, flags=re.DOTALL
-        ).strip()
+        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
 
         logger.info(
             f"Evidence prompt generated for '{title}' in {duration_ms:.2f}ms, "

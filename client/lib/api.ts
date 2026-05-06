@@ -316,6 +316,23 @@ export const authAPI = {
       throw error;
     }
   },
+
+  updateRagPreference: async (data: { rag_enabled: boolean }) => {
+    try {
+      const response = await api.put("/auth/profile/rag-preference", data);
+      logger.info("RAG preference updated");
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to update RAG preference");
+      if (axios.isAxiosError(error) && error.response) {
+        throw new Error(
+          error.response.data.detail || "Failed to update RAG preference",
+          { cause: error },
+        );
+      }
+      throw error;
+    }
+  },
 };
 
 // Case API calls

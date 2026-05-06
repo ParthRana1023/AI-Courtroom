@@ -40,6 +40,9 @@ langchain-community
 langchain-google-genai
 langchain-groq
 langchain-openai
+langchain-text-splitters
+numpy
+sentence-transformers
 
 # Google Authentication & OAuth
 google-auth

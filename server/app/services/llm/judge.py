@@ -15,6 +15,7 @@ async def generate_verdict(
     defendant_arguments: List[str],
     case_details: str | None = None,
     title: str | None = None,
+    rag_context: str | None = None,
 ) -> str:
     try:
         logger.info(
@@ -23,6 +24,8 @@ async def generate_verdict(
         logger.debug(
             f"Plaintiff arguments: {len(plaintiff_arguments)}, Defendant arguments: {len(defendant_arguments)}"
         )
+
+        case_context = rag_context or case_details or "No case details provided"
 
         judge_template = (
             judge_template
@@ -113,7 +116,7 @@ async def generate_verdict(
             - If the input materially conflicts or is insufficient, state the conflict or insufficiency as an "Assumption: ..." while still producing combined paragraphs that meet the minimum sentence rule.
 
             INPUTS PROVIDED:
-            Case Description: {case_details}
+            Case Description: {case_context}
             Petitioner Arguments: {plaintiff_arguments}
             Respondent Arguments: {defendant_arguments}
 
@@ -129,7 +132,7 @@ async def generate_verdict(
         verdict = judge_chain.invoke(
             {
                 "title": title or "No title provided",
-                "case_details": case_details or "No case details provided",
+                "case_context": case_context,
                 "plaintiff_arguments": plaintiff_arguments,
                 "defendant_arguments": defendant_arguments,
             }

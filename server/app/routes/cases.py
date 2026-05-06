@@ -8,6 +8,12 @@ from app.schemas.case import CaseCreate, CaseOut
 from app.dependencies import get_current_user
 from app.services.llm.case_generation import generate_case
 from app.services.evidence_service import extract_evidence_items
+from app.services.rag import (
+    delete_case_memory,
+    index_case_memory,
+    retrieve_case_context,
+    upsert_memory_item,
+)
 from app.utils.rate_limiter import case_generation_rate_limiter
 from app.models.user import User
 from app.logging_config import get_logger
@@ -110,6 +116,28 @@ async def get_case_evidence(cnr: str, current_user: User = Depends(get_current_u
         case.evidence = extract_evidence_items(case.details)
         try:
             await case.save()
+            for item in case.evidence:
+                await upsert_memory_item(
+                    case,
+                    "evidence",
+                    item.id,
+                    "\n".join(
+                        part
+                        for part in [
+                            item.exhibit_ref,
+                            item.title,
+                            item.description,
+                            item.relevance,
+                            item.source,
+                        ]
+                        if part
+                    ),
+                    {
+                        "exhibit_ref": item.exhibit_ref,
+                        "evidence_type": item.evidence_type,
+                        "supports_side": item.supports_side.value,
+                    },
+                )
         except Exception as e:
             logger.error(
                 f"Error saving backfilled evidence for case {cnr}: {str(e)}",
@@ -298,8 +326,13 @@ async def generate_plaintiff_opening(
     start_time = time.perf_counter()
 
     try:
+        rag_context = await retrieve_case_context(
+            case,
+            "plaintiff opening statement key facts parties evidence",
+            source_types=["case_details", "evidence", "party_bio"],
+        )
         plaintiff_opening_statement = await opening_statement(
-            "plaintiff", case.details, "defendant"
+            "plaintiff", case.details, "defendant", rag_context=rag_context
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
@@ -330,6 +363,13 @@ async def generate_plaintiff_opening(
     # when user clicks "Proceed to Courtroom" on the Parties page
     try:
         await case.save()
+        await upsert_memory_item(
+            case,
+            "argument",
+            f"plaintiff_opening:{len(case.plaintiff_arguments)}",
+            plaintiff_opening_statement,
+            {"side": "plaintiff", "argument_type": "opening", "role": "plaintiff"},
+        )
         logger.debug(f"Opening statement saved for case {cnr}")
     except Exception as e:
         logger.error(
@@ -372,6 +412,7 @@ async def delete_case(cnr: str, current_user: User = Depends(get_current_user)):
     case.deleted_at = get_current_datetime()
     try:
         await case.save()
+        await delete_case_memory(case)
         logger.info(f"Case {cnr} moved to recycle bin")
     except Exception as e:
         logger.error(f"Error deleting case {cnr}: {str(e)}", exc_info=True)
@@ -430,6 +471,7 @@ async def restore_case(cnr: str, current_user: User = Depends(get_current_user))
     case.deleted_at = None
     try:
         await case.save()
+        await index_case_memory(case)
         logger.info(f"Case {cnr} restored from recycle bin")
     except Exception as e:
         logger.error(f"Error restoring case {cnr}: {str(e)}", exc_info=True)
@@ -466,6 +508,7 @@ async def permanent_delete_case(
 
     # Permanently delete the case
     try:
+        await delete_case_memory(case)
         await case.delete()
         logger.info(f"Case {cnr} permanently deleted")
     except Exception as e:
@@ -580,6 +623,7 @@ async def generate_new_case(
     case = Case(**generated_case)
     try:
         await case.insert()
+        await index_case_memory(case)
         logger.info(f"Case {case.cnr} saved to database for user: {current_user.email}")
     except Exception as e:
         logger.error(f"Error inserting case to database: {str(e)}", exc_info=True)

@@ -47,6 +47,7 @@ export interface User {
   // Case generation preferences
   case_location_preference?: CaseLocationPreference;
   preferred_case_state?: string;
+  rag_enabled?: boolean;
 }
 
 // Case types

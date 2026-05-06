@@ -1,6 +1,11 @@
 # app/routes/auth.py
 from fastapi import APIRouter, HTTPException, status, Depends, Request, UploadFile, File
-from app.schemas.user import UserCreate, UserOut, CaseLocationPreferenceUpdate
+from app.schemas.user import (
+    UserCreate,
+    UserOut,
+    CaseLocationPreferenceUpdate,
+    RagPreferenceUpdate,
+)
 from app.schemas.auth import GoogleLoginRequest, ProfileUpdateRequest
 from app.models.user import User
 from app.models.user import TokenResponse
@@ -476,6 +481,31 @@ async def update_case_location_preference(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update case location preference: {str(e)}",
+        )
+
+
+@router.put("/profile/rag-preference", response_model=UserOut)
+async def update_rag_preference(
+    data: RagPreferenceUpdate, current_user: User = Depends(get_current_user)
+):
+    """Update whether the user's LLM calls use retrieved case memory."""
+    logger.info(
+        f"RAG preference update for user: {current_user.email} -> {data.rag_enabled}"
+    )
+
+    try:
+        current_user.rag_enabled = data.rag_enabled
+        await current_user.save()
+        logger.info(f"RAG preference updated for user: {current_user.email}")
+        return current_user
+    except Exception as e:
+        logger.error(
+            f"Failed to update RAG preference for {current_user.email}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update RAG preference: {str(e)}",
         )
 
 

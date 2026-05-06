@@ -92,6 +92,7 @@ class UserOut(BaseModel):
     # Case generation preferences
     case_location_preference: Optional[CaseLocationPreference] = "random"
     preferred_case_state: Optional[str] = None
+    rag_enabled: bool = True
 
 
 class CaseLocationPreferenceUpdate(BaseModel):
@@ -113,3 +114,9 @@ class CaseLocationPreferenceUpdate(BaseModel):
                 "preferred_case_state is required when preference is 'specific_state'"
             )
         return self
+
+
+class RagPreferenceUpdate(BaseModel):
+    """Schema for updating the user's RAG preference from settings."""
+
+    rag_enabled: bool

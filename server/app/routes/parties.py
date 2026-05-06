@@ -13,6 +13,7 @@ from app.schemas.party import (
 )
 from app.dependencies import get_current_user
 from app.services.llm.parties_service import generate_party_details, chat_with_party
+from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.models.user import User
 from app.utils.datetime import get_current_datetime
 from app.logging_config import get_logger
@@ -137,7 +138,14 @@ async def get_party_details_route(
         start_time = time.perf_counter()
 
         try:
-            updated_party = await generate_party_details(party.name, case.details)
+            rag_context = await retrieve_case_context(
+                case,
+                f"party background role facts for {party.name}",
+                source_types=["case_details", "evidence", "party_bio", "party_chat"],
+            )
+            updated_party = await generate_party_details(
+                party.name, case.details, rag_context=rag_context
+            )
             case.parties_involved[party_index].bio = updated_party.bio
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Party bio generated for {party.name} in {duration_ms:.2f}ms")
@@ -154,6 +162,17 @@ async def get_party_details_route(
 
         try:
             await case.save()
+            await upsert_memory_item(
+                case,
+                "party_bio",
+                party.id,
+                f"{party.name}\n{case.parties_involved[party_index].bio or ''}",
+                {
+                    "party_id": party.id,
+                    "party_name": party.name,
+                    "role": party.role.value,
+                },
+            )
         except Exception as e:
             logger.error(
                 f"Error saving party details for case {cnr}: {str(e)}", exc_info=True
@@ -249,7 +268,14 @@ async def chat_with_case_party(
         start_time = time.perf_counter()
 
         try:
-            updated_party = await generate_party_details(party.name, case.details)
+            rag_context = await retrieve_case_context(
+                case,
+                f"party background role facts for {party.name}",
+                source_types=["case_details", "evidence", "party_bio", "party_chat"],
+            )
+            updated_party = await generate_party_details(
+                party.name, case.details, rag_context=rag_context
+            )
             case.parties_involved[party_index].bio = updated_party.bio
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Party bio generated for {party.name} in {duration_ms:.2f}ms")
@@ -262,6 +288,17 @@ async def chat_with_case_party(
 
         try:
             await case.save()
+            await upsert_memory_item(
+                case,
+                "party_bio",
+                party.id,
+                f"{party.name}\n{case.parties_involved[party_index].bio or ''}",
+                {
+                    "party_id": party.id,
+                    "party_name": party.name,
+                    "role": party.role.value,
+                },
+            )
         except Exception as e:
             logger.error(f"Error saving party details: {str(e)}", exc_info=True)
             raise HTTPException(
@@ -286,6 +323,18 @@ async def chat_with_case_party(
     # Generate party's response
     start_time = time.perf_counter()
     try:
+        rag_context = await retrieve_case_context(
+            case,
+            f"{party.name} chat response to: {chat_request.message}",
+            source_types=[
+                "case_details",
+                "evidence",
+                "party_bio",
+                "party_chat",
+                "argument",
+                "proceeding",
+            ],
+        )
         response_content = await chat_with_party(
             party.name,
             party.role.value,
@@ -293,6 +342,7 @@ async def chat_with_case_party(
             case.details,
             chat_history,
             chat_request.message,
+            rag_context=rag_context,
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
@@ -327,6 +377,20 @@ async def chat_with_case_party(
 
     try:
         await case.save()
+        await upsert_memory_item(
+            case,
+            "party_chat",
+            user_message_id,
+            chat_request.message,
+            {"party_id": party_id, "party_name": party.name, "sender": "user"},
+        )
+        await upsert_memory_item(
+            case,
+            "party_chat",
+            party_message_id,
+            response_content,
+            {"party_id": party_id, "party_name": party.name, "sender": "party"},
+        )
         logger.debug(f"Chat history saved for party {party_id} in case {cnr}")
     except Exception as e:
         logger.error(

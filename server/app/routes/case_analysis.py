@@ -3,6 +3,7 @@ from app.services.llm.case_analysis import CaseAnalysisService
 from app.models.case import Case, Roles
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -73,6 +74,19 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
             judges_verdict=case.verdict,
             user_role=user_role_in_case.value if user_role_in_case else None,
             ai_role=case.ai_role.value if case.ai_role else None,
+            rag_context=await retrieve_case_context(
+                case,
+                "case analysis verdict argument mistakes suggestions evidence facts",
+                source_types=[
+                    "case_details",
+                    "evidence",
+                    "argument",
+                    "proceeding",
+                    "witness_testimony",
+                    "verdict",
+                    "party_chat",
+                ],
+            ),
         )
     except Exception as e:
         logger.error(
@@ -86,6 +100,13 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
     case.analysis = analysis_result
     try:
         await case.save()
+        await upsert_memory_item(
+            case,
+            "analysis",
+            "analysis",
+            case.analysis or "",
+            {"title": case.title},
+        )
         logger.info("Case analysis saved successfully", extra={"case_id": caseId})
     except Exception as e:
         logger.error(

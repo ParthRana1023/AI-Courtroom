@@ -8,6 +8,7 @@ from app.services.llm import judge
 from app.models.user import User
 from app.utils.rate_limiter import argument_rate_limiter
 from app.utils.datetime import get_current_datetime
+from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.models.case import (
     ArgumentItem,
     Roles,
@@ -91,9 +92,14 @@ async def submit_argument(
                 f"User is defendant - generating AI plaintiff opening for case {case_cnr}"
             )
             start_time = time.perf_counter()
+            rag_context = await retrieve_case_context(
+                case,
+                "plaintiff opening statement key case facts evidence parties",
+                source_types=["case_details", "evidence", "party_bio", "party_chat"],
+            )
 
             plaintiff_opening_statement = await lawyer.opening_statement(
-                "plaintiff", case.details, "defendant"
+                "plaintiff", case.details, "defendant", rag_context=rag_context
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Plaintiff opening statement generated in {duration_ms:.2f}ms")
@@ -144,8 +150,25 @@ async def submit_argument(
 
             # AI (as plaintiff) generates a counter-argument
             start_time = time.perf_counter()
+            counter_context = await retrieve_case_context(
+                case,
+                f"plaintiff counter argument responding to defendant: {argument}",
+                source_types=[
+                    "case_details",
+                    "evidence",
+                    "party_bio",
+                    "party_chat",
+                    "argument",
+                    "proceeding",
+                ],
+            )
             ai_plaintiff_counter = await lawyer.generate_counter_argument(
-                history, argument, "plaintiff", case.user_role.value, case.details
+                history,
+                argument,
+                "plaintiff",
+                case.user_role.value,
+                case.details,
+                rag_context=counter_context,
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Plaintiff counter-argument generated in {duration_ms:.2f}ms")
@@ -177,6 +200,39 @@ async def submit_argument(
 
             try:
                 await case.save()
+                await upsert_memory_item(
+                    case,
+                    "argument",
+                    "plaintiff_opening_auto",
+                    plaintiff_opening_statement,
+                    {
+                        "side": "plaintiff",
+                        "argument_type": "opening",
+                        "role": "plaintiff",
+                    },
+                )
+                await upsert_memory_item(
+                    case,
+                    "argument",
+                    "defendant_opening_user",
+                    argument,
+                    {
+                        "side": "defendant",
+                        "argument_type": "opening",
+                        "role": "defendant",
+                    },
+                )
+                await upsert_memory_item(
+                    case,
+                    "argument",
+                    "plaintiff_counter_auto_1",
+                    ai_plaintiff_counter,
+                    {
+                        "side": "plaintiff",
+                        "argument_type": "counter",
+                        "role": "plaintiff",
+                    },
+                )
                 logger.debug(f"Case {case_cnr} saved successfully")
             except Exception as e:
                 logger.error(f"Error saving case {case_cnr}: {str(e)}", exc_info=True)
@@ -218,8 +274,13 @@ async def submit_argument(
 
             # Generate defendant's opening statement
             start_time = time.perf_counter()
+            rag_context = await retrieve_case_context(
+                case,
+                f"defendant opening statement responding to plaintiff opening: {argument}",
+                source_types=["case_details", "evidence", "party_bio", "party_chat"],
+            )
             defendant_opening_statement = await lawyer.opening_statement(
-                "defendant", case.details, "plaintiff"
+                "defendant", case.details, "plaintiff", rag_context=rag_context
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Defendant opening statement generated in {duration_ms:.2f}ms")
@@ -251,6 +312,28 @@ async def submit_argument(
 
             try:
                 await case.save()
+                await upsert_memory_item(
+                    case,
+                    "argument",
+                    "plaintiff_opening_user",
+                    argument,
+                    {
+                        "side": "plaintiff",
+                        "argument_type": "opening",
+                        "role": "plaintiff",
+                    },
+                )
+                await upsert_memory_item(
+                    case,
+                    "argument",
+                    "defendant_opening_auto",
+                    defendant_opening_statement,
+                    {
+                        "side": "defendant",
+                        "argument_type": "opening",
+                        "role": "defendant",
+                    },
+                )
             except Exception as e:
                 logger.error(f"Error saving case {case_cnr}: {str(e)}", exc_info=True)
                 raise HTTPException(
@@ -414,7 +497,21 @@ async def submit_argument(
 
         # Generate AI's closing statement
         start_time = time.perf_counter()
-        counter = await lawyer.closing_statement(history, ai_role, case.user_role.value)
+        closing_context = await retrieve_case_context(
+            case,
+            f"{ai_role} closing statement evidence arguments testimony",
+            source_types=[
+                "case_details",
+                "evidence",
+                "argument",
+                "proceeding",
+                "witness_testimony",
+                "party_chat",
+            ],
+        )
+        counter = await lawyer.closing_statement(
+            history, ai_role, case.user_role.value, rag_context=closing_context
+        )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"AI closing statement generated in {duration_ms:.2f}ms")
 
@@ -444,8 +541,26 @@ async def submit_argument(
         # Generate counter-argument
         start_time = time.perf_counter()
         try:
+            counter_context = await retrieve_case_context(
+                case,
+                f"{ai_role} counter argument responding to: {argument}",
+                source_types=[
+                    "case_details",
+                    "evidence",
+                    "party_bio",
+                    "party_chat",
+                    "argument",
+                    "proceeding",
+                    "witness_testimony",
+                ],
+            )
             counter = await lawyer.generate_counter_argument(
-                history, argument, ai_role, case.user_role.value, case.details
+                history,
+                argument,
+                ai_role,
+                case.user_role.value,
+                case.details,
+                rag_context=counter_context,
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(
@@ -541,6 +656,20 @@ async def submit_argument(
 
     try:
         await case.save()
+        await upsert_memory_item(
+            case,
+            "argument",
+            f"{role}_user_{len(case.plaintiff_arguments) + len(case.defendant_arguments)}",
+            argument,
+            {"side": role, "argument_type": "user", "role": role},
+        )
+        await upsert_memory_item(
+            case,
+            "argument",
+            f"{ai_role}_ai_{len(case.plaintiff_arguments) + len(case.defendant_arguments)}",
+            counter,
+            {"side": ai_role, "argument_type": "counter", "role": ai_role},
+        )
         logger.debug(f"Case {case_cnr} saved after argument submission")
     except Exception as e:
         logger.error(f"Error saving case {case_cnr}: {str(e)}", exc_info=True)
@@ -680,6 +809,13 @@ async def submit_closing_statement(
 
     try:
         await case.save()
+        await upsert_memory_item(
+            case,
+            "argument",
+            f"{role}_closing_user_{len(case.plaintiff_arguments) + len(case.defendant_arguments)}",
+            statement,
+            {"side": role, "argument_type": "closing", "role": role},
+        )
     except Exception as e:
         logger.error(
             f"Error saving closing statement for case {case_cnr}: {str(e)}",
@@ -714,8 +850,20 @@ async def submit_closing_statement(
     # Generate AI's closing statement
     start_time = time.perf_counter()
     try:
+        closing_context = await retrieve_case_context(
+            case,
+            f"{ai_role} closing statement evidence arguments testimony",
+            source_types=[
+                "case_details",
+                "evidence",
+                "argument",
+                "proceeding",
+                "witness_testimony",
+                "party_chat",
+            ],
+        )
         ai_closing = await lawyer.closing_statement(
-            history, ai_role, case.user_role.value
+            history, ai_role, case.user_role.value, rag_context=closing_context
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
@@ -788,11 +936,24 @@ async def submit_closing_statement(
     # Generate verdict
     start_time = time.perf_counter()
     try:
+        verdict_context = await retrieve_case_context(
+            case,
+            "formal verdict facts issues arguments evidence witness testimony",
+            source_types=[
+                "case_details",
+                "evidence",
+                "argument",
+                "proceeding",
+                "witness_testimony",
+                "party_chat",
+            ],
+        )
         case.verdict = await judge.generate_verdict(
             plaintiff_arguments=plaintiff_side_args,
             defendant_arguments=defendant_side_args,
             case_details=case.details,
             title=case.title,
+            rag_context=verdict_context,
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Verdict generated for case {case_cnr} in {duration_ms:.2f}ms")
@@ -811,6 +972,20 @@ async def submit_closing_statement(
     case.status = CaseStatus.RESOLVED
     try:
         await case.save()
+        await upsert_memory_item(
+            case,
+            "argument",
+            f"{ai_role}_closing_auto_{len(case.plaintiff_arguments) + len(case.defendant_arguments)}",
+            ai_closing,
+            {"side": ai_role, "argument_type": "closing", "role": ai_role},
+        )
+        await upsert_memory_item(
+            case,
+            "verdict",
+            "verdict",
+            case.verdict or "",
+            {"title": case.title},
+        )
         logger.info(f"Case {case_cnr} resolved with verdict")
     except Exception as e:
         logger.error(

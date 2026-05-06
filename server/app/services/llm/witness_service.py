@@ -23,6 +23,7 @@ async def examine_witness(
     question: str,
     case_details: str,
     examination_history: List[Dict] | None = None,
+    rag_context: str | None = None,
 ) -> str:
     """
     Generate a witness response to an examination question.
@@ -63,6 +64,8 @@ async def examine_witness(
             )
             history_text += f"A ({witness_name}): {item.get('answer', '')}\n\n"
 
+    case_context = rag_context or case_details[:3000]
+
     template = f"""You are role-playing as {witness_name}, a {role_description} in a legal case.
 You are on the witness stand being examined by {examiner_description}.
 
@@ -70,7 +73,7 @@ Your Background:
 {witness_bio}
 
 Case Context (for reference, do not quote directly):
-{case_details[:3000]}
+{case_context}
 
 Previous Examination (if any):
 {history_text if history_text else "(This is the first question)"}
@@ -126,6 +129,7 @@ async def generate_cross_examination_questions(
     case_details: str,
     testimony_so_far: List[Dict],
     case_arguments: str = "",
+    rag_context: str | None = None,
 ) -> str:
     """
     Generate a cross-examination question for the AI lawyer.
@@ -161,11 +165,13 @@ async def generate_cross_examination_questions(
         else "friendly witness (your client's side)"
     )
 
+    case_context = rag_context or case_details[:2500]
+
     template = f"""You are an experienced Indian trial lawyer representing the {ai_lawyer_role}.
 You are cross-examining {witness_name}, who is a {witness_stance}.
 
 Case Details:
-{case_details[:2500]}
+{case_context}
 
 Arguments made in this case so far:
 {case_arguments[:1500] if case_arguments else "(Case just started)"}
@@ -215,6 +221,7 @@ async def should_ai_call_witness(
     arguments_history: str,
     available_witnesses: List[Dict],
     testimonies_given: List[str],
+    rag_context: str | None = None,
 ) -> Optional[str]:
     """
     Determine if the AI lawyer should call a witness, and which one.
@@ -248,10 +255,12 @@ async def should_ai_call_witness(
         ]
     )
 
+    case_context = rag_context or case_details[:2000]
+
     template = f"""You are an experienced Indian trial lawyer representing the {ai_role}.
 
 Case Details:
-{case_details[:2000]}
+{case_context}
 
 Arguments so far:
 {arguments_history[:1500]}
@@ -348,6 +357,7 @@ async def should_continue_cross_examination(
     testimony_so_far: List[Dict],
     questions_asked: int,
     max_questions: int = 5,
+    rag_context: str | None = None,
 ) -> bool:
     """
     Determine if the AI lawyer should continue cross-examination.
@@ -377,6 +387,8 @@ async def should_continue_cross_examination(
     if questions_asked == 0:
         return True
 
+    case_context = rag_context or "(No additional retrieved case context)"
+
     # Format recent testimony
     testimony_text = ""
     for item in testimony_so_far[-4:]:
@@ -390,6 +402,9 @@ async def should_continue_cross_examination(
     template = f"""You are an experienced trial lawyer representing the {ai_lawyer_role}.
 You are cross-examining {witness_name}, {'a hostile witness' if is_hostile else 'a friendly witness'}.
 You have asked {questions_asked} question(s) so far (maximum {max_questions}).
+
+Relevant case context:
+{case_context}
 
 Recent testimony:
 {testimony_text}

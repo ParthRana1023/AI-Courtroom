@@ -12,6 +12,7 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  BrainCircuit,
 } from "lucide-react";
 import { useSettings } from "@/contexts/settings-context";
 import { useCookieConsent } from "@/contexts/cookie-consent-context";
@@ -114,6 +115,8 @@ export default function SettingsPage() {
     useState<CaseLocationPreference>("random");
   const [originalPreferredCaseState, setOriginalPreferredCaseState] =
     useState<string>("");
+  const [ragEnabled, setRagEnabled] = useState(true);
+  const [originalRagEnabled, setOriginalRagEnabled] = useState(true);
 
   const [saveMessage, setSaveMessage] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
@@ -127,7 +130,8 @@ export default function SettingsPage() {
       localSkipArchiveConfirmation !== skipArchiveConfirmation ||
       localSkipDeleteConfirmation !== skipDeleteConfirmation ||
       caseLocationPreference !== originalCaseLocationPreference ||
-      preferredCaseState !== originalPreferredCaseState;
+      preferredCaseState !== originalPreferredCaseState ||
+      ragEnabled !== originalRagEnabled;
 
     setHasChanges(hasUnsavedChanges);
   }, [
@@ -145,6 +149,8 @@ export default function SettingsPage() {
     preferredCaseState,
     originalCaseLocationPreference,
     originalPreferredCaseState,
+    ragEnabled,
+    originalRagEnabled,
   ]);
 
   // Load Indian states and user preferences
@@ -174,6 +180,8 @@ export default function SettingsPage() {
           setPreferredCaseState(profile.preferred_case_state);
           setOriginalPreferredCaseState(profile.preferred_case_state);
         }
+        setRagEnabled(profile.rag_enabled ?? true);
+        setOriginalRagEnabled(profile.rag_enabled ?? true);
       } catch (error) {
         logger.error("Failed to load user preferences", error as Error);
       }
@@ -191,24 +199,46 @@ export default function SettingsPage() {
     setSkipDeleteConfirmation(localSkipDeleteConfirmation);
 
     // Save case location preference to backend if authenticated
+    let backendSaveFailed = false;
     if (isAuthenticated) {
-      try {
-        await locationAPI.updateCaseLocationPreference({
-          case_location_preference: caseLocationPreference,
-          preferred_case_state:
-            caseLocationPreference === "specific_state"
-              ? preferredCaseState
-              : undefined,
-        });
-        setOriginalCaseLocationPreference(caseLocationPreference);
-        setOriginalPreferredCaseState(preferredCaseState);
-      } catch (error) {
-        logger.error("Failed to save case location preference", error as Error);
+      const locationChanged =
+        caseLocationPreference !== originalCaseLocationPreference ||
+        preferredCaseState !== originalPreferredCaseState;
+
+      if (locationChanged) {
+        try {
+          await locationAPI.updateCaseLocationPreference({
+            case_location_preference: caseLocationPreference,
+            preferred_case_state:
+              caseLocationPreference === "specific_state"
+                ? preferredCaseState
+                : undefined,
+          });
+          setOriginalCaseLocationPreference(caseLocationPreference);
+          setOriginalPreferredCaseState(preferredCaseState);
+        } catch (error) {
+          backendSaveFailed = true;
+          logger.error("Failed to save case location preference", error as Error);
+        }
+      }
+
+      if (ragEnabled !== originalRagEnabled) {
+        try {
+          await authAPI.updateRagPreference({ rag_enabled: ragEnabled });
+          setOriginalRagEnabled(ragEnabled);
+        } catch (error) {
+          backendSaveFailed = true;
+          logger.error("Failed to save RAG preference", error as Error);
+        }
       }
     }
 
     // Show success message
-    setSaveMessage("Settings saved successfully!");
+    setSaveMessage(
+      backendSaveFailed
+        ? "Some settings could not be saved. Please try again."
+        : "Settings saved successfully!",
+    );
 
     // Clear message after 3 seconds
     setTimeout(() => {
@@ -706,6 +736,35 @@ export default function SettingsPage() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* RAG Preference */}
+                <div className="mb-8">
+                  <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                    <BrainCircuit className="h-4 w-4" />
+                    Case Memory Retrieval
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    Control whether AI responses use retrieved case memory to
+                    reduce prompt size.
+                  </p>
+                  <label className="flex items-center justify-between gap-4 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
+                    <div>
+                      <span className={`${getTextSizeClass()} font-medium block`}>
+                        Use RAG for courtroom AI
+                      </span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        When off, prompts fall back to the original full-case
+                        context behavior.
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={ragEnabled}
+                      onChange={(event) => setRagEnabled(event.target.checked)}
+                      className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500"
+                    />
+                  </label>
                 </div>
 
                 {/* Save Button */}

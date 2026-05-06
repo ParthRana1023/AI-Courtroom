@@ -32,6 +32,7 @@ from app.schemas.witness import (
     ExaminationItemResponse,
 )
 from app.services.llm import witness_service
+from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
 from app.logging_config import get_logger
 
@@ -224,6 +225,19 @@ async def examine_witness(
     # Generate witness response
     start_time = time.perf_counter()
     try:
+        rag_context = await retrieve_case_context(
+            case,
+            f"witness {party.name} answer question: {request.question}",
+            source_types=[
+                "case_details",
+                "evidence",
+                "party_bio",
+                "party_chat",
+                "argument",
+                "proceeding",
+                "witness_testimony",
+            ],
+        )
         answer = await witness_service.examine_witness(
             witness_name=party.name,
             witness_role=party.role.value,
@@ -232,6 +246,7 @@ async def examine_witness(
             question=request.question,
             case_details=case.details,
             examination_history=exam_history,
+            rag_context=rag_context,
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Witness response generated in {duration_ms:.2f}ms")
@@ -279,6 +294,39 @@ async def examine_witness(
 
     try:
         await case.save()
+        await upsert_memory_item(
+            case,
+            "witness_testimony",
+            exam_item.id,
+            f"Q: {request.question}\nA: {answer}",
+            {
+                "witness_id": party.id,
+                "witness_name": party.name,
+                "examiner": examiner_role,
+            },
+        )
+        await upsert_memory_item(
+            case,
+            "proceeding",
+            case.courtroom_proceedings[-2].id,
+            request.question,
+            {
+                "event_type": "witness_examined_q",
+                "speaker_role": examiner_role,
+                "witness_id": party.id,
+            },
+        )
+        await upsert_memory_item(
+            case,
+            "proceeding",
+            case.courtroom_proceedings[-1].id,
+            answer,
+            {
+                "event_type": "witness_examined_a",
+                "speaker_role": party.role.value,
+                "witness_id": party.id,
+            },
+        )
     except Exception as e:
         logger.error(f"Error saving examination: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save examination")
@@ -373,6 +421,17 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
 
             # 2. Check if should continue
             if questions_asked_count > 0:  # Always ask at least one if triggered
+                continue_context = await retrieve_case_context(
+                    case,
+                    f"continue cross examination of {party.name}",
+                    source_types=[
+                        "case_details",
+                        "evidence",
+                        "argument",
+                        "witness_testimony",
+                        "proceeding",
+                    ],
+                )
                 should_continue = (
                     await witness_service.should_continue_cross_examination(
                         witness_name=party.name,
@@ -382,6 +441,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                         testimony_so_far=exam_history,
                         questions_asked=questions_asked_count,
                         max_questions=max_questions,
+                        rag_context=continue_context,
                     )
                 )
                 if not should_continue:
@@ -390,6 +450,18 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
 
             # 3. Generate Question
             try:
+                question_context = await retrieve_case_context(
+                    case,
+                    f"{ai_role} cross examination question for {party.name}",
+                    source_types=[
+                        "case_details",
+                        "evidence",
+                        "party_bio",
+                        "argument",
+                        "witness_testimony",
+                        "proceeding",
+                    ],
+                )
                 question = await witness_service.generate_cross_examination_questions(
                     witness_name=party.name,
                     witness_role=party.role.value,
@@ -397,6 +469,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     case_details=case.details,
                     testimony_so_far=exam_history,
                     case_arguments=arguments_summary,
+                    rag_context=question_context,
                 )
             except Exception as e:
                 logger.error(f"Error generating question: {e}")
@@ -422,12 +495,36 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
             )
             case.courtroom_proceedings.append(q_event)
             await case.save()
+            await upsert_memory_item(
+                case,
+                "proceeding",
+                q_event.id,
+                question,
+                {
+                    "event_type": q_event.type.value,
+                    "speaker_role": ai_role,
+                    "witness_id": party.id,
+                },
+            )
 
             # Delay before answer
             logger.info("Waiting 3s for witness answer...")
             await asyncio.sleep(3)
 
             try:
+                answer_context = await retrieve_case_context(
+                    case,
+                    f"witness {party.name} answer cross examination: {question}",
+                    source_types=[
+                        "case_details",
+                        "evidence",
+                        "party_bio",
+                        "party_chat",
+                        "argument",
+                        "witness_testimony",
+                        "proceeding",
+                    ],
+                )
                 answer = await witness_service.examine_witness(
                     witness_name=party.name,
                     witness_role=party.role.value,
@@ -437,6 +534,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     case_details=case.details,
                     examination_history=exam_history
                     + [{"examiner": ai_role, "question": question, "answer": ""}],
+                    rag_context=answer_context,
                 )
             except Exception as e:
                 logger.error(f"Error generating answer: {e}")
@@ -468,6 +566,28 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
             )
             case.courtroom_proceedings.append(a_event)
             await case.save()
+            await upsert_memory_item(
+                case,
+                "witness_testimony",
+                exam_item.id,
+                f"Q: {question}\nA: {answer}",
+                {
+                    "witness_id": party.id,
+                    "witness_name": party.name,
+                    "examiner": ai_role,
+                },
+            )
+            await upsert_memory_item(
+                case,
+                "proceeding",
+                a_event.id,
+                answer,
+                {
+                    "event_type": a_event.type.value,
+                    "speaker_role": party.role.value,
+                    "witness_id": party.id,
+                },
+            )
 
             questions_asked_count += 1
 
@@ -840,6 +960,18 @@ async def ai_call_witness(
             arguments_history=arguments_summary,
             available_witnesses=available_witnesses,
             testimonies_given=list(testified_ids),
+            rag_context=await retrieve_case_context(
+                case,
+                f"{ai_role} decide whether to call a witness",
+                source_types=[
+                    "case_details",
+                    "evidence",
+                    "party_bio",
+                    "argument",
+                    "proceeding",
+                    "party_chat",
+                ],
+            ),
         )
 
         if witness_id:

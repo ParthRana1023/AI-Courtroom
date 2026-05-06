@@ -38,6 +38,7 @@ class User(Document):
     preferred_case_state: Optional[str] = (
         None  # ISO2 code when preference is "specific_state"
     )
+    rag_enabled: bool = True
 
     class Settings:
         name = "users"
