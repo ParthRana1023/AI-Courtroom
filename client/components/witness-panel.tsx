@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
@@ -35,7 +36,7 @@ interface WitnessPanelProps {
   userRole: string;
   externalOpen?: boolean;
   onExternalOpenChange?: (open: boolean) => void;
-  onWitnessUpdate?: () => void;
+  onWitnessUpdate?: () => void | Promise<void>;
 }
 
 export default function WitnessPanel({
@@ -66,10 +67,15 @@ export default function WitnessPanel({
   const [error, setError] = useState<string | null>(null);
   const [examinationState, setExaminationState] =
     useState<ExaminationState>("user_questioning");
+  const examinationStateRef = useRef(examinationState);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isCrossExaminingRef = useRef(isCrossExamining);
+
+  useEffect(() => {
+    examinationStateRef.current = examinationState;
+  }, [examinationState]);
 
   useEffect(() => {
     isCrossExaminingRef.current = isCrossExamining;
@@ -83,15 +89,11 @@ export default function WitnessPanel({
   }, [currentWitness?.examination_history]);
 
   // Fetch available witnesses and current witness state
-  // Fetch available witnesses and current witness state
   const fetchWitnessState = useCallback(async () => {
     if (!isActive) return;
 
     try {
-      // Don't show full loading state during polling updates to avoid flicker
-      if (!isCrossExaminingRef.current) {
-        setIsLoading(true);
-      }
+      setIsLoading(true);
 
       const [witnessesData, currentData] = await Promise.all([
         witnessAPI.getAvailableWitnesses(cnr),
@@ -100,13 +102,16 @@ export default function WitnessPanel({
       setWitnesses(witnessesData.witnesses || []);
       setCurrentWitness(currentData);
 
+      // Read examination state from ref to avoid dependency loop
+      const currentExamState = examinationStateRef.current;
+
       // Determine examination state based on who called the witness
       if (currentData?.has_witness) {
         const aiCalled = currentData.called_by !== userRole;
 
         if (currentData.is_ai_examining) {
           // AI is actively examining
-          if (aiCalled && examinationState !== "ai_cross_examining") {
+          if (aiCalled && currentExamState !== "ai_cross_examining") {
             setExaminationState("ai_examining_first");
           } else {
             setExaminationState("ai_cross_examining");
@@ -115,7 +120,7 @@ export default function WitnessPanel({
         } else {
           if (isCrossExaminingRef.current) {
             // Just finished examining
-            if (examinationState === "ai_examining_first") {
+            if (currentExamState === "ai_examining_first") {
               // AI was examining first (AI-called witness) -> user can cross-examine
               setExaminationState("awaiting_user_cross");
             } else {
@@ -151,22 +156,19 @@ export default function WitnessPanel({
     } finally {
       setIsLoading(false);
     }
-  }, [cnr, isActive, examinationState, userRole]);
+    // NOTE: examinationState is read via examinationStateRef to avoid
+    // a dependency loop (this function sets examinationState).
+  }, [cnr, isActive, userRole]);
 
+  // Fetch witness state when the drawer opens
+  const prevIsOpenRef = useRef(false);
   useEffect(() => {
-    if (isOpen && isActive) {
+    // Only fetch when the drawer transitions to open (not on every render)
+    if (isOpen && isActive && !prevIsOpenRef.current) {
       fetchWitnessState();
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, isActive, fetchWitnessState]);
-
-  // Poll for updates during AI cross-examination
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isCrossExamining && isActive && isOpen) {
-      interval = setInterval(fetchWitnessState, 2000);
-    }
-    return () => clearInterval(interval);
-  }, [isCrossExamining, isActive, isOpen, fetchWitnessState]);
 
   const handleCallWitness = async (witnessId: string) => {
     try {
@@ -175,7 +177,7 @@ export default function WitnessPanel({
       await witnessAPI.callWitness(cnr, witnessId);
       await fetchWitnessState();
       setExaminationState("user_questioning");
-      onWitnessUpdate?.();
+      await onWitnessUpdate?.();
       logger.info("Witness called successfully");
     } catch (err: unknown) {
       logger.error("Failed to call witness", err as Error);
@@ -228,7 +230,7 @@ export default function WitnessPanel({
 
       // Trigger background task (returns immediately)
       await witnessAPI.aiCrossExamine(cnr);
-      // Polling effect will handle updates and state transition
+      await fetchWitnessState();
     } catch (err: unknown) {
       logger.error("Failed to get AI cross-examination", err as Error);
       setError(getErrorDetail(err) || "Failed to get AI cross-examination");
@@ -255,7 +257,7 @@ export default function WitnessPanel({
       setCurrentWitness(null);
       setExaminationState("user_questioning");
       await fetchWitnessState();
-      onWitnessUpdate?.();
+      await onWitnessUpdate?.();
 
       logger.info("Witness concluded", { message: response.message });
     } catch (err: unknown) {
@@ -293,6 +295,11 @@ export default function WitnessPanel({
               ? `Examining: ${currentWitness?.witness_name}`
               : "Call a Witness"}
           </DrawerTitle>
+          <DrawerDescription className="sr-only">
+            {hasWitnessOnStand
+              ? "Ask questions, review testimony, and dismiss the current witness."
+              : "Select a party to call to the witness stand."}
+          </DrawerDescription>
         </DrawerHeader>
 
         <ScrollArea className="flex-1">

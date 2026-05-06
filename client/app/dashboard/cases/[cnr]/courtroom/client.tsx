@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
@@ -45,6 +46,7 @@ import { getLogger } from "@/lib/logger";
 import { getErrorDetail } from "@/lib/error-utils";
 
 const logger = getLogger("courtroom");
+const MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2;
 
 function countUserArguments(proceedings?: CourtroomProceedingsEvent[]): number {
   return (
@@ -54,16 +56,33 @@ function countUserArguments(proceedings?: CourtroomProceedingsEvent[]): number {
   );
 }
 
-function hasPlaintiffOpening(
+function countUserArgumentsSinceLastWitnessActivity(
   proceedings?: CourtroomProceedingsEvent[],
-): boolean {
-  return Boolean(
-    proceedings?.some(
-      (event) =>
-        event.type === CourtroomProceedingsEventType.OPENING_STATEMENT &&
-        event.speaker_role === Roles.PLAINTIFF,
-    ),
-  );
+  userRole?: Roles,
+): number {
+  let count = 0;
+
+  for (let index = (proceedings?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const event = proceedings?.[index];
+    if (!event) continue;
+
+    if (
+      event.type === CourtroomProceedingsEventType.WITNESS_CALLED ||
+      event.type === CourtroomProceedingsEventType.WITNESS_DISMISSED
+    ) {
+      break;
+    }
+
+    if (
+      event.type === CourtroomProceedingsEventType.ARGUMENT ||
+      (event.type === CourtroomProceedingsEventType.OPENING_STATEMENT &&
+        event.speaker_role === userRole)
+    ) {
+      count += 1;
+    }
+  }
+
+  return count;
 }
 
 export default function Courtroom({
@@ -87,6 +106,8 @@ export default function Courtroom({
   const [error, setError] = useState("");
   const [argument, setArgument] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWitnessDecisionPending, setIsWitnessDecisionPending] =
+    useState(false);
   const [currentRole, setCurrentRole] = useState<Roles>(
     (urlRole as Roles) || Roles.PLAINTIFF,
   );
@@ -113,6 +134,10 @@ export default function Courtroom({
   // Controlled state for witness drawer (used when AI calls a witness)
   const [witnessDrawerOpen, setWitnessDrawerOpen] = useState(false);
 
+  // Guards to prevent repeated/concurrent AI witness calls
+  const isCheckingWitnessRef = useRef(false);
+  const lastWitnessCheckRef = useRef(0);
+
   // Session popup states
   const [showSessionPopup, setShowSessionPopup] = useState(false);
   const [showAdjournedPopup, setShowAdjournedPopup] = useState(false);
@@ -120,10 +145,14 @@ export default function Courtroom({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const argumentTextareaRef = useRef<SettingsAwareTextAreaRef>(null);
   const previousCaseStatusRef = useRef<CaseStatus | null>(null);
+  const rateLimitRequestRef = useRef<Promise<RateLimitInfo> | null>(null);
 
   const timelineEvents = useMemo<CourtroomProceedingsEvent[]>(
     () => caseData?.courtroom_proceedings ?? [],
     [caseData?.courtroom_proceedings],
+  );
+  const isWitnessActive = Boolean(
+    caseData?.current_witness_id || caseData?.is_ai_examining,
   );
 
   // Auto-scroll to bottom when timeline events change (e.g., AI responds)
@@ -135,8 +164,19 @@ export default function Courtroom({
 
   // Fetch rate limit information and update countdown timer
   const fetchRateLimitInfo = useCallback(async () => {
+    if (rateLimitRequestRef.current) {
+      try {
+        await rateLimitRequestRef.current;
+      } catch {
+        // The owner request logs failures; duplicate callers should only dedupe.
+      }
+      return;
+    }
+
     try {
-      const limitInfo = await argumentRateLimitAPI.getArgumentRateLimit();
+      const request = argumentRateLimitAPI.getArgumentRateLimit();
+      rateLimitRequestRef.current = request;
+      const limitInfo = await request;
 
       setRateLimit(limitInfo);
 
@@ -147,16 +187,16 @@ export default function Courtroom({
       }
     } catch (error) {
       logger.error("Error fetching rate limit info", error as Error);
+    } finally {
+      rateLimitRequestRef.current = null;
     }
   }, []);
 
   const fetchCaseDetails = useCallback(
-    async (isPolling = false) => {
+    async () => {
       try {
-        if (!isPolling) {
-          // DEV DELAY - Remove in production
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
+        // DEV DELAY - Remove in production
+        await new Promise((resolve) => setTimeout(resolve, 2000));
 
         const data = await caseAPI.getCase(cnr);
         setCaseData(data);
@@ -165,35 +205,28 @@ export default function Courtroom({
           countUserArguments(data.courtroom_proceedings) >= 3,
         );
 
-        // Role detection (skip if polling to avoid UI flickering/resets)
-        if (!isPolling) {
-          if (
-            data.user_role &&
-            data.user_role !== Roles.NOT_STARTED &&
-            data.user_role !== "not_started"
-          ) {
-            setCurrentRole(data.user_role as Roles);
-          } else if (urlRole && urlRole !== Roles.NOT_STARTED) {
-            setCurrentRole(urlRole as Roles);
-          } else {
-            setCurrentRole(Roles.PLAINTIFF);
-          }
+        if (
+          data.user_role &&
+          data.user_role !== Roles.NOT_STARTED &&
+          data.user_role !== "not_started"
+        ) {
+          setCurrentRole(data.user_role as Roles);
+        } else if (urlRole && urlRole !== Roles.NOT_STARTED) {
+          setCurrentRole(urlRole as Roles);
+        } else {
+          setCurrentRole(Roles.PLAINTIFF);
+        }
 
-          if (data.status === CaseStatus.NOT_STARTED && urlRole) {
-            setCurrentRole(urlRole as Roles);
-          }
+        if (data.status === CaseStatus.NOT_STARTED && urlRole) {
+          setCurrentRole(urlRole as Roles);
         }
 
         await fetchRateLimitInfo();
       } catch (error) {
-        if (!isPolling) {
-          setError("Failed to load case details. Please try again later.");
-        }
+        setError("Failed to load case details. Please try again later.");
         logger.error("Error fetching case details", error as Error);
       } finally {
-        if (!isPolling) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     },
     [cnr, urlRole, fetchRateLimitInfo],
@@ -203,15 +236,26 @@ export default function Courtroom({
     fetchCaseDetails();
   }, [fetchCaseDetails]);
 
-  // Polling for AI updates
-  useEffect(() => {
-    if (caseData?.is_ai_examining) {
-      const interval = setInterval(() => {
-        fetchCaseDetails(true);
-      }, 1500); // Poll every 1.5s
-      return () => clearInterval(interval);
+  const handleWitnessUpdate = useCallback(async () => {
+    try {
+      const updatedCase = await caseAPI.getCase(cnr);
+      setCaseData(updatedCase);
+      setShowClosingButton(
+        countUserArguments(updatedCase.courtroom_proceedings) >= 3,
+      );
+
+      const hasActiveWitness = Boolean(
+        updatedCase.current_witness_id || updatedCase.is_ai_examining,
+      );
+
+      if (!hasActiveWitness) {
+        setWitnessDrawerOpen(false);
+        setTimeout(() => argumentTextareaRef.current?.focus(), 100);
+      }
+    } catch (err) {
+      logger.error("Failed to refresh case after witness update", err as Error);
     }
-  }, [caseData?.is_ai_examining, fetchCaseDetails]);
+  }, [cnr]);
 
   // Update countdown timer every second
   useEffect(() => {
@@ -295,48 +339,6 @@ export default function Courtroom({
     }
   };
 
-  // Poll for courtroom proceedings updates to catch plaintiff opening statement
-  // This is especially important when user selects defendant role
-  useEffect(() => {
-    // Only set up polling if we have case data and the case is active
-    if (!caseData || caseData.status !== CaseStatus.ACTIVE) return;
-
-    // Check if user is defendant and there is no plaintiff opening yet
-    const isDefendantWithNoPlaintiffArgs =
-      currentRole === Roles.DEFENDANT &&
-      !hasPlaintiffOpening(caseData.courtroom_proceedings);
-
-    // If we're in this state, poll for updates
-    if (isDefendantWithNoPlaintiffArgs) {
-      logger.debug("Setting up polling for plaintiff opening statement");
-
-      const pollInterval = setInterval(async () => {
-        try {
-          logger.debug("Polling for courtroom proceedings updates");
-          const updatedCase = await caseAPI.getCase(cnr);
-
-          if (hasPlaintiffOpening(updatedCase.courtroom_proceedings)) {
-            logger.debug(
-              "Found plaintiff opening statement, updating case data",
-            );
-            setCaseData(updatedCase);
-            clearInterval(pollInterval); // Stop polling once we find the opening statement
-          }
-        } catch (pollError) {
-          logger.error(
-            "Error polling courtroom proceedings",
-            pollError as Error,
-          );
-        }
-      }, 2000); // Poll every 2 seconds
-
-      return () => {
-        logger.debug("Cleaning up polling interval");
-        clearInterval(pollInterval);
-      };
-    }
-  }, [caseData, currentRole, cnr]);
-
   const handleSubmitArgument = async () => {
     if (!argument.trim()) return;
 
@@ -354,9 +356,6 @@ export default function Courtroom({
       setIsSubmitting(false);
       setArgument("");
 
-      // Auto-focus the textarea for next input
-      setTimeout(() => argumentTextareaRef.current?.focus(), 100);
-
       // Refresh rate limit info after successful submission
       fetchRateLimitInfo();
 
@@ -365,31 +364,66 @@ export default function Courtroom({
       );
 
       // Check if AI wants to call a witness (only if no witness is currently on stand)
-      // We do this after the argument flow is updated
-      setTimeout(async () => {
-        try {
-          const currentWitness = await witnessAPI.getCurrentWitness(cnr);
-          if (!currentWitness.has_witness) {
-            const witnessCall = await witnessAPI.aiCallWitness(cnr);
-            if (witnessCall.should_call) {
-              // Show popup alert to user
-              setAiWitnessAlert({
-                isOpen: true,
-                witnessName: witnessCall.witness_name,
-                message: witnessCall.message,
-              });
-              // Auto-dismiss popup after 4s and open the witness drawer
-              setTimeout(() => {
-                setAiWitnessAlert((prev) => ({ ...prev, isOpen: false }));
+      // Guarded: skip if already checking or if checked recently (30s cooldown)
+      const now = Date.now();
+      const WITNESS_CHECK_COOLDOWN_MS = 30_000;
+      const shouldCheckWitness =
+        countUserArgumentsSinceLastWitnessActivity(
+          updatedCase.courtroom_proceedings,
+          currentRole,
+        ) >= MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS;
+      const canCheckWitness =
+        shouldCheckWitness &&
+        !isCheckingWitnessRef.current &&
+        now - lastWitnessCheckRef.current > WITNESS_CHECK_COOLDOWN_MS;
+
+      if (canCheckWitness) {
+        setIsWitnessDecisionPending(true);
+        setTimeout(async () => {
+          if (isCheckingWitnessRef.current) {
+            setIsWitnessDecisionPending(false);
+            return;
+          }
+
+          isCheckingWitnessRef.current = true;
+          lastWitnessCheckRef.current = Date.now();
+          let didCallWitness = false;
+          try {
+            const currentWitness = await witnessAPI.getCurrentWitness(cnr);
+            if (!currentWitness.has_witness) {
+              const witnessCall = await witnessAPI.aiCallWitness(cnr);
+              if (witnessCall.should_call) {
+                didCallWitness = true;
+                const caseWithWitness = await caseAPI.getCase(cnr);
+                setCaseData(caseWithWitness);
                 setWitnessDrawerOpen(true);
                 setRefreshWitnessPanel((p) => p + 1);
-              }, 4000);
+                // Show popup alert to user
+                setAiWitnessAlert({
+                  isOpen: true,
+                  witnessName: witnessCall.witness_name,
+                  message: witnessCall.message,
+                });
+                // Auto-dismiss popup after a short handoff; drawer opens immediately.
+                setTimeout(() => {
+                  setAiWitnessAlert((prev) => ({ ...prev, isOpen: false }));
+                }, 1500);
+              }
+            }
+          } catch (err) {
+            logger.error("Failed to check for AI witness call", err as Error);
+          } finally {
+            isCheckingWitnessRef.current = false;
+            setIsWitnessDecisionPending(false);
+            if (!didCallWitness) {
+              setTimeout(() => argumentTextareaRef.current?.focus(), 100);
             }
           }
-        } catch (err) {
-          logger.error("Failed to check for AI witness call", err as Error);
-        }
-      }, 2000); // Small delay to let the user read the argument first
+        }, 2000); // Small delay to let the user read the argument first
+      } else {
+        // Auto-focus the textarea for next input
+        setTimeout(() => argumentTextareaRef.current?.focus(), 100);
+      }
     } catch (error) {
       logger.error("Error submitting argument", error as Error);
       setError("Failed to submit argument. Please try again.");
@@ -594,9 +628,7 @@ export default function Courtroom({
                   userRole={currentRole}
                   externalOpen={witnessDrawerOpen}
                   onExternalOpenChange={setWitnessDrawerOpen}
-                  onWitnessUpdate={() => {
-                    // Optional: Reload case data if needed
-                  }}
+                  onWitnessUpdate={handleWitnessUpdate}
                 />
                 <Button
                   variant="outline"
@@ -620,6 +652,10 @@ export default function Courtroom({
                   <DrawerContent className="h-[80vh]">
                     <DrawerHeader className="pb-4 border-b">
                       <DrawerTitle>Case Details</DrawerTitle>
+                      <DrawerDescription className="sr-only">
+                        Review the full case details, parties, evidence, and
+                        courtroom context.
+                      </DrawerDescription>
                     </DrawerHeader>
                     <ScrollArea className="h-[calc(100vh-10rem)]">
                       <div className="p-6">
@@ -1114,6 +1150,18 @@ export default function Courtroom({
                 </div>
               </div>
             )}
+            {isWitnessDecisionPending && (
+              <div className="mt-2 p-2 sm:p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg text-sm text-purple-800 dark:text-purple-200">
+                The opposition lawyer is considering whether to call a witness.
+                Please wait before submitting another statement.
+              </div>
+            )}
+            {isWitnessActive && !isWitnessDecisionPending && (
+              <div className="mt-2 p-2 sm:p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg text-sm text-purple-800 dark:text-purple-200">
+                A witness is currently on the stand. Continue from the witness
+                panel before submitting another statement.
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 pt-2 sm:pt-3 gap-2 sm:gap-0">
               <div className="flex-1">
                 <SettingsAwareTextArea
@@ -1127,6 +1175,8 @@ export default function Courtroom({
                   maxHeight={120}
                   disabled={
                     isSubmitting ||
+                    isWitnessDecisionPending ||
+                    isWitnessActive ||
                     !caseData ||
                     caseData.status !== CaseStatus.ACTIVE
                   }
@@ -1139,12 +1189,20 @@ export default function Courtroom({
                   onClick={handleSubmitArgument}
                   disabled={
                     isSubmitting ||
+                    isWitnessDecisionPending ||
+                    isWitnessActive ||
                     !argument.trim() ||
                     (timeRemaining !== null && timeRemaining > 0)
                   }
                   className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                 >
-                  {isSubmitting ? "Submitting..." : "Submit Argument"}
+                  {isSubmitting
+                    ? "Submitting..."
+                    : isWitnessDecisionPending
+                      ? "Witness check..."
+                      : isWitnessActive
+                        ? "Witness active"
+                      : "Submit Argument"}
                 </button>
 
                 {showClosingButton && (
@@ -1152,12 +1210,20 @@ export default function Courtroom({
                     onClick={handleSubmitClosingStatement}
                     disabled={
                       isSubmitting ||
+                      isWitnessDecisionPending ||
+                      isWitnessActive ||
                       !argument.trim() ||
                       (timeRemaining !== null && timeRemaining > 0)
                     }
                     className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                   >
-                    {isSubmitting ? "Submitting..." : "Submit Closing"}
+                    {isSubmitting
+                      ? "Submitting..."
+                      : isWitnessDecisionPending
+                        ? "Witness check..."
+                        : isWitnessActive
+                          ? "Witness active"
+                        : "Submit Closing"}
                   </button>
                 )}
               </div>

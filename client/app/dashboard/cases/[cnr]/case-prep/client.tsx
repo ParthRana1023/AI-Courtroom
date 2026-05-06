@@ -17,6 +17,7 @@ import EvidencePanel from "@/components/evidence-panel";
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
@@ -500,6 +501,9 @@ export default function CasePrepPage({
             <DrawerTitle>
               Chat with {stripMarkdown(selectedPerson?.name || "Person")}
             </DrawerTitle>
+            <DrawerDescription className="sr-only">
+              Review and send preparation chat messages for the selected party.
+            </DrawerDescription>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {selectedPerson?.role === PersonRole.APPLICANT
                 ? "Applicant"

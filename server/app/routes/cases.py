@@ -3,7 +3,13 @@ import time
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from beanie import PydanticObjectId
-from app.models.case import Case, CaseStatus, Roles
+from app.models.case import (
+    Case,
+    CaseStatus,
+    CourtroomProceedingsEvent,
+    CourtroomProceedingsEventType,
+    Roles,
+)
 from app.schemas.case import CaseCreate, CaseOut
 from app.dependencies import get_current_user
 from app.services.llm.case_generation import generate_case
@@ -16,6 +22,7 @@ from app.services.rag import (
 )
 from app.utils.rate_limiter import case_generation_rate_limiter
 from app.models.user import User
+from app.utils.datetime import get_current_datetime
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -203,6 +210,44 @@ async def update_case_status(
         case.session_args_at_start = user_arg_count
 
     old_status = case.status
+
+    if new_status == CaseStatus.ADJOURNED.value:
+        case.is_ai_examining = False
+
+        if case.current_witness_id:
+            witness_id = case.current_witness_id
+            witness_name = None
+
+            for i, testimony in enumerate(case.witness_testimonies):
+                if testimony.witness_id == witness_id and testimony.ended_at is None:
+                    case.witness_testimonies[i].ended_at = get_current_datetime()
+                    witness_name = testimony.witness_name
+                    break
+
+            if witness_name is None:
+                for party in case.parties_involved:
+                    if party.id == witness_id:
+                        witness_name = party.name
+                        break
+
+            case.current_witness_id = None
+            case.courtroom_proceedings.append(
+                CourtroomProceedingsEvent(
+                    type=CourtroomProceedingsEventType.WITNESS_DISMISSED,
+                    content=(
+                        f"{witness_name or 'Witness'} dismissed from the stand "
+                        "because the court was adjourned."
+                    ),
+                    speaker_role="judge",
+                    speaker_name="Judge",
+                    witness_id=witness_id,
+                    timestamp=get_current_datetime(),
+                )
+            )
+            logger.info(
+                f"Dismissed active witness for case {cnr} during adjournment"
+            )
+
     case.status = new_status
     try:
         await case.save()

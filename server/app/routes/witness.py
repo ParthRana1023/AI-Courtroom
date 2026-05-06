@@ -37,6 +37,7 @@ from app.utils.datetime import get_current_datetime
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2
 
 router = APIRouter()
 
@@ -60,6 +61,27 @@ def get_current_testimony(case: Case) -> Optional[WitnessTestimony]:
         ):
             return testimony
     return None
+
+
+def count_arguments_since_last_witness_activity(case: Case) -> int:
+    """Count user courtroom statements since the latest witness activity."""
+    count = 0
+    user_role = case.user_role.value if case.user_role != Roles.NOT_STARTED else None
+
+    for event in reversed(case.courtroom_proceedings):
+        if event.type in {
+            CourtroomProceedingsEventType.WITNESS_CALLED,
+            CourtroomProceedingsEventType.WITNESS_DISMISSED,
+        }:
+            break
+
+        if event.type == CourtroomProceedingsEventType.ARGUMENT or (
+            event.type == CourtroomProceedingsEventType.OPENING_STATEMENT
+            and event.speaker_role == user_role
+        ):
+            count += 1
+
+    return count
 
 
 @router.get("/{case_cnr}/witness/available")
@@ -396,10 +418,6 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
         questions_to_ask = random.randint(max(2, max_questions - 2), max_questions)
         questions_asked_count = 0
 
-        # Initial delay to simulate AI reviewing the case
-        logger.info("AI 'thinking' before starting examination...")
-        await asyncio.sleep(3)
-
         initial_witness_id = case.current_witness_id
 
         for i in range(questions_to_ask):
@@ -507,9 +525,8 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                 },
             )
 
-            # Delay before answer
-            logger.info("Waiting 3s for witness answer...")
-            await asyncio.sleep(3)
+            # Brief pause before the witness answers so the exchange feels sequential.
+            await asyncio.sleep(1)
 
             try:
                 answer_context = await retrieve_case_context(
@@ -591,9 +608,8 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
 
             questions_asked_count += 1
 
-            # Delay before next question
-            logger.info("Waiting 3s before next question...")
-            await asyncio.sleep(3)
+            # Brief pause before the next question.
+            await asyncio.sleep(1)
 
     except Exception as e:
         logger.error(f"Error in background examination: {e}", exc_info=True)
@@ -658,7 +674,7 @@ async def ai_cross_examine_witness(
 
     # Return immediate response
     # We return an empty list of examinations because they will be generated in background
-    # The frontend should see 'state'="ai_cross_examining" and start polling
+    # The frontend should see 'state'="ai_cross_examining" and refresh witness state
     party = get_party_by_id(case, case.current_witness_id)
 
     return AICrossExaminationResponse(
@@ -712,6 +728,7 @@ async def conclude_witness(
 
     witness_id = case.current_witness_id
     case.current_witness_id = None
+    case.is_ai_examining = False
 
     case.courtroom_proceedings.append(
         CourtroomProceedingsEvent(
@@ -928,8 +945,22 @@ async def ai_call_witness(
             detail="Can only call witnesses during an active courtroom session",
         )
 
+    if case.is_ai_examining:
+        raise HTTPException(
+            status_code=409, detail="AI is already examining a witness"
+        )
+
     if case.current_witness_id:
         return {"should_call": False, "reason": "A witness is already on the stand"}
+
+    arguments_since_witness = count_arguments_since_last_witness_activity(case)
+    if arguments_since_witness < MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS:
+        return {
+            "should_call": False,
+            "reason": (
+                "Skipping witness evaluation until more arguments are presented"
+            ),
+        }
 
     # Get AI role
     ai_role = case.ai_role.value if case.ai_role != Roles.NOT_STARTED else "defendant"
