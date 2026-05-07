@@ -35,7 +35,8 @@ async def examine_witness(
         examiner_role: Who is asking ('plaintiff', 'defendant', or 'judge')
         question: The question being asked
         case_details: The case document for context
-        examination_history: Previous Q&A in this examination session
+        examination_history: Previous Q&A in this examination session (optional if RAG is used)
+        rag_context: Optional RAG context containing relevant history
 
     Returns:
         The witness's response to the question
@@ -55,7 +56,7 @@ async def examine_witness(
         "judge": "the Honorable Judge",
     }.get(examiner_role, "a lawyer")
 
-    # Format examination history
+    # Format examination history - only if provided and RAG is not the primary source
     history_text = ""
     if examination_history:
         for item in examination_history[-8:]:  # Last 8 exchanges
@@ -63,8 +64,10 @@ async def examine_witness(
                 f"Q ({item.get('examiner', 'Lawyer')}): {item.get('question', '')}\n"
             )
             history_text += f"A ({witness_name}): {item.get('answer', '')}\n\n"
+    elif rag_context:
+        history_text = "(Relevant testimony history retrieved via RAG context)"
 
-    case_context = rag_context or case_details[:3000]
+    case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
 
     template = f"""You are role-playing as {witness_name}, a {role_description} in a legal case.
 You are on the witness stand being examined by {examiner_description}.
@@ -165,7 +168,7 @@ async def generate_cross_examination_questions(
         else "friendly witness (your client's side)"
     )
 
-    case_context = rag_context or case_details[:2500]
+    case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
 
     template = f"""You are an experienced Indian trial lawyer representing the {ai_lawyer_role}.
 You are cross-examining {witness_name}, who is a {witness_stance}.
@@ -255,7 +258,7 @@ async def should_ai_call_witness(
         ]
     )
 
-    case_context = rag_context or case_details[:2000]
+    case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
 
     template = f"""You are an experienced Indian trial lawyer representing the {ai_role}.
 
@@ -387,7 +390,7 @@ async def should_continue_cross_examination(
     if questions_asked == 0:
         return True
 
-    case_context = rag_context or "(No additional retrieved case context)"
+    case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
 
     # Format recent testimony
     testimony_text = ""

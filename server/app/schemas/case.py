@@ -39,9 +39,6 @@ class EvidenceOut(BaseModel):
     evidence_type: str
     description: str
     source: Optional[str] = None
-    relevance: Optional[str] = None
-    supports_side: str = "unknown"
-    bns_sections: List[str] = []
     image_prompt: Optional[str] = None
     image_url: Optional[str] = None
     image_public_id: Optional[str] = None

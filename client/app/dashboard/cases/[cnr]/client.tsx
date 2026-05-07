@@ -56,30 +56,8 @@ export default function CaseDetails({
       const aiRole = role === "plaintiff" ? Roles.DEFENDANT : Roles.PLAINTIFF;
       await caseAPI.updateCaseRoles(cnr, userRole, aiRole);
 
-      // If user selects defendant role, navigate first, then generate plaintiff opening statement after a delay
-      if (role === "defendant") {
-        // Navigate to case prep first
-        router.push(`/dashboard/cases/${cnr}/case-prep?role=${role}`);
-
-        // Wait 2 seconds before generating the plaintiff opening statement
-        setTimeout(async () => {
-          logger.info(
-            "Generating plaintiff opening statement for defendant user",
-          );
-          try {
-            await caseAPI.generatePlaintiffOpening(cnr);
-            logger.info("Successfully generated plaintiff opening statement");
-          } catch (error) {
-            logger.error(
-              "Failed to generate plaintiff opening statement",
-              error as Error,
-            );
-          }
-        }, 2000); // 2 second delay
-      } else {
-        // For plaintiff role, navigate to case prep first
-        router.push(`/dashboard/cases/${cnr}/case-prep?role=${role}`);
-      }
+      // Navigate to case prep
+      router.push(`/dashboard/cases/${cnr}/case-prep?role=${role}`);
     } catch (error) {
       logger.error("Failed to update case role", error as Error);
       // Optionally show an error message to the user

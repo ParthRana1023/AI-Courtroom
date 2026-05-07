@@ -5,9 +5,11 @@ from app.models.case import Case, CaseStatus
 from app.dependencies import get_current_user
 from app.services.llm import lawyer
 from app.services.llm import judge
+from app.services.llm import witness_service
 from app.models.user import User
 from app.utils.rate_limiter import argument_rate_limiter
 from app.utils.datetime import get_current_datetime
+from app.config import settings
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.models.case import (
     ArgumentItem,
@@ -22,6 +24,174 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def get_party_by_id(case: Case, party_id: str):
+    for party in case.parties_involved:
+        if party.id == party_id:
+            return party
+    return None
+
+
+def argument_content(argument_item):
+    return (
+        argument_item.content
+        if isinstance(argument_item, ArgumentItem)
+        else argument_item.get("content")
+    )
+
+
+def argument_user_id(argument_item):
+    return (
+        argument_item.user_id
+        if isinstance(argument_item, ArgumentItem)
+        else argument_item.get("user_id")
+    )
+
+
+def set_argument_content(argument_item, content: str):
+    if isinstance(argument_item, ArgumentItem):
+        argument_item.content = content
+    else:
+        argument_item["content"] = content
+
+
+def build_argument_history_until(
+    case: Case, event_index: int, replacement_event_id: str | None = None
+) -> str:
+    history = ""
+    for event in case.courtroom_proceedings[:event_index]:
+        if event.id == replacement_event_id:
+            continue
+        if event.type in {
+            CourtroomProceedingsEventType.ARGUMENT,
+            CourtroomProceedingsEventType.AI_ARGUMENT,
+            CourtroomProceedingsEventType.OPENING_STATEMENT,
+        }:
+            history += f"{event.speaker_role or 'lawyer'}: {event.content or ''}\n"
+    return history
+
+
+def update_matching_ai_argument(case: Case, event, old_content: str, new_content: str):
+    argument_list = (
+        case.plaintiff_arguments
+        if event.speaker_role == Roles.PLAINTIFF.value
+        else case.defendant_arguments
+    )
+
+    for argument_item in reversed(argument_list):
+        if argument_user_id(argument_item) is not None:
+            continue
+        if argument_content(argument_item) == old_content:
+            set_argument_content(argument_item, new_content)
+            return
+
+    for argument_item in reversed(argument_list):
+        if argument_user_id(argument_item) is None:
+            set_argument_content(argument_item, new_content)
+            return
+
+
+def update_matching_witness_answer(
+    case: Case,
+    witness_id: str | None,
+    question: str | None,
+    old_answer: str,
+    new_answer: str,
+):
+    for testimony in reversed(case.witness_testimonies):
+        if witness_id and testimony.witness_id != witness_id:
+            continue
+        for item in reversed(testimony.examination):
+            if item.question == question and item.answer == old_answer:
+                item.answer = new_answer
+                return item.id
+    return None
+
+
+def remove_proceedings_after(case: Case, event_index: int):
+    """
+    Removes all courtroom proceedings and associated data that occurred after the given event index.
+    This effectively rolls back the case state to that point in time.
+    """
+    if event_index >= len(case.courtroom_proceedings) - 1:
+        return
+
+    events_to_remove = case.courtroom_proceedings[event_index + 1 :]
+    logger.info(
+        f"Rolling back case {case.cnr}: removing {len(events_to_remove)} events after index {event_index}"
+    )
+
+    # We process in reverse order to correctly restore state (like current_witness_id)
+    for event in reversed(events_to_remove):
+        if event.type in {
+            CourtroomProceedingsEventType.ARGUMENT,
+            CourtroomProceedingsEventType.AI_ARGUMENT,
+            CourtroomProceedingsEventType.OPENING_STATEMENT,
+        }:
+            # Remove from plaintiff_arguments or defendant_arguments
+            args = (
+                case.plaintiff_arguments
+                if event.speaker_role == Roles.PLAINTIFF.value
+                else case.defendant_arguments
+            )
+            # Match by content. Using reversed to get the most recent one.
+            for i in range(len(args) - 1, -1, -1):
+                arg_content = (
+                    args[i].content
+                    if isinstance(args[i], ArgumentItem)
+                    else args[i]["content"]
+                )
+                if arg_content == event.content:
+                    args.pop(i)
+                    logger.debug(f"Removed argument matching event {event.id}")
+                    break
+
+        elif event.type == CourtroomProceedingsEventType.WITNESS_EXAMINED_A:
+            # Witness answers are stored in witness_testimonies.examination
+            for testimony in case.witness_testimonies:
+                if testimony.witness_id == event.witness_id:
+                    for i in range(len(testimony.examination) - 1, -1, -1):
+                        if testimony.examination[i].answer == event.content:
+                            testimony.examination.pop(i)
+                            logger.debug(
+                                f"Removed witness answer matching event {event.id}"
+                            )
+                            break
+
+        elif event.type == CourtroomProceedingsEventType.WITNESS_CALLED:
+            # If we remove a WITNESS_CALLED event, the witness is no longer on the stand
+            case.current_witness_id = None
+            case.is_ai_examining = False
+            # Also remove the testimony session if it's empty
+            for i in range(len(case.witness_testimonies) - 1, -1, -1):
+                if (
+                    case.witness_testimonies[i].witness_id == event.witness_id
+                    and not case.witness_testimonies[i].examination
+                ):
+                    case.witness_testimonies.pop(i)
+                    logger.debug(
+                        f"Removed empty testimony session for {event.witness_id}"
+                    )
+                    break
+
+        elif event.type == CourtroomProceedingsEventType.WITNESS_DISMISSED:
+            # If we remove a WITNESS_DISMISSED event, the witness is back on the stand
+            case.current_witness_id = event.witness_id
+            # Also reset ended_at for the most recent testimony of this witness
+            for testimony in reversed(case.witness_testimonies):
+                if testimony.witness_id == event.witness_id:
+                    testimony.ended_at = None
+                    logger.debug(f"Restored witness {event.witness_id} to the stand")
+                    break
+
+    # Truncate proceedings
+    case.courtroom_proceedings = case.courtroom_proceedings[: event_index + 1]
+
+    # If case was resolved, it might not be anymore since we removed subsequent events
+    if case.status == CaseStatus.RESOLVED:
+        case.status = CaseStatus.ACTIVE
+        logger.info(f"Case {case.cnr} status reverted to ACTIVE")
+
+
 @router.post("/{case_cnr}/arguments")
 async def submit_argument(
     case_cnr: str,
@@ -29,7 +199,6 @@ async def submit_argument(
     argument: str = Body(...),
     is_closing: bool = Body(False),
     current_user: User = Depends(get_current_user),
-    _rate_check: User = Depends(argument_rate_limiter.check_only),
 ):
     logger.info(
         f"Argument submission for case {case_cnr}, role={role}, length={len(argument)}"
@@ -163,12 +332,12 @@ async def submit_argument(
                 ],
             )
             ai_plaintiff_counter = await lawyer.generate_counter_argument(
-                history,
                 argument,
                 "plaintiff",
                 case.user_role.value,
                 case.details,
                 rag_context=counter_context,
+                history=history if not settings.rag_enabled else None
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Plaintiff counter-argument generated in {duration_ms:.2f}ms")
@@ -376,7 +545,7 @@ async def submit_argument(
             detail=f"Cannot switch roles. Previously participated as {', '.join(existing_roles)}",
         )
     else:
-        user_id = current_user.id if current_user.id is not None else ""
+        user_id = current_user.id
 
         if role == "plaintiff":
             case.plaintiff_arguments.append(
@@ -424,26 +593,26 @@ async def submit_argument(
     if role == "plaintiff":
         for arg in case.plaintiff_arguments:
             content = (
-                arg.content if isinstance(arg, ArgumentItem) else arg.get("content")
+                arg.content if isinstance(arg, ArgumentItem) else arg["content"]
             )
             if content:
                 history += f"Plaintiff: {content}\n"
         for arg in case.defendant_arguments:
             content = (
-                arg.content if isinstance(arg, ArgumentItem) else arg.get("content")
+                arg.content if isinstance(arg, ArgumentItem) else arg["content"]
             )
             if content:
                 history += f"Defendant: {content}\n"
     else:
         for arg in case.defendant_arguments:
             content = (
-                arg.content if isinstance(arg, ArgumentItem) else arg.get("content")
+                arg.content if isinstance(arg, ArgumentItem) else arg["content"]
             )
             if content:
                 history += f"Defendant: {content}\n"
         for arg in case.plaintiff_arguments:
             content = (
-                arg.content if isinstance(arg, ArgumentItem) else arg.get("content")
+                arg.content if isinstance(arg, ArgumentItem) else arg["content"]
             )
             if content:
                 history += f"Plaintiff: {content}\n"
@@ -510,7 +679,11 @@ async def submit_argument(
             ],
         )
         counter = await lawyer.closing_statement(
-            history, ai_role, case.user_role.value, rag_context=closing_context
+            ai_role, 
+            case.user_role.value, 
+            case_details=case.details,
+            rag_context=closing_context,
+            history=history if not settings.rag_enabled else None
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"AI closing statement generated in {duration_ms:.2f}ms")
@@ -555,12 +728,12 @@ async def submit_argument(
                 ],
             )
             counter = await lawyer.generate_counter_argument(
-                history,
                 argument,
                 ai_role,
                 case.user_role.value,
                 case.details,
                 rag_context=counter_context,
+                history=history if not settings.rag_enabled else None
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(
@@ -720,13 +893,224 @@ async def submit_argument(
     return response_data
 
 
+@router.post("/{case_cnr}/proceedings/{event_id}/regenerate")
+async def regenerate_short_llm_response(
+    case_cnr: str,
+    event_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    logger.info(f"Regenerating LLM response for case {case_cnr}, event {event_id}")
+
+    case = await Case.find_one(Case.cnr == case_cnr)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    if str(case.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=403, detail="You don't have permission to access this case"
+        )
+
+    event_index = next(
+        (
+            index
+            for index, event in enumerate(case.courtroom_proceedings)
+            if event.id == event_id
+        ),
+        None,
+    )
+    if event_index is None:
+        raise HTTPException(status_code=404, detail="Proceeding event not found")
+
+    event = case.courtroom_proceedings[event_index]
+    old_content = event.content or ""
+
+    if event.type not in {
+        CourtroomProceedingsEventType.AI_ARGUMENT,
+        CourtroomProceedingsEventType.OPENING_STATEMENT,
+        CourtroomProceedingsEventType.WITNESS_EXAMINED_A,
+    }:
+        raise HTTPException(
+            status_code=400, detail="This proceeding event cannot be regenerated"
+        )
+
+    user_role = (
+        case.user_role.value
+        if case.user_role != Roles.NOT_STARTED
+        else ("defendant" if event.speaker_role == "plaintiff" else "plaintiff")
+    )
+    ai_role = event.speaker_role or (
+        "defendant" if user_role == "plaintiff" else "plaintiff"
+    )
+
+    # Delete all proceedings following this response as per requirement
+    remove_proceedings_after(case, event_index)
+
+    try:
+        if event.type == CourtroomProceedingsEventType.WITNESS_EXAMINED_A:
+            witness_party = get_party_by_id(case, event.witness_id or "")
+            question_event = next(
+                (
+                    previous
+                    for previous in reversed(case.courtroom_proceedings[:event_index])
+                    if previous.type == CourtroomProceedingsEventType.WITNESS_EXAMINED_Q
+                    and previous.witness_id == event.witness_id
+                ),
+                None,
+            )
+            question = event.question or (
+                question_event.question if question_event else None
+            )
+            if not witness_party or not question:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot regenerate witness response without witness and question context",
+                )
+
+            examination_history = []
+            for testimony in case.witness_testimonies:
+                if testimony.witness_id == event.witness_id:
+                    examination_history = [
+                        {
+                            "examiner": item.examiner,
+                            "question": item.question,
+                            "answer": item.answer,
+                        }
+                        for item in testimony.examination
+                        if item.answer != old_content
+                    ]
+                    break
+
+            rag_context = await retrieve_case_context(
+                case,
+                f"regenerate witness {witness_party.name} answer: {question}",
+                source_types=[
+                    "case_details",
+                    "evidence",
+                    "party_bio",
+                    "party_chat",
+                    "argument",
+                    "proceeding",
+                    "witness_testimony",
+                ],
+            )
+            new_content = await witness_service.examine_witness(
+                witness_name=witness_party.name,
+                witness_role=witness_party.role.value,
+                witness_bio=witness_party.bio or "",
+                examiner_role=(
+                    question_event.speaker_role if (question_event and question_event.speaker_role) else ai_role
+                ),
+                question=question,
+                case_details=case.details,
+                examination_history=examination_history if not settings.rag_enabled else None,
+                rag_context=rag_context,
+            )
+
+            testimony_item_id = update_matching_witness_answer(
+                case, event.witness_id, question, old_content, new_content
+            )
+            event.answer = new_content
+            await upsert_memory_item(
+                case,
+                "witness_testimony",
+                testimony_item_id or event.id,
+                f"Q: {question}\nA: {new_content}",
+                {
+                    "witness_id": event.witness_id,
+                    "witness_name": witness_party.name,
+                    "examiner": (
+                        question_event.speaker_role if question_event else ai_role
+                    ),
+                },
+            )
+        elif event.type == CourtroomProceedingsEventType.OPENING_STATEMENT:
+            rag_context = await retrieve_case_context(
+                case,
+                f"regenerate {ai_role} opening statement",
+                source_types=["case_details", "evidence", "party_bio", "party_chat"],
+            )
+            new_content = await lawyer.opening_statement(
+                ai_role, case.details, user_role, rag_context=rag_context
+            )
+            update_matching_ai_argument(case, event, old_content, new_content)
+        else:
+            previous_user_event = next(
+                (
+                    previous
+                    for previous in reversed(case.courtroom_proceedings[:event_index])
+                    if previous.speaker_role == user_role
+                    and previous.type
+                    in {
+                        CourtroomProceedingsEventType.ARGUMENT,
+                        CourtroomProceedingsEventType.OPENING_STATEMENT,
+                    }
+                ),
+                None,
+            )
+            if not previous_user_event:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot regenerate AI response without a previous user argument",
+                )
+
+            history = build_argument_history_until(case, event_index, event.id)
+            rag_context = await retrieve_case_context(
+                case,
+                f"regenerate {ai_role} counter argument responding to: {previous_user_event.content}",
+                source_types=[
+                    "case_details",
+                    "evidence",
+                    "party_bio",
+                    "party_chat",
+                    "argument",
+                    "proceeding",
+                    "witness_testimony",
+                ],
+            )
+            new_content = await lawyer.generate_counter_argument(
+                previous_user_event.content or "",
+                ai_role,
+                user_role,
+                case.details,
+                rag_context=rag_context,
+                history=history if not settings.rag_enabled else None
+            )
+            update_matching_ai_argument(case, event, old_content, new_content)
+
+        event.content = new_content
+        case.courtroom_proceedings[event_index] = event
+        await case.save()
+        await upsert_memory_item(
+            case,
+            "proceeding",
+            event.id,
+            new_content,
+            {
+                "event_type": event.type.value,
+                "speaker_role": event.speaker_role,
+                "witness_id": event.witness_id,
+                "regenerated": True,
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to regenerate response: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to regenerate response")
+
+    return {
+        "success": True,
+        "event_id": event.id,
+        "content": new_content,
+    }
+
+
 @router.post("/{case_cnr}/closing-statement")
 async def submit_closing_statement(
     case_cnr: str,
     role: str = Body(...),
     statement: str = Body(...),
     current_user: User = Depends(get_current_user),
-    _rate_check: User = Depends(argument_rate_limiter.check_only),
 ):
     logger.info(f"Closing statement submission for case {case_cnr}, role={role}")
 
@@ -763,17 +1147,17 @@ async def submit_closing_statement(
     existing_roles = set()
     for arg in case.plaintiff_arguments:
         arg_user_id = (
-            arg.get("user_id")
-            if isinstance(arg, dict)
-            else getattr(arg, "user_id", None)
+            arg.user_id
+            if isinstance(arg, ArgumentItem)
+            else arg.get("user_id")
         )
         if arg_user_id is not None and str(arg_user_id) == str(current_user.id):
             existing_roles.add("plaintiff")
     for arg in case.defendant_arguments:
         arg_user_id = (
-            arg.get("user_id")
-            if isinstance(arg, dict)
-            else getattr(arg, "user_id", None)
+            arg.user_id
+            if isinstance(arg, ArgumentItem)
+            else arg.get("user_id")
         )
         if arg_user_id is not None and str(arg_user_id) == str(current_user.id):
             existing_roles.add("defendant")

@@ -24,6 +24,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -47,6 +57,33 @@ import { getErrorDetail } from "@/lib/error-utils";
 
 const logger = getLogger("courtroom");
 const MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2;
+const SHORT_LLM_RESPONSE_THRESHOLD = 20;
+
+type OptimisticCourtroomEvent = CourtroomProceedingsEvent & {
+  optimistic?: boolean;
+};
+
+function isShortLlmResponseEvent(
+  event: CourtroomProceedingsEvent,
+  currentRole: Roles,
+): boolean {
+  const isShort =
+    (event.content || "").trim().length < SHORT_LLM_RESPONSE_THRESHOLD;
+  if (!isShort || !event.id) return false;
+
+  if (event.type === CourtroomProceedingsEventType.AI_ARGUMENT) {
+    return event.speaker_role !== currentRole;
+  }
+
+  if (event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_A) {
+    return true;
+  }
+
+  return (
+    event.type === CourtroomProceedingsEventType.OPENING_STATEMENT &&
+    event.speaker_role !== currentRole
+  );
+}
 
 function countUserArguments(proceedings?: CourtroomProceedingsEvent[]): number {
   return (
@@ -106,6 +143,16 @@ export default function Courtroom({
   const [error, setError] = useState("");
   const [argument, setArgument] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAiResponding, setIsAiResponding] = useState(false);
+  const [optimisticEvents, setOptimisticEvents] = useState<
+    OptimisticCourtroomEvent[]
+  >([]);
+  const [regeneratingEventIds, setRegeneratingEventIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [confirmRegenerateId, setConfirmRegenerateId] = useState<string | null>(
+    null,
+  );
   const [isWitnessDecisionPending, setIsWitnessDecisionPending] =
     useState(false);
   const [currentRole, setCurrentRole] = useState<Roles>(
@@ -151,6 +198,51 @@ export default function Courtroom({
     () => caseData?.courtroom_proceedings ?? [],
     [caseData?.courtroom_proceedings],
   );
+  const displayEvents = useMemo<OptimisticCourtroomEvent[]>(
+    () => [...timelineEvents, ...optimisticEvents],
+    [timelineEvents, optimisticEvents],
+  );
+  const isWitnessAnswerPending = useMemo(() => {
+    const latestWitnessEvent = [...displayEvents]
+      .reverse()
+      .find(
+        (event) =>
+          event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_Q ||
+          event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_A,
+      );
+
+    return (
+      Boolean(caseData?.is_ai_examining) &&
+      latestWitnessEvent?.type ===
+        CourtroomProceedingsEventType.WITNESS_EXAMINED_Q
+    );
+  }, [displayEvents, caseData?.is_ai_examining]);
+  const activeShortResponseEventIds = useMemo(() => {
+    const activeIds = new Set<string>();
+
+    displayEvents.forEach((event, index) => {
+      if (!isShortLlmResponseEvent(event, currentRole) || !event.id) return;
+
+      const isSuperseded = displayEvents.slice(index + 1).some((laterEvent) => {
+        const isLaterUserArgument =
+          laterEvent.speaker_role === currentRole &&
+          (laterEvent.type === CourtroomProceedingsEventType.ARGUMENT ||
+            laterEvent.type ===
+              CourtroomProceedingsEventType.OPENING_STATEMENT);
+        const isLaterUserWitnessCall =
+          laterEvent.speaker_role === currentRole &&
+          laterEvent.type === CourtroomProceedingsEventType.WITNESS_CALLED;
+
+        return isLaterUserArgument || isLaterUserWitnessCall;
+      });
+
+      if (!isSuperseded) {
+        activeIds.add(event.id);
+      }
+    });
+
+    return activeIds;
+  }, [displayEvents, currentRole]);
   const isWitnessActive = Boolean(
     caseData?.current_witness_id || caseData?.is_ai_examining,
   );
@@ -160,7 +252,7 @@ export default function Courtroom({
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [timelineEvents]);
+  }, [displayEvents, isAiResponding, isWitnessAnswerPending]);
 
   // Fetch rate limit information and update countdown timer
   const fetchRateLimitInfo = useCallback(async () => {
@@ -192,57 +284,71 @@ export default function Courtroom({
     }
   }, []);
 
-  const fetchCaseDetails = useCallback(
-    async () => {
-      try {
-        // DEV DELAY - Remove in production
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+  const fetchCaseDetails = useCallback(async () => {
+    try {
+      // DEV DELAY - Remove in production
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        const data = await caseAPI.getCase(cnr);
-        setCaseData(data);
+      const data = await caseAPI.getCase(cnr);
+      setCaseData(data);
 
-        setShowClosingButton(
-          countUserArguments(data.courtroom_proceedings) >= 3,
-        );
+      setShowClosingButton(countUserArguments(data.courtroom_proceedings) >= 3);
 
-        if (
-          data.user_role &&
-          data.user_role !== Roles.NOT_STARTED &&
-          data.user_role !== "not_started"
-        ) {
-          setCurrentRole(data.user_role as Roles);
-        } else if (urlRole && urlRole !== Roles.NOT_STARTED) {
-          setCurrentRole(urlRole as Roles);
-        } else {
-          setCurrentRole(Roles.PLAINTIFF);
-        }
-
-        if (data.status === CaseStatus.NOT_STARTED && urlRole) {
-          setCurrentRole(urlRole as Roles);
-        }
-
-        await fetchRateLimitInfo();
-      } catch (error) {
-        setError("Failed to load case details. Please try again later.");
-        logger.error("Error fetching case details", error as Error);
-      } finally {
-        setIsLoading(false);
+      if (
+        data.user_role &&
+        data.user_role !== Roles.NOT_STARTED &&
+        data.user_role !== "not_started"
+      ) {
+        setCurrentRole(data.user_role as Roles);
+      } else if (urlRole && urlRole !== Roles.NOT_STARTED) {
+        setCurrentRole(urlRole as Roles);
+      } else {
+        setCurrentRole(Roles.PLAINTIFF);
       }
-    },
-    [cnr, urlRole, fetchRateLimitInfo],
-  );
+
+      if (data.status === CaseStatus.NOT_STARTED && urlRole) {
+        setCurrentRole(urlRole as Roles);
+      }
+
+      await fetchRateLimitInfo();
+    } catch (error) {
+      setError("Failed to load case details. Please try again later.");
+      logger.error("Error fetching case details", error as Error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [cnr, urlRole, fetchRateLimitInfo]);
 
   useEffect(() => {
     fetchCaseDetails();
   }, [fetchCaseDetails]);
 
+  const refreshCourtroomSnapshot = useCallback(async () => {
+    const updatedCase = await caseAPI.getCase(cnr);
+    setCaseData(updatedCase);
+    setShowClosingButton(
+      countUserArguments(updatedCase.courtroom_proceedings) >= 3,
+    );
+    return updatedCase;
+  }, [cnr]);
+
+  useEffect(() => {
+    if (!caseData?.is_ai_examining) return;
+
+    const interval = setInterval(async () => {
+      try {
+        await refreshCourtroomSnapshot();
+      } catch (err) {
+        logger.error("Failed to poll courtroom updates", err as Error);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [caseData?.is_ai_examining, refreshCourtroomSnapshot]);
+
   const handleWitnessUpdate = useCallback(async () => {
     try {
-      const updatedCase = await caseAPI.getCase(cnr);
-      setCaseData(updatedCase);
-      setShowClosingButton(
-        countUserArguments(updatedCase.courtroom_proceedings) >= 3,
-      );
+      const updatedCase = await refreshCourtroomSnapshot();
 
       const hasActiveWitness = Boolean(
         updatedCase.current_witness_id || updatedCase.is_ai_examining,
@@ -255,7 +361,7 @@ export default function Courtroom({
     } catch (err) {
       logger.error("Failed to refresh case after witness update", err as Error);
     }
-  }, [cnr]);
+  }, [refreshCourtroomSnapshot]);
 
   // Update countdown timer every second
   useEffect(() => {
@@ -280,7 +386,7 @@ export default function Courtroom({
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [timelineEvents]);
+  }, [displayEvents, isAiResponding, isWitnessAnswerPending]);
 
   // Show "Court in Session" popup only when entering or resuming an active session.
   useEffect(() => {
@@ -339,29 +445,57 @@ export default function Courtroom({
     }
   };
 
+  const handleRegenerateResponse = async (eventId: string) => {
+    setRegeneratingEventIds((prev) => new Set(prev).add(eventId));
+    try {
+      await argumentAPI.regenerateResponse(cnr, eventId);
+      await refreshCourtroomSnapshot();
+    } catch (err) {
+      logger.error("Failed to regenerate short response", err as Error);
+      setError(getErrorDetail(err) || "Failed to regenerate response.");
+    } finally {
+      setRegeneratingEventIds((prev) => {
+        const next = new Set(prev);
+        next.delete(eventId);
+        return next;
+      });
+    }
+  };
+
   const handleSubmitArgument = async () => {
-    if (!argument.trim()) return;
+    const submittedArgument = argument.trim();
+    if (!submittedArgument) return;
 
     setIsSubmitting(true);
+    setIsAiResponding(true);
+    setArgument("");
+    setOptimisticEvents([
+      {
+        id: `optimistic-${Date.now()}`,
+        type: CourtroomProceedingsEventType.ARGUMENT,
+        content: submittedArgument,
+        speaker_role: currentRole,
+        speaker_name: "You",
+        timestamp: new Date().toISOString(),
+        optimistic: true,
+      },
+    ]);
+
     try {
       await argumentAPI.submitArgument(
         cnr,
         currentRole.toLowerCase() as "plaintiff" | "defendant",
-        argument,
+        submittedArgument,
       );
 
-      const updatedCase = await caseAPI.getCase(cnr);
-      setCaseData(updatedCase);
+      const updatedCase = await refreshCourtroomSnapshot();
 
       setIsSubmitting(false);
-      setArgument("");
+      setOptimisticEvents([]);
+      setIsAiResponding(false);
 
       // Refresh rate limit info after successful submission
       fetchRateLimitInfo();
-
-      setShowClosingButton(
-        countUserArguments(updatedCase.courtroom_proceedings) >= 3,
-      );
 
       // Check if AI wants to call a witness (only if no witness is currently on stand)
       // Guarded: skip if already checking or if checked recently (30s cooldown)
@@ -426,9 +560,13 @@ export default function Courtroom({
       }
     } catch (error) {
       logger.error("Error submitting argument", error as Error);
+      setOptimisticEvents([]);
+      setIsAiResponding(false);
+      setArgument(submittedArgument);
       setError("Failed to submit argument. Please try again.");
     } finally {
       setIsSubmitting(false);
+      setIsAiResponding(false);
     }
   };
 
@@ -738,7 +876,7 @@ export default function Courtroom({
         </div>
       </header>
 
-      {/* Error Alert */}
+      {/* Analysis Error Alert */}
       {analysisError && (
         <div className="max-w-7xl mx-auto w-full px-4 py-4 mt-4">
           <Alert
@@ -789,6 +927,36 @@ export default function Courtroom({
         </div>
       )}
 
+      {/* Confirmation Dialog for Regeneration */}
+      <AlertDialog
+        open={!!confirmRegenerateId}
+        onOpenChange={(open) => !open && setConfirmRegenerateId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate Response</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will generate a new AI response for this specific event. The
+              existing proceedings will remain unchanged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmRegenerateId) {
+                  handleRegenerateResponse(confirmRegenerateId);
+                  setConfirmRegenerateId(null);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Regenerate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Arguments display area - scrollable */}
       <div
         className={`flex-1 min-h-0 mt-2 sm:mt-4 ${
@@ -798,7 +966,17 @@ export default function Courtroom({
         {/* Chat messages */}
         <ScrollArea className="h-full">
           <div className="p-4 space-y-4">
-            {timelineEvents.map((event, index: number) => {
+            {displayEvents.map((event, index: number) => {
+              const eventKey =
+                event.id || `${event.timestamp}-${event.type}-${index}`;
+              const isOptimistic = Boolean(event.optimistic);
+              const showShortResponseAlert = Boolean(
+                event.id && activeShortResponseEventIds.has(event.id),
+              );
+              const isRegeneratingResponse = Boolean(
+                event.id && regeneratingEventIds.has(event.id),
+              );
+
               // System Messages (Witness Called/Dismissed)
               if (
                 event.type === CourtroomProceedingsEventType.WITNESS_CALLED ||
@@ -807,10 +985,7 @@ export default function Courtroom({
                 event.type === CourtroomProceedingsEventType.SYSTEM_MESSAGE
               ) {
                 return (
-                  <div
-                    key={`${event.timestamp}-${index}`}
-                    className="flex justify-center my-4"
-                  >
+                  <div key={eventKey} className="flex justify-center my-4">
                     <div className="bg-gray-100 dark:bg-zinc-700 px-4 py-2 rounded-full text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-600 shadow-sm">
                       <span className="font-semibold mr-1">
                         {event.type ===
@@ -835,10 +1010,10 @@ export default function Courtroom({
                 const isExaminerUserSide = event.speaker_role === currentRole;
                 return (
                   <div
-                    key={`${event.timestamp}-${index}`}
+                    key={eventKey}
                     className={`flex ${
                       isExaminerUserSide ? "justify-end" : "justify-start"
-                    } mb-2`}
+                    } mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300`}
                   >
                     <div
                       className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
@@ -870,8 +1045,8 @@ export default function Courtroom({
               ) {
                 return (
                   <div
-                    key={`${event.timestamp}-${index}`}
-                    className="flex justify-center mb-4"
+                    key={eventKey}
+                    className="flex justify-center mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
                   >
                     <div className="max-w-[95%] sm:max-w-[85%] rounded-lg p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm relative">
                       <div className="absolute -top-3 left-4 bg-amber-100 dark:bg-amber-900/80 px-2 py-0.5 rounded text-[10px] font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
@@ -883,6 +1058,21 @@ export default function Courtroom({
                       <div className="text-gray-900 dark:text-gray-100">
                         <ChatMarkdownRenderer markdown={event.content} />
                       </div>
+                      {showShortResponseAlert && event.id && (
+                        <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-100/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200">
+                          <span>Short AI response detected.</span>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRegenerateId(event.id!)}
+                            disabled={isRegeneratingResponse}
+                            className="shrink-0 rounded bg-amber-600 px-2 py-1 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isRegeneratingResponse
+                              ? "Regenerating..."
+                              : "Report & Regenerate"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -893,17 +1083,17 @@ export default function Courtroom({
 
               return (
                 <div
-                  key={`${event.timestamp}-${index}`}
+                  key={eventKey}
                   className={`flex ${
                     isUserArg ? "justify-end" : "justify-start"
-                  }`}
+                  } animate-in fade-in slide-in-from-bottom-2 duration-300`}
                 >
                   <div
                     className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
                       isUserArg
                         ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
                         : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"
-                    }`}
+                    } ${isOptimistic ? "opacity-80" : ""}`}
                   >
                     <div
                       className={`text-xs font-medium mb-1 flex justify-between ${
@@ -932,10 +1122,59 @@ export default function Courtroom({
                     <div className="text-gray-900 dark:text-gray-100">
                       <ChatMarkdownRenderer markdown={event.content} />
                     </div>
+                    {showShortResponseAlert && event.id && (
+                      <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-100/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200">
+                        <span>Short AI response detected.</span>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRegenerateId(event.id!)}
+                          disabled={isRegeneratingResponse}
+                          className="shrink-0 rounded bg-amber-600 px-2 py-1 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isRegeneratingResponse
+                            ? "Regenerating..."
+                            : "Report & Regenerate"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             })}
+            {isAiResponding && (
+              <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="max-w-[75%] rounded-lg p-3 border-l-4 shadow-sm bg-purple-100 dark:bg-purple-900/20 border-purple-600">
+                  <div className="text-xs font-medium mb-2 text-purple-600 dark:text-purple-400">
+                    Opposition lawyer
+                  </div>
+                  <div
+                    className="flex items-center gap-1.5"
+                    aria-label="AI is thinking"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.2s]" />
+                    <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.1s]" />
+                    <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce" />
+                  </div>
+                </div>
+              </div>
+            )}
+            {isWitnessAnswerPending && (
+              <div className="flex justify-center mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="max-w-[85%] rounded-lg p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm">
+                  <div className="text-xs font-bold mb-2 text-amber-700 dark:text-amber-400">
+                    Witness is responding
+                  </div>
+                  <div
+                    className="flex items-center justify-center gap-1.5"
+                    aria-label="Witness is thinking"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-bounce [animation-delay:-0.2s]" />
+                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-bounce [animation-delay:-0.1s]" />
+                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-bounce" />
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
             {caseData.verdict && caseData?.status === CaseStatus.RESOLVED && (
               <div>
@@ -1184,7 +1423,7 @@ export default function Courtroom({
               </div>
 
               {/* Vertically stacked buttons */}
-              <div className="flex flex-row sm:flex-col gap-2 sm:space-y-2 sm:gap-0 sm:min-w-[140px]">
+              <div className="flex flex-row sm:flex-col gap-2 sm:space-y-2 sm:gap-0 sm:min-w-35">
                 <button
                   onClick={handleSubmitArgument}
                   disabled={
@@ -1202,7 +1441,7 @@ export default function Courtroom({
                       ? "Witness check..."
                       : isWitnessActive
                         ? "Witness active"
-                      : "Submit Argument"}
+                        : "Submit Argument"}
                 </button>
 
                 {showClosingButton && (
@@ -1223,7 +1462,7 @@ export default function Courtroom({
                         ? "Witness check..."
                         : isWitnessActive
                           ? "Witness active"
-                        : "Submit Closing"}
+                          : "Submit Closing"}
                   </button>
                 )}
               </div>

@@ -542,6 +542,20 @@ export const argumentAPI = {
       throw error;
     }
   },
+
+  regenerateResponse: async (caseCnr: string, eventId: string) => {
+    try {
+      logger.debug("Regenerating short LLM response", { caseCnr, eventId });
+      const response = await api.post(
+        `/cases/${caseCnr}/proceedings/${eventId}/regenerate`,
+      );
+      logger.info("LLM response regenerated", { caseCnr, eventId });
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to regenerate LLM response");
+      throw error;
+    }
+  },
 };
 
 // Contact API calls

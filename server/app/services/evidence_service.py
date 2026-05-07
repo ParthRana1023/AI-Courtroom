@@ -1,188 +1,86 @@
 import re
+import time
+import json
 from typing import List
 
-from app.models.case import EvidenceItem, EvidenceSide
+from app.models.case import EvidenceItem
+from app.utils.llm import get_llm
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
-SECTION_END_RE = re.compile(
-    r"\n\s*(?:---|\*\*(?:PRAYER|VERIFICATION|GROUNDS|BACKGROUND)[^*]*:\*\*)",
-    re.IGNORECASE,
-)
-
-
-def extract_evidence_items(case_text: str | None) -> List[EvidenceItem]:
-    """Extract structured evidence cards from the generated petition markdown."""
-    if not case_text:
+async def extract_evidence_items(
+    case_text: str | None,
+    rag_context: str | None = None,
+) -> List[EvidenceItem]:
+    """Extract structured evidence cards from the generated petition markdown using LLM."""
+    if not case_text and not rag_context:
         return []
 
-    evidence_text = _extract_evidence_section(case_text)
-    if not evidence_text:
-        return []
+    context = rag_context or case_text
+    
+    template = """Extract all evidence items mentioned in this legal case.
 
-    items: List[EvidenceItem] = []
-    exhibit_number = 1
-    current_category = "Evidence"
+CASE TEXT:
+{context}
 
-    lines = [line.rstrip() for line in evidence_text.splitlines()]
-    index = 0
-    while index < len(lines):
-        raw_line = lines[index].strip()
-        line = _strip_list_marker(raw_line)
+RULES:
+- Identify every piece of evidence (witness testimony, physical objects, documents, digital evidence, etc.)
+- For each item, provide:
+    - title: A short descriptive name (e.g., "CCTV Footage", "Witness Statement of Rahul")
+    - evidence_type: Choose from (Witness Testimony, Physical Evidence, Digital Evidence, Medical Record, Document, or other)
+    - description: A clear summary of what the evidence is and what it shows
+    - source: Who provided the evidence (e.g., "Prosecution", "Rahul Sharma", "Police")
 
-        if not line:
-            index += 1
-            continue
+Return the data ONLY as a JSON list of objects. No other text.
 
-        category = _extract_bold_text(line)
-        if category and not _looks_like_evidence_line(line):
-            current_category = category.replace(":", "").strip()
-            index += 1
-            continue
+Example format:
+[
+  {{
+    "title": "...",
+    "evidence_type": "...",
+    "description": "...",
+    "source": "..."
+  }}
+]
+"""
 
-        parsed = _parse_evidence_line(line)
-        if parsed:
-            title, description = parsed
-            consumed, testimony = _collect_testimony(lines, index + 1)
-            if testimony:
-                description = f"{description}\n\nTestimony: {testimony}".strip()
-                if current_category.lower().startswith("eyewitness"):
-                    title = title or "Witness Testimony"
+    prompt = ChatPromptTemplate.from_messages([("human", template)])
+    chain = prompt | get_llm("drafter") | StrOutputParser()
 
+    try:
+        start_time = time.perf_counter()
+        response = await chain.ainvoke({"context": context})
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        
+        # Clean up response (remove markdown code blocks if present)
+        response = re.sub(r"```(?:json)?\s*(.*?)\s*```", r"\1", response, flags=re.DOTALL).strip()
+        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+
+        evidence_data = json.loads(response)
+        items: List[EvidenceItem] = []
+        
+        for index, data in enumerate(evidence_data, start=1):
             items.append(
                 EvidenceItem(
-                    exhibit_ref=f"EX-{exhibit_number:02d}",
-                    title=_clean_text(title) or f"Evidence {exhibit_number}",
-                    evidence_type=_infer_evidence_type(current_category, title),
-                    description=_clean_text(description),
-                    source=_infer_source(title, current_category),
-                    relevance=_infer_relevance(description),
-                    supports_side=_infer_supported_side(description),
-                    bns_sections=_extract_bns_sections(description),
-                    image_prompt=_build_image_prompt(title, description),
+                    exhibit_ref=f"EX-{index:02d}",
+                    title=data.get("title", f"Evidence {index}"),
+                    evidence_type=data.get("evidence_type", "Document"),
+                    description=data.get("description", ""),
+                    source=data.get("source"),
+                    image_prompt=_build_image_prompt(data.get("title", ""), data.get("description", ""))
                 )
             )
-            exhibit_number += 1
-            index += max(consumed, 1)
-            continue
+        
+        logger.info(f"Extracted {len(items)} evidence items via LLM in {duration_ms:.2f}ms")
+        return items
 
-        index += 1
-
-    return items
-
-
-def _extract_evidence_section(case_text: str) -> str:
-    match = re.search(r"\*\*EVIDENCE:\*\*(.*)", case_text, re.IGNORECASE | re.DOTALL)
-    if not match:
-        return ""
-
-    evidence_text = match.group(1).strip()
-    end_match = SECTION_END_RE.search(evidence_text)
-    if end_match:
-        evidence_text = evidence_text[: end_match.start()].strip()
-    return evidence_text
-
-
-def _strip_list_marker(line: str) -> str:
-    return re.sub(r"^[-*]\s*", "", line).strip()
-
-
-def _extract_bold_text(line: str) -> str:
-    match = re.match(r"^\*\*(.+?)\*\*:?\s*$", line)
-    return match.group(1).strip() if match else ""
-
-
-def _looks_like_evidence_line(line: str) -> bool:
-    return bool(re.match(r"^\*\*(.+?)\*\*:\s*(.+)", line))
-
-
-def _parse_evidence_line(line: str) -> tuple[str, str] | None:
-    match = re.match(r"^\*\*(.+?)\*\*:\s*(.+)", line)
-    if match:
-        return match.group(1).strip(), match.group(2).strip()
-
-    if len(line) > 40 and ":" in line:
-        title, description = line.split(":", 1)
-        return title.strip(), description.strip()
-
-    return None
-
-
-def _collect_testimony(lines: list[str], start_index: int) -> tuple[int, str]:
-    consumed = 1
-    testimony_parts: list[str] = []
-
-    for index in range(start_index, len(lines)):
-        line = _strip_list_marker(lines[index].strip())
-        if not line:
-            consumed += 1
-            continue
-        if _parse_evidence_line(line) or _extract_bold_text(line):
-            break
-
-        testimony_match = re.match(r"^\*\*Testimony:\*\*\s*(.+)", line, re.IGNORECASE)
-        if testimony_match:
-            testimony_parts.append(testimony_match.group(1).strip())
-            consumed += 1
-            continue
-
-        if testimony_parts:
-            testimony_parts.append(line)
-            consumed += 1
-            continue
-
-        break
-
-    return consumed, " ".join(testimony_parts)
-
-
-def _infer_evidence_type(category: str, title: str) -> str:
-    text = f"{category} {title}".lower()
-    if "witness" in text or "testimony" in text:
-        return "Witness Testimony"
-    if "medical" in text or "injury" in text:
-        return "Medical Record"
-    if "digital" in text or "cctv" in text or "phone" in text or "video" in text:
-        return "Digital Evidence"
-    if "physical" in text:
-        return "Physical Evidence"
-    if "report" in text or "document" in text or "fir" in text:
-        return "Document"
-    return category.replace(":", "").strip() or "Evidence"
-
-
-def _infer_source(title: str, category: str) -> str | None:
-    if category.lower().startswith("eyewitness"):
-        return title
-    return None
-
-
-def _infer_relevance(description: str) -> str:
-    sentences = re.split(r"(?<=[.!?])\s+", description.strip())
-    return sentences[0][:260] if sentences and sentences[0] else description[:260]
-
-
-def _infer_supported_side(description: str) -> EvidenceSide:
-    text = description.lower()
-    plaintiff_terms = ("applicant", "petitioner", "complainant", "victim")
-    defendant_terms = ("non-applicant", "respondent", "accused", "defendant")
-
-    plaintiff_hits = sum(term in text for term in plaintiff_terms)
-    defendant_hits = sum(term in text for term in defendant_terms)
-
-    if plaintiff_hits and defendant_hits:
-        return EvidenceSide.BOTH
-    if plaintiff_hits:
-        return EvidenceSide.PLAINTIFF
-    if defendant_hits:
-        return EvidenceSide.DEFENDANT
-    return EvidenceSide.UNKNOWN
-
-
-def _extract_bns_sections(description: str) -> list[str]:
-    sections = re.findall(
-        r"(?:BNS\s*)?Section\s+(\d+[A-Z]?)", description, re.IGNORECASE
-    )
-    return sorted({f"Section {section.upper()}" for section in sections})
+    except Exception as e:
+        logger.error(f"Error extracting evidence via LLM: {str(e)}", exc_info=True)
+        return []
 
 
 def _build_image_prompt(title: str, description: str) -> str | None:
@@ -199,11 +97,8 @@ def _build_image_prompt(title: str, description: str) -> str | None:
     if not any(term in text for term in visual_terms):
         return None
 
+    clean_description = re.sub(r"\s+", " ", description.replace("**", "")).strip()
     return (
         "Create a neutral, non-graphic legal exhibit illustration for "
-        f"{title}: {_clean_text(description)[:240]}"
+        f"{title}: {clean_description[:240]}"
     )
-
-
-def _clean_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text.replace("**", "")).strip()

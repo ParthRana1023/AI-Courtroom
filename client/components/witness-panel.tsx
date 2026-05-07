@@ -89,11 +89,13 @@ export default function WitnessPanel({
   }, [currentWitness?.examination_history]);
 
   // Fetch available witnesses and current witness state
-  const fetchWitnessState = useCallback(async () => {
+  const fetchWitnessState = useCallback(async (showLoading = true) => {
     if (!isActive) return;
 
     try {
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
 
       const [witnessesData, currentData] = await Promise.all([
         witnessAPI.getAvailableWitnesses(cnr),
@@ -154,7 +156,9 @@ export default function WitnessPanel({
       logger.error("Failed to fetch witness state", err as Error);
       setError("Failed to load witnesses");
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
     // NOTE: examinationState is read via examinationStateRef to avoid
     // a dependency loop (this function sets examinationState).
@@ -169,6 +173,17 @@ export default function WitnessPanel({
     }
     prevIsOpenRef.current = isOpen;
   }, [isOpen, isActive, fetchWitnessState]);
+
+  useEffect(() => {
+    if (!isOpen || !isActive || !isCrossExamining) return;
+
+    const interval = setInterval(() => {
+      void fetchWitnessState(false);
+      void onWitnessUpdate?.();
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isOpen, isActive, isCrossExamining, fetchWitnessState, onWitnessUpdate]);
 
   const handleCallWitness = async (witnessId: string) => {
     try {
@@ -188,13 +203,35 @@ export default function WitnessPanel({
   };
 
   const handleExamineWitness = async () => {
-    if (!question.trim()) return;
+    const submittedQuestion = question.trim();
+    if (!submittedQuestion) return;
+
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticItem: ExaminationItem = {
+      id: optimisticId,
+      examiner: userRole,
+      question: submittedQuestion,
+      answer: "",
+      timestamp: new Date().toISOString(),
+    };
 
     try {
       setIsExamining(true);
       setError(null);
+
+      if (currentWitness) {
+        setCurrentWitness({
+          ...currentWitness,
+          examination_history: [
+            ...currentWitness.examination_history,
+            optimisticItem,
+          ],
+        });
+      }
+      setQuestion("");
+
       const response: WitnessExaminationResponse =
-        await witnessAPI.examineWitness(cnr, question);
+        await witnessAPI.examineWitness(cnr, submittedQuestion);
 
       // Update current witness with new examination item
       if (currentWitness) {
@@ -205,16 +242,33 @@ export default function WitnessPanel({
           answer: response.answer,
           timestamp: response.timestamp,
         };
-        setCurrentWitness({
-          ...currentWitness,
-          examination_history: [...currentWitness.examination_history, newItem],
+        setCurrentWitness((prev) => {
+          if (!prev) return prev;
+
+          return {
+            ...prev,
+            examination_history: prev.examination_history.map((item) =>
+              item.id === optimisticId ? newItem : item,
+            ),
+          };
         });
       }
 
-      setQuestion("");
+      await onWitnessUpdate?.();
       inputRef.current?.focus();
     } catch (err: unknown) {
       logger.error("Failed to examine witness", err as Error);
+      setCurrentWitness((prev) => {
+        if (!prev) return prev;
+
+        return {
+          ...prev,
+          examination_history: prev.examination_history.filter(
+            (item) => item.id !== optimisticId,
+          ),
+        };
+      });
+      setQuestion(submittedQuestion);
       setError(getErrorDetail(err) || "Failed to examine witness");
     } finally {
       setIsExamining(false);
@@ -231,6 +285,7 @@ export default function WitnessPanel({
       // Trigger background task (returns immediately)
       await witnessAPI.aiCrossExamine(cnr);
       await fetchWitnessState();
+      await onWitnessUpdate?.();
     } catch (err: unknown) {
       logger.error("Failed to get AI cross-examination", err as Error);
       setError(getErrorDetail(err) || "Failed to get AI cross-examination");
@@ -425,15 +480,26 @@ export default function WitnessPanel({
                         </div>
                       </div>
 
-                      {/* Answer - Witness response with amber border and italic */}
-                      <div className="flex justify-start">
-                        <div className="max-w-[85%] p-3 bg-gray-100 dark:bg-zinc-800 rounded-lg border-l-4 border-amber-500">
+                      {/* Answer - witness stays centered, like testimony in the main courtroom timeline */}
+                      <div className="flex justify-center">
+                        <div className="max-w-[88%] p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800 shadow-sm">
                           <p className="text-xs font-medium mb-1 text-amber-600 dark:text-amber-400">
                             {currentWitness?.witness_name} responded:
                           </p>
-                          <p className="text-sm text-gray-900 dark:text-white italic">
-                            "{item.answer}"
-                          </p>
+                          {item.answer ? (
+                            <p className="text-sm text-gray-900 dark:text-white italic">
+                              "{item.answer}"
+                            </p>
+                          ) : (
+                            <div
+                              className="flex items-center gap-1.5 py-1"
+                              aria-label="Witness is thinking"
+                            >
+                              <span className="h-2 w-2 rounded-full bg-amber-500 animate-bounce [animation-delay:-0.2s]" />
+                              <span className="h-2 w-2 rounded-full bg-amber-500 animate-bounce [animation-delay:-0.1s]" />
+                              <span className="h-2 w-2 rounded-full bg-amber-500 animate-bounce" />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

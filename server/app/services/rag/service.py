@@ -4,13 +4,14 @@ from typing import Any, Iterable
 
 import numpy as np
 
+from beanie.operators import In
+
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.case import (
     ArgumentItem,
     Case,
     CourtroomProceedingsEvent,
-    ExaminationItem,
 )
 from app.models.case_memory import CaseMemoryChunk, CaseMemorySourceType
 from app.models.user import User
@@ -115,7 +116,7 @@ async def _replace_source_chunks(
     now = get_current_datetime()
     docs = [
         CaseMemoryChunk(
-            case_id=case.id,
+            case_id=case.id,  # type: ignore
             cnr=case.cnr,
             user_id=case.user_id,
             source_type=source_type,
@@ -193,7 +194,6 @@ async def index_case_memory(case: Case) -> int:
                         evidence.exhibit_ref,
                         evidence.title,
                         evidence.description,
-                        evidence.relevance,
                         evidence.source,
                     ]
                     if part
@@ -201,7 +201,6 @@ async def index_case_memory(case: Case) -> int:
                 {
                     "exhibit_ref": evidence.exhibit_ref,
                     "evidence_type": evidence.evidence_type,
-                    "supports_side": evidence.supports_side.value,
                 },
             )
 
@@ -227,7 +226,7 @@ async def index_case_memory(case: Case) -> int:
                 total += await upsert_memory_item(
                     case,
                     CaseMemorySourceType.ARGUMENT,
-                    f"{side}:{arg.id if hasattr(arg, 'id') else _hash_content(arg.content)}",
+                    f"{side}:{_hash_content(arg.content)}",
                     _argument_content(arg),
                     {"side": side, "argument_type": arg.type, "role": arg.role.value},
                 )
@@ -314,20 +313,16 @@ async def retrieve_case_context(
         return _case_fallback_context(case, status)
 
     try:
-        filters = [
+        filters: list[Any] = [
             CaseMemoryChunk.case_id == case.id,
             CaseMemoryChunk.is_active == True,  # noqa: E712
         ]
         if source_types:
             filters.append(
-                {
-                    "source_type": {
-                        "$in": [
-                            str(_coerce_source_type(item).value)
-                            for item in source_types
-                        ]
-                    }
-                }
+                In(
+                    CaseMemoryChunk.source_type,
+                    [_coerce_source_type(item) for item in source_types],
+                )
             )
 
         chunks = await CaseMemoryChunk.find(*filters).to_list()

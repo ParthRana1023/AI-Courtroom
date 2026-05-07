@@ -10,27 +10,27 @@ logger = get_logger(__name__)
 
 
 async def generate_counter_argument(
-    history: str,
     user_input: str,
     ai_role: str | None = None,
     user_role: str | None = None,
     case_details: str | None = None,
     rag_context: str | None = None,
+    history: str | None = None,
 ) -> str:
     try:
         logger.info(f"Generating counter argument for {ai_role}")
-        logger.debug(
-            f"History length: {len(history)} chars, user_input length: {len(user_input)} chars"
-        )
-
-        case_context = rag_context or case_details or "No case details provided"
+        
+        case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
+        
+        # Use provided history or fallback to RAG context if history is not provided
+        effective_history = history or "(Relevant history retrieved via RAG context)"
 
         template = """
 
             You are an experienced and assertive Indian trial lawyer representing the {ai_role} in a court of law. 
             The user is acting as the lawyer for the {user_role}. 
             The relevant case context is: {case_context}
-            Below is the case history so far: {history} 
+            Below is the case history (relevant parts): {history} 
             Refer to the Judge as "My Lord" or "Your Honour".
             Present your next arguments in a consise manner, and by not using all the facts available to you in a single argument.
             If the user attempts to introduce arguments or information beyond the established facts, you must promptly and firmly correct them, maintaining a professional and direct tone but still keep fighting your side of the case. 
@@ -51,7 +51,7 @@ async def generate_counter_argument(
         response = chain.invoke(
             {
                 "ai_role": ai_role,
-                "history": history,
+                "history": effective_history,
                 "case_context": case_context,
                 "user_role": user_role,
                 "user_input": user_input,
@@ -79,7 +79,7 @@ async def opening_statement(
     try:
         logger.info(f"Generating opening statement for {ai_role}")
 
-        case_context = rag_context or case_details or "No case details provided"
+        case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
 
         template = """
             You are an Indian lawyer from the {ai_role}'s side. 
@@ -111,15 +111,16 @@ async def opening_statement(
 
 
 async def closing_statement(
-    history: str,
     ai_role: str,
     user_role: str,
+    case_details: str | None = None,
     rag_context: str | None = None,
+    history: str | None = None,
 ) -> str:
     try:
         logger.info(f"Generating closing statement for {ai_role}")
 
-        closing_context = rag_context or history
+        closing_context = rag_context or (case_details[:6000] if case_details else history or "No closing context provided")
 
         template = """
             You are an Indian lawyer from the {ai_role}'s side, and the user is the {user_role}'s lawyer. 

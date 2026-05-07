@@ -25,7 +25,7 @@ async def generate_verdict(
             f"Plaintiff arguments: {len(plaintiff_arguments)}, Defendant arguments: {len(defendant_arguments)}"
         )
 
-        case_context = rag_context or case_details or "No case details provided"
+        case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
 
         judge_template = (
             judge_template

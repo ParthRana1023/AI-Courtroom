@@ -72,6 +72,7 @@ export default function CasePrepPage({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isStartingCourtroom, setIsStartingCourtroom] = useState(false);
   const [isLoadingPerson, setIsLoadingPerson] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
@@ -198,10 +199,21 @@ export default function CasePrepPage({
             </div>
             <Button
               className="w-full sm:w-auto"
+              disabled={isStartingCourtroom}
               onClick={async () => {
+                setIsStartingCourtroom(true);
                 try {
                   // Only set status to ACTIVE if case is NOT resolved
                   if (caseStatus !== "resolved") {
+                    // If user is defendant, we need to generate plaintiff opening statement
+                    // but ONLY if it hasn't been generated yet (which it shouldn't be now)
+                    if (userRole === "defendant") {
+                      logger.info(
+                        "Generating AI plaintiff opening statement...",
+                      );
+                      await caseAPI.generatePlaintiffOpening(cnr);
+                    }
+
                     await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
                   }
                   router.push(`/dashboard/cases/${cnr}/courtroom`);
@@ -213,12 +225,16 @@ export default function CasePrepPage({
                   setError(
                     "Failed to start courtroom session. Please try again.",
                   );
+                } finally {
+                  setIsStartingCourtroom(false);
                 }
               }}
             >
-              {caseStatus === "resolved"
-                ? "View Courtroom"
-                : "Proceed to Courtroom"}
+              {isStartingCourtroom
+                ? "Preparing Courtroom..."
+                : caseStatus === "resolved"
+                  ? "View Courtroom"
+                  : "Proceed to Courtroom"}
             </Button>
           </div>
         </div>
@@ -257,7 +273,7 @@ export default function CasePrepPage({
         )}
 
         <Tabs defaultValue="parties" className="w-full">
-          <TabsList className="mb-6 grid w-full grid-cols-2 sm:w-[360px]">
+          <TabsList className="mb-6 grid w-full grid-cols-2 sm:w-90">
             <TabsTrigger value="parties">Parties</TabsTrigger>
             <TabsTrigger value="evidence">Evidence</TabsTrigger>
           </TabsList>
@@ -276,7 +292,7 @@ export default function CasePrepPage({
             ) : (
               <div className="flex flex-col md:flex-row gap-6 h-auto md:h-[calc(100vh-250px)]">
                 {/* Left Sidebar - Parties List */}
-                <div className="w-full md:w-80 shrink-0 h-[400px] md:h-full">
+                <div className="w-full md:w-80 shrink-0 h-100 md:h-full">
                   <div className="bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 h-full overflow-hidden">
                     <div className="p-4 border-b border-gray-200 dark:border-zinc-700">
                       <h2 className="font-semibold text-gray-900 dark:text-white">
@@ -359,7 +375,7 @@ export default function CasePrepPage({
                 </div>
 
                 {/* Right Panel - Person Details */}
-                <div className="flex-1 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 overflow-hidden h-[500px] md:h-full">
+                <div className="flex-1 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 overflow-hidden h-125 md:h-full">
                   {selectedPerson ? (
                     <div className="h-full flex flex-col">
                       {/* Person Header */}

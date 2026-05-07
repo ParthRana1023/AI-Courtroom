@@ -22,13 +22,6 @@ class Roles(str, Enum):
     NOT_STARTED = "not_started"
 
 
-class EvidenceSide(str, Enum):
-    PLAINTIFF = "plaintiff"
-    DEFENDANT = "defendant"
-    BOTH = "both"
-    UNKNOWN = "unknown"
-
-
 class EvidenceMediaStatus(str, Enum):
     NOT_REQUESTED = "not_requested"
     PENDING = "pending"
@@ -92,9 +85,6 @@ class EvidenceItem(BaseModel):
     evidence_type: str
     description: str
     source: Optional[str] = None
-    relevance: Optional[str] = None
-    supports_side: EvidenceSide = Field(default=EvidenceSide.UNKNOWN)
-    bns_sections: List[str] = Field(default_factory=list)
     image_prompt: Optional[str] = None
     image_url: Optional[str] = None
     image_public_id: Optional[str] = None

@@ -6,6 +6,7 @@ Handles: extraction, role assignment, bio generation, and chat.
 
 import time
 import re
+import asyncio
 from typing import List
 from app.utils.llm import get_llm
 from langchain_core.prompts import ChatPromptTemplate
@@ -16,20 +17,26 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-async def extract_names_from_case(case_text: str) -> List[str]:
+async def extract_names_from_case(
+    case_text: str,
+    rag_context: str | None = None,
+) -> List[str]:
     """
     Extract all parties/organization names from case text.
 
     Args:
         case_text: The full case text
+        rag_context: Optional RAG context
 
     Returns:
         List of names (parties and organizations)
     """
+    case_context = rag_context or case_text[:8000]
+
     template = """Extract all people and organizations who are PARTIES to this legal case.
 
 CASE TEXT:
-{case_text}
+{case_context}
 
 RULES:
 - Extract only the names of parties (applicants, non-applicants, petitioners, respondents, accused, victims)
@@ -49,7 +56,7 @@ Mumbai Trading Co. Pvt Ltd
 
     try:
         start_time = time.perf_counter()
-        response = await chain.ainvoke({"case_text": case_text[:8000]})
+        response = await chain.ainvoke({"case_context": case_context})
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
@@ -92,7 +99,7 @@ async def generate_party_details(
     """
     logger.debug(f"Generating details for party: {party_name}")
 
-    case_context = rag_context or case_text[:6000]
+    case_context = rag_context or (case_text[:6000] if case_text else "No case text provided")
 
     template = """Analyze this legal case and provide details about **{party_name}**.
 
@@ -197,13 +204,17 @@ Important: Base everything on the case text. For the role, look for keywords lik
         )
 
 
-async def extract_and_assign_parties(case_text: str) -> List[PartyInvolved]:
+async def extract_and_assign_parties(
+    case_text: str,
+    rag_context: str | None = None,
+) -> List[PartyInvolved]:
     """
     Extract all parties from case and generate their details.
     Makes N LLM calls (one per party) to get rich markdown details.
 
     Args:
         case_text: The full case text
+        rag_context: Optional RAG context
 
     Returns:
         List of PartyInvolved with roles and markdown bios
@@ -212,18 +223,15 @@ async def extract_and_assign_parties(case_text: str) -> List[PartyInvolved]:
     start_time = time.perf_counter()
 
     # Step 1: Extract names
-    names = await extract_names_from_case(case_text)
+    names = await extract_names_from_case(case_text, rag_context=rag_context)
 
     if not names:
         logger.warning("No party names extracted from case")
         return []
 
-    # Step 2: Generate details for each party
-    parties = []
-    for name in names:
-        logger.debug(f"Processing party: {name}")
-        party = await generate_party_details(name, case_text)
-        parties.append(party)
+    # Step 2: Generate details for each party in parallel
+    tasks = [generate_party_details(name, case_text, rag_context=rag_context) for name in names]
+    parties = await asyncio.gather(*tasks)
 
     duration_ms = (time.perf_counter() - start_time) * 1000
     logger.info(
@@ -270,7 +278,7 @@ async def chat_with_party(
             sender = "User (Lawyer)" if msg.get("sender") == "user" else party_name
             history_text += f"{sender}: {msg.get('content', '')}\n"
 
-    case_context = rag_context or case_details[:3000]
+    case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
 
     template = f"""You are role-playing as {party_name}, a {role_description} in a legal case.
 You are being interviewed by a lawyer to gather context about the case.

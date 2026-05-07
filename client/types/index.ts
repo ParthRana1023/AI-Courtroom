@@ -70,6 +70,7 @@ export enum CourtroomProceedingsEventType {
 }
 
 export interface CourtroomProceedingsEvent {
+  id?: string;
   type: CourtroomProceedingsEventType;
   timestamp: string;
   content: string;
@@ -88,8 +89,6 @@ export interface CaseListItem {
   status: CaseStatus;
 }
 
-export type EvidenceSide = "plaintiff" | "defendant" | "both" | "unknown";
-
 export type EvidenceMediaStatus =
   | "not_requested"
   | "pending"
@@ -103,9 +102,6 @@ export interface EvidenceItem {
   evidence_type: string;
   description: string;
   source?: string | null;
-  relevance?: string | null;
-  supports_side: EvidenceSide;
-  bns_sections: string[];
   image_prompt?: string | null;
   image_url?: string | null;
   image_public_id?: string | null;

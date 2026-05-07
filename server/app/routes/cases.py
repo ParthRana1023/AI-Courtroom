@@ -12,7 +12,6 @@ from app.models.case import (
 )
 from app.schemas.case import CaseCreate, CaseOut
 from app.dependencies import get_current_user
-from app.services.llm.case_generation import generate_case
 from app.services.evidence_service import extract_evidence_items
 from app.services.rag import (
     delete_case_memory,
@@ -120,7 +119,7 @@ async def get_case_evidence(cnr: str, current_user: User = Depends(get_current_u
 
     if not case.evidence:
         logger.info(f"Backfilling evidence for legacy case {cnr}")
-        case.evidence = extract_evidence_items(case.details)
+        case.evidence = await extract_evidence_items(case.details)
         try:
             await case.save()
             for item in case.evidence:
@@ -134,7 +133,6 @@ async def get_case_evidence(cnr: str, current_user: User = Depends(get_current_u
                             item.exhibit_ref,
                             item.title,
                             item.description,
-                            item.relevance,
                             item.source,
                         ]
                         if part
@@ -142,7 +140,6 @@ async def get_case_evidence(cnr: str, current_user: User = Depends(get_current_u
                     {
                         "exhibit_ref": item.exhibit_ref,
                         "evidence_type": item.evidence_type,
-                        "supports_side": item.supports_side.value,
                     },
                 )
         except Exception as e:
@@ -244,11 +241,9 @@ async def update_case_status(
                     timestamp=get_current_datetime(),
                 )
             )
-            logger.info(
-                f"Dismissed active witness for case {cnr} during adjournment"
-            )
+            logger.info(f"Dismissed active witness for case {cnr} during adjournment")
 
-    case.status = new_status
+    case.status = CaseStatus(new_status)
     try:
         await case.save()
         logger.info(f"Case {cnr} status updated: {old_status} → {new_status}")
@@ -358,12 +353,23 @@ async def generate_plaintiff_opening(
 
     # Check if case already has arguments
     if case.plaintiff_arguments or case.defendant_arguments:
-        logger.warning(
-            f"Attempt to generate opening statement for case {cnr} that already has arguments"
+        logger.info(
+            f"Opening statement already exists for case {cnr}, returning existing"
         )
+        # Find the opening statement in plaintiff arguments
+        opening = next(
+            (arg for arg in case.plaintiff_arguments if arg.type == "opening"), None
+        )
+        if opening:
+            return {
+                "ai_opening_statement": opening.content,
+                "ai_opening_role": "plaintiff",
+            }
+        
+        # If no opening statement but other arguments exist, we still shouldn't generate it now
         raise HTTPException(
             status_code=400,
-            detail="Case already has arguments. Cannot generate opening statement.",
+            detail="Case already has arguments but no opening statement. Cannot generate opening statement.",
         )
 
     # Generate plaintiff's opening statement
@@ -610,7 +616,6 @@ async def get_case_history(
 async def generate_new_case(
     case_data: CaseCreate,
     current_user: User = Depends(get_current_user),
-    _rate_check: User = Depends(case_generation_rate_limiter.check_only),
 ):
     from app.services.high_court_mapping import get_high_court
 
@@ -640,10 +645,11 @@ async def generate_new_case(
         logger.debug("Using random location for case generation")
     # else: preference is "random" or not set, both stay None (will use random in generate_case)
 
-    # Generate the case - rate limit only registered if this succeeds
+    # Stage A: Generate the raw case markdown text and CNR number
     start_time = time.perf_counter()
     try:
-        generated_case = await generate_case(
+        from app.services.llm.case_generation import generate_case_shell
+        generated_case = await generate_case_shell(
             case_data.sections_involved,
             case_data.section_numbers,
             high_court=high_court,
@@ -651,7 +657,7 @@ async def generate_new_case(
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
-            f"Case generated successfully for user {current_user.email} in {duration_ms:.2f}ms"
+            f"Case shell generated successfully for user {current_user.email} in {duration_ms:.2f}ms"
         )
     except Exception as e:
         duration_ms = (time.perf_counter() - start_time) * 1000
@@ -660,21 +666,55 @@ async def generate_new_case(
             exc_info=True,
         )
         raise HTTPException(
-            status_code=500, detail="Failed to generate case. Please try again."
+            status_code=500, detail="Failed to generate case shell. Please try again."
         )
 
     # Add the user_id to the case
     generated_case["user_id"] = current_user.id
     case = Case(**generated_case)
+    
+    # Stage B: Immediately save the case shell to the database and call index_case_memory(case)
     try:
         await case.insert()
         await index_case_memory(case)
-        logger.info(f"Case {case.cnr} saved to database for user: {current_user.email}")
+        logger.info(f"Case shell {case.cnr} indexed for RAG for user: {current_user.email}")
     except Exception as e:
-        logger.error(f"Error inserting case to database: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="Failed to save generated case. Please try again."
+        logger.error(f"Error indexing case shell: {str(e)}", exc_info=True)
+        # Continue anyway, extraction will use raw text fallback
+
+    # Stage C: RAG-Backed Extraction
+    logger.debug(f"Starting RAG-backed extraction for case {case.cnr}")
+    extraction_start = time.perf_counter()
+    
+    try:
+        # Retrieve context for extraction
+        rag_context = await retrieve_case_context(
+            case, 
+            "Extract all parties involved and evidence items from the case text.",
+            source_types=["case_details"]
         )
+        
+        # Extract parties
+        from app.services.llm.parties_service import extract_and_assign_parties
+        extracted_parties = await extract_and_assign_parties(case.details, rag_context=rag_context)
+        case.parties_involved = extracted_parties
+        
+        # Extract evidence
+        from app.services.evidence_service import extract_evidence_items
+        extracted_evidence = await extract_evidence_items(case.details, rag_context=rag_context)
+        case.evidence = extracted_evidence
+        
+        # Save the updated case with parties and evidence
+        await case.save()
+        
+        # Re-index to include parties and evidence in RAG
+        await index_case_memory(case)
+        
+        extraction_duration = (time.perf_counter() - extraction_start) * 1000
+        logger.info(f"RAG-backed extraction completed in {extraction_duration:.2f}ms for case {case.cnr}")
+    except Exception as e:
+        logger.error(f"Error during RAG-backed extraction: {str(e)}", exc_info=True)
+        # We still have the shell saved, so we can return it, but it might be incomplete
 
     # Register rate limit usage only after successful generation
     await case_generation_rate_limiter.register_usage(str(current_user.id))

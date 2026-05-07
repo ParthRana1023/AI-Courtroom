@@ -32,6 +32,7 @@ from app.schemas.witness import (
     ExaminationItemResponse,
 )
 from app.services.llm import witness_service
+from app.config import settings
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
 from app.logging_config import get_logger
@@ -267,7 +268,7 @@ async def examine_witness(
             examiner_role=examiner_role,
             question=request.question,
             case_details=case.details,
-            examination_history=exam_history,
+            examination_history=exam_history if not settings.rag_enabled else None,
             rag_context=rag_context,
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
@@ -420,7 +421,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
 
         initial_witness_id = case.current_witness_id
 
-        for i in range(questions_to_ask):
+        for _ in range(questions_to_ask):
             # Re-fetch case to check for interruptions and ensure we work on latest state
             case = await Case.find_one(Case.cnr == case_cnr)
             if not case or case.current_witness_id != initial_witness_id:
@@ -429,6 +430,11 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
 
             if not case.is_ai_examining:
                 logger.info("AI examination flag cleared, stopping")
+                break
+
+            testimony = get_current_testimony(case)
+            if not testimony:
+                logger.error("No active testimony found during AI examination")
                 break
 
             # 1. Build history
@@ -525,9 +531,6 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                 },
             )
 
-            # Brief pause before the witness answers so the exchange feels sequential.
-            await asyncio.sleep(1)
-
             try:
                 answer_context = await retrieve_case_context(
                     case,
@@ -549,13 +552,21 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     examiner_role=ai_role,
                     question=question,
                     case_details=case.details,
-                    examination_history=exam_history
-                    + [{"examiner": ai_role, "question": question, "answer": ""}],
+                    examination_history=(
+                        exam_history
+                        + [{"examiner": ai_role, "question": question, "answer": ""}]
+                        if not settings.rag_enabled
+                        else None
+                    ),
                     rag_context=answer_context,
                 )
             except Exception as e:
                 logger.error(f"Error generating answer: {e}")
                 break
+
+            # The answer is generated immediately, but only becomes visible after
+            # the court-style pause requested by the user.
+            await asyncio.sleep(3)
 
             # Save Answer Event and Examination Item
             exam_item = ExaminationItem(
@@ -607,9 +618,6 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
             )
 
             questions_asked_count += 1
-
-            # Brief pause before the next question.
-            await asyncio.sleep(1)
 
     except Exception as e:
         logger.error(f"Error in background examination: {e}", exc_info=True)
@@ -676,6 +684,8 @@ async def ai_cross_examine_witness(
     # We return an empty list of examinations because they will be generated in background
     # The frontend should see 'state'="ai_cross_examining" and refresh witness state
     party = get_party_by_id(case, case.current_witness_id)
+    if not party:
+        raise HTTPException(status_code=404, detail="Current witness not found")
 
     return AICrossExaminationResponse(
         witness_id=party.id,
@@ -865,6 +875,38 @@ async def get_current_witness(
         for e in testimony.examination
     ]
 
+    if case.is_ai_examining:
+        latest_witness_event = next(
+            (
+                event
+                for event in reversed(case.courtroom_proceedings)
+                if event.witness_id == party.id
+                and event.type
+                in {
+                    CourtroomProceedingsEventType.WITNESS_EXAMINED_Q,
+                    CourtroomProceedingsEventType.WITNESS_EXAMINED_A,
+                }
+            ),
+            None,
+        )
+
+        if (
+            latest_witness_event
+            and latest_witness_event.type
+            == CourtroomProceedingsEventType.WITNESS_EXAMINED_Q
+        ):
+            examination_history.append(
+                ExaminationItemResponse(
+                    id=latest_witness_event.id,
+                    examiner=latest_witness_event.speaker_role or "opposition",
+                    question=latest_witness_event.question
+                    or latest_witness_event.content
+                    or "",
+                    answer="",
+                    timestamp=latest_witness_event.timestamp,
+                )
+            )
+
     return CurrentWitnessResponse(
         has_witness=True,
         witness_id=party.id,
@@ -946,9 +988,7 @@ async def ai_call_witness(
         )
 
     if case.is_ai_examining:
-        raise HTTPException(
-            status_code=409, detail="AI is already examining a witness"
-        )
+        raise HTTPException(status_code=409, detail="AI is already examining a witness")
 
     if case.current_witness_id:
         return {"should_call": False, "reason": "A witness is already on the stand"}
