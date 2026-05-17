@@ -1,5 +1,5 @@
 # app/services/cloudinary_service.py
-"""Cloudinary integration service for profile photo uploads."""
+"""Cloudinary integration service for profile and evidence image uploads."""
 
 import cloudinary
 import cloudinary.uploader
@@ -103,6 +103,99 @@ async def upload_profile_photo(
             extra={"user_id": user_id, "error": str(e)},
         )
         raise
+
+
+async def upload_evidence_image(
+    file_bytes: bytes,
+    cnr: str,
+    evidence_id: str,
+    existing_public_id: Optional[str] = None,
+) -> Tuple[str, str]:
+    """
+    Upload an evidence image to Cloudinary.
+
+    Returns:
+        Tuple of (secure_url, public_id)
+    """
+    logger.info(
+        "Uploading evidence image",
+        extra={
+            "cnr": cnr,
+            "evidence_id": evidence_id,
+            "has_existing": existing_public_id is not None,
+        },
+    )
+
+    if not configure_cloudinary():
+        logger.error("Cloudinary not configured, cannot upload evidence image")
+        raise Exception(
+            "Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET."
+        )
+
+    if existing_public_id:
+        try:
+            cloudinary.uploader.destroy(existing_public_id)
+        except Exception as e:
+            logger.warning(
+                "Failed to delete existing evidence image, proceeding with upload",
+                extra={"public_id": existing_public_id, "error": str(e)},
+            )
+
+    safe_cnr = "".join(ch for ch in cnr if ch.isalnum() or ch in ("-", "_"))
+    safe_evidence_id = "".join(
+        ch for ch in evidence_id if ch.isalnum() or ch in ("-", "_")
+    )
+
+    try:
+        result = cloudinary.uploader.upload(
+            file_bytes,
+            folder=f"ai-courtroom/evidence/{safe_cnr}",
+            public_id=f"evidence_{safe_evidence_id}",
+            overwrite=True,
+            resource_type="image",
+            transformation=[
+                {"width": 1200, "height": 800, "crop": "limit"},
+                {"quality": "auto", "fetch_format": "auto"},
+            ],
+        )
+        logger.info(
+            "Evidence image uploaded successfully",
+            extra={"cnr": cnr, "evidence_id": evidence_id, "public_id": result["public_id"]},
+        )
+        return result["secure_url"], result["public_id"]
+    except Exception as e:
+        logger.error(
+            "Failed to upload evidence image",
+            extra={"cnr": cnr, "evidence_id": evidence_id, "error": str(e)},
+        )
+        raise
+
+
+async def delete_evidence_image(public_id: str) -> bool:
+    """Delete an evidence image from Cloudinary."""
+    logger.info("Deleting evidence image", extra={"public_id": public_id})
+
+    if not configure_cloudinary():
+        logger.error("Cloudinary not configured, cannot delete evidence image")
+        raise Exception("Cloudinary is not configured.")
+
+    try:
+        result = cloudinary.uploader.destroy(public_id)
+        success = result.get("result") == "ok"
+        if success:
+            logger.info("Evidence image deleted successfully", extra={"public_id": public_id})
+        else:
+            logger.warning(
+                "Cloudinary evidence image deletion returned non-ok result",
+                extra={"public_id": public_id, "result": result},
+            )
+        return success
+    except Exception as e:
+        logger.error(
+            "Failed to delete evidence image",
+            extra={"public_id": public_id, "error": str(e)},
+        )
+        return False
 
 
 async def delete_profile_photo(public_id: str) -> bool:

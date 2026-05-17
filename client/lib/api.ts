@@ -393,6 +393,61 @@ export const caseAPI = {
     }
   },
 
+  addEvidence: async (
+    cnr: string,
+    evidence: {
+      title: string;
+      evidence_type: string;
+      description: string;
+      source?: string;
+      image_prompt?: string;
+    },
+  ) => {
+    try {
+      const response = await api.post(`/cases/${cnr}/evidence`, evidence);
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to add case evidence");
+      throw error;
+    }
+  },
+
+  extractEvidence: async (cnr: string, text: string, source?: string) => {
+    try {
+      const response = await api.post(`/cases/${cnr}/evidence/extract`, {
+        text,
+        source,
+      });
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to extract case evidence");
+      throw error;
+    }
+  },
+
+  generateMissingEvidenceImages: async (cnr: string) => {
+    try {
+      const response = await api.post(
+        `/cases/${cnr}/evidence/images/generate-missing`,
+      );
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to generate evidence images");
+      throw error;
+    }
+  },
+
+  deleteEvidence: async (cnr: string, evidenceId: string) => {
+    try {
+      const response = await api.delete(`/cases/${cnr}/evidence/${evidenceId}`);
+      logger.info("Evidence deleted", { cnr, evidenceId });
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to delete evidence");
+      throw error;
+    }
+  },
+
   analyzeCase: async (caseId: string) => {
     try {
       logger.info("Analyzing case", { caseId });

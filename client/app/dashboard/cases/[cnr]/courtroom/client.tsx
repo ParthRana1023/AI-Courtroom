@@ -35,6 +35,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { FilePlus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Drawer,
   DrawerContent,
@@ -167,6 +169,9 @@ export default function Courtroom({
   const [caseAnalysis, setCaseAnalysis] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [refreshWitnessPanel, setRefreshWitnessPanel] = useState(0);
+  const [extractingEventId, setExtractingEventId] = useState<string | null>(
+    null,
+  );
 
   const [aiWitnessAlert, setAiWitnessAlert] = useState<{
     isOpen: boolean;
@@ -459,6 +464,25 @@ export default function Courtroom({
         next.delete(eventId);
         return next;
       });
+    }
+  };
+
+  const handleExtractEvidence = async (event: CourtroomProceedingsEvent) => {
+    if (!event.id || extractingEventId || !event.content?.trim()) return;
+    setExtractingEventId(event.id);
+    try {
+      await caseAPI.extractEvidence(
+        cnr,
+        event.content,
+        `${event.speaker_name || event.speaker_role || "Courtroom"} proceeding`,
+      );
+      await refreshCourtroomSnapshot();
+      toast.success("Evidence extracted");
+    } catch (err) {
+      logger.error("Failed to extract evidence", err as Error);
+      toast.error("Failed to extract evidence");
+    } finally {
+      setExtractingEventId(null);
     }
   };
 
@@ -1058,6 +1082,25 @@ export default function Courtroom({
                       <div className="text-gray-900 dark:text-gray-100">
                         <ChatMarkdownRenderer markdown={event.content} />
                       </div>
+                      {event.id && event.content && (
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1 px-2 text-xs"
+                            disabled={extractingEventId === event.id}
+                            onClick={() => handleExtractEvidence(event)}
+                          >
+                            {extractingEventId === event.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <FilePlus className="h-3.5 w-3.5" />
+                            )}
+                            Extract Evidence
+                          </Button>
+                        </div>
+                      )}
                       {showShortResponseAlert && event.id && (
                         <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-100/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200">
                           <span>Short AI response detected.</span>
@@ -1122,6 +1165,25 @@ export default function Courtroom({
                     <div className="text-gray-900 dark:text-gray-100">
                       <ChatMarkdownRenderer markdown={event.content} />
                     </div>
+                    {event.id && event.content && !isOptimistic && (
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 gap-1 px-2 text-xs"
+                          disabled={extractingEventId === event.id}
+                          onClick={() => handleExtractEvidence(event)}
+                        >
+                          {extractingEventId === event.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <FilePlus className="h-3.5 w-3.5" />
+                          )}
+                          Extract Evidence
+                        </Button>
+                      </div>
+                    )}
                     {showShortResponseAlert && event.id && (
                       <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-100/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200">
                         <span>Short AI response detected.</span>

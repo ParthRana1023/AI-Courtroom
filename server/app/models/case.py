@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import Field, BaseModel
+from pydantic import Field, BaseModel, field_validator
 from pydantic_mongo import PydanticObjectId
 from datetime import datetime
 from enum import Enum
@@ -184,6 +184,19 @@ class Case(Document):
     deleted_at: Optional[datetime] = Field(
         default=None, description="Timestamp when the case was soft-deleted"
     )
+
+    @field_validator(
+        "plaintiff_arguments",
+        "defendant_arguments",
+        "courtroom_proceedings",
+        "parties_involved",
+        "evidence",
+        "witness_testimonies",
+        mode="before",
+    )
+    @classmethod
+    def normalize_legacy_null_lists(cls, value):
+        return [] if value is None else value
 
     class Settings:
         name = "cases"

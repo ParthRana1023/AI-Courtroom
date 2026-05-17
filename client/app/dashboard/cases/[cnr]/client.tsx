@@ -12,6 +12,7 @@ import {
   useLifecycleLogger,
 } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
+import { toast } from "sonner";
 
 const logger = getLogger("cases");
 
@@ -54,7 +55,13 @@ export default function CaseDetails({
       // Only update roles, NOT status - status becomes ACTIVE only when entering courtroom
       const userRole = role === "plaintiff" ? Roles.PLAINTIFF : Roles.DEFENDANT;
       const aiRole = role === "plaintiff" ? Roles.DEFENDANT : Roles.PLAINTIFF;
-      await caseAPI.updateCaseRoles(cnr, userRole, aiRole);
+      const response = await caseAPI.updateCaseRoles(cnr, userRole, aiRole);
+      const generated = response?.image_generation?.generated;
+      if (typeof generated === "number" && generated > 0) {
+        toast.success(`${generated} evidence image(s) prepared`);
+      } else {
+        toast.success("Side selected");
+      }
 
       // Navigate to case prep
       router.push(`/dashboard/cases/${cnr}/case-prep?role=${role}`);

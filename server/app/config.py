@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     cloudinary_api_key: Optional[str] = None
     cloudinary_api_secret: Optional[str] = None
 
+    # Evidence image generation settings
+    gemini_api_key: Optional[str] = None
+    evidence_image_model: str = "gemini-3.1-flash-image-preview"
+    evidence_image_generation_limit_per_case: int = 2
+    evidence_image_generation_timeout_seconds: int = 120
+
     # Email settings
     email_sender: str = "noreply@aicourtroom.com"
     email_username: str
@@ -177,6 +183,10 @@ def log_environment_status():
         "CLOUDINARY_CLOUD_NAME": is_set(settings.cloudinary_cloud_name),
         "CLOUDINARY_API_KEY": is_set(settings.cloudinary_api_key),
         "CLOUDINARY_API_SECRET": is_set(settings.cloudinary_api_secret),
+        # Evidence images
+        "GEMINI_API_KEY": is_set(settings.gemini_api_key),
+        "EVIDENCE_IMAGE_MODEL": settings.evidence_image_model,
+        "EVIDENCE_IMAGE_GENERATION_LIMIT_PER_CASE": settings.evidence_image_generation_limit_per_case,
         # Email
         "EMAIL_SENDER": settings.email_sender,
         "EMAIL_USERNAME": is_set(settings.email_username),

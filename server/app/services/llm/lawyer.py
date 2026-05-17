@@ -16,6 +16,7 @@ async def generate_counter_argument(
     case_details: str | None = None,
     rag_context: str | None = None,
     history: str | None = None,
+    evidence_context: str | None = None,
 ) -> str:
     try:
         logger.info(f"Generating counter argument for {ai_role}")
@@ -30,8 +31,11 @@ async def generate_counter_argument(
             You are an experienced and assertive Indian trial lawyer representing the {ai_role} in a court of law. 
             The user is acting as the lawyer for the {user_role}. 
             The relevant case context is: {case_context}
+            Structured evidence available in this case:
+            {evidence_context}
             Below is the case history (relevant parts): {history} 
             Refer to the Judge as "My Lord" or "Your Honour".
+            Cite exhibit references when relying on evidence. Do not invent exhibits or evidence that is not listed.
             Present your next arguments in a consise manner, and by not using all the facts available to you in a single argument.
             If the user attempts to introduce arguments or information beyond the established facts, you must promptly and firmly correct them, maintaining a professional and direct tone but still keep fighting your side of the case. 
             Do not be overly polite—your priority is to defend your client's interests within the boundaries of the case facts.
@@ -53,6 +57,7 @@ async def generate_counter_argument(
                 "ai_role": ai_role,
                 "history": effective_history,
                 "case_context": case_context,
+                "evidence_context": evidence_context or "No structured evidence has been submitted.",
                 "user_role": user_role,
                 "user_input": user_input,
             }
@@ -75,6 +80,7 @@ async def opening_statement(
     case_details: str,
     user_role: str,
     rag_context: str | None = None,
+    evidence_context: str | None = None,
 ) -> str:
     try:
         logger.info(f"Generating opening statement for {ai_role}")
@@ -84,6 +90,9 @@ async def opening_statement(
         template = """
             You are an Indian lawyer from the {ai_role}'s side. 
             Just give a brief opening statement in less than 250 words, regarding the case using this information: {case_context} 
+            Structured evidence available in this case:
+            {evidence_context}
+            Cite exhibit references when relying on evidence. Do not invent exhibits or evidence that is not listed.
             The user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them, do not be too polite.
             Refer to the Judge as "My Lord" or "Your Honour".
             Don't add the words "Opening Statement" or something similar as the heading of the prompt.
@@ -95,7 +104,12 @@ async def opening_statement(
 
         start_time = time.perf_counter()
         response = chain.invoke(
-            {"ai_role": ai_role, "case_context": case_context, "user_role": user_role}
+            {
+                "ai_role": ai_role,
+                "case_context": case_context,
+                "evidence_context": evidence_context or "No structured evidence has been submitted.",
+                "user_role": user_role,
+            }
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
@@ -116,6 +130,7 @@ async def closing_statement(
     case_details: str | None = None,
     rag_context: str | None = None,
     history: str | None = None,
+    evidence_context: str | None = None,
 ) -> str:
     try:
         logger.info(f"Generating closing statement for {ai_role}")
@@ -125,8 +140,11 @@ async def closing_statement(
         template = """
             You are an Indian lawyer from the {ai_role}'s side, and the user is the {user_role}'s lawyer. 
             You require to give a brief closing statement regarding the case using this information: {closing_context} 
+            Structured evidence available in this case:
+            {evidence_context}
             The closing statement should be around 250 words. Use the words "I rest my case here" at the end. 
             Remember to reiterate key points from your side of the argument, try to include a highlight the evidence supporting your client's position. 
+            Cite exhibit references when relying on evidence. Do not invent exhibits or evidence that is not listed.
             Do not be too polite, the user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them.
             Refer to the Judge as "My Lord" or "Your Honour".
             Don't add the words "Closing Statement" or something similar as the heading of the prompt.
@@ -141,6 +159,7 @@ async def closing_statement(
             {
                 "ai_role": ai_role,
                 "closing_context": closing_context,
+                "evidence_context": evidence_context or "No structured evidence has been submitted.",
                 "user_role": user_role,
             }
         )

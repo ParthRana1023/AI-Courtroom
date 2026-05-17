@@ -11,6 +11,7 @@ from app.utils.rate_limiter import argument_rate_limiter
 from app.utils.datetime import get_current_datetime
 from app.config import settings
 from app.services.rag import retrieve_case_context, upsert_memory_item
+from app.services.evidence_service import format_evidence_context
 from app.models.case import (
     ArgumentItem,
     Roles,
@@ -268,7 +269,11 @@ async def submit_argument(
             )
 
             plaintiff_opening_statement = await lawyer.opening_statement(
-                "plaintiff", case.details, "defendant", rag_context=rag_context
+                "plaintiff",
+                case.details,
+                "defendant",
+                rag_context=rag_context,
+                evidence_context=format_evidence_context(case.evidence),
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Plaintiff opening statement generated in {duration_ms:.2f}ms")
@@ -337,7 +342,8 @@ async def submit_argument(
                 case.user_role.value,
                 case.details,
                 rag_context=counter_context,
-                history=history if not settings.rag_enabled else None
+                history=history if not settings.rag_enabled else None,
+                evidence_context=format_evidence_context(case.evidence),
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Plaintiff counter-argument generated in {duration_ms:.2f}ms")
@@ -449,7 +455,11 @@ async def submit_argument(
                 source_types=["case_details", "evidence", "party_bio", "party_chat"],
             )
             defendant_opening_statement = await lawyer.opening_statement(
-                "defendant", case.details, "plaintiff", rag_context=rag_context
+                "defendant",
+                case.details,
+                "plaintiff",
+                rag_context=rag_context,
+                evidence_context=format_evidence_context(case.evidence),
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(f"Defendant opening statement generated in {duration_ms:.2f}ms")
@@ -683,7 +693,8 @@ async def submit_argument(
             case.user_role.value, 
             case_details=case.details,
             rag_context=closing_context,
-            history=history if not settings.rag_enabled else None
+            history=history if not settings.rag_enabled else None,
+            evidence_context=format_evidence_context(case.evidence),
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"AI closing statement generated in {duration_ms:.2f}ms")
@@ -733,7 +744,8 @@ async def submit_argument(
                 case.user_role.value,
                 case.details,
                 rag_context=counter_context,
-                history=history if not settings.rag_enabled else None
+                history=history if not settings.rag_enabled else None,
+                evidence_context=format_evidence_context(case.evidence),
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.info(
@@ -1030,7 +1042,11 @@ async def regenerate_short_llm_response(
                 source_types=["case_details", "evidence", "party_bio", "party_chat"],
             )
             new_content = await lawyer.opening_statement(
-                ai_role, case.details, user_role, rag_context=rag_context
+                ai_role,
+                case.details,
+                user_role,
+                rag_context=rag_context,
+                evidence_context=format_evidence_context(case.evidence),
             )
             update_matching_ai_argument(case, event, old_content, new_content)
         else:
@@ -1073,7 +1089,8 @@ async def regenerate_short_llm_response(
                 user_role,
                 case.details,
                 rag_context=rag_context,
-                history=history if not settings.rag_enabled else None
+                history=history if not settings.rag_enabled else None,
+                evidence_context=format_evidence_context(case.evidence),
             )
             update_matching_ai_argument(case, event, old_content, new_content)
 
@@ -1247,7 +1264,12 @@ async def submit_closing_statement(
             ],
         )
         ai_closing = await lawyer.closing_statement(
-            history, ai_role, case.user_role.value, rag_context=closing_context
+            ai_role,
+            case.user_role.value,
+            case_details=case.details,
+            rag_context=closing_context,
+            history=history if not settings.rag_enabled else None,
+            evidence_context=format_evidence_context(case.evidence),
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
@@ -1338,6 +1360,7 @@ async def submit_closing_statement(
             case_details=case.details,
             title=case.title,
             rag_context=verdict_context,
+            evidence_context=format_evidence_context(case.evidence),
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Verdict generated for case {case_cnr} in {duration_ms:.2f}ms")

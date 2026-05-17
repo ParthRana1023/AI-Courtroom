@@ -13,6 +13,10 @@ from app.models.case import (
 from app.schemas.case import CaseCreate, CaseOut
 from app.dependencies import get_current_user
 from app.services.evidence_service import extract_evidence_items
+from app.services.evidence_service import (
+    format_evidence_context,
+    generate_missing_evidence_images_for_case,
+)
 from app.services.rag import (
     delete_case_memory,
     index_case_memory,
@@ -97,62 +101,6 @@ async def get_case(cnr: str, current_user: User = Depends(get_current_user)):
         "current_witness_id": case_dict.get("current_witness_id"),
         "evidence": case_dict.get("evidence", []),
     }
-
-
-@router.get("/{cnr}/evidence")
-async def get_case_evidence(cnr: str, current_user: User = Depends(get_current_user)):
-    """Get structured evidence for a case, backfilling legacy cases when needed."""
-    logger.debug(f"Fetching evidence for case {cnr}")
-
-    case = await Case.find_one(Case.cnr == cnr)
-    if not case:
-        logger.warning(f"Case not found for evidence: {cnr}")
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized evidence access for case {cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
-
-    if not case.evidence:
-        logger.info(f"Backfilling evidence for legacy case {cnr}")
-        case.evidence = await extract_evidence_items(case.details)
-        try:
-            await case.save()
-            for item in case.evidence:
-                await upsert_memory_item(
-                    case,
-                    "evidence",
-                    item.id,
-                    "\n".join(
-                        part
-                        for part in [
-                            item.exhibit_ref,
-                            item.title,
-                            item.description,
-                            item.source,
-                        ]
-                        if part
-                    ),
-                    {
-                        "exhibit_ref": item.exhibit_ref,
-                        "evidence_type": item.evidence_type,
-                    },
-                )
-        except Exception as e:
-            logger.error(
-                f"Error saving backfilled evidence for case {cnr}: {str(e)}",
-                exc_info=True,
-            )
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to prepare evidence. Please try again.",
-            )
-
-    return {"evidence": [item.model_dump(mode="json") for item in case.evidence]}
 
 
 @router.put("/{cnr}/status")
@@ -319,10 +267,22 @@ async def update_case_roles(
             status_code=500, detail="Failed to update case roles. Please try again."
         )
 
+    image_generation_summary = None
+    try:
+        image_generation_summary = await generate_missing_evidence_images_for_case(case)
+    except Exception as e:
+        logger.error(
+            f"Evidence image generation failed after role selection for {cnr}: {str(e)}",
+            exc_info=True,
+        )
+
     return {
         "message": "Case roles updated successfully",
         "user_role": case.user_role,
         "ai_role": case.ai_role,
+        "image_generation": (
+            image_generation_summary.model_dump() if image_generation_summary else None
+        ),
     }
 
 
@@ -383,7 +343,11 @@ async def generate_plaintiff_opening(
             source_types=["case_details", "evidence", "party_bio"],
         )
         plaintiff_opening_statement = await opening_statement(
-            "plaintiff", case.details, "defendant", rag_context=rag_context
+            "plaintiff",
+            case.details,
+            "defendant",
+            rag_context=rag_context,
+            evidence_context=format_evidence_context(case.evidence),
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(

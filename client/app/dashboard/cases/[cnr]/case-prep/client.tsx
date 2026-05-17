@@ -13,6 +13,8 @@ import {
   CaseStatus,
 } from "@/types";
 import { Button } from "@/components/ui/button";
+import { FilePlus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import EvidencePanel from "@/components/evidence-panel";
 import {
   Drawer,
@@ -75,6 +77,12 @@ export default function CasePrepPage({
   const [isStartingCourtroom, setIsStartingCourtroom] = useState(false);
   const [isLoadingPerson, setIsLoadingPerson] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [extractingMessageId, setExtractingMessageId] = useState<string | null>(
+    null,
+  );
+  const [deletingEvidenceId, setDeletingEvidenceId] = useState<string | null>(
+    null,
+  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -163,6 +171,47 @@ export default function CasePrepPage({
       setError("Failed to send message. Please try again.");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const refreshEvidence = async () => {
+    const evidenceData: { evidence: EvidenceItem[] } =
+      await caseAPI.getEvidence(cnr);
+    setEvidence(evidenceData.evidence || []);
+  };
+
+  const handleExtractEvidence = async (message: ChatMessage) => {
+    if (extractingMessageId) return;
+    setExtractingMessageId(message.id);
+    try {
+      await caseAPI.extractEvidence(
+        cnr,
+        message.content,
+        selectedPerson
+          ? `${stripMarkdown(selectedPerson.name)} chat (${message.sender})`
+          : `Party chat (${message.sender})`,
+      );
+      await refreshEvidence();
+      toast.success("Evidence extracted");
+    } catch (error) {
+      logger.error("Failed to extract evidence", error as Error);
+      toast.error("Failed to extract evidence");
+    } finally {
+      setExtractingMessageId(null);
+    }
+  };
+
+  const handleDeleteEvidence = async (evidenceId: string) => {
+    setDeletingEvidenceId(evidenceId);
+    try {
+      await caseAPI.deleteEvidence(cnr, evidenceId);
+      await refreshEvidence();
+      toast.success("Evidence deleted");
+    } catch (error) {
+      logger.error("Failed to delete evidence", error as Error);
+      toast.error("Failed to delete evidence");
+    } finally {
+      setDeletingEvidenceId(null);
     }
   };
 
@@ -505,7 +554,11 @@ export default function CasePrepPage({
           </TabsContent>
 
           <TabsContent value="evidence" className="mt-0">
-            <EvidencePanel evidence={evidence} />
+            <EvidencePanel
+              evidence={evidence}
+              onDelete={handleDeleteEvidence}
+              deletingEvidenceId={deletingEvidenceId}
+            />
           </TabsContent>
         </Tabs>
       </main>
@@ -579,11 +632,28 @@ export default function CasePrepPage({
                           <div className="text-gray-900 dark:text-gray-100">
                             <ChatMarkdownRenderer markdown={msg.content} />
                           </div>
-                          {msg.timestamp && (
-                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              {formatToLocaleString(msg.timestamp)}
-                            </div>
-                          )}
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                            {msg.timestamp && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatToLocaleString(msg.timestamp)}
+                              </div>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 px-2 text-xs"
+                              disabled={extractingMessageId === msg.id}
+                              onClick={() => handleExtractEvidence(msg)}
+                            >
+                              {extractingMessageId === msg.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <FilePlus className="h-3.5 w-3.5" />
+                              )}
+                              Extract Evidence
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ))}

@@ -26,10 +26,6 @@ __pycache__/
 
 # Testing Folder
 tests/
-!server/tests/
-server/tests/**
-!server/tests/conftest.py
-!server/tests/test_rag_*.py
 
 htmlcov/
 
@@ -60,3 +56,5 @@ everything-claude-code/
 .claude/
 
 future_plans/
+
+pyrefly.toml

@@ -16,6 +16,7 @@ async def generate_verdict(
     case_details: str | None = None,
     title: str | None = None,
     rag_context: str | None = None,
+    evidence_context: str | None = None,
 ) -> str:
     try:
         logger.info(
@@ -117,6 +118,7 @@ async def generate_verdict(
 
             INPUTS PROVIDED:
             Case Description: {case_context}
+            Structured Evidence: {evidence_context}
             Petitioner Arguments: {plaintiff_arguments}
             Respondent Arguments: {defendant_arguments}
 
@@ -133,6 +135,7 @@ async def generate_verdict(
             {
                 "title": title or "No title provided",
                 "case_context": case_context,
+                "evidence_context": evidence_context or "No structured evidence has been submitted.",
                 "plaintiff_arguments": plaintiff_arguments,
                 "defendant_arguments": defendant_arguments,
             }
