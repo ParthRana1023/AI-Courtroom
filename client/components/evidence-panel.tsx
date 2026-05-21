@@ -1,6 +1,12 @@
 "use client";
 
-import { FileText, ImageIcon, Loader2, Trash2, TriangleAlert } from "lucide-react";
+import {
+  FileText,
+  ImageIcon,
+  Loader2,
+  RotateCcw,
+  TriangleAlert,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { EvidenceItem } from "@/types";
@@ -9,14 +15,14 @@ import { Button } from "@/components/ui/button";
 
 interface EvidencePanelProps {
   evidence?: EvidenceItem[];
-  onDelete?: (evidenceId: string) => void | Promise<void>;
-  deletingEvidenceId?: string | null;
+  onRegenerateImage?: (evidenceId: string) => void | Promise<void>;
+  regeneratingEvidenceId?: string | null;
 }
 
 export default function EvidencePanel({
   evidence = [],
-  onDelete,
-  deletingEvidenceId,
+  onRegenerateImage,
+  regeneratingEvidenceId,
 }: EvidencePanelProps) {
   if (evidence.length === 0) {
     return (
@@ -57,10 +63,29 @@ export default function EvidencePanel({
               </div>
             </div>
           ) : item.media_status === "failed" ? (
-            <div className="flex h-52 items-center justify-center bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-              <div className="flex items-center gap-2 text-sm">
-                <TriangleAlert className="h-4 w-4" />
-                Image generation failed
+            <div className="flex h-52 items-center justify-center bg-amber-50 p-4 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+              <div className="flex flex-col items-center gap-3 text-center text-sm">
+                <div className="flex items-center gap-2">
+                  <TriangleAlert className="h-4 w-4" />
+                  Image generation failed
+                </div>
+                {onRegenerateImage && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-amber-300 bg-white/80 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-zinc-950/40 dark:text-amber-200 dark:hover:bg-amber-950"
+                    disabled={regeneratingEvidenceId === item.id}
+                    onClick={() => onRegenerateImage(item.id)}
+                  >
+                    {regeneratingEvidenceId === item.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                    Regenerate
+                  </Button>
+                )}
               </div>
             </div>
           ) : (
@@ -81,23 +106,6 @@ export default function EvidencePanel({
                 >
                   {item.media_status.replace("_", " ")}
                 </Badge>
-              )}
-              {onDelete && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="ml-auto h-8 w-8 p-0 text-gray-500 hover:text-red-600"
-                  disabled={deletingEvidenceId === item.id}
-                  onClick={() => onDelete(item.id)}
-                  aria-label={`Delete ${item.title}`}
-                >
-                  {deletingEvidenceId === item.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                </Button>
               )}
             </div>
 

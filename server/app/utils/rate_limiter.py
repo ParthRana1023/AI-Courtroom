@@ -1,13 +1,12 @@
 # app/utils/rate_limiter.py
 from fastapi import Depends, HTTPException
 from starlette.requests import Request
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from app.utils.datetime import get_current_datetime, get_timezone
 from app.dependencies import get_current_user
 from typing import Tuple, Optional
 from app.models.user import User
 from app.models.rate_limit import RateLimitEntry
-import pytz
 from app.config import settings
 from app.logging_config import get_logger
 
@@ -24,7 +23,7 @@ def ensure_ist_timezone(dt: datetime) -> datetime:
 
     if dt.tzinfo is None:
         # Naive datetime - assume it's UTC (as MongoDB returns UTC)
-        dt = pytz.utc.localize(dt)
+        dt = dt.replace(tzinfo=timezone.utc)
 
     # Convert to IST
     return dt.astimezone(ist)

@@ -43,7 +43,9 @@ class CaseAnalysisService:
             logger.warning("No arguments provided for analysis")
             return "No analysis generated."
 
-        case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
+        case_context = rag_context or (
+            case_details[:6000] if case_details else "No case details provided"
+        )
 
         prompt = """
             You are a legal expert AI tasked with analyzing a legal case. Your role is to evaluate the arguments presented and provide constructive feedback.

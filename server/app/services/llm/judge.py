@@ -26,7 +26,9 @@ async def generate_verdict(
             f"Plaintiff arguments: {len(plaintiff_arguments)}, Defendant arguments: {len(defendant_arguments)}"
         )
 
-        case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
+        case_context = rag_context or (
+            case_details[:6000] if case_details else "No case details provided"
+        )
 
         judge_template = (
             judge_template
@@ -135,7 +137,8 @@ async def generate_verdict(
             {
                 "title": title or "No title provided",
                 "case_context": case_context,
-                "evidence_context": evidence_context or "No structured evidence has been submitted.",
+                "evidence_context": evidence_context
+                or "No structured evidence has been submitted.",
                 "plaintiff_arguments": plaintiff_arguments,
                 "defendant_arguments": defendant_arguments,
             }

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from importlib import import_module
 from typing import Sequence
 
 from app.logging_config import get_logger
@@ -8,10 +9,10 @@ logger = get_logger(__name__)
 
 @lru_cache(maxsize=1)
 def _load_model():
-    from sentence_transformers import SentenceTransformer
     from app.config import settings
 
     logger.info(f"Loading embedding model: {settings.embedding_model_name}")
+    SentenceTransformer = import_module("sentence_transformers").SentenceTransformer
     return SentenceTransformer(settings.embedding_model_name)
 
 

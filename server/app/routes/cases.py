@@ -325,7 +325,7 @@ async def generate_plaintiff_opening(
                 "ai_opening_statement": opening.content,
                 "ai_opening_role": "plaintiff",
             }
-        
+
         # If no opening statement but other arguments exist, we still shouldn't generate it now
         raise HTTPException(
             status_code=400,
@@ -613,6 +613,7 @@ async def generate_new_case(
     start_time = time.perf_counter()
     try:
         from app.services.llm.case_generation import generate_case_shell
+
         generated_case = await generate_case_shell(
             case_data.sections_involved,
             case_data.section_numbers,
@@ -636,12 +637,14 @@ async def generate_new_case(
     # Add the user_id to the case
     generated_case["user_id"] = current_user.id
     case = Case(**generated_case)
-    
+
     # Stage B: Immediately save the case shell to the database and call index_case_memory(case)
     try:
         await case.insert()
         await index_case_memory(case)
-        logger.info(f"Case shell {case.cnr} indexed for RAG for user: {current_user.email}")
+        logger.info(
+            f"Case shell {case.cnr} indexed for RAG for user: {current_user.email}"
+        )
     except Exception as e:
         logger.error(f"Error indexing case shell: {str(e)}", exc_info=True)
         # Continue anyway, extraction will use raw text fallback
@@ -649,33 +652,41 @@ async def generate_new_case(
     # Stage C: RAG-Backed Extraction
     logger.debug(f"Starting RAG-backed extraction for case {case.cnr}")
     extraction_start = time.perf_counter()
-    
+
     try:
         # Retrieve context for extraction
         rag_context = await retrieve_case_context(
-            case, 
+            case,
             "Extract all parties involved and evidence items from the case text.",
-            source_types=["case_details"]
+            source_types=["case_details"],
         )
-        
+
         # Extract parties
         from app.services.llm.parties_service import extract_and_assign_parties
-        extracted_parties = await extract_and_assign_parties(case.details, rag_context=rag_context)
+
+        extracted_parties = await extract_and_assign_parties(
+            case.details, rag_context=rag_context
+        )
         case.parties_involved = extracted_parties
-        
+
         # Extract evidence
         from app.services.evidence_service import extract_evidence_items
-        extracted_evidence = await extract_evidence_items(case.details, rag_context=rag_context)
+
+        extracted_evidence = await extract_evidence_items(
+            case.details, rag_context=rag_context
+        )
         case.evidence = extracted_evidence
-        
+
         # Save the updated case with parties and evidence
         await case.save()
-        
+
         # Re-index to include parties and evidence in RAG
         await index_case_memory(case)
-        
+
         extraction_duration = (time.perf_counter() - extraction_start) * 1000
-        logger.info(f"RAG-backed extraction completed in {extraction_duration:.2f}ms for case {case.cnr}")
+        logger.info(
+            f"RAG-backed extraction completed in {extraction_duration:.2f}ms for case {case.cnr}"
+        )
     except Exception as e:
         logger.error(f"Error during RAG-backed extraction: {str(e)}", exc_info=True)
         # We still have the shell saved, so we can return it, but it might be incomplete

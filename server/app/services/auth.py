@@ -1,4 +1,6 @@
 # app/services/auth.py
+from importlib import import_module
+
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from fastapi import HTTPException, status
@@ -7,13 +9,13 @@ from app.models.otp import OTP
 from app.schemas.user import UserCreate
 from datetime import timedelta
 from typing import Optional
-from jose import jwt
 from app.config import settings
 from app.services.otp import verify_otp
 from app.utils.datetime import create_jwt_expiry
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+jwt = import_module("jose.jwt")
 
 ph = PasswordHasher()
 
@@ -46,6 +48,11 @@ async def authenticate_user(email: str, password: str) -> User:
     user = await User.find_one(User.email == email)
     if not user:
         logger.warning(f"Authentication failed - user not found: {email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+        )
+    if user.password_hash is None:
+        logger.warning(f"Authentication failed - password login unavailable: {email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )

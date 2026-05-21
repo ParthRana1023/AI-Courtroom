@@ -121,7 +121,7 @@ async def get_party_details_route(
 
     # Find the party
     party = None
-    party_index = None
+    party_index = -1
     for i, p in enumerate(case.parties_involved):
         if p.id == party_id:
             party = p
@@ -241,7 +241,7 @@ async def chat_with_case_party(
 
     # Find the party
     party = None
-    party_index = None
+    party_index = -1
     for i, p in enumerate(case.parties_involved):
         if p.id == party_id:
             party = p

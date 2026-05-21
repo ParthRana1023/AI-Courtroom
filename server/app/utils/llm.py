@@ -8,11 +8,11 @@ codebase can keep using ``chain.invoke()`` / ``chain.ainvoke()`` unchanged.
 """
 
 from functools import lru_cache
+from importlib import import_module
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import Runnable
 from langchain_groq import ChatGroq
-from langchain_openai import ChatOpenAI
 
 from app.config import settings
 
@@ -67,6 +67,7 @@ def _create_llm_instance(provider: str, model_id: str) -> BaseChatModel:
             temperature=0.7,
         )
     elif provider == "openrouter":
+        ChatOpenAI = import_module("langchain_openai").ChatOpenAI
         return ChatOpenAI(
             model=model_id,
             api_key=settings.openrouter_api_key or "not_set",

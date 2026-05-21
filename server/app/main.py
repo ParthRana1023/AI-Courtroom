@@ -43,10 +43,10 @@ SERVICE_START_TIME = time.time()
 
 # Custom JSON encoder to handle PydanticObjectId
 class CustomJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, PydanticObjectId):
-            return str(obj)
-        return super().default(obj)
+    def default(self, o):
+        if isinstance(o, PydanticObjectId):
+            return str(o)
+        return super().default(o)
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -188,7 +188,7 @@ app.include_router(witness.router, prefix="/cases", tags=["Witness"])
 app.include_router(rate_limit.router, prefix="/limit", tags=["Rate Limit"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
-app.include_router(location.router, prefix="/location", tags=["location"])
+app.include_router(location.router, prefix="/location", tags=["Location"])
 app.include_router(client_logs.router, prefix="/logs", tags=["Client Logs"])
 
 if __name__ == "__main__":

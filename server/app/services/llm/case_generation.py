@@ -270,9 +270,7 @@ async def generate_case_shell(
     logger.info(f"Generating case shell with {sections} BNS sections: {numbers}")
     overall_start_time = time.perf_counter()
 
-    bns_section_numbers_str = (
-        ", ".join(map(str, numbers)) if numbers else "XXX"
-    )
+    bns_section_numbers_str = ", ".join(map(str, numbers)) if numbers else "XXX"
     number_of_bns_sections = sections
 
     # Generate random names and organizations
@@ -441,6 +439,7 @@ async def generate_case_shell(
 
         def extract_title(case_text: str) -> str:
             import re
+
             title_match = re.search(
                 r"\*\*IN THE MATTER OF:\*\*\s*\n\*\*(.*?)\*\*", case_text, re.DOTALL
             )
@@ -477,7 +476,7 @@ async def generate_case(
     city: Optional[str] = None,
 ) -> dict:
     """
-    Backward compatible function that generates shell. 
+    Backward compatible function that generates shell.
     Extraction is now handled by the RAG-first standard in the route.
     """
     return await generate_case_shell(sections, numbers, high_court, city)

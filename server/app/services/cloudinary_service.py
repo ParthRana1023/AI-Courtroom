@@ -160,7 +160,11 @@ async def upload_evidence_image(
         )
         logger.info(
             "Evidence image uploaded successfully",
-            extra={"cnr": cnr, "evidence_id": evidence_id, "public_id": result["public_id"]},
+            extra={
+                "cnr": cnr,
+                "evidence_id": evidence_id,
+                "public_id": result["public_id"],
+            },
         )
         return result["secure_url"], result["public_id"]
     except Exception as e:
@@ -183,7 +187,9 @@ async def delete_evidence_image(public_id: str) -> bool:
         result = cloudinary.uploader.destroy(public_id)
         success = result.get("result") == "ok"
         if success:
-            logger.info("Evidence image deleted successfully", extra={"public_id": public_id})
+            logger.info(
+                "Evidence image deleted successfully", extra={"public_id": public_id}
+            )
         else:
             logger.warning(
                 "Cloudinary evidence image deletion returned non-ok result",

@@ -136,11 +136,7 @@ def remove_proceedings_after(case: Case, event_index: int):
             )
             # Match by content. Using reversed to get the most recent one.
             for i in range(len(args) - 1, -1, -1):
-                arg_content = (
-                    args[i].content
-                    if isinstance(args[i], ArgumentItem)
-                    else args[i]["content"]
-                )
+                arg_content = args[i].content
                 if arg_content == event.content:
                     args.pop(i)
                     logger.debug(f"Removed argument matching event {event.id}")
@@ -602,28 +598,20 @@ async def submit_argument(
     history = ""
     if role == "plaintiff":
         for arg in case.plaintiff_arguments:
-            content = (
-                arg.content if isinstance(arg, ArgumentItem) else arg["content"]
-            )
+            content = arg.content if isinstance(arg, ArgumentItem) else arg["content"]
             if content:
                 history += f"Plaintiff: {content}\n"
         for arg in case.defendant_arguments:
-            content = (
-                arg.content if isinstance(arg, ArgumentItem) else arg["content"]
-            )
+            content = arg.content if isinstance(arg, ArgumentItem) else arg["content"]
             if content:
                 history += f"Defendant: {content}\n"
     else:
         for arg in case.defendant_arguments:
-            content = (
-                arg.content if isinstance(arg, ArgumentItem) else arg["content"]
-            )
+            content = arg.content if isinstance(arg, ArgumentItem) else arg["content"]
             if content:
                 history += f"Defendant: {content}\n"
         for arg in case.plaintiff_arguments:
-            content = (
-                arg.content if isinstance(arg, ArgumentItem) else arg["content"]
-            )
+            content = arg.content if isinstance(arg, ArgumentItem) else arg["content"]
             if content:
                 history += f"Plaintiff: {content}\n"
 
@@ -689,8 +677,8 @@ async def submit_argument(
             ],
         )
         counter = await lawyer.closing_statement(
-            ai_role, 
-            case.user_role.value, 
+            ai_role,
+            case.user_role.value,
             case_details=case.details,
             rag_context=closing_context,
             history=history if not settings.rag_enabled else None,
@@ -1010,11 +998,15 @@ async def regenerate_short_llm_response(
                 witness_role=witness_party.role.value,
                 witness_bio=witness_party.bio or "",
                 examiner_role=(
-                    question_event.speaker_role if (question_event and question_event.speaker_role) else ai_role
+                    question_event.speaker_role
+                    if (question_event and question_event.speaker_role)
+                    else ai_role
                 ),
                 question=question,
                 case_details=case.details,
-                examination_history=examination_history if not settings.rag_enabled else None,
+                examination_history=(
+                    examination_history if not settings.rag_enabled else None
+                ),
                 rag_context=rag_context,
             )
 
@@ -1164,17 +1156,13 @@ async def submit_closing_statement(
     existing_roles = set()
     for arg in case.plaintiff_arguments:
         arg_user_id = (
-            arg.user_id
-            if isinstance(arg, ArgumentItem)
-            else arg.get("user_id")
+            arg.user_id if isinstance(arg, ArgumentItem) else arg.get("user_id")
         )
         if arg_user_id is not None and str(arg_user_id) == str(current_user.id):
             existing_roles.add("plaintiff")
     for arg in case.defendant_arguments:
         arg_user_id = (
-            arg.user_id
-            if isinstance(arg, ArgumentItem)
-            else arg.get("user_id")
+            arg.user_id if isinstance(arg, ArgumentItem) else arg.get("user_id")
         )
         if arg_user_id is not None and str(arg_user_id) == str(current_user.id):
             existing_roles.add("defendant")
@@ -1315,9 +1303,9 @@ async def submit_closing_statement(
         if isinstance(arg, ArgumentItem):
             if arg.type in ["user", "opening", "counter", "closing"]:
                 if arg.role == Roles.PLAINTIFF:
-                    plaintiff_side_args.append(str(arg.content))
+                    plaintiff_side_args.append(arg.content)
                 elif arg.role == Roles.DEFENDANT:
-                    defendant_side_args.append(str(arg.content))
+                    defendant_side_args.append(arg.content)
         elif isinstance(arg, dict):
             if arg.get("type") in ["user", "opening", "counter", "closing"]:
                 if arg.get("role") == Roles.PLAINTIFF.value:
@@ -1329,9 +1317,9 @@ async def submit_closing_statement(
         if isinstance(arg, ArgumentItem):
             if arg.type in ["user", "opening", "counter", "closing"]:
                 if arg.role == Roles.PLAINTIFF:
-                    plaintiff_side_args.append(str(arg.content))
+                    plaintiff_side_args.append(arg.content)
                 elif arg.role == Roles.DEFENDANT:
-                    defendant_side_args.append(str(arg.content))
+                    defendant_side_args.append(arg.content)
         elif isinstance(arg, dict):
             if arg.get("type") in ["user", "opening", "counter", "closing"]:
                 if arg.get("role") == Roles.PLAINTIFF.value:

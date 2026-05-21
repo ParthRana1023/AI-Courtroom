@@ -437,13 +437,15 @@ export const caseAPI = {
     }
   },
 
-  deleteEvidence: async (cnr: string, evidenceId: string) => {
+  regenerateEvidenceImage: async (cnr: string, evidenceId: string) => {
     try {
-      const response = await api.delete(`/cases/${cnr}/evidence/${evidenceId}`);
-      logger.info("Evidence deleted", { cnr, evidenceId });
+      const response = await api.post(
+        `/cases/${cnr}/evidence/${evidenceId}/image/regenerate`,
+      );
+      logger.info("Evidence image regenerated", { cnr, evidenceId });
       return response.data;
     } catch (error) {
-      logApiError(error, "Failed to delete evidence");
+      logApiError(error, "Failed to regenerate evidence image");
       throw error;
     }
   },

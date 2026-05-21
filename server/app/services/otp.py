@@ -1,7 +1,7 @@
 # app/services/otp.py
 import random
 import string
-import pytz
+from datetime import timezone
 from app.models.otp import OTP
 from app.services.email import send_otp_email
 import motor.motor_asyncio
@@ -30,7 +30,7 @@ async def create_otp(email: str, is_registration: bool = True) -> str:
     otp_code = generate_otp()
     # Calculate expiry time using utility function
     expiry_ist = create_expiry_time(settings.access_token_expire_minutes)
-    expiry_utc = expiry_ist.astimezone(pytz.utc)
+    expiry_utc = expiry_ist.astimezone(timezone.utc)
 
     # Store OTP in database (UTC time)
     otp = OTP(
@@ -82,12 +82,12 @@ async def verify_otp(
 
             # If expiry_time is naive, assume it's UTC and make it UTC-aware
             if expiry_time.tzinfo is None:
-                expiry_time_utc = pytz.utc.localize(expiry_time)
+                expiry_time_utc = expiry_time.replace(tzinfo=timezone.utc)
             else:
-                expiry_time_utc = expiry_time.astimezone(pytz.utc)
+                expiry_time_utc = expiry_time.astimezone(timezone.utc)
 
             # Convert current time to UTC for reliable comparison
-            current_time_utc = current_time.astimezone(pytz.utc)
+            current_time_utc = current_time.astimezone(timezone.utc)
 
             logger.debug(
                 f"OTP expiry check: expiry_utc={expiry_time_utc}, current_utc={current_time_utc}"
@@ -133,12 +133,12 @@ async def verify_otp(
 
         # If expiry_time is naive, assume it's UTC and make it UTC-aware
         if expiry_time.tzinfo is None:
-            expiry_time_utc = pytz.utc.localize(expiry_time)
+            expiry_time_utc = expiry_time.replace(tzinfo=timezone.utc)
         else:
-            expiry_time_utc = expiry_time.astimezone(pytz.utc)
+            expiry_time_utc = expiry_time.astimezone(timezone.utc)
 
         # Convert current time to UTC for reliable comparison
-        current_time_utc = current_time.astimezone(pytz.utc)
+        current_time_utc = current_time.astimezone(timezone.utc)
 
         if expiry_time_utc < current_time_utc:
             logger.warning(f"OTP expired (Beanie) for: {email}")

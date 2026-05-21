@@ -13,6 +13,9 @@ Includes:
 import secrets
 import time
 import jwt
+import urllib.error
+import urllib.parse
+import urllib.request
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from fastapi import HTTPException, status
@@ -23,8 +26,6 @@ from app.models.user import User
 from app.services.auth import create_access_token
 from app.logging_config import get_logger
 import json
-import urllib.request
-import urllib.error
 
 logger = get_logger(__name__)
 
@@ -97,7 +98,7 @@ async def verify_risc_token(token: str) -> Dict[str, Any]:
         ]:
             raise ValueError("Invalid issuer")
 
-        return claims
+        return dict(claims)
 
     except Exception as e:
         logger.error(f"RISC token verification failed: {str(e)}")
@@ -154,7 +155,7 @@ async def verify_google_token(credential: str) -> dict:
             "Google ID token verified successfully",
             extra={"email": idinfo.get("email")},
         )
-        return idinfo
+        return dict(idinfo)
     except ValueError as e:
         logger.warning("Google token verification failed", extra={"error": str(e)})
         raise HTTPException(
@@ -217,8 +218,6 @@ async def exchange_code_for_token(code: str) -> dict:
     Returns:
         dict containing access_token, id_token, etc.
     """
-    import urllib.parse
-
     if not settings.google_client_id or not settings.google_client_secret:
         raise ValueError("Google OAuth credentials not configured")
 
@@ -421,7 +420,7 @@ async def authenticate_google_user(
     )
 
     jwt_token = create_access_token(
-        data={"sub": str(user.email)}, expires_delta=access_token_expires
+        data={"sub": user.email}, expires_delta=access_token_expires
     )
 
     logger.info(

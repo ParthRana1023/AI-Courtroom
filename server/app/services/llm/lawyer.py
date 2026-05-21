@@ -20,9 +20,11 @@ async def generate_counter_argument(
 ) -> str:
     try:
         logger.info(f"Generating counter argument for {ai_role}")
-        
-        case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
-        
+
+        case_context = rag_context or (
+            case_details[:6000] if case_details else "No case details provided"
+        )
+
         # Use provided history or fallback to RAG context if history is not provided
         effective_history = history or "(Relevant history retrieved via RAG context)"
 
@@ -57,7 +59,8 @@ async def generate_counter_argument(
                 "ai_role": ai_role,
                 "history": effective_history,
                 "case_context": case_context,
-                "evidence_context": evidence_context or "No structured evidence has been submitted.",
+                "evidence_context": evidence_context
+                or "No structured evidence has been submitted.",
                 "user_role": user_role,
                 "user_input": user_input,
             }
@@ -85,7 +88,9 @@ async def opening_statement(
     try:
         logger.info(f"Generating opening statement for {ai_role}")
 
-        case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
+        case_context = rag_context or (
+            case_details[:6000] if case_details else "No case details provided"
+        )
 
         template = """
             You are an Indian lawyer from the {ai_role}'s side. 
@@ -107,7 +112,8 @@ async def opening_statement(
             {
                 "ai_role": ai_role,
                 "case_context": case_context,
-                "evidence_context": evidence_context or "No structured evidence has been submitted.",
+                "evidence_context": evidence_context
+                or "No structured evidence has been submitted.",
                 "user_role": user_role,
             }
         )
@@ -135,7 +141,11 @@ async def closing_statement(
     try:
         logger.info(f"Generating closing statement for {ai_role}")
 
-        closing_context = rag_context or (case_details[:6000] if case_details else history or "No closing context provided")
+        closing_context = rag_context or (
+            case_details[:6000]
+            if case_details
+            else history or "No closing context provided"
+        )
 
         template = """
             You are an Indian lawyer from the {ai_role}'s side, and the user is the {user_role}'s lawyer. 
@@ -159,7 +169,8 @@ async def closing_statement(
             {
                 "ai_role": ai_role,
                 "closing_context": closing_context,
-                "evidence_context": evidence_context or "No structured evidence has been submitted.",
+                "evidence_context": evidence_context
+                or "No structured evidence has been submitted.",
                 "user_role": user_role,
             }
         )

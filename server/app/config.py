@@ -65,8 +65,10 @@ class Settings(BaseSettings):
     cloudinary_api_secret: Optional[str] = None
 
     # Evidence image generation settings
-    gemini_api_key: Optional[str] = None
-    evidence_image_model: str = "gemini-3.1-flash-image-preview"
+    cloudflare_account_id: Optional[str] = None
+    cloudflare_api_token: Optional[str] = None
+    evidence_image_model: str = "@cf/black-forest-labs/flux-1-schnell"
+    evidence_image_fallback_model: str = "@cf/black-forest-labs/flux-2-dev"
     evidence_image_generation_limit_per_case: int = 2
     evidence_image_generation_timeout_seconds: int = 120
 
@@ -184,8 +186,10 @@ def log_environment_status():
         "CLOUDINARY_API_KEY": is_set(settings.cloudinary_api_key),
         "CLOUDINARY_API_SECRET": is_set(settings.cloudinary_api_secret),
         # Evidence images
-        "GEMINI_API_KEY": is_set(settings.gemini_api_key),
+        "CLOUDFLARE_ACCOUNT_ID": is_set(settings.cloudflare_account_id),
+        "CLOUDFLARE_API_TOKEN": is_set(settings.cloudflare_api_token),
         "EVIDENCE_IMAGE_MODEL": settings.evidence_image_model,
+        "EVIDENCE_IMAGE_FALLBACK_MODEL": settings.evidence_image_fallback_model,
         "EVIDENCE_IMAGE_GENERATION_LIMIT_PER_CASE": settings.evidence_image_generation_limit_per_case,
         # Email
         "EMAIL_SENDER": settings.email_sender,

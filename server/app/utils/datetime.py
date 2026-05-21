@@ -1,7 +1,7 @@
 """Datetime and timezone utility functions for AI-Courtroom server"""
 
 from datetime import datetime, timedelta
-import pytz
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 # Default timezone for the application
@@ -10,7 +10,7 @@ DEFAULT_TIMEZONE = "Asia/Kolkata"
 
 def get_timezone():
     """Get the default timezone object"""
-    return pytz.timezone(DEFAULT_TIMEZONE)
+    return ZoneInfo(DEFAULT_TIMEZONE)
 
 
 def get_current_datetime() -> datetime:
@@ -45,6 +45,4 @@ def get_start_of_next_day() -> datetime:
     now = get_current_datetime()
     # Calculate the start of the next day
     next_day = now.date() + timedelta(days=1)
-    return get_timezone().localize(
-        datetime(next_day.year, next_day.month, next_day.day)
-    )
+    return datetime(next_day.year, next_day.month, next_day.day, tzinfo=get_timezone())

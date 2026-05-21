@@ -2,7 +2,9 @@
 """Authentication-related Pydantic schemas."""
 
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
+
+Gender = Literal["male", "female", "others", "prefer-not-to-say"]
 
 
 class GoogleLoginRequest(BaseModel):
@@ -35,7 +37,7 @@ class ProfileUpdateRequest(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     nickname: Optional[str] = None  # User's preferred display name
-    gender: Optional[str] = None  # male, female, others, prefer-not-to-say
+    gender: Optional[Gender] = None  # male, female, others, prefer-not-to-say
     # Location fields
     city: Optional[str] = None
     state: Optional[str] = None

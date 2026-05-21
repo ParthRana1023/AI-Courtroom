@@ -1,7 +1,8 @@
 # app/dependencies.py
+from importlib import import_module
+
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status
-from jose import JWTError, jwt
 from app.config import settings
 from app.models.user import User
 from typing import Optional
@@ -9,6 +10,8 @@ from beanie import PydanticObjectId
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+jwt = import_module("jose.jwt")
+JWTError = import_module("jose.exceptions").JWTError
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

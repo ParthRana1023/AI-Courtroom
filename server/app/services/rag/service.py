@@ -116,7 +116,7 @@ async def _replace_source_chunks(
     now = get_current_datetime()
     docs = [
         CaseMemoryChunk(
-            case_id=case.id,  # type: ignore
+            case_id=case.id,
             cnr=case.cnr,
             user_id=case.user_id,
             source_type=source_type,
@@ -328,7 +328,7 @@ async def retrieve_case_context(
         chunks = await CaseMemoryChunk.find(*filters).to_list()
         if not chunks:
             indexed_source_types = [
-                str(_coerce_source_type(item).value) for item in source_types or []
+                _coerce_source_type(item).value for item in source_types or []
             ]
             logger.debug(
                 f"No RAG chunks found for case {getattr(case, 'cnr', None)}; "

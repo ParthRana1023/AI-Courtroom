@@ -9,7 +9,9 @@ import sys
 import re
 import time
 import uuid
+import inspect
 from functools import wraps
+from types import TracebackType
 from typing import Callable, Any
 from contextvars import ContextVar
 
@@ -49,7 +51,7 @@ class SensitiveDataFilter(logging.Filter):
                 pass
             else:
                 record.args = tuple(
-                    self._mask_sensitive(str(arg)) if isinstance(arg, str) else arg
+                    self._mask_sensitive(arg) if isinstance(arg, str) else arg
                     for arg in record.args
                 )
         return True
@@ -275,9 +277,7 @@ def log_execution_time(logger: logging.Logger, operation: str = "Operation"):
                 )
                 raise
 
-        import asyncio
-
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
 
@@ -287,16 +287,23 @@ def log_execution_time(logger: logging.Logger, operation: str = "Operation"):
 class LogContext:
     """Context manager for adding extra context to logs."""
 
-    def __init__(self, logger: logging.Logger, **context):
+    def __init__(self, logger: logging.Logger, **context: Any):
         self.logger = logger
         self.context = context
-        self.start_time = None
+        self.start_time: float | None = None
 
-    def __enter__(self):
+    def __enter__(self) -> "LogContext":
         self.start_time = time.perf_counter()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool:
+        if self.start_time is None:
+            return False
         duration_ms = (time.perf_counter() - self.start_time) * 1000
         if exc_type:
             self.logger.error(

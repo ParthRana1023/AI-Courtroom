@@ -80,9 +80,9 @@ export default function CasePrepPage({
   const [extractingMessageId, setExtractingMessageId] = useState<string | null>(
     null,
   );
-  const [deletingEvidenceId, setDeletingEvidenceId] = useState<string | null>(
-    null,
-  );
+  const [regeneratingEvidenceId, setRegeneratingEvidenceId] = useState<
+    string | null
+  >(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -201,17 +201,25 @@ export default function CasePrepPage({
     }
   };
 
-  const handleDeleteEvidence = async (evidenceId: string) => {
-    setDeletingEvidenceId(evidenceId);
+  const handleRegenerateEvidenceImage = async (evidenceId: string) => {
+    setRegeneratingEvidenceId(evidenceId);
     try {
-      await caseAPI.deleteEvidence(cnr, evidenceId);
-      await refreshEvidence();
-      toast.success("Evidence deleted");
+      const response = await caseAPI.regenerateEvidenceImage(cnr, evidenceId);
+      setEvidence(response.evidence || []);
+      const generated = response?.image_generation?.generated;
+      if (typeof generated === "number" && generated > 0) {
+        toast.success("Evidence image regenerated");
+      } else {
+        toast.error(
+          response?.image_generation?.message ||
+            "Evidence image could not be regenerated",
+        );
+      }
     } catch (error) {
-      logger.error("Failed to delete evidence", error as Error);
-      toast.error("Failed to delete evidence");
+      logger.error("Failed to regenerate evidence image", error as Error);
+      toast.error("Failed to regenerate evidence image");
     } finally {
-      setDeletingEvidenceId(null);
+      setRegeneratingEvidenceId(null);
     }
   };
 
@@ -556,8 +564,8 @@ export default function CasePrepPage({
           <TabsContent value="evidence" className="mt-0">
             <EvidencePanel
               evidence={evidence}
-              onDelete={handleDeleteEvidence}
-              deletingEvidenceId={deletingEvidenceId}
+              onRegenerateImage={handleRegenerateEvidenceImage}
+              regeneratingEvidenceId={regeneratingEvidenceId}
             />
           </TabsContent>
         </Tabs>

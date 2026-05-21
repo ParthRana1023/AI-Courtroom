@@ -99,7 +99,9 @@ async def generate_party_details(
     """
     logger.debug(f"Generating details for party: {party_name}")
 
-    case_context = rag_context or (case_text[:6000] if case_text else "No case text provided")
+    case_context = rag_context or (
+        case_text[:6000] if case_text else "No case text provided"
+    )
 
     template = """Analyze this legal case and provide details about **{party_name}**.
 
@@ -230,7 +232,10 @@ async def extract_and_assign_parties(
         return []
 
     # Step 2: Generate details for each party in parallel
-    tasks = [generate_party_details(name, case_text, rag_context=rag_context) for name in names]
+    tasks = [
+        generate_party_details(name, case_text, rag_context=rag_context)
+        for name in names
+    ]
     parties = await asyncio.gather(*tasks)
 
     duration_ms = (time.perf_counter() - start_time) * 1000
@@ -278,7 +283,9 @@ async def chat_with_party(
             sender = "User (Lawyer)" if msg.get("sender") == "user" else party_name
             history_text += f"{sender}: {msg.get('content', '')}\n"
 
-    case_context = rag_context or (case_details[:6000] if case_details else "No case details provided")
+    case_context = rag_context or (
+        case_details[:6000] if case_details else "No case details provided"
+    )
 
     template = f"""You are role-playing as {party_name}, a {role_description} in a legal case.
 You are being interviewed by a lawyer to gather context about the case.

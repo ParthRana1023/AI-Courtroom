@@ -57,7 +57,7 @@ async def initiate_registration(user_data: UserCreate):
             )
 
             access_token = create_access_token(
-                data={"sub": str(user.email)}, expires_delta=access_token_expires
+                data={"sub": user.email}, expires_delta=access_token_expires
             )
 
             return {
@@ -125,7 +125,7 @@ async def verify_registration(data: RegistrationVerifyRequest):
         )
 
         access_token = create_access_token(
-            data={"sub": str(user.email)}, expires_delta=access_token_expires
+            data={"sub": user.email}, expires_delta=access_token_expires
         )
 
         return {"access_token": access_token, "token_type": "bearer"}
@@ -150,6 +150,12 @@ async def initiate_login(login_data: dict):
     email = login_data.get("email")
     password = login_data.get("password")
     logger.info(f"Login initiated for: {email}")
+
+    if not isinstance(email, str) or not isinstance(password, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email and password are required",
+        )
 
     # Check if user exists and verify password
     user = await User.find_one(User.email == email)
@@ -224,7 +230,7 @@ async def verify_login(request: Request):
         )
 
         access_token = create_access_token(
-            data={"sub": str(user.email)}, expires_delta=access_token_expires
+            data={"sub": user.email}, expires_delta=access_token_expires
         )
 
         logger.info(f"Login successful for: {data.email}")
@@ -266,7 +272,7 @@ async def update_profile(
                 raise ValueError(
                     f"Invalid gender value: {data.gender}. Must be one of {valid_genders}"
                 )
-            current_user.gender = data.gender  # type: ignore[assignment]
+            current_user.gender = data.gender
         if data.phone_number is not None:
             current_user.phone_number = data.phone_number
         if data.date_of_birth is not None:
