@@ -24,6 +24,7 @@ export default function CaseDetails({
   const router = useRouter();
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   const { cnr } = use(params);
@@ -51,6 +52,8 @@ export default function CaseDetails({
   }, [cnr]);
 
   const handleRoleSelection = async (role: string) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       // Only update roles, NOT status - status becomes ACTIVE only when entering courtroom
       const userRole = role === "plaintiff" ? Roles.PLAINTIFF : Roles.DEFENDANT;
@@ -69,6 +72,7 @@ export default function CaseDetails({
       logger.error("Failed to update case role", error as Error);
       // Optionally show an error message to the user
       setError("Failed to start case. Please try again.");
+      setIsSubmitting(false);
     }
   };
 
@@ -204,17 +208,19 @@ export default function CaseDetails({
                   <div title="Represent the plaintiff/applicant side">
                     <button
                       onClick={() => handleRoleSelection("plaintiff")}
-                      className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors text-center"
+                      disabled={isSubmitting}
+                      className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Plaintiff Lawyer
+                      {isSubmitting ? "Selecting..." : "Plaintiff Lawyer"}
                     </button>
                   </div>
                   <div title="Represent the defendant/respondent side">
                     <button
                       onClick={() => handleRoleSelection("defendant")}
-                      className="w-full sm:w-auto px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors text-center"
+                      disabled={isSubmitting}
+                      className="w-full sm:w-auto px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Defendant Lawyer
+                      {isSubmitting ? "Selecting..." : "Defendant Lawyer"}
                     </button>
                   </div>
                 </div>

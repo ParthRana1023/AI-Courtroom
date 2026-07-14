@@ -374,6 +374,17 @@ async def generate_plaintiff_opening(
         )
     )
 
+    # Also add to courtroom_proceedings so it appears in the courtroom timeline
+    case.courtroom_proceedings.append(
+        CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.OPENING_STATEMENT,
+            content=plaintiff_opening_statement,
+            speaker_role="plaintiff",
+            speaker_name="Plaintiff Lawyer",
+            timestamp=get_current_datetime(),
+        )
+    )
+
     # NOTE: Do NOT set case status to ACTIVE here - that only happens
     # when user clicks "Proceed to Courtroom" on the Parties page
     try:
