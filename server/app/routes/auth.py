@@ -22,6 +22,7 @@ from app.services.google_auth import (
 from app.config import settings
 from app.logging_config import get_logger
 from datetime import timedelta
+import time
 import motor.motor_asyncio
 from app.models.otp import RegistrationVerifyRequest, LoginVerifyRequest
 from app.dependencies import get_current_user
@@ -397,6 +398,14 @@ async def upload_profile_photo(
             user_id=str(current_user.id),
             existing_public_id=existing_public_id,
         )
+
+        # Append cache-busting query param so browsers/CDN don't serve
+        # the stale cached image (same public_id is reused on overwrite).
+        cache_buster = int(time.time())
+        if "?" in secure_url:
+            secure_url = f"{secure_url}&v={cache_buster}"
+        else:
+            secure_url = f"{secure_url}?v={cache_buster}"
 
         # Update user profile
         current_user.profile_photo_url = secure_url

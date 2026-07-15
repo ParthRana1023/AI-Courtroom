@@ -1,14 +1,15 @@
 # app/config.py
+import random
+import string
 import re
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 class Settings(BaseSettings):
     mongodb_url: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "AI-Courtroom"
     test_mongodb_db_name: str = "AI-Courtroom-Test"
-    secret_key: str = "secret"
+    secret_key: str = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     extended_token_expire_days: int = 7

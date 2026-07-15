@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { Camera, Trash2, Loader2 } from "lucide-react";
 import { authAPI } from "@/lib/api";
 import { getErrorDetail } from "@/lib/error-utils";
+import ProfilePhotoEditDialog from "@/components/profile-photo-edit-dialog";
 
 interface ProfilePhotoProps {
   /** Current photo URL */
@@ -38,12 +39,11 @@ export default function ProfilePhoto({
   onRefreshUser,
   layout = "inline",
 }: ProfilePhotoProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(
     photoUrl || null,
   );
-  const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -83,42 +83,6 @@ export default function ProfilePhoto({
     },
   };
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
-      setMessage({ type: "error", text: "Invalid file type" });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setMessage({ type: "error", text: "File too large (max 5MB)" });
-      return;
-    }
-
-    setIsUploading(true);
-    setMessage(null);
-
-    try {
-      const updatedUser = await authAPI.uploadProfilePhoto(file);
-      const newUrl = updatedUser.profile_photo_url || null;
-      setCurrentPhotoUrl(newUrl);
-      onPhotoChange?.(newUrl);
-      await onRefreshUser?.();
-      setMessage({ type: "success", text: "Photo updated!" });
-      setTimeout(() => setMessage(null), 3000);
-    } catch (error: unknown) {
-      setMessage({
-        type: "error",
-        text: getErrorDetail(error) || "Upload failed",
-      });
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
 
   const handleDelete = async () => {
     if (!currentPhotoUrl) return;
@@ -143,7 +107,7 @@ export default function ProfilePhoto({
     }
   };
 
-  const isLoading = isUploading || isDeleting;
+  const isLoading = isDeleting;
 
   return (
     <div
@@ -152,9 +116,13 @@ export default function ProfilePhoto({
       } gap-4`}
     >
       {/* Avatar */}
-      <div className="relative">
+      <div
+        className={`relative ${editable ? "cursor-pointer group" : ""}`}
+        onClick={() => editable && setIsEditDialogOpen(true)}
+        title={editable ? "Edit profile photo" : undefined}
+      >
         <div
-          className={`relative ${sizeClasses[size].container} rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shadow-md text-zinc-600 dark:text-zinc-300 ${sizeClasses[size].text} font-bold`}
+          className={`relative ${sizeClasses[size].container} rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shadow-md text-zinc-600 dark:text-zinc-300 ${sizeClasses[size].text} font-bold transition-opacity ${editable ? "group-hover:opacity-90" : ""}`}
         >
           {currentPhotoUrl ? (
             <Image
@@ -195,15 +163,8 @@ export default function ProfilePhoto({
             layout === "stacked" ? "flex-row" : "flex-col"
           } gap-1`}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            onChange={handleUpload}
-            className="hidden"
-          />
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setIsEditDialogOpen(true)}
             disabled={isLoading}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors disabled:opacity-50"
           >
@@ -230,6 +191,19 @@ export default function ProfilePhoto({
             </p>
           )}
         </div>
+      )}
+
+      {editable && (
+        <ProfilePhotoEditDialog
+          photoUrl={currentPhotoUrl}
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onRefreshUser={onRefreshUser}
+          onPhotoChange={(url) => {
+            setCurrentPhotoUrl(url);
+            onPhotoChange?.(url);
+          }}
+        />
       )}
     </div>
   );

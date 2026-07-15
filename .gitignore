@@ -33,6 +33,7 @@ htmlcov/
 
 # Environment files - will match .env in any directory
 **/.env
+**/.env.production
 
 **/pytest.ini
 

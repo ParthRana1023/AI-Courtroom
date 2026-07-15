@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.7.4-blue.svg" alt="version">
+  <img src="https://img.shields.io/badge/version-4.7.11-blue.svg" alt="version">
   <img src="https://img.shields.io/badge/Next.js-Latest-black.svg" alt="nextjs">
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688.svg" alt="fastapi">
   <img src="https://img.shields.io/badge/MongoDB-Latest-47A248.svg" alt="mongodb">
@@ -25,7 +25,7 @@ Here're some of the project's best features:
 - **Mobile Support**: Native-like experience on **Android** and **iOS** via Capacitor integration
 - **PWA Support**: Offline-ready and installable web application with Serwist
 - **User Authentication**: Secure login with email/password and Google OAuth
-- **Profile Management**: User profiles with bento grid layout and case statistics
+- **Profile Management**: User profiles with bento grid layout, case statistics, and an interactive profile photo editor
 - **Location Caching**: Efficient MongoDB-based location data caching with monthly refresh
 - **SEO Optimized**: Advanced SEO with structured data, sitemap generation, and dynamic Open Graph images
 - **Structured Logging**: Comprehensive backend request tracing (Request IDs) and secure environment logging
@@ -103,7 +103,7 @@ docker compose up --build
    pip install -r requirements.txt
    ```
 
-4. Create a `.env` file:
+4. Create a `.env` file (you can copy `.env.example` as a starting point):
 
    ```env
    # Database
@@ -111,6 +111,8 @@ docker compose up --build
    MONGODB_DB_NAME=ai_courtroom
 
    # Authentication
+   # Note: If not set, SECRET_KEY dynamically generates a random 32-character string on startup.
+   # For persistent sessions, always set a fixed secure key.
    SECRET_KEY=your-secure-random-key-here
    ALGORITHM=HS256
 
@@ -122,7 +124,7 @@ docker compose up --build
    RAG_ENABLED=true
    EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
 
-   # Email (for OTP)
+   # Email (for OTP) - Required (no default values)
    email_sender=your-email-username-here
    email_username=your-email-id-here
    email_password=your-app-password-here
@@ -143,10 +145,13 @@ docker compose up --build
 
    # Logging
    LOG_LEVEL=INFO
-   LOG_FORMAT=json
+   LOG_FORMAT=text
 
    PORT=8000
    ```
+
+   > [!NOTE]
+   > For production deployments, configure your environment variables using a `.env.production` file or set them directly in your hosting provider (Render, AWS, etc.). Do not commit `.env` or `.env.production` files containing real secrets to Git.
 
 5. Start the backend:
    ```bash
@@ -173,6 +178,9 @@ docker compose up --build
    NEXT_PUBLIC_API_URL=http://localhost:8000
    NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
    ```
+
+   > [!NOTE]
+   > For production client deployment, create a `.env.production` file pointing `NEXT_PUBLIC_API_URL` to your production backend API.
 
 4. Start development:
 

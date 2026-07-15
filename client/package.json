@@ -1,6 +1,6 @@
 {
   "name": "ai-courtroom",
-  "version": "4.7.9",
+  "version": "4.7.11",
   "private": true,
   "type": "module",
   "scripts": {
@@ -76,6 +76,7 @@
     "react": "^19.2.7",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.7",
+    "react-easy-crop": "^6.2.2",
     "react-hook-form": "^7.81.0",
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.12.2",

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import ProfileEditSheet from "@/components/profile-edit-sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import ProfilePhotoEditDialog from "@/components/profile-photo-edit-dialog";
 
 export interface ProfileBentoCardProps {
   color?: string;
@@ -543,6 +544,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
   const gridRef = useRef<HTMLDivElement>(null);
   const isMobile = useMobileDetection();
   const shouldDisableAnimations = disableAnimations || isMobile;
+  const [isPhotoEditDialogOpen, setIsPhotoEditDialogOpen] = useState(false);
 
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return "Not set";
@@ -625,15 +627,24 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
               clickEffect={clickEffect}
               enableMagnetism={enableMagnetism}
             >
-              <Avatar className="w-16 h-16 border-2 border-zinc-300 dark:border-zinc-600">
-                <AvatarImage
-                  src={user.profile_photo_url || undefined}
-                  alt={user.first_name}
-                />
-                <AvatarFallback className="bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 text-xl font-medium">
-                  {getInitials()}
-                </AvatarFallback>
-              </Avatar>
+              <div
+                className="relative group cursor-pointer"
+                onClick={() => setIsPhotoEditDialogOpen(true)}
+                title="Edit profile photo"
+              >
+                <Avatar className="w-16 h-16 border-2 border-zinc-300 dark:border-zinc-600 transition-all duration-300 group-hover:scale-105 group-hover:border-blue-500">
+                  <AvatarImage
+                    src={user.profile_photo_url || undefined}
+                    alt={user.first_name}
+                  />
+                  <AvatarFallback className="bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 text-xl font-medium">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-1 -right-1 bg-blue-600 text-white rounded-full p-1 border-2 border-white dark:border-zinc-900 shadow-md group-hover:bg-blue-700 transition-colors">
+                  <Pencil className="w-2.5 h-2.5" />
+                </div>
+              </div>
             </ParticleCard>
 
             {/* Name and Nickname Card with Edit Button */}
@@ -981,6 +992,13 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
           </ParticleCard>
         </div>
       </div>
+
+      <ProfilePhotoEditDialog
+        photoUrl={user.profile_photo_url}
+        isOpen={isPhotoEditDialogOpen}
+        onOpenChange={setIsPhotoEditDialogOpen}
+        onRefreshUser={_onRefreshUser}
+      />
     </>
   );
 };
