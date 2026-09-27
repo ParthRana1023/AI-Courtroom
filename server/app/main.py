@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app import messages
 from app.config import log_environment_status, settings
 from app.database import init_db
 from app.logging_config import (
@@ -162,7 +163,7 @@ async def llm_generation_error_handler(request: Request, exc: LLMGenerationError
     logger.error(f"LLM generation failed on {request.url.path}: {exc}")
     return JSONResponse(
         status_code=503,
-        content={"detail": "The AI could not respond right now. Please try again."},
+        content={"detail": messages.LLM_UNAVAILABLE},
     )
 
 

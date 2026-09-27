@@ -367,12 +367,12 @@ async def test_check_only_raises_429_with_wait_time(limiter, user):
         await limiter.check_only(user=user)
 
     assert exc.value.status_code == 429
-    assert "hours" in exc.value.detail or "minutes" in exc.value.detail
+    assert "hour" in exc.value.detail or "minute" in exc.value.detail
 
 
 @pytest.mark.parametrize(
     "window, expected, unexpected",
-    [(30, "seconds", "hours"), (7200, "1 hours", None)],
+    [(30, "1 minute", "hour"), (7200, "2 hours", None)],
 )
 async def test_wait_message_matches_window(user, window, expected, unexpected):
     limiter = rl.RateLimiter(requests=1, window=window, rate_limiter_type=f"w{window}")
@@ -478,3 +478,17 @@ async def test_create_otp_limits_codes_per_email(outbox):
     assert "minute" in exc.value.detail
     assert len(outbox) == settings.otp_send_limit
     await otp_service.create_otp("other@example.com")  # limit is per address
+
+
+@pytest.mark.parametrize(
+    "seconds, expected",
+    [
+        (40, "1 minute"),
+        (125, "3 minutes"),
+        (3600, "1 hour"),
+        (3 * 3600 + 5 * 60, "3 hours and 5 minutes"),
+        (3600 + 60, "1 hour and 1 minute"),
+    ],
+)
+def test_format_wait(seconds, expected):
+    assert rl.format_wait(seconds) == expected

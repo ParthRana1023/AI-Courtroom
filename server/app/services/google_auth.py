@@ -27,6 +27,7 @@ from google.oauth2 import id_token
 
 from app.config import settings
 from app.logging_config import get_logger
+from app.models.case import Case
 from app.models.user import User
 from app.services.auth import create_access_token
 
@@ -344,6 +345,9 @@ async def authenticate_google_user(
     if google_picture and not user.profile_photo_url:
         user.profile_photo_url = google_picture
         await user.save()
+
+    # Hearings still running belong to a session that ended (e.g. expired).
+    await Case.adjourn_active_cases(user.id)
 
     # Create JWT token
     access_token_expires = timedelta(

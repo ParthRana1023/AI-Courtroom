@@ -5,6 +5,7 @@ import type React from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { SESSION_EXPIRED } from "@/lib/messages";
 import { useAuth } from "@/contexts/auth-context";
 import Navigation from "@/components/navigation";
 import OtpForm from "@/components/otp-form";
@@ -35,7 +36,12 @@ export default function Login() {
     email: "",
     password: "",
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  // Set by the API client when a request fails with an expired session.
+  const [errors, setErrors] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    if (searchParams.get("session") === "expired") initial.form = SESSION_EXPIRED;
+    return initial;
+  });
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
   const [rememberMe, setRememberMe] = useState(false);

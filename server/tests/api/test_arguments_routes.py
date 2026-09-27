@@ -2,6 +2,7 @@
 
 import pytest
 
+from app import messages
 from app.models.case import (
     ArgumentItem,
     Case,
@@ -289,10 +290,7 @@ async def test_llm_failure_is_a_503_and_nothing_is_saved(
     )
 
     assert response.status_code == 503
-    assert (
-        response.json()["detail"]
-        == "The AI could not respond right now. Please try again."
-    )
+    assert response.json()["detail"] == messages.LLM_UNAVAILABLE
     saved = await reload(case)
     assert len(saved.plaintiff_arguments) == 1 and saved.status == CaseStatus.ACTIVE
     assert await usage_count(user) == 0
@@ -328,6 +326,28 @@ async def test_regular_argument_save_failure_returns_500(
     )
 
     assert response.status_code == 500
+
+
+async def test_last_argument_of_the_day_announces_adjournment(
+    client, auth_headers, in_progress, user, fake_llm
+):
+    from app.utils.rate_limiter import argument_rate_limiter
+
+    for _ in range(argument_rate_limiter.requests - 1):
+        await argument_rate_limiter.register_usage(str(user.id))
+    fake_llm.responses.append("AI counter argument reply")
+    case = await in_progress()
+
+    response = await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "plaintiff", "argument": "Final point for today"},
+    )
+
+    body = response.json()
+    assert body["ai_counter_argument"] == "AI counter argument reply"
+    assert body["court_adjourns"] is True
+    assert "back in session in" in body["adjournment_message"]
 
 
 async def test_argument_limit_is_enforced_by_server(

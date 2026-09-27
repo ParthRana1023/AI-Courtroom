@@ -135,6 +135,24 @@ async def test_activating_records_session_argument_count(
     assert saved.status == CaseStatus.ACTIVE and saved.session_args_at_start == 1
 
 
+async def test_court_cannot_resume_while_out_of_arguments(
+    client, user, auth_headers, make_case
+):
+    from app.utils.rate_limiter import argument_rate_limiter
+
+    for _ in range(argument_rate_limiter.requests):
+        await argument_rate_limiter.register_usage(str(user.id))
+    case = await make_case(user, user_role=Roles.PLAINTIFF, status=CaseStatus.ADJOURNED)
+
+    response = await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "active"}
+    )
+
+    assert response.status_code == 429
+    assert "back in session in" in response.json()["detail"]
+    assert (await reload(case)).status == CaseStatus.ADJOURNED
+
+
 async def test_adjourning_dismisses_witness_on_stand(
     client, auth_headers, courtroom_case, witness_party
 ):

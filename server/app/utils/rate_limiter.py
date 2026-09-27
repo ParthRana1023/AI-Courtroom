@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException
 
+from app import messages
 from app.config import settings
 from app.dependencies import get_current_user
 from app.logging_config import get_logger
@@ -30,11 +31,33 @@ def ensure_ist_timezone(dt: datetime) -> datetime:
     return dt.astimezone(ist)
 
 
+def format_wait(seconds: float) -> str:
+    """Wait time in hours and minutes, e.g. "3 hours and 5 minutes" or "1 minute".
+
+    Rounded up to the next minute, so the user is never told to come back early.
+    """
+    hours, minutes = divmod(max(1, math.ceil(seconds / 60)), 60)
+    parts = []
+    if hours:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    return " and ".join(parts)
+
+
 class RateLimiter:
-    def __init__(self, requests: int, window: int, rate_limiter_type: str):
+    def __init__(
+        self,
+        requests: int,
+        window: int,
+        rate_limiter_type: str,
+        limit_message: str = messages.ARGUMENT_LIMIT,
+    ):
         self.requests = requests
         self.window = window
         self.rate_limiter_type = rate_limiter_type
+        # Shown by check_only; {wait} becomes the time until the next free slot.
+        self.limit_message = limit_message
 
     async def get_remaining_attempts(self, user_id: str) -> tuple[int, float | None]:
         """Remaining attempts and seconds until the next one frees up.
@@ -80,21 +103,12 @@ class RateLimiter:
         if remaining or seconds is None:
             return user
 
-        hours, rest = divmod(seconds, 3600)
-        minutes, secs = divmod(rest, 60)
-        wait = "".join(
-            [
-                f"{int(hours)} hours " if hours > 0 else "",
-                f"{int(minutes)} minutes " if minutes > 0 else "",
-                f"{int(secs)} seconds",
-            ]
-        )
         logger.warning(
             f"Rate limit exceeded for user {user.email} ({self.rate_limiter_type})"
         )
         raise HTTPException(
             status_code=429,
-            detail=f"Daily limit reached. You can submit again in {wait}.",
+            detail=self.limit_message.format(wait=format_wait(seconds)),
         )
 
     async def register_usage(self, user_id: str):
@@ -118,6 +132,7 @@ case_generation_rate_limiter = RateLimiter(
     settings.case_generation_rate_limit,
     settings.case_generation_rate_window,
     "case_generation_rate_limiter",
+    messages.CASE_GENERATION_LIMIT,
 )
 
 # The limiters below run before login, so they are keyed by email or IP, not user id.

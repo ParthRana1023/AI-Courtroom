@@ -1,6 +1,7 @@
 # app/routes/arguments.py
 from fastapi import APIRouter, Body, Depends, HTTPException
 
+from app import messages
 from app.config import settings
 from app.dependencies import get_owned_case
 from app.logging_config import get_logger
@@ -17,7 +18,7 @@ from app.services.evidence_service import format_evidence_context
 from app.services.llm import judge, lawyer
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
-from app.utils.rate_limiter import argument_rate_limiter
+from app.utils.rate_limiter import argument_rate_limiter, format_wait
 
 logger = get_logger(__name__)
 
@@ -132,6 +133,25 @@ def argument_memory(
         content,
         {"side": role, "argument_type": argument_type, "role": role},
     )
+
+
+async def adjournment_notice(user: User) -> dict:
+    """Extra response fields when this argument used the last slot for the day.
+
+    The client shows the AI's reply first and adjourns the court a few seconds
+    later with ``adjournment_message``.
+    """
+    remaining, seconds = await argument_rate_limiter.get_remaining_attempts(
+        str(user.id)
+    )
+    if remaining or seconds is None:
+        return {}
+    return {
+        "court_adjourns": True,
+        "adjournment_message": messages.COURT_ADJOURNED.format(
+            wait=format_wait(seconds)
+        ),
+    }
 
 
 @router.post("/{case_cnr}/arguments")
@@ -287,7 +307,7 @@ async def submit_argument(
             case.status = CaseStatus.ACTIVE
         await save_with_memory(case, memories, "Failed to save case. Please try again.")
         await argument_rate_limiter.register_usage(str(current_user.id))
-        return response
+        return response | await adjournment_notice(current_user)
 
     if not case.plaintiff_arguments and role == "defendant":
         raise HTTPException(
@@ -372,7 +392,10 @@ async def submit_argument(
         "Failed to save case. Please try again.",
     )
     await argument_rate_limiter.register_usage(str(current_user.id))
-    return {"ai_counter_argument": ai_reply, "ai_counter_role": ai_role}
+    return {
+        "ai_counter_argument": ai_reply,
+        "ai_counter_role": ai_role,
+    } | await adjournment_notice(current_user)
 
 
 @router.post("/{case_cnr}/closing-statement")

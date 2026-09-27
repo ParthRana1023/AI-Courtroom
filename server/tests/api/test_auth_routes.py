@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.config import settings
+from app.models.case import CaseStatus
 from app.models.otp import OTP
 from app.models.user import User
 from app.routes import auth as auth_routes
@@ -297,6 +298,38 @@ async def test_login_initiate_sends_login_otp(client, user, outbox):
     assert outbox[0]["to"] == user.email
     assert "login" in outbox[0]["subject"]
     assert (await stored_otp(user.email)).is_registration is False
+
+
+@pytest.mark.asyncio
+async def test_logout_adjourns_only_the_users_running_hearings(
+    client, user, auth_headers, make_user, make_case
+):
+    running = await make_case(user, status=CaseStatus.ACTIVE)
+    paused = await make_case(user, status=CaseStatus.ADJOURNED)
+    someone_elses = await make_case(await make_user(), status=CaseStatus.ACTIVE)
+
+    response = await client.post("/auth/logout", headers=auth_headers)
+
+    assert response.json() == {"adjourned_cases": 1}
+    running = await reload(running)
+    assert running.status == CaseStatus.ADJOURNED and running.adjourned_by_session_end
+    assert (await reload(paused)).adjourned_by_session_end is False
+    assert (await reload(someone_elses)).status == CaseStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_login_adjourns_hearings_left_running_by_an_expired_session(
+    client, user, make_case
+):
+    running = await make_case(user, status=CaseStatus.ACTIVE)
+    await client.post(
+        "/auth/login/initiate", json={"email": user.email, "password": VALID_PASSWORD}
+    )
+    otp = await stored_otp(user.email)
+
+    await client.post("/auth/login/verify", json={"email": user.email, "otp": otp.otp})
+
+    assert (await reload(running)).adjourned_by_session_end is True
 
 
 @pytest.mark.asyncio

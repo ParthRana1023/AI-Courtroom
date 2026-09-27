@@ -5,6 +5,7 @@ from beanie import PydanticObjectId
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
+from app import messages
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.case import Case
@@ -58,10 +59,8 @@ async def get_owned_case(cnr: str, user: User, *filters) -> Case:
     """Load a case by CNR that belongs to ``user``: 404 if missing, 403 if not theirs."""
     case = await Case.find_one(Case.cnr == cnr, *filters)
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail=messages.CASE_NOT_FOUND)
     if str(case.user_id) != str(user.id):
         logger.warning(f"User {user.email} denied access to case {cnr}")
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+        raise HTTPException(status_code=403, detail=messages.CASE_FORBIDDEN)
     return case

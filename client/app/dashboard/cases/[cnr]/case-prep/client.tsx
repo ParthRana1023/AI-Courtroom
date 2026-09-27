@@ -29,6 +29,7 @@ import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { formatToLocaleString } from "@/lib/datetime";
 import GavelLoader from "@/components/gavel-loader";
+import { getErrorDetail } from "@/lib/error-utils";
 import {
   useRenderLogger,
   useLifecycleLogger,
@@ -168,7 +169,9 @@ export default function CasePrepPage({
       setTimeout(() => chatInputRef.current?.focus(), 100);
     } catch (error) {
       logger.error("Failed to send message", error as Error);
-      setError("Failed to send message. Please try again.");
+      setError(
+        getErrorDetail(error) || "Failed to send message. Please try again.",
+      );
     } finally {
       setIsSending(false);
     }
@@ -280,7 +283,8 @@ export default function CasePrepPage({
                     error as Error,
                   );
                   setError(
-                    "Failed to start courtroom session. Please try again.",
+                    getErrorDetail(error) ||
+                      "Failed to start courtroom session. Please try again.",
                   );
                 } finally {
                   setIsStartingCourtroom(false);

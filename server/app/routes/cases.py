@@ -4,6 +4,7 @@ import time
 from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app import messages
 from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
@@ -32,7 +33,11 @@ from app.services.rag import (
     upsert_memory_item,
 )
 from app.utils.datetime import get_current_datetime
-from app.utils.rate_limiter import case_generation_rate_limiter
+from app.utils.rate_limiter import (
+    argument_rate_limiter,
+    case_generation_rate_limiter,
+    format_wait,
+)
 
 logger = get_logger(__name__)
 
@@ -125,6 +130,17 @@ async def update_case_status(
             detail="Cannot activate case without selecting a role first",
         )
 
+    # Out of arguments for today: the court stays adjourned until a slot frees up.
+    if new_status == CaseStatus.ACTIVE.value:
+        remaining, seconds = await argument_rate_limiter.get_remaining_attempts(
+            str(current_user.id)
+        )
+        if not remaining and seconds is not None:
+            raise HTTPException(
+                status_code=429,
+                detail=messages.COURT_ADJOURNED.format(wait=format_wait(seconds)),
+            )
+
     # When transitioning to ACTIVE, record current user argument count
     # This is used to ensure user submits at least 2 more arguments before ending session
     if new_status == CaseStatus.ACTIVE.value:
@@ -139,12 +155,10 @@ async def update_case_status(
     old_status = case.status
 
     if new_status == CaseStatus.ADJOURNED.value:
-        case.is_ai_examining = False
-        if case.current_witness_id:
-            case.dismiss_current_witness(" because the court was adjourned")
-            logger.info(f"Dismissed active witness for case {cnr} during adjournment")
-
-    case.status = CaseStatus(new_status)
+        case.adjourn()
+    else:
+        case.status = CaseStatus(new_status)
+        case.adjourned_by_session_end = False
     try:
         await case.save()
         logger.info(f"Case {cnr} status updated: {old_status} → {new_status}")
@@ -444,16 +458,14 @@ async def get_case_history(
 
     if not case:
         logger.warning(f"Case not found for history: {case_identifier}")
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail=messages.CASE_NOT_FOUND)
 
     # Check if the case belongs to the current user
     if str(case.user_id) != str(current_user.id):
         logger.warning(
             f"Unauthorized history access for case {case_identifier} by user: {current_user.email}"
         )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+        raise HTTPException(status_code=403, detail=messages.CASE_FORBIDDEN)
 
     # Prepare the history response
     history = {

@@ -10,6 +10,7 @@ import time
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pymongo.results import UpdateResult
 
+from app import messages
 from app.config import settings
 from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
@@ -135,7 +136,7 @@ async def call_witness(
     # Find the party
     party = case.get_party(request.witness_id)
     if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
+        raise HTTPException(status_code=404, detail=messages.PARTY_NOT_FOUND)
 
     # Determine who is calling (user's role)
     caller_role = (

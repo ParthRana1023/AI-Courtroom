@@ -165,6 +165,28 @@ async def test_chat_is_limited_to_a_few_messages_per_minute(
     assert len(fake_llm.calls) == settings.party_chat_rate_limit
 
 
+async def test_chat_closed_after_session_end_until_hearing_resumes(
+    client, auth_headers, courtroom_case, witness_party, fake_llm
+):
+    fake_llm.responses.append("I remember it clearly, My Lord.")
+    case = await courtroom_case(
+        status=CaseStatus.ADJOURNED, adjourned_by_session_end=True
+    )
+    url = f"/cases/{case.cnr}/parties/{witness_party.id}/chat"
+
+    blocked = await client.post(url, headers=auth_headers, json={"message": "Hi?"})
+    assert blocked.status_code == 403
+    assert "unable to reach the parties" in blocked.json()["detail"]
+
+    # Resuming and then adjourning by hand reopens party chat.
+    for status in ("active", "adjourned"):
+        await client.put(
+            f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": status}
+        )
+    allowed = await client.post(url, headers=auth_headers, json={"message": "Hi?"})
+    assert allowed.status_code == 200
+
+
 async def test_chat_generates_bio_first_for_new_party(
     client, auth_headers, prep_case, fake_llm
 ):

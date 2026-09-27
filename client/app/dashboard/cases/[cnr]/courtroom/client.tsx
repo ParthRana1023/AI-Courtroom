@@ -46,9 +46,12 @@ import {
 } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
 import { getErrorDetail } from "@/lib/error-utils";
+import { COURT_ADJOURNED_BY_USER } from "@/lib/messages";
 
 const logger = getLogger("courtroom");
 const MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2;
+// After the last argument allowed today, give the user time to read the AI's reply.
+const COURT_ADJOURN_DELAY_MS = 8000;
 
 type OptimisticCourtroomEvent = CourtroomProceedingsEvent & {
   optimistic?: boolean;
@@ -154,6 +157,9 @@ export default function Courtroom({
   // Session popup states
   const [showSessionPopup, setShowSessionPopup] = useState(false);
   const [showAdjournedPopup, setShowAdjournedPopup] = useState(false);
+  const [adjournmentMessage, setAdjournmentMessage] = useState<string | null>(
+    null,
+  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const argumentTextareaRef = useRef<SettingsAwareTextAreaRef>(null);
@@ -373,7 +379,8 @@ export default function Courtroom({
       // Update case status to adjourned (paused) - can resume later
       await caseAPI.updateCaseStatus(cnr, CaseStatus.ADJOURNED);
 
-      // Show adjourned popup
+      // Show adjourned popup (no wait time: the user chose to adjourn)
+      setAdjournmentMessage(null);
       setShowAdjournedPopup(true);
       setTimeout(() => {
         setShowAdjournedPopup(false);
@@ -424,7 +431,7 @@ export default function Courtroom({
     ]);
 
     try {
-      await argumentAPI.submitArgument(
+      const result = await argumentAPI.submitArgument(
         cnr,
         currentRole.toLowerCase() as "plaintiff" | "defendant",
         submittedArgument,
@@ -438,6 +445,24 @@ export default function Courtroom({
 
       // Refresh rate limit info after successful submission
       fetchRateLimitInfo();
+
+      // That was the last argument allowed today: adjourn once the reply is read.
+      if (result?.court_adjourns) {
+        setTimeout(async () => {
+          try {
+            await caseAPI.updateCaseStatus(cnr, CaseStatus.ADJOURNED);
+          } catch (error) {
+            logger.error("Error adjourning court", error as Error);
+          }
+          setAdjournmentMessage(result.adjournment_message ?? null);
+          setShowAdjournedPopup(true);
+          setTimeout(() => {
+            setShowAdjournedPopup(false);
+            window.location.reload();
+          }, 6000);
+        }, COURT_ADJOURN_DELAY_MS);
+        return;
+      }
 
       // Check if AI wants to call a witness (only if no witness is currently on stand)
       // Guarded: skip if already checking or if checked recently (30s cooldown)
@@ -1467,8 +1492,7 @@ export default function Courtroom({
               Court is Adjourned
             </h2>
             <p className="text-gray-600 dark:text-gray-400">
-              The court is adjourned for the day. Thank you for your
-              participation.
+              {adjournmentMessage ?? COURT_ADJOURNED_BY_USER}
             </p>
           </div>
         </div>

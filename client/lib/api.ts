@@ -92,14 +92,17 @@ api.interceptors.response.use(
     // Handle unauthorized errors (401)
     if (error.response?.status === 401) {
       // Check if the error is from the login initiation endpoint
-      if (error.config?.url?.includes("/auth/login/initiate")) {
+      if (
+        error.config?.url?.includes("/auth/login/initiate") ||
+        error.config?.url?.includes("/auth/logout")
+      ) {
         // Do not redirect for login initiation 401 errors, let the component handle it
         return Promise.reject(error);
       }
       if (typeof window !== "undefined") {
         localStorage.removeItem("token");
         clearAuthTokenCookie();
-        window.location.href = "/login";
+        window.location.href = "/login?session=expired";
       }
     }
     return Promise.reject(error);
@@ -184,10 +187,17 @@ export const authAPI = {
     }
   },
 
-  logout: () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("token");
-      clearAuthTokenCookie();
+  logout: async () => {
+    try {
+      // Lets the server adjourn any hearing left running in this session.
+      await api.post("/auth/logout");
+    } catch (error) {
+      logApiError(error, "Logout notification failed");
+    } finally {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token");
+        clearAuthTokenCookie();
+      }
     }
   },
 

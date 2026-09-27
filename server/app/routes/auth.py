@@ -5,9 +5,11 @@ from datetime import date, timedelta
 from argon2.exceptions import VerifyMismatchError
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
+from app import messages
 from app.config import settings
 from app.dependencies import get_current_user
 from app.logging_config import get_logger
+from app.models.case import Case
 from app.models.otp import LoginVerifyRequest, RegistrationVerifyRequest
 from app.models.user import TokenResponse, User
 from app.schemas.auth import GoogleLoginRequest, ProfileUpdateRequest
@@ -122,7 +124,7 @@ async def verify_registration(data: RegistrationVerifyRequest):
     if not is_valid:
         logger.warning(f"Invalid OTP for registration: {data.user_data.email}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=messages.OTP_INVALID
         )
 
     # Create the user
@@ -186,7 +188,7 @@ async def initiate_login(login_data: dict, request: Request):
     # Checked before the password so a locked-out guesser learns nothing more.
     email_key = email.strip().lower()
     ip_key = client_ip(request)
-    locked = "Too many failed login attempts. Please try again in {minutes} minute(s)."
+    locked = messages.LOGIN_LOCKED
     await login_failure_email_limiter.ensure_available(email_key, locked)
     await login_failure_ip_limiter.ensure_available(ip_key, locked)
 
@@ -230,6 +232,14 @@ async def initiate_login(login_data: dict, request: Request):
     return {"message": "OTP sent to your email for verification"}
 
 
+@router.post("/logout")
+async def logout(current_user: User = Depends(get_current_user)):
+    """Adjourn the user's running hearings; the client then drops its token."""
+    adjourned = await Case.adjourn_active_cases(current_user.id)
+    logger.info(f"Logout for {current_user.email}: adjourned {adjourned} case(s)")
+    return {"adjourned_cases": adjourned}
+
+
 @router.post("/login/verify", response_model=TokenResponse)
 async def verify_login(request: Request):
     try:
@@ -244,7 +254,7 @@ async def verify_login(request: Request):
         if not is_valid:
             logger.warning(f"Invalid OTP for login: {data.email}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP"
+                status_code=status.HTTP_400_BAD_REQUEST, detail=messages.OTP_INVALID
             )
 
         # Get the user
@@ -254,6 +264,9 @@ async def verify_login(request: Request):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="User not found"
             )
+
+        # Hearings still running belong to a session that ended (e.g. expired).
+        await Case.adjourn_active_cases(user.id)
 
         # Create access token
         access_token_expires = timedelta(

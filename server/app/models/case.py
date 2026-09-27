@@ -173,6 +173,9 @@ class Case(Document):
         default=None,
         description="ID of the witness currently on the stand (None if no active examination)",
     )
+    # Set when the court was adjourned because the user's session ended (logout
+    # or expiry). Party chat stays closed until the user resumes the hearing.
+    adjourned_by_session_end: bool = False
     # Soft delete fields
     is_deleted: bool = Field(
         default=False, description="Whether the case is soft-deleted"
@@ -196,6 +199,27 @@ class Case(Document):
 
     def get_party(self, party_id: str | None) -> PartyInvolved | None:
         return next((p for p in self.parties_involved if p.id == party_id), None)
+
+    def adjourn(self, by_session_end: bool = False) -> None:
+        """Stop the hearing: end any AI examination and send the witness home."""
+        self.is_ai_examining = False
+        if self.current_witness_id:
+            self.dismiss_current_witness(" because the court was adjourned")
+        self.status = CaseStatus.ADJOURNED
+        self.adjourned_by_session_end = by_session_end
+
+    @classmethod
+    async def adjourn_active_cases(cls, user_id) -> int:
+        """Adjourn every hearing the user left running when their session ended."""
+        cases = await cls.find(
+            cls.user_id == user_id,
+            cls.status == CaseStatus.ACTIVE,
+            cls.is_deleted != True,
+        ).to_list()
+        for case in cases:
+            case.adjourn(by_session_end=True)
+            await case.save()
+        return len(cases)
 
     def dismiss_current_witness(self, reason: str = "") -> tuple[str | None, str, int]:
         """End the open testimony, clear the stand and log the dismissal.

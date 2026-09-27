@@ -228,7 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     logger.info("User logged out");
     Logger.setUserId(undefined);
-    authAPI.logout();
+    void authAPI.logout();
     setUser(null);
     setIsAuthenticated(false);
     router.replace("/login");

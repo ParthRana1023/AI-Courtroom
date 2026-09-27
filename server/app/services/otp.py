@@ -2,6 +2,7 @@
 import secrets
 from datetime import UTC
 
+from app import messages
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.otp import OTP
@@ -22,9 +23,7 @@ async def create_otp(email: str, is_registration: bool = True) -> str:
     logger.info(f"Creating OTP for: {email}, is_registration={is_registration}")
 
     # Stops anyone from flooding an inbox (or our mail quota) with codes.
-    await otp_send_rate_limiter.ensure_available(
-        email, "Too many codes requested. Please try again in {minutes} minute(s)."
-    )
+    await otp_send_rate_limiter.ensure_available(email, messages.OTP_SEND_LIMIT)
 
     # Delete any existing OTPs for this email
     await OTP.find(OTP.email == email).delete()

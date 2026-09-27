@@ -4,6 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app import messages
 from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import Case, CaseStatus, Roles
@@ -140,7 +141,7 @@ async def get_party_details_route(
 
     party = case.get_party(party_id)
     if not party:
-        raise HTTPException(status_code=404, detail="Party not found in this case")
+        raise HTTPException(status_code=404, detail=messages.PARTY_NOT_FOUND)
 
     await ensure_party_bio(case, party)
 
@@ -189,9 +190,15 @@ async def chat_with_case_party(
             detail="Cannot chat with parties after the case has been resolved. The case has concluded.",
         )
 
+    if case.status == CaseStatus.ADJOURNED and case.adjourned_by_session_end:
+        logger.warning(f"Chat blocked - case {cnr} adjourned by session end")
+        raise HTTPException(
+            status_code=403, detail=messages.PARTY_CHAT_SESSION_ADJOURNED
+        )
+
     party = case.get_party(party_id)
     if not party:
-        raise HTTPException(status_code=404, detail="Party not found in this case")
+        raise HTTPException(status_code=404, detail=messages.PARTY_NOT_FOUND)
 
     # Check if user can chat with this party based on their role
     if not can_user_chat_with_party(case.user_role, party.role):
@@ -205,7 +212,7 @@ async def chat_with_case_party(
 
     await party_chat_rate_limiter.ensure_available(
         str(current_user.id),
-        "The client wants to gather their thoughts. Please wait a minute before speaking to the client again.",
+        messages.PARTY_CHAT_LIMIT,
     )
 
     await ensure_party_bio(case, party)
@@ -331,14 +338,14 @@ async def get_party_chat_history(
 
     if not party:
         logger.warning(f"Party {party_id} not found in case {cnr}")
-        raise HTTPException(status_code=404, detail="Party not found in this case")
+        raise HTTPException(status_code=404, detail=messages.PARTY_NOT_FOUND)
 
     # Get chat history
     chat_history = case.party_chats.get(party_id, [])
     logger.debug(f"Returning {len(chat_history)} messages for party {party_id}")
 
     # Convert to ChatMessageOut format
-    messages = [
+    chat_messages = [
         ChatMessageOut(
             id=msg.get("id", str(uuid.uuid4())),
             sender=msg.get("sender", "party"),
@@ -348,4 +355,6 @@ async def get_party_chat_history(
         for msg in chat_history
     ]
 
-    return ChatHistoryOut(party_id=party_id, party_name=party.name, messages=messages)
+    return ChatHistoryOut(
+        party_id=party_id, party_name=party.name, messages=chat_messages
+    )
