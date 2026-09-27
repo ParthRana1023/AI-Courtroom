@@ -126,7 +126,7 @@ export const authAPI = {
         if (serverError.response?.status === 429) {
           throw new Error(
             serverError.response.data.detail ||
-              "Too many case generation requests. Please try again later.",
+              "Too many codes requested. Please try again later.",
             { cause: error },
           );
         }

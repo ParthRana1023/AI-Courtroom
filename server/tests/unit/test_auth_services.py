@@ -10,7 +10,6 @@ import time
 import urllib.error
 from datetime import UTC, datetime, timedelta
 from email.message import Message
-from types import SimpleNamespace
 from typing import Any
 
 import jwt as pyjwt
@@ -394,16 +393,72 @@ async def test_verify_otp_checks_code_and_purpose_and_is_single_use():
 
 
 async def test_verify_otp_accepts_timezone_aware_expiry(monkeypatch):
-    aware_future = datetime.now(UTC) + timedelta(minutes=5)
-    deleted = []
+    otp = OTP(
+        email="x@example.com",
+        otp="111111",
+        expiry=datetime.now(UTC) + timedelta(minutes=5),
+    )
+    await otp.insert()
 
-    async def delete():
-        deleted.append(True)
+    original_find_one = OTP.find_one
 
-    async def find_one(*args, **kwargs):
-        return SimpleNamespace(expiry=aware_future, delete=delete)
+    async def stored_otp():
+        return otp  # keeps the aware datetime; the DB would hand back a naive one
+
+    def find_one(*args, **kwargs):
+        # only the lookup in verify_otp; later calls (e.g. delete) hit the DB
+        monkeypatch.setattr(OTP, "find_one", original_find_one)
+        return stored_otp()
 
     monkeypatch.setattr(OTP, "find_one", find_one)
 
-    assert await otp_service.verify_otp("x@example.com", "1") is True
-    assert deleted == [True]
+    assert await otp_service.verify_otp("x@example.com", "111111") is True
+    assert await OTP.get(otp.id) is None
+
+
+async def test_verify_otp_allows_a_typo_but_discards_code_after_max_attempts():
+    await OTP(
+        email="b@example.com",
+        otp="123456",
+        expiry=get_current_datetime() + timedelta(minutes=5),
+    ).insert()
+
+    assert await otp_service.verify_otp("b@example.com", "000000") is False
+    assert await otp_service.verify_otp("b@example.com", "123456") is True
+
+    await OTP(
+        email="b@example.com",
+        otp="123456",
+        expiry=get_current_datetime() + timedelta(minutes=5),
+    ).insert()
+    for _ in range(settings.otp_max_attempts):
+        assert await otp_service.verify_otp("b@example.com", "000000") is False
+
+    assert await OTP.find(OTP.email == "b@example.com").count() == 0
+    assert await otp_service.verify_otp("b@example.com", "123456") is False
+
+
+async def test_verify_otp_rejects_code_whose_tries_are_used_up():
+    # e.g. a parallel request claimed the last try between our read and update
+    await OTP(
+        email="c@example.com",
+        otp="123456",
+        expiry=get_current_datetime() + timedelta(minutes=5),
+        attempts=settings.otp_max_attempts,
+    ).insert()
+
+    assert await otp_service.verify_otp("c@example.com", "123456") is False
+    assert await OTP.find(OTP.email == "c@example.com").count() == 0
+
+
+async def test_create_otp_limits_codes_per_email(outbox):
+    for _ in range(settings.otp_send_limit):
+        await otp_service.create_otp("s@example.com")
+
+    with pytest.raises(HTTPException) as exc:
+        await otp_service.create_otp("s@example.com")
+
+    assert exc.value.status_code == 429
+    assert "minute" in exc.value.detail
+    assert len(outbox) == settings.otp_send_limit
+    await otp_service.create_otp("other@example.com")  # limit is per address

@@ -69,7 +69,6 @@ def test_log_environment_status_warns_about_missing_config(monkeypatch, caplog):
         "email_username",
     ):
         monkeypatch.setattr(settings, name, None)
-    monkeypatch.setattr(settings, "secret_key", "secret")
     monkeypatch.setattr(settings, "mongodb_url", "mongodb://localhost:27017")
 
     with caplog.at_level(logging.WARNING, logger="app.config"):
@@ -77,7 +76,6 @@ def test_log_environment_status_warns_about_missing_config(monkeypatch, caplog):
 
     messages = " ".join(r.getMessage() for r in caplog.records)
     assert "No LLM API keys" in messages
-    assert "SECRET_KEY using default" in messages
     assert "Google OAuth credentials not set" in messages
     assert "Email credentials not set" in messages
 
@@ -490,3 +488,22 @@ async def test_fake_llm_error_fails_primary_and_fallback(fake_llm):
     with pytest.raises(RuntimeError, match="provider down"):
         await llm_utils.get_llm("judge").ainvoke("hello")
     assert len(fake_llm.calls) == 2  # primary, then fallback
+
+
+@pytest.mark.parametrize("bad", ["", "secret", "another-secret", "short-but-random"])
+@pytest.mark.parametrize("field", ["SECRET_KEY", "OAUTH_STATE_SECRET"])
+def test_settings_refuse_weak_secrets_outside_tests(monkeypatch, field, bad):
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setenv(field, bad)
+
+    with pytest.raises(ValidationError, match=field):
+        config_module.Settings()
+
+
+def test_settings_accept_strong_secrets_and_skip_check_in_tests(monkeypatch):
+    monkeypatch.setenv("TESTING", "false")
+    assert config_module.Settings().secret_key == settings.secret_key
+
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.setenv("SECRET_KEY", "")
+    assert config_module.Settings().secret_key == ""

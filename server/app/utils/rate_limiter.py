@@ -105,3 +105,8 @@ case_generation_rate_limiter = RateLimiter(
     settings.case_generation_rate_window,
     "case_generation_rate_limiter",
 )
+
+# Keyed by email address, not user id: login and registration happen before auth.
+otp_send_rate_limiter = RateLimiter(
+    settings.otp_send_limit, settings.otp_send_window, "otp_send_rate_limiter"
+)

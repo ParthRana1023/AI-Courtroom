@@ -1,25 +1,38 @@
 # app/services/otp.py
-import random
-import string
+import math
+import secrets
 from datetime import UTC
+
+from fastapi import HTTPException, status
 
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.otp import OTP
 from app.services.email import send_otp_email
 from app.utils.datetime import create_expiry_time, get_current_datetime
+from app.utils.rate_limiter import otp_send_rate_limiter
 
 logger = get_logger(__name__)
 
 
 def generate_otp(length: int = 6) -> str:
     """Generate a random OTP of specified length"""
-    return "".join(random.choices(string.digits, k=length))
+    return "".join(secrets.choice("0123456789") for _ in range(length))
 
 
 async def create_otp(email: str, is_registration: bool = True) -> str:
     """Create and store OTP for a user"""
     logger.info(f"Creating OTP for: {email}, is_registration={is_registration}")
+
+    # Stops anyone from flooding an inbox (or our mail quota) with codes.
+    remaining, seconds = await otp_send_rate_limiter.get_remaining_attempts(email)
+    if not remaining:
+        minutes = math.ceil((seconds or 0) / 60) or 1
+        logger.warning(f"OTP send limit reached for: {email}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many codes requested. Please try again in {minutes} minute(s).",
+        )
 
     # Delete any existing OTPs for this email
     await OTP.find(OTP.email == email).delete()
@@ -37,6 +50,7 @@ async def create_otp(email: str, is_registration: bool = True) -> str:
     )
     logger.debug(f"Inserting OTP for: {email}, expiry={expiry_utc}")
     await otp.insert()
+    await otp_send_rate_limiter.register_usage(email)
     logger.debug(f"OTP inserted successfully for: {email}")
 
     # Send OTP via email
@@ -50,9 +64,11 @@ async def verify_otp(
 ) -> bool:
     """Check an OTP and consume it on success, so each code works only once.
 
+    Every check uses up one of ``settings.otp_max_attempts`` tries; after the
+    last one the code is discarded, so a 6-digit code can't be brute-forced.
     If ``is_registration`` is given, the OTP must have been issued for that purpose.
     """
-    filters = [OTP.email == email, OTP.otp == otp_code]
+    filters = [OTP.email == email]
     if is_registration is not None:
         filters.append(OTP.is_registration == is_registration)
 
@@ -68,6 +84,21 @@ async def verify_otp(
     if expiry < get_current_datetime():
         logger.warning(f"OTP expired for: {email}")
         await OTP.find(OTP.email == email).delete()
+        return False
+
+    # Claim a try atomically, so parallel guesses can't exceed the limit.
+    # ($not/$gte also matches OTPs stored before the attempts field existed.)
+    claimed = await OTP.get_pymongo_collection().update_one(
+        {"_id": otp_doc.id, "attempts": {"$not": {"$gte": settings.otp_max_attempts}}},
+        {"$inc": {"attempts": 1}},
+    )
+    tries_used = otp_doc.attempts + 1
+    if not claimed.modified_count or not secrets.compare_digest(otp_doc.otp, otp_code):
+        if not claimed.modified_count or tries_used >= settings.otp_max_attempts:
+            await otp_doc.delete()
+            logger.warning(f"OTP discarded after too many attempts for: {email}")
+        else:
+            logger.warning(f"Wrong OTP for: {email}")
         return False
 
     await otp_doc.delete()

@@ -1,17 +1,18 @@
 # app/config.py
-import random
-import string
-
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Values from docs/examples that must never sign real tokens.
+PLACEHOLDER_SECRETS = {"secret", "another-secret", "your-secure-random-key-here"}
+MIN_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
     mongodb_url: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "AI-Courtroom"
     test_mongodb_db_name: str = "AI-Courtroom-Test"
-    secret_key: str = "".join(
-        random.choices(string.ascii_letters + string.digits, k=32)
-    )
+    # Required outside tests; see require_real_secrets below.
+    secret_key: str = ""
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     extended_token_expire_days: int = 7
@@ -58,7 +59,7 @@ class Settings(BaseSettings):
     google_client_secret: str | None = None
 
     # OAuth Security settings
-    oauth_state_secret: str = "another-secret"
+    oauth_state_secret: str = ""
     oauth_state_token_expiry: int = 600  # 10 minutes
 
     # Cloudinary settings for profile photos
@@ -86,6 +87,9 @@ class Settings(BaseSettings):
     case_generation_rate_window: int = 86400  # Window in seconds (86400 = 24 hours)
     argument_rate_limit: int = 10  # Number of arguments allowed per window
     argument_rate_window: int = 86400  # Window in seconds (86400 = 24 hours)
+    otp_send_limit: int = 3  # OTP emails allowed per address per window
+    otp_send_window: int = 600  # Window in seconds (10 minutes)
+    otp_max_attempts: int = 5  # Wrong guesses before an OTP is discarded
 
     # RAG / local embeddings settings
     rag_enabled: bool = True
@@ -118,6 +122,25 @@ class Settings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @model_validator(mode="after")
+    def require_real_secrets(self):
+        """Refuse to start with a missing, placeholder or short signing secret.
+
+        A random fallback would log everyone out on each restart, and a known
+        placeholder lets anyone forge tokens.
+        """
+        if self.testing:
+            return self
+        for name in ("secret_key", "oauth_state_secret"):
+            value = getattr(self, name)
+            if value in PLACEHOLDER_SECRETS or len(value) < MIN_SECRET_LENGTH:
+                raise ValueError(
+                    f"{name.upper()} must be set to a random value of at least "
+                    f'{MIN_SECRET_LENGTH} characters (python -c "import secrets; '
+                    f'print(secrets.token_hex(32))")'
+                )
+        return self
 
     @property
     def current_db_name(self) -> str:
@@ -161,9 +184,7 @@ def log_environment_status():
         "MONGODB_DB_NAME": settings.mongodb_db_name,
         "TEST_MONGODB_DB_NAME": settings.test_mongodb_db_name,
         # Security
-        "SECRET_KEY": (
-            "Set" if settings.secret_key != "secret" else "Using default (UNSAFE)"
-        ),
+        "SECRET_KEY": is_set(settings.secret_key),
         "ALGORITHM": settings.algorithm,
         "ACCESS_TOKEN_EXPIRE_MINUTES": settings.access_token_expire_minutes,
         "EXTENDED_TOKEN_EXPIRE_DAYS": settings.extended_token_expire_days,
@@ -177,12 +198,7 @@ def log_environment_status():
         # Google OAuth
         "GOOGLE_CLIENT_ID": is_set(settings.google_client_id),
         "GOOGLE_CLIENT_SECRET": is_set(settings.google_client_secret),
-        "OAUTH_STATE_SECRET_SET": (
-            "Yes"
-            if settings.oauth_state_secret
-            and settings.oauth_state_secret != "another-secret"
-            else "Using Default (Unsafe)"
-        ),
+        "OAUTH_STATE_SECRET": is_set(settings.oauth_state_secret),
         # Cloudinary
         "CLOUDINARY_CLOUD_NAME": is_set(settings.cloudinary_cloud_name),
         "CLOUDINARY_API_KEY": is_set(settings.cloudinary_api_key),
@@ -226,8 +242,6 @@ def log_environment_status():
         logger.warning(
             "No LLM API keys set (Groq/OpenRouter) - LLM features will not work"
         )
-    if settings.secret_key == "secret":
-        logger.warning("SECRET_KEY using default value - not secure for production")
     if not settings.google_client_id or not settings.google_client_secret:
         logger.warning("Google OAuth credentials not set - Login with Google will fail")
     if not settings.email_username or not settings.email_password:

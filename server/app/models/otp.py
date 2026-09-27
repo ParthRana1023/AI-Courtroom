@@ -12,6 +12,7 @@ class OTP(Document):
     otp: str
     expiry: datetime
     is_registration: bool = True
+    attempts: int = 0  # verification tries so far, right or wrong
 
     class Settings:
         name = "otp"
