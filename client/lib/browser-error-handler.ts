@@ -126,30 +126,3 @@ export function initBrowserErrorHandlers(): void {
   // Log that error handlers are initialized
   logger.debug("Browser error handlers initialized");
 }
-
-/**
- * Create a wrapped version of a function that logs errors
- */
-export function withErrorLogging<T extends (...args: unknown[]) => unknown>(
-  fn: T,
-  context?: Record<string, unknown>,
-): T {
-  return ((...args: unknown[]) => {
-    try {
-      const result = fn(...args);
-
-      // Handle async functions
-      if (result instanceof Promise) {
-        return result.catch((error: Error) => {
-          logger.error("Async function error", error, context);
-          throw error;
-        });
-      }
-
-      return result;
-    } catch (error) {
-      logger.error("Function error", error as Error, context);
-      throw error;
-    }
-  }) as T;
-}

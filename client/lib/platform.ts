@@ -12,12 +12,3 @@ import { Capacitor } from "@capacitor/core";
 
 /** True when running inside a Capacitor native shell (iOS or Android). */
 export const isNativePlatform = (): boolean => Capacitor.isNativePlatform();
-
-/** True when running as a regular web page (not inside Capacitor). */
-export const isWeb = (): boolean => !Capacitor.isNativePlatform();
-
-/** True when running inside the iOS native shell. */
-export const isIOS = (): boolean => Capacitor.getPlatform() === "ios";
-
-/** True when running inside the Android native shell. */
-export const isAndroid = (): boolean => Capacitor.getPlatform() === "android";

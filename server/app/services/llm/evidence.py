@@ -19,6 +19,29 @@ from app.utils.llm import get_llm, strip_thinking
 
 logger = get_logger(__name__)
 
+# Evidence mentioning none of these is treated as non-visual (no image).
+VISUAL_TERMS = (
+    "photograph",
+    "cctv",
+    "video",
+    "scene",
+    "weapon",
+    "injury",
+    "document",
+    "report",
+    "medical",
+    "physical",
+    "digital",
+    "location",
+    "map",
+    "diagram",
+)
+
+
+def looks_visual(title: str, description: str) -> bool:
+    text = f"{title} {description}".lower()
+    return any(term in text for term in VISUAL_TERMS)
+
 
 async def generate_evidence_prompt(
     title: str,
@@ -47,24 +70,7 @@ async def generate_evidence_prompt(
         itself to visual representation.
     """
     # Quick pre-filter: skip evidence that is inherently non-visual.
-    combined = f"{title} {description}".lower()
-    visual_terms = (
-        "photograph",
-        "cctv",
-        "video",
-        "scene",
-        "weapon",
-        "injury",
-        "document",
-        "report",
-        "medical",
-        "physical",
-        "digital",
-        "location",
-        "map",
-        "diagram",
-    )
-    if not any(term in combined for term in visual_terms):
+    if not looks_visual(title, description):
         logger.debug(f"Skipping non-visual evidence: {title}")
         return None
 

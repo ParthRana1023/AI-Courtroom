@@ -138,12 +138,6 @@ export interface Case {
   evidence?: EvidenceItem[];
 }
 
-export interface CaseHistory {
-  plaintiff_arguments: Argument[];
-  defendant_arguments: Argument[];
-  verdict: string | null;
-}
-
 // Form types
 export type Gender = "male" | "female" | "others" | "prefer-not-to-say";
 
@@ -167,10 +161,6 @@ export interface RegisterFormData {
 export interface LoginFormData {
   email: string;
   password: string;
-}
-
-export interface OtpFormData {
-  otp: string;
 }
 
 export interface CaseGenerationFormData {
@@ -227,17 +217,6 @@ export interface PartiesListResponse {
   case_status: string;
 }
 
-export interface ChatResponse {
-  user_message: ChatMessage;
-  party_response: ChatMessage;
-}
-
-export interface ChatHistoryResponse {
-  person_id: string;
-  person_name: string;
-  messages: ChatMessage[];
-}
-
 // Witness types
 export interface ExaminationItem {
   id: string;
@@ -249,26 +228,11 @@ export interface ExaminationItem {
   timestamp: string;
 }
 
-export interface WitnessTestimony {
-  id: string;
-  witness_id: string;
-  witness_name: string;
-  called_by: string;
-  examination: ExaminationItem[];
-  started_at: string;
-  ended_at?: string;
-}
-
 export interface WitnessInfo {
   id: string;
   name: string;
   role: string;
   has_testified: boolean;
-}
-
-export interface AvailableWitnessesResponse {
-  witnesses: WitnessInfo[];
-  current_witness_id?: string;
 }
 
 export interface CurrentWitnessResponse {
@@ -291,14 +255,3 @@ export interface WitnessExaminationResponse {
   ai_followup?: string;
 }
 
-export interface CallWitnessResponse {
-  success: boolean;
-  witness_id: string;
-  witness_name: string;
-  witness_role: string;
-  message: string;
-}
-
-export interface AllTestimoniesResponse {
-  testimonies: WitnessTestimony[];
-}

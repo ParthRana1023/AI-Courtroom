@@ -14,7 +14,7 @@ from app.services.image_generation import (
     ImageGenerationError,
     generate_image_from_prompt,
 )
-from app.services.llm.evidence import generate_evidence_prompt
+from app.services.llm.evidence import generate_evidence_prompt, looks_visual
 from app.services.rag import upsert_memory_item
 from app.utils.llm import get_llm, strip_thinking
 
@@ -382,17 +382,7 @@ async def _attempt_evidence_image_generation(
 
 
 def _build_image_prompt(title: str, description: str) -> str | None:
-    text = f"{title} {description}".lower()
-    visual_terms = (
-        "photograph",
-        "cctv",
-        "video",
-        "scene",
-        "weapon",
-        "injury",
-        "document",
-    )
-    if not any(term in text for term in visual_terms):
+    if not looks_visual(title, description):
         return None
 
     clean_description = re.sub(r"\s+", " ", description.replace("**", "")).strip()

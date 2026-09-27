@@ -43,7 +43,7 @@ export interface StaggeredMenuProps {
   mobileOnly?: boolean;
 }
 
-export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
+const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
   position = "right",
   colors = ["#B19EEF", "#5227FF"],
   items = [],

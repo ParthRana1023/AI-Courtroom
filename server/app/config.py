@@ -59,7 +59,6 @@ class Settings(BaseSettings):
 
     # OAuth Security settings
     oauth_state_secret: str = "another-secret"
-    risc_webhook_secret: str | None = None
     oauth_state_token_expiry: int = 600  # 10 minutes
 
     # Cloudinary settings for profile photos

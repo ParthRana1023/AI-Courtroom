@@ -619,35 +619,6 @@ export const contactAPI = {
     return response.data;
   },
 };
-
-export const analyzeCase = async (
-  caseId: string,
-  plaintiffArguments: string[],
-  defendantArguments: string[],
-  details: string,
-  title: string,
-  verdict: string,
-) => {
-  const response = await api.post(`/cases/${caseId}/analyze`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      plaintiff_arguments: plaintiffArguments,
-      counter_arguments: defendantArguments,
-      case_details: details,
-      title: title,
-      judge_verdict: verdict,
-    }),
-  });
-  if (response.status !== 200) {
-    const errorData = response.data;
-    throw new Error(errorData.detail || "Failed to analyze case");
-  }
-  return response.data;
-};
-
 // Parties API calls
 export const partiesAPI = {
   getParties: async (cnr: string) => {

@@ -47,8 +47,6 @@ export const CONSENT_VERSION = "1.0";
 export const COOKIE_NAMES = {
   CONSENT: "ai_courtroom_consent",
   AUTH_TOKEN: "token",
-  THEME: "ai_courtroom_theme",
-  SETTINGS: "ai_courtroom_settings",
 } as const;
 
 /**
@@ -125,7 +123,7 @@ export function deleteCookie(name: string, path: string = "/"): void {
 /**
  * Get all cookies as an object
  */
-export function getAllCookies(): Record<string, string> {
+function getAllCookies(): Record<string, string> {
   if (typeof document === "undefined") return {};
 
   const cookies: Record<string, string> = {};
@@ -185,15 +183,6 @@ export function saveConsent(consent: CookieConsent): void {
 }
 
 /**
- * Check if user has given consent for a specific category
- */
-export function hasConsentFor(category: CookieCategory): boolean {
-  const consent = getStoredConsent();
-  if (!consent) return category === "essential"; // Essential cookies are always allowed
-  return consent[category] ?? false;
-}
-
-/**
  * Clear all non-essential cookies
  */
 export function clearNonEssentialCookies(): void {
@@ -231,49 +220,4 @@ export function setAuthTokenCookie(
  */
 export function clearAuthTokenCookie(): void {
   deleteCookie(COOKIE_NAMES.AUTH_TOKEN);
-}
-
-/**
- * Set theme preference cookie (requires functional consent)
- */
-export function setThemeCookie(theme: string): void {
-  if (!hasConsentFor("functional")) return;
-
-  setCookie(COOKIE_NAMES.THEME, theme, {
-    expires: 365,
-    sameSite: "Strict",
-  });
-}
-
-/**
- * Get theme from cookie
- */
-export function getThemeCookie(): string | null {
-  return getCookie(COOKIE_NAMES.THEME);
-}
-
-/**
- * Set settings cookie (requires functional consent)
- */
-export function setSettingsCookie(settings: object): void {
-  if (!hasConsentFor("functional")) return;
-
-  setCookie(COOKIE_NAMES.SETTINGS, JSON.stringify(settings), {
-    expires: 365,
-    sameSite: "Strict",
-  });
-}
-
-/**
- * Get settings from cookie
- */
-export function getSettingsCookie(): object | null {
-  const settingsString = getCookie(COOKIE_NAMES.SETTINGS);
-  if (!settingsString) return null;
-
-  try {
-    return JSON.parse(settingsString);
-  } catch {
-    return null;
-  }
 }

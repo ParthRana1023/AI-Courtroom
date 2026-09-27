@@ -113,23 +113,3 @@ export class LoggingErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-
-/**
- * Higher-order component to wrap a component with error boundary
- */
-export function withErrorBoundary<P extends object>(
-  WrappedComponent: React.ComponentType<P>,
-  fallback?: ReactNode,
-): React.FC<P> {
-  const WithErrorBoundary: React.FC<P> = (props) => (
-    <LoggingErrorBoundary fallback={fallback}>
-      <WrappedComponent {...props} />
-    </LoggingErrorBoundary>
-  );
-
-  WithErrorBoundary.displayName = `WithErrorBoundary(${
-    WrappedComponent.displayName || WrappedComponent.name || "Component"
-  })`;
-
-  return WithErrorBoundary;
-}

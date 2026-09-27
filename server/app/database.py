@@ -34,12 +34,7 @@ if not hasattr(AsyncIOMotorClient, "append_metadata"):
 async def init_db(motor_client: AsyncIOMotorClient):
     """Initialize Beanie with explicit Motor client"""
     try:
-        # Use test database name if in testing mode
-        db_name = (
-            settings.test_mongodb_db_name
-            if settings.testing
-            else settings.mongodb_db_name
-        )
+        db_name = settings.current_db_name
         logger.info(f"Initializing database: {db_name}")
 
         await init_beanie(

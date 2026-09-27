@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/auth-context";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "next-themes";
 import { SettingsProvider } from "@/contexts/settings-context";
 import { CookieConsentProvider } from "@/contexts/cookie-consent-context";
 import TextSizeProvider from "@/components/text-size-provider";
@@ -146,7 +146,12 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className} suppressHydrationWarning>
-        <ThemeProvider defaultTheme="system" storageKey="ai-courtroom-theme">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          storageKey="ai-courtroom-theme"
+        >
           <CookieConsentProvider>
             <SettingsProvider>
               <TextSizeProvider>

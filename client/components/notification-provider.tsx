@@ -74,7 +74,7 @@ export function showNotification(
   }
 }
 
-export function NotificationProvider({
+function NotificationProvider({
   children,
 }: {
   children: React.ReactNode;

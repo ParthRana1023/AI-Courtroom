@@ -39,7 +39,6 @@ _TEST_ENV = {
     "OPENROUTER_API_KEY": "test-openrouter-key",
     "GOOGLE_CLIENT_ID": "test-client-id.apps.googleusercontent.com",
     "GOOGLE_CLIENT_SECRET": "test-google-secret",
-    "RISC_WEBHOOK_SECRET": "",
     "CLOUDINARY_CLOUD_NAME": "",
     "CLOUDINARY_API_KEY": "",
     "CLOUDINARY_API_SECRET": "",
