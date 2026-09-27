@@ -1,10 +1,11 @@
 # app/routes/feedback.py
-from fastapi import APIRouter, HTTPException, status, Depends
-from app.schemas.feedback import FeedbackCreate, FeedbackOut
-from app.models.feedback import Feedback
-from app.models.user import User
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from app.dependencies import get_current_user
 from app.logging_config import get_logger
+from app.models.feedback import Feedback
+from app.models.user import User
+from app.schemas.feedback import FeedbackCreate, FeedbackOut
 
 logger = get_logger(__name__)
 
@@ -38,9 +39,7 @@ async def submit_feedback(
         feedback_dict["created_at"] = feedback.created_at.isoformat()
         return feedback_dict
     except Exception as e:
-        logger.error(
-            f"Error saving feedback from {current_user.email}: {str(e)}", exc_info=True
-        )
+        logger.exception(f"Error saving feedback from {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )

@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD033 -- centred header needs HTML; Markdown cannot align -->
 <h1 align="center" id="title">AI Courtroom</h1>
 
 <p align="center">
@@ -9,10 +10,10 @@
   <img src="https://img.shields.io/badge/Next.js-Latest-black.svg" alt="nextjs">
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688.svg" alt="fastapi">
   <img src="https://img.shields.io/badge/MongoDB-Latest-47A248.svg" alt="mongodb">
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="license">
 </p>
+<!-- markdownlint-enable MD033 -->
 
-<h2>🧐 Features</h2>
+## 🧐 Features
 
 Here're some of the project's best features:
 
@@ -154,6 +155,7 @@ docker compose up --build
    > For production deployments, configure your environment variables using a `.env.production` file or set them directly in your hosting provider (Render, AWS, etc.). Do not commit `.env` or `.env.production` files containing real secrets to Git.
 
 5. Start the backend:
+
    ```bash
    uvicorn app.main:app --reload
    ```
@@ -189,6 +191,7 @@ docker compose up --build
    ```
 
 5. **Mobile Build (Optional)**:
+
    ```bash
    pnpm build:mobile
    npx cap sync android # or ios
@@ -197,7 +200,7 @@ docker compose up --build
 
 ## Project Structure
 
-```
+```text
 ├── client/                 # Frontend Next.js application
 │   ├── android/            # Android native project files
 │   ├── ios/                # iOS native project files
@@ -220,7 +223,3 @@ docker compose up --build
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License.

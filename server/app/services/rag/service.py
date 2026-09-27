@@ -1,9 +1,9 @@
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 import numpy as np
-
 from beanie.operators import In
 
 from app.config import settings
@@ -87,6 +87,7 @@ async def _get_rag_status_for_case(case: Case) -> RagStatus:
         logger.warning(
             "Failed to read user RAG preference; using global RAG setting",
             extra={"case_cnr": getattr(case, "cnr", None), "error": str(exc)},
+            exc_info=True,
         )
         return RagStatus(True, "user_preference_read_failed_default_enabled")
 
@@ -161,6 +162,7 @@ async def upsert_memory_item(
                 "source_id": source_id,
                 "error": str(exc),
             },
+            exc_info=True,
         )
         return 0
 
@@ -292,6 +294,7 @@ async def index_case_memory(case: Case) -> int:
         logger.warning(
             "RAG case indexing failed",
             extra={"case_cnr": getattr(case, "cnr", None), "error": str(exc)},
+            exc_info=True,
         )
         return 0
 
@@ -315,7 +318,7 @@ async def retrieve_case_context(
     try:
         filters: list[Any] = [
             CaseMemoryChunk.case_id == case.id,
-            CaseMemoryChunk.is_active == True,  # noqa: E712
+            CaseMemoryChunk.is_active == True,
         ]
         if source_types:
             filters.append(
@@ -371,6 +374,7 @@ async def retrieve_case_context(
         logger.warning(
             "RAG retrieval failed",
             extra={"case_cnr": getattr(case, "cnr", None), "error": str(exc)},
+            exc_info=True,
         )
         return _case_fallback_context(case, status)
 
@@ -385,5 +389,6 @@ async def delete_case_memory(case: Case) -> int:
         logger.warning(
             "RAG memory delete failed",
             extra={"case_cnr": getattr(case, "cnr", None), "error": str(exc)},
+            exc_info=True,
         )
         return 0

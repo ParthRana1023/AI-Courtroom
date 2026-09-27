@@ -42,7 +42,6 @@ interface AuthContextType {
   loginWithGoogle: (
     authData: {
       credential?: string;
-      access_token?: string;
       code?: string;
       state?: string;
     },
@@ -55,7 +54,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 type RegistrationPayload = Omit<RegisterFormData, "date_of_birth"> & {
   date_of_birth: string;
-  google_id?: string;
+  google_signup_token?: string;
 };
 
 type LoginResponse = {
@@ -238,7 +237,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = async (
     authData: {
       credential?: string;
-      access_token?: string;
       code?: string;
       state?: string;
     },

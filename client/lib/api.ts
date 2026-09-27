@@ -18,7 +18,7 @@ const logger = getLogger("api");
 
 type RegistrationPayload = Omit<RegisterFormData, "date_of_birth"> & {
   date_of_birth: string;
-  google_id?: string;
+  google_signup_token?: string;
 };
 
 interface VerifyRegistrationPayload {
@@ -194,7 +194,6 @@ export const authAPI = {
   // Google OAuth login
   googleLogin: async (data: {
     credential?: string;
-    access_token?: string;
     code?: string;
     state?: string;
     rememberMe?: boolean;
@@ -202,14 +201,12 @@ export const authAPI = {
     try {
       const {
         credential,
-        access_token,
         code,
         state,
         rememberMe = false,
       } = data;
       const response = await api.post("/auth/google", {
         credential,
-        access_token,
         code,
         state,
         remember_me: rememberMe,

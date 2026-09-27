@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Annotated
+
 from beanie import Document, Indexed
 from pydantic import Field
+
 from app.utils.datetime import get_current_datetime
 
 

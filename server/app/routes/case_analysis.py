@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.services.llm.case_analysis import CaseAnalysisService
-from app.models.case import Case, Roles
-from app.dependencies import get_current_user
-from app.models.user import User
-from app.services.rag import retrieve_case_context, upsert_memory_item
+
+from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
+from app.models.case import Roles
+from app.models.user import User
+from app.services.llm.case_analysis import CaseAnalysisService
+from app.services.rag import retrieve_case_context, upsert_memory_item
 
 logger = get_logger(__name__)
 
@@ -18,10 +19,7 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
         extra={"case_id": caseId, "user_id": str(current_user.id)},
     )
 
-    case = await Case.find_one(Case.cnr == caseId, Case.user_id == current_user.id)
-    if not case:
-        logger.warning("Case not found for analysis", extra={"case_id": caseId})
-        raise HTTPException(status_code=404, detail="Case not found")
+    case = await get_owned_case(caseId, current_user)
 
     # Find which role the user participated in by checking user_id
     user_role_in_case = None
@@ -89,12 +87,10 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
             ),
         )
     except Exception as e:
-        logger.error(
-            "Error generating case analysis", extra={"case_id": caseId, "error": str(e)}
-        )
+        logger.exception("Error generating case analysis", extra={"case_id": caseId})
         raise HTTPException(
-            status_code=500, detail=f"Error generating analysis: {str(e)}"
-        )
+            status_code=500, detail=f"Error generating analysis: {e!s}"
+        ) from e
 
     # The analysis result is already a string from CaseAnalysisService
     case.analysis = analysis_result
@@ -108,10 +104,8 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
             {"title": case.title},
         )
         logger.info("Case analysis saved successfully", extra={"case_id": caseId})
-    except Exception as e:
-        logger.error(
-            "Error saving case analysis", extra={"case_id": caseId, "error": str(e)}
-        )
+    except Exception:
+        logger.exception("Error saving case analysis", extra={"case_id": caseId})
         raise HTTPException(
             status_code=500, detail="Failed to save analysis. Please try again."
         )

@@ -3,29 +3,32 @@ Google OAuth authentication service for verifying Google ID tokens,
 managing Google-authenticated users, and OAuth security features.
 
 Includes:
-1. Token verification (ID tokens and Access tokens)
+1. ID token verification
 2. User creation/linking for Google users
 3. State parameter generation/validation (CSRF protection)
 4. RISC (Cross-Account Protection) token verification
 5. Authorization code exchange
 """
 
+import asyncio
+import json
 import secrets
 import time
-import jwt
 import urllib.error
 import urllib.parse
 import urllib.request
-from google.oauth2 import id_token
-from google.auth.transport import requests
+from datetime import timedelta
+from typing import Any
+
+import jwt
 from fastapi import HTTPException, status
-from datetime import date, timedelta
-from typing import Optional, Dict, Any
+from google.auth.transport import requests
+from google.oauth2 import id_token
+
 from app.config import settings
+from app.logging_config import get_logger
 from app.models.user import User
 from app.services.auth import create_access_token
-from app.logging_config import get_logger
-import json
 
 logger = get_logger(__name__)
 
@@ -62,11 +65,35 @@ def validate_state_token(token: str) -> bool:
         logger.warning("OAuth state token expired")
         return False
     except jwt.InvalidTokenError as e:
-        logger.warning(f"Invalid OAuth state token: {str(e)}")
+        logger.warning(f"Invalid OAuth state token: {e!s}")
         return False
 
 
-async def verify_risc_token(token: str) -> Dict[str, Any]:
+# Long enough to fill in the registration form after Google sign-in.
+GOOGLE_SIGNUP_TOKEN_TTL_SECONDS = 30 * 60
+
+
+def create_google_signup_token(google_id: str, email: str) -> str:
+    """Proof, signed by us, that Google verified this email and Google account."""
+    payload = {
+        "purpose": "google_signup",
+        "sub": google_id,
+        "email": email,
+        "exp": int(time.time()) + GOOGLE_SIGNUP_TOKEN_TTL_SECONDS,
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
+def read_google_signup_token(token: str) -> dict[str, Any] | None:
+    """Claims of a valid, unexpired sign-up token, or None."""
+    try:
+        claims = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+    except jwt.InvalidTokenError:
+        return None
+    return claims if claims.get("purpose") == "google_signup" else None
+
+
+async def verify_risc_token(token: str) -> dict[str, Any]:
     """
     Verify a RISC security event token from Google.
 
@@ -101,8 +128,8 @@ async def verify_risc_token(token: str) -> Dict[str, Any]:
         return dict(claims)
 
     except Exception as e:
-        logger.error(f"RISC token verification failed: {str(e)}")
-        raise ValueError(f"Invalid RISC token: {str(e)}")
+        logger.error(f"RISC token verification failed: {e!s}")
+        raise ValueError(f"Invalid RISC token: {e!s}") from e
 
 
 # =============================================================================
@@ -160,52 +187,15 @@ async def verify_google_token(credential: str) -> dict:
         logger.warning("Google token verification failed", extra={"error": str(e)})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google token: {str(e)}",
+            detail=f"Invalid Google token: {e!s}",
         )
 
 
-async def verify_google_access_token(access_token: str) -> dict:
-    """
-    Verify Google Access Token by calling UserInfo endpoint.
-
-    Args:
-        access_token: The Google Access Token from the frontend
-
-    Returns:
-        dict with user info (email, name, picture, sub)
-    """
-    try:
-        logger.debug(
-            "Verifying Google Access Token",
-            extra={"token_received": bool(access_token)},
-        )
-
-        url = "https://www.googleapis.com/oauth2/v3/userinfo"
-        req = urllib.request.Request(
-            url, headers={"Authorization": f"Bearer {access_token}"}
-        )
-
-        try:
-            with urllib.request.urlopen(req) as response:
-                if response.status != 200:
-                    raise ValueError(f"Google API returned {response.status}")
-                data = json.loads(response.read().decode("utf-8"))
-                logger.info(
-                    "Google Access Token verified successfully",
-                    extra={"email": data.get("email")},
-                )
-                return data
-        except urllib.error.HTTPError as e:
-            raise ValueError(f"HTTP Error {e.code}: {e.reason}")
-
-    except Exception as e:
-        logger.warning(
-            "Google Access Token verification failed", extra={"error": str(e)}
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google access token: {str(e)}",
-        )
+def _post_token_request(req: urllib.request.Request) -> dict:
+    with urllib.request.urlopen(req) as response:
+        if response.status != 200:
+            raise ValueError(f"Google Token Endpoint returned {response.status}")
+        return json.loads(response.read().decode("utf-8"))
 
 
 async def exchange_code_for_token(code: str) -> dict:
@@ -237,10 +227,7 @@ async def exchange_code_for_token(code: str) -> dict:
     req = urllib.request.Request(token_url, data=data, method="POST")
 
     try:
-        with urllib.request.urlopen(req) as response:
-            if response.status != 200:
-                raise ValueError(f"Google Token Endpoint returned {response.status}")
-            return json.loads(response.read().decode("utf-8"))
+        return await asyncio.to_thread(_post_token_request, req)
     except urllib.error.HTTPError as e:
         logger.error(f"Token exchange failed: {e.read().decode('utf-8')}")
         raise ValueError(f"Failed to exchange code: {e}")
@@ -251,79 +238,13 @@ async def exchange_code_for_token(code: str) -> dict:
 # =============================================================================
 
 
-async def get_or_create_google_user(google_info: dict) -> tuple[User, bool]:
-    """
-    Find existing user by email/google_id or create new user from Google profile.
-
-    Args:
-        google_info: Dict containing Google user info (email, name, sub, etc.)
-
-    Returns:
-        Tuple of (User object, is_new_user boolean)
-    """
-    email = google_info.get("email")
-    google_id = google_info.get("sub")
-    is_new_user = False
-
-    logger.debug("Looking up user by Google ID", extra={"google_id": google_id})
-
-    # First, try to find user by google_id
-    user = await User.find_one(User.google_id == google_id)
-
-    if not user:
-        # Try to find by email (existing user signing in with Google)
-        logger.debug(
-            "User not found by Google ID, checking by email", extra={"email": email}
-        )
-        user = await User.find_one(User.email == email)
-
-        if user:
-            # Link Google account to existing user
-            user.google_id = google_id
-            await user.save()
-            logger.info(
-                "Linked Google account to existing user",
-                extra={"user_id": str(user.id), "email": email},
-            )
-        else:
-            # Create new user from Google profile
-            is_new_user = True
-            # Parse name from Google profile
-            full_name = google_info.get("name", "")
-            name_parts = full_name.split(" ", 1) if full_name else ["User", ""]
-            first_name = name_parts[0] if name_parts else "User"
-            last_name = name_parts[1] if len(name_parts) > 1 else ""
-
-            user = User(
-                first_name=first_name,
-                last_name=last_name or "User",
-                date_of_birth=date(2000, 1, 1),  # Placeholder date
-                phone_number="0000000000",  # Placeholder phone
-                email=email,
-                password_hash=None,  # No password for Google-only users
-                google_id=google_id,
-            )
-            await user.insert()
-            logger.info(
-                "Created new user from Google profile",
-                extra={"user_id": str(user.id), "email": email},
-            )
-    else:
-        logger.debug(
-            "Found existing user by Google ID", extra={"user_id": str(user.id)}
-        )
-
-    return user, is_new_user
-
-
 # =============================================================================
 # Main Authentication Flow
 # =============================================================================
 
 
 async def authenticate_google_user(
-    credential: Optional[str] = None,
-    access_token: Optional[str] = None,
+    credential: str | None = None,
     remember_me: bool = False,
 ) -> dict:
     """
@@ -333,8 +254,7 @@ async def authenticate_google_user(
     For new users: Returns Google user data to pre-fill registration form
 
     Args:
-        credential: Google ID token (legacy)
-        access_token: Google Access Token (new flow)
+        credential: Google ID token (from the web code flow or native sign-in)
         remember_me: Whether to extend token expiration
 
     Returns:
@@ -344,25 +264,35 @@ async def authenticate_google_user(
         "Starting Google authentication flow",
         extra={
             "has_credential": bool(credential),
-            "has_access_token": bool(access_token),
             "remember_me": remember_me,
         },
     )
 
-    # Verify the Google token (ID Token or Access Token)
-    if credential:
-        google_info = await verify_google_token(credential)
-    elif access_token:
-        google_info = await verify_google_access_token(access_token)
-    else:
-        logger.warning("No Google token provided for authentication")
+    # Only ID tokens: their audience is checked against our client ID. Access
+    # tokens were dropped because one issued to any other app would be accepted.
+    if not credential:
+        logger.warning("No Google ID token provided for authentication")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Either credential (ID Token) or access_token is required",
+            detail="A Google ID token (credential) or authorization code is required",
+        )
+    google_info = await verify_google_token(credential)
+
+    # Without a verified email, anyone could claim an address they don't own and
+    # get linked to that account. Google sends a bool; tolerate "true" strings.
+    if str(google_info.get("email_verified")).lower() != "true":
+        logger.warning(
+            "Google account email is not verified",
+            extra={"email": google_info.get("email")},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your Google account email is not verified.",
         )
 
-    email = google_info.get("email")
-    google_id = google_info.get("sub")
+    # Verified Google ID tokens always carry both claims.
+    email = google_info["email"]
+    google_id = google_info["sub"]
 
     # Check if user exists
     user = await User.find_one(User.google_id == google_id)
@@ -404,6 +334,8 @@ async def authenticate_google_user(
                     "profile_photo_url": google_info.get(
                         "picture"
                     ),  # Google profile picture
+                    # Required by /auth/register/initiate to create a Google account.
+                    "google_signup_token": create_google_signup_token(google_id, email),
                 },
             }
 

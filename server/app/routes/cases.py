@@ -1,39 +1,45 @@
 # app/routes/cases.py
 import time
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+
 from beanie import PydanticObjectId
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.dependencies import get_current_user, get_owned_case
+from app.logging_config import get_logger
 from app.models.case import (
+    ArgumentItem,
     Case,
     CaseStatus,
     CourtroomProceedingsEvent,
     CourtroomProceedingsEventType,
     Roles,
 )
+from app.models.user import User
 from app.schemas.case import CaseCreate, CaseOut
-from app.dependencies import get_current_user
-from app.services.evidence_service import extract_evidence_items
 from app.services.evidence_service import (
+    extract_evidence_items,
     format_evidence_context,
     generate_missing_evidence_images_for_case,
 )
+from app.services.high_court_mapping import get_high_court
+from app.services.llm import lawyer
+from app.services.llm.case_generation import generate_case_shell
+from app.services.llm.parties_service import extract_and_assign_parties
 from app.services.rag import (
     delete_case_memory,
     index_case_memory,
     retrieve_case_context,
     upsert_memory_item,
 )
-from app.utils.rate_limiter import case_generation_rate_limiter
-from app.models.user import User
 from app.utils.datetime import get_current_datetime
-from app.logging_config import get_logger
+from app.utils.rate_limiter import case_generation_rate_limiter
 
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["cases"])
 
 
-@router.get("", response_model=List[dict])
+@router.get("", response_model=list[dict])
 async def list_cases(current_user: User = Depends(get_current_user)):
     """List all cases for the current user (excluding soft-deleted cases)"""
     logger.debug(f"Listing cases for user: {current_user.email}")
@@ -62,19 +68,7 @@ async def get_case(cnr: str, current_user: User = Depends(get_current_user)):
     """Get a specific case by CNR"""
     logger.debug(f"Fetching case {cnr} for user: {current_user.email}")
 
-    case = await Case.find_one(Case.cnr == cnr)
-    if not case:
-        logger.warning(f"Case not found: {cnr}")
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    # Check if the case belongs to the current user
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized access attempt to case {cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(cnr, current_user)
 
     # Use model_dump(mode='json') to handle serialization of ObjectIds
     case_dict = case.model_dump(mode="json")
@@ -110,19 +104,7 @@ async def update_case_status(
     """Update the status of a specific case by CNR"""
     logger.info(f"Status update requested for case {cnr} by user: {current_user.email}")
 
-    case = await Case.find_one(Case.cnr == cnr)
-    if not case:
-        logger.warning(f"Case not found for status update: {cnr}")
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    # Check if the case belongs to the current user
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized status update attempt for case {cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to update this case"
-        )
+    case = await get_owned_case(cnr, current_user)
 
     # Update the status
     new_status = status_update.get("status")
@@ -158,45 +140,16 @@ async def update_case_status(
 
     if new_status == CaseStatus.ADJOURNED.value:
         case.is_ai_examining = False
-
         if case.current_witness_id:
-            witness_id = case.current_witness_id
-            witness_name = None
-
-            for i, testimony in enumerate(case.witness_testimonies):
-                if testimony.witness_id == witness_id and testimony.ended_at is None:
-                    case.witness_testimonies[i].ended_at = get_current_datetime()
-                    witness_name = testimony.witness_name
-                    break
-
-            if witness_name is None:
-                for party in case.parties_involved:
-                    if party.id == witness_id:
-                        witness_name = party.name
-                        break
-
-            case.current_witness_id = None
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.WITNESS_DISMISSED,
-                    content=(
-                        f"{witness_name or 'Witness'} dismissed from the stand "
-                        "because the court was adjourned."
-                    ),
-                    speaker_role="judge",
-                    speaker_name="Judge",
-                    witness_id=witness_id,
-                    timestamp=get_current_datetime(),
-                )
-            )
+            case.dismiss_current_witness(" because the court was adjourned")
             logger.info(f"Dismissed active witness for case {cnr} during adjournment")
 
     case.status = CaseStatus(new_status)
     try:
         await case.save()
         logger.info(f"Case {cnr} status updated: {old_status} → {new_status}")
-    except Exception as e:
-        logger.error(f"Error saving case status for {cnr}: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception(f"Error saving case status for {cnr}")
         raise HTTPException(
             status_code=500, detail="Failed to update case status. Please try again."
         )
@@ -211,19 +164,7 @@ async def update_case_roles(
     """Update the user's and AI's roles for a specific case by CNR"""
     logger.info(f"Roles update requested for case {cnr} by user: {current_user.email}")
 
-    case = await Case.find_one(Case.cnr == cnr)
-    if not case:
-        logger.warning(f"Case not found for roles update: {cnr}")
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    # Check if the case belongs to the current user
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized roles update attempt for case {cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to update this case"
-        )
+    case = await get_owned_case(cnr, current_user)
 
     # Check if roles are already set (locked) - can't change once chosen
     if case.user_role and case.user_role != Roles.NOT_STARTED:
@@ -261,8 +202,8 @@ async def update_case_roles(
         logger.info(
             f"Case {cnr} roles updated: user={case.user_role}, ai={case.ai_role}"
         )
-    except Exception as e:
-        logger.error(f"Error saving case roles for {cnr}: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception(f"Error saving case roles for {cnr}")
         raise HTTPException(
             status_code=500, detail="Failed to update case roles. Please try again."
         )
@@ -270,10 +211,9 @@ async def update_case_roles(
     image_generation_summary = None
     try:
         image_generation_summary = await generate_missing_evidence_images_for_case(case)
-    except Exception as e:
-        logger.error(
-            f"Evidence image generation failed after role selection for {cnr}: {str(e)}",
-            exc_info=True,
+    except Exception:
+        logger.exception(
+            f"Evidence image generation failed after role selection for {cnr}"
         )
 
     return {
@@ -291,25 +231,9 @@ async def generate_plaintiff_opening(
     cnr: str, current_user: User = Depends(get_current_user)
 ):
     """Generate a plaintiff opening statement when user selects defendant role"""
-    from app.models.case import ArgumentItem
-    from app.utils.datetime import get_current_datetime
-    from app.services.llm.lawyer import opening_statement
-
     logger.info(f"Plaintiff opening statement generation requested for case {cnr}")
 
-    case = await Case.find_one(Case.cnr == cnr)
-    if not case:
-        logger.warning(f"Case not found for opening statement: {cnr}")
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    # Check if the case belongs to the current user
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized opening statement request for case {cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(cnr, current_user)
 
     # Check if case already has arguments
     if case.plaintiff_arguments or case.defendant_arguments:
@@ -342,7 +266,7 @@ async def generate_plaintiff_opening(
             "plaintiff opening statement key facts parties evidence",
             source_types=["case_details", "evidence", "party_bio"],
         )
-        plaintiff_opening_statement = await opening_statement(
+        plaintiff_opening_statement = await lawyer.opening_statement(
             "plaintiff",
             case.details,
             "defendant",
@@ -353,11 +277,10 @@ async def generate_plaintiff_opening(
         logger.info(
             f"Opening statement generated for case {cnr} in {duration_ms:.2f}ms"
         )
-    except Exception as e:
+    except Exception:
         duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.error(
-            f"Error generating opening statement for case {cnr} after {duration_ms:.2f}ms: {str(e)}",
-            exc_info=True,
+        logger.exception(
+            f"Error generating opening statement for case {cnr} after {duration_ms:.2f}ms"
         )
         raise HTTPException(
             status_code=500,
@@ -397,10 +320,8 @@ async def generate_plaintiff_opening(
             {"side": "plaintiff", "argument_type": "opening", "role": "plaintiff"},
         )
         logger.debug(f"Opening statement saved for case {cnr}")
-    except Exception as e:
-        logger.error(
-            f"Error saving opening statement for case {cnr}: {str(e)}", exc_info=True
-        )
+    except Exception:
+        logger.exception(f"Error saving opening statement for case {cnr}")
         raise HTTPException(
             status_code=500,
             detail="Failed to save opening statement. Please try again.",
@@ -415,23 +336,10 @@ async def generate_plaintiff_opening(
 @router.delete("/{cnr}")
 async def delete_case(cnr: str, current_user: User = Depends(get_current_user)):
     """Soft delete a specific case by CNR (moves to recycle bin)"""
-    from app.utils.datetime import get_current_datetime
 
     logger.info(f"Case deletion requested for {cnr} by user: {current_user.email}")
 
-    case = await Case.find_one(Case.cnr == cnr)
-    if not case:
-        logger.warning(f"Case not found for deletion: {cnr}")
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    # Check if the case belongs to the current user
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized deletion attempt for case {cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to delete this case"
-        )
+    case = await get_owned_case(cnr, current_user)
 
     # Soft delete the case
     case.is_deleted = True
@@ -440,8 +348,8 @@ async def delete_case(cnr: str, current_user: User = Depends(get_current_user)):
         await case.save()
         await delete_case_memory(case)
         logger.info(f"Case {cnr} moved to recycle bin")
-    except Exception as e:
-        logger.error(f"Error deleting case {cnr}: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception(f"Error deleting case {cnr}")
         raise HTTPException(
             status_code=500, detail="Failed to delete case. Please try again."
         )
@@ -449,7 +357,7 @@ async def delete_case(cnr: str, current_user: User = Depends(get_current_user)):
     return {"message": "Case moved to recycle bin"}
 
 
-@router.get("/deleted/list", response_model=List[dict])
+@router.get("/deleted/list", response_model=list[dict])
 async def list_deleted_cases(current_user: User = Depends(get_current_user)):
     """List all soft-deleted cases for the current user (recycle bin)"""
     logger.debug(f"Listing deleted cases for user: {current_user.email}")
@@ -478,19 +386,7 @@ async def restore_case(cnr: str, current_user: User = Depends(get_current_user))
     """Restore a soft-deleted case from recycle bin"""
     logger.info(f"Case restoration requested for {cnr} by user: {current_user.email}")
 
-    case = await Case.find_one(Case.cnr == cnr, {"is_deleted": True})
-    if not case:
-        logger.warning(f"Deleted case not found for restoration: {cnr}")
-        raise HTTPException(status_code=404, detail="Deleted case not found")
-
-    # Check if the case belongs to the current user
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized restoration attempt for case {cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to restore this case"
-        )
+    case = await get_owned_case(cnr, current_user, {"is_deleted": True})
 
     # Restore the case
     case.is_deleted = False
@@ -499,8 +395,8 @@ async def restore_case(cnr: str, current_user: User = Depends(get_current_user))
         await case.save()
         await index_case_memory(case)
         logger.info(f"Case {cnr} restored from recycle bin")
-    except Exception as e:
-        logger.error(f"Error restoring case {cnr}: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception(f"Error restoring case {cnr}")
         raise HTTPException(
             status_code=500, detail="Failed to restore case. Please try again."
         )
@@ -517,28 +413,15 @@ async def permanent_delete_case(
         f"Permanent deletion requested for case {cnr} by user: {current_user.email}"
     )
 
-    case = await Case.find_one(Case.cnr == cnr, {"is_deleted": True})
-    if not case:
-        logger.warning(f"Deleted case not found for permanent deletion: {cnr}")
-        raise HTTPException(status_code=404, detail="Deleted case not found")
-
-    # Check if the case belongs to the current user
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized permanent deletion attempt for case {cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403,
-            detail="You don't have permission to permanently delete this case",
-        )
+    case = await get_owned_case(cnr, current_user, {"is_deleted": True})
 
     # Permanently delete the case
     try:
         await delete_case_memory(case)
         await case.delete()
         logger.info(f"Case {cnr} permanently deleted")
-    except Exception as e:
-        logger.error(f"Error permanently deleting case {cnr}: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception(f"Error permanently deleting case {cnr}")
         raise HTTPException(
             status_code=500,
             detail="Failed to permanently delete case. Please try again.",
@@ -556,13 +439,8 @@ async def get_case_history(
     # First find the case using the same logic as in get_case
     case = await Case.find_one(Case.cnr == case_identifier)
 
-    if not case:
-        try:
-            if len(case_identifier) == 24:
-                obj_id = PydanticObjectId(case_identifier)
-                case = await Case.get(obj_id)
-        except (ValueError, Exception):
-            pass
+    if not case and PydanticObjectId.is_valid(case_identifier):
+        case = await Case.get(PydanticObjectId(case_identifier))
 
     if not case:
         logger.warning(f"Case not found for history: {case_identifier}")
@@ -590,10 +468,8 @@ async def get_case_history(
 @router.post("/generate", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
 async def generate_new_case(
     case_data: CaseCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(case_generation_rate_limiter.check_only),
 ):
-    from app.services.high_court_mapping import get_high_court
-
     logger.info(
         f"Case generation requested by user: {current_user.email} with {case_data.sections_involved} sections"
     )
@@ -623,8 +499,6 @@ async def generate_new_case(
     # Stage A: Generate the raw case markdown text and CNR number
     start_time = time.perf_counter()
     try:
-        from app.services.llm.case_generation import generate_case_shell
-
         generated_case = await generate_case_shell(
             case_data.sections_involved,
             case_data.section_numbers,
@@ -635,11 +509,10 @@ async def generate_new_case(
         logger.info(
             f"Case shell generated successfully for user {current_user.email} in {duration_ms:.2f}ms"
         )
-    except Exception as e:
+    except Exception:
         duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.error(
-            f"Case generation failed for user {current_user.email} after {duration_ms:.2f}ms: {str(e)}",
-            exc_info=True,
+        logger.exception(
+            f"Case generation failed for user {current_user.email} after {duration_ms:.2f}ms"
         )
         raise HTTPException(
             status_code=500, detail="Failed to generate case shell. Please try again."
@@ -656,8 +529,8 @@ async def generate_new_case(
         logger.info(
             f"Case shell {case.cnr} indexed for RAG for user: {current_user.email}"
         )
-    except Exception as e:
-        logger.error(f"Error indexing case shell: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error indexing case shell")
         # Continue anyway, extraction will use raw text fallback
 
     # Stage C: RAG-Backed Extraction
@@ -673,16 +546,12 @@ async def generate_new_case(
         )
 
         # Extract parties
-        from app.services.llm.parties_service import extract_and_assign_parties
-
         extracted_parties = await extract_and_assign_parties(
             case.details, rag_context=rag_context
         )
         case.parties_involved = extracted_parties
 
         # Extract evidence
-        from app.services.evidence_service import extract_evidence_items
-
         extracted_evidence = await extract_evidence_items(
             case.details, rag_context=rag_context
         )
@@ -698,8 +567,8 @@ async def generate_new_case(
         logger.info(
             f"RAG-backed extraction completed in {extraction_duration:.2f}ms for case {case.cnr}"
         )
-    except Exception as e:
-        logger.error(f"Error during RAG-backed extraction: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error during RAG-backed extraction")
         # We still have the shell saved, so we can return it, but it might be incomplete
 
     # Register rate limit usage only after successful generation

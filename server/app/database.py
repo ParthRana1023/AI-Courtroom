@@ -1,18 +1,30 @@
 # app/database.py
-from motor.motor_asyncio import AsyncIOMotorClient
-from app.config import settings
-from app.models.user import User
-from app.models.case import Case
-from app.models.feedback import Feedback
 from beanie import init_beanie
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from app.config import settings
+from app.logging_config import get_logger
+from app.models.case import Case
+from app.models.case_memory import CaseMemoryChunk
+from app.models.client_log import ClientLog
+from app.models.feedback import Feedback
+from app.models.location_cache import LocationCache
 from app.models.otp import OTP
 from app.models.rate_limit import RateLimitEntry
-from app.models.location_cache import LocationCache
-from app.models.client_log import ClientLog
-from app.models.case_memory import CaseMemoryChunk
-from app.logging_config import get_logger
+from app.models.user import User
 
 logger = get_logger(__name__)
+
+DOCUMENT_MODELS = [
+    User,
+    Case,
+    Feedback,
+    OTP,
+    RateLimitEntry,
+    LocationCache,
+    ClientLog,
+    CaseMemoryChunk,
+]
 
 
 if not hasattr(AsyncIOMotorClient, "append_metadata"):
@@ -31,23 +43,16 @@ async def init_db(motor_client: AsyncIOMotorClient):
         logger.info(f"Initializing database: {db_name}")
 
         await init_beanie(
+            # Beanie types expect PyMongo async; we run it on Motor
+            # pyrefly: ignore[bad-argument-type]
             database=motor_client[db_name],
-            document_models=[
-                User,
-                Case,
-                Feedback,
-                OTP,
-                RateLimitEntry,
-                LocationCache,
-                ClientLog,
-                CaseMemoryChunk,
-            ],
+            document_models=DOCUMENT_MODELS,
             allow_index_dropping=True,
             recreate_views=True,
         )
         logger.info(
-            f"Database {db_name} initialized successfully with {len([User, Case, Feedback, OTP, RateLimitEntry, LocationCache, ClientLog, CaseMemoryChunk])} models"
+            f"Database {db_name} initialized successfully with {len(DOCUMENT_MODELS)} models"
         )
-    except Exception as e:
-        logger.error(f"Database initialization failed: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Database initialization failed")
         raise

@@ -1,94 +1,159 @@
 # app/routes/arguments.py
-import time
 from fastapi import APIRouter, Body, Depends, HTTPException
-from app.models.case import Case, CaseStatus
-from app.dependencies import get_current_user
-from app.services.llm import lawyer
-from app.services.llm import judge
-from app.services.llm import witness_service
-from app.models.user import User
-from app.utils.rate_limiter import argument_rate_limiter
-from app.utils.datetime import get_current_datetime
+
 from app.config import settings
-from app.services.rag import retrieve_case_context, upsert_memory_item
-from app.services.evidence_service import format_evidence_context
+from app.dependencies import get_current_user, get_owned_case
+from app.logging_config import get_logger
 from app.models.case import (
     ArgumentItem,
-    Roles,
+    Case,
+    CaseStatus,
     CourtroomProceedingsEvent,
     CourtroomProceedingsEventType,
+    Roles,
 )
-from app.logging_config import get_logger
+from app.models.user import User
+from app.services.evidence_service import format_evidence_context
+from app.services.llm import judge, lawyer, witness_service
+from app.services.rag import retrieve_case_context, upsert_memory_item
+from app.utils.datetime import get_current_datetime
+from app.utils.rate_limiter import argument_rate_limiter
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
 
-def get_party_by_id(case: Case, party_id: str):
-    for party in case.parties_involved:
-        if party.id == party_id:
-            return party
-    return None
+AI_SPEAKER = {"plaintiff": "Plaintiff Lawyer", "defendant": "Defense Lawyer"}
+ARGUMENT_EVENTS = {
+    CourtroomProceedingsEventType.ARGUMENT,
+    CourtroomProceedingsEventType.AI_ARGUMENT,
+    CourtroomProceedingsEventType.OPENING_STATEMENT,
+}
+VERDICT_ARGUMENT_TYPES = {"user", "opening", "counter", "closing"}
 
 
-def argument_content(argument_item):
-    return (
-        argument_item.content
-        if isinstance(argument_item, ArgumentItem)
-        else argument_item.get("content")
+def other_side(role: str) -> str:
+    return "defendant" if role == "plaintiff" else "plaintiff"
+
+
+def side_arguments(case: Case, role: str | None) -> list[ArgumentItem]:
+    return case.plaintiff_arguments if role == "plaintiff" else case.defendant_arguments
+
+
+def user_display_name(user: User) -> str:
+    return f"{user.first_name} {user.last_name}"
+
+
+def record_argument(
+    case: Case,
+    role: str,
+    type_: str,
+    content: str,
+    event_type: CourtroomProceedingsEventType,
+    speaker_name: str,
+    user_id=None,
+):
+    """Add a statement to the side's argument list and to the courtroom timeline."""
+    side_arguments(case, role).append(
+        ArgumentItem(
+            type=type_,
+            content=content,
+            user_id=user_id,
+            role=Roles(role),
+            timestamp=get_current_datetime(),
+        )
+    )
+    case.courtroom_proceedings.append(
+        CourtroomProceedingsEvent(
+            type=event_type,
+            content=content,
+            speaker_role=role,
+            speaker_name=speaker_name,
+            timestamp=get_current_datetime(),
+        )
     )
 
 
-def argument_user_id(argument_item):
-    return (
-        argument_item.user_id
-        if isinstance(argument_item, ArgumentItem)
-        else argument_item.get("user_id")
+def argument_history(case: Case, first_role: str) -> str:
+    """Both sides' arguments, the given side first, one 'Side: text' line each."""
+    return "".join(
+        f"{side.capitalize()}: {arg.content}\n"
+        for side in (first_role, other_side(first_role))
+        for arg in side_arguments(case, side)
+        if arg.content
     )
 
 
-def set_argument_content(argument_item, content: str):
-    if isinstance(argument_item, ArgumentItem):
-        argument_item.content = content
-    else:
-        argument_item["content"] = content
+def check_can_argue_as(case: Case, role: str, user: User):
+    """The requested side must be valid, match the chosen role and never switch."""
+    if role not in ("plaintiff", "defendant"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid role specified. Must be 'plaintiff' or 'defendant'",
+        )
+    if case.user_role != Roles.NOT_STARTED and case.user_role.value != role:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot submit as {role}. Your assigned role in this case is {case.user_role.value}",
+        )
+    previous_sides = {
+        side
+        for side in ("plaintiff", "defendant")
+        if any(
+            arg.user_id is not None and str(arg.user_id) == str(user.id)
+            for arg in side_arguments(case, side)
+        )
+    }
+    if previous_sides and role not in previous_sides:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot switch roles. Previously participated as {', '.join(sorted(previous_sides))}",
+        )
+
+
+async def save_with_memory(case: Case, memories: list[tuple], error_detail: str):
+    """Save the case, then index (source_type, source_id, content, metadata) items."""
+    try:
+        await case.save()
+        for source_type, source_id, content, metadata in memories:
+            await upsert_memory_item(case, source_type, source_id, content, metadata)
+    except Exception:
+        logger.exception(f"Error saving case {case.cnr}")
+        raise HTTPException(status_code=500, detail=error_detail)
+
+
+def argument_memory(
+    source_id: str, content: str, role: str, argument_type: str
+) -> tuple:
+    return (
+        "argument",
+        source_id,
+        content,
+        {"side": role, "argument_type": argument_type, "role": role},
+    )
 
 
 def build_argument_history_until(
     case: Case, event_index: int, replacement_event_id: str | None = None
 ) -> str:
-    history = ""
-    for event in case.courtroom_proceedings[:event_index]:
-        if event.id == replacement_event_id:
-            continue
-        if event.type in {
-            CourtroomProceedingsEventType.ARGUMENT,
-            CourtroomProceedingsEventType.AI_ARGUMENT,
-            CourtroomProceedingsEventType.OPENING_STATEMENT,
-        }:
-            history += f"{event.speaker_role or 'lawyer'}: {event.content or ''}\n"
-    return history
+    return "".join(
+        f"{event.speaker_role or 'lawyer'}: {event.content or ''}\n"
+        for event in case.courtroom_proceedings[:event_index]
+        if event.id != replacement_event_id and event.type in ARGUMENT_EVENTS
+    )
 
 
 def update_matching_ai_argument(case: Case, event, old_content: str, new_content: str):
-    argument_list = (
-        case.plaintiff_arguments
-        if event.speaker_role == Roles.PLAINTIFF.value
-        else case.defendant_arguments
-    )
-
-    for argument_item in reversed(argument_list):
-        if argument_user_id(argument_item) is not None:
-            continue
-        if argument_content(argument_item) == old_content:
-            set_argument_content(argument_item, new_content)
-            return
-
-    for argument_item in reversed(argument_list):
-        if argument_user_id(argument_item) is None:
-            set_argument_content(argument_item, new_content)
-            return
+    ai_arguments = [
+        arg
+        for arg in reversed(side_arguments(case, event.speaker_role))
+        if arg.user_id is None
+    ]
+    target = next((arg for arg in ai_arguments if arg.content == old_content), None)
+    target = target or next(iter(ai_arguments), None)
+    if target:
+        target.content = new_content
 
 
 def update_matching_witness_answer(
@@ -123,23 +188,12 @@ def remove_proceedings_after(case: Case, event_index: int):
 
     # We process in reverse order to correctly restore state (like current_witness_id)
     for event in reversed(events_to_remove):
-        if event.type in {
-            CourtroomProceedingsEventType.ARGUMENT,
-            CourtroomProceedingsEventType.AI_ARGUMENT,
-            CourtroomProceedingsEventType.OPENING_STATEMENT,
-        }:
-            # Remove from plaintiff_arguments or defendant_arguments
-            args = (
-                case.plaintiff_arguments
-                if event.speaker_role == Roles.PLAINTIFF.value
-                else case.defendant_arguments
-            )
-            # Match by content. Using reversed to get the most recent one.
+        if event.type in ARGUMENT_EVENTS:
+            # Remove the most recent argument with the same content
+            args = side_arguments(case, event.speaker_role)
             for i in range(len(args) - 1, -1, -1):
-                arg_content = args[i].content
-                if arg_content == event.content:
+                if args[i].content == event.content:
                     args.pop(i)
-                    logger.debug(f"Removed argument matching event {event.id}")
                     break
 
         elif event.type == CourtroomProceedingsEventType.WITNESS_EXAMINED_A:
@@ -149,9 +203,6 @@ def remove_proceedings_after(case: Case, event_index: int):
                     for i in range(len(testimony.examination) - 1, -1, -1):
                         if testimony.examination[i].answer == event.content:
                             testimony.examination.pop(i)
-                            logger.debug(
-                                f"Removed witness answer matching event {event.id}"
-                            )
                             break
 
         elif event.type == CourtroomProceedingsEventType.WITNESS_CALLED:
@@ -165,19 +216,14 @@ def remove_proceedings_after(case: Case, event_index: int):
                     and not case.witness_testimonies[i].examination
                 ):
                     case.witness_testimonies.pop(i)
-                    logger.debug(
-                        f"Removed empty testimony session for {event.witness_id}"
-                    )
                     break
 
         elif event.type == CourtroomProceedingsEventType.WITNESS_DISMISSED:
             # If we remove a WITNESS_DISMISSED event, the witness is back on the stand
             case.current_witness_id = event.witness_id
-            # Also reset ended_at for the most recent testimony of this witness
             for testimony in reversed(case.witness_testimonies):
                 if testimony.witness_id == event.witness_id:
                     testimony.ended_at = None
-                    logger.debug(f"Restored witness {event.witness_id} to the stand")
                     break
 
     # Truncate proceedings
@@ -195,131 +241,56 @@ async def submit_argument(
     role: str = Body(...),
     argument: str = Body(...),
     is_closing: bool = Body(False),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(argument_rate_limiter.check_only),
 ):
     logger.info(
         f"Argument submission for case {case_cnr}, role={role}, length={len(argument)}"
     )
-
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        logger.warning(f"Case not found: {case_cnr}")
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized argument submission for case {case_cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
-
-    # Validate the role
-    try:
-        role_enum = Roles(role)
-    except ValueError:
-        logger.warning(f"Invalid role specified: {role}")
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid role specified. Must be 'plaintiff' or 'defendant'",
-        )
-
-    # Check if the user's role in the case matches the requested role
-    if (
-        case.user_role
-        and case.user_role != Roles.NOT_STARTED
-        and case.user_role.value != role
-    ):
-        logger.warning(
-            f"Role mismatch for case {case_cnr}: user_role={case.user_role.value}, requested={role}"
-        )
-        raise HTTPException(
-            status_code=403,
-            detail=f"Cannot submit as {role}. Your assigned role in this case is {case.user_role.value}",
-        )
-
-    # Check if case is resolved
+    case = await get_owned_case(case_cnr, current_user)
+    check_can_argue_as(case, role, current_user)
     if case.status == CaseStatus.RESOLVED:
-        logger.warning(f"Attempt to submit argument to resolved case {case_cnr}")
         raise HTTPException(
             status_code=400, detail="Cannot submit arguments to a resolved case"
         )
 
-    logger.debug(
-        f"Current arguments: Plaintiff={len(case.plaintiff_arguments)}, Defendant={len(case.defendant_arguments)}"
-    )
+    ai_role = other_side(role)
+    speaker = user_display_name(current_user)
+    evidence_context = format_evidence_context(case.evidence)
 
-    # Check if this is the first argument submission
+    # First submission: both opening statements. LLMGenerationError from any AI
+    # call below becomes a 503 (see main.py) before anything is saved.
     if not case.plaintiff_arguments and not case.defendant_arguments:
-        logger.info(f"First argument for case {case_cnr}")
-        # First argument must be from plaintiff (either user or AI)
-        if role != "plaintiff":
-            logger.info(
-                f"User is defendant - generating AI plaintiff opening for case {case_cnr}"
-            )
-            start_time = time.perf_counter()
-            rag_context = await retrieve_case_context(
+        if role == "defendant":
+            # The plaintiff always opens, so the AI opens for the plaintiff first.
+            opening_context = await retrieve_case_context(
                 case,
                 "plaintiff opening statement key case facts evidence parties",
                 source_types=["case_details", "evidence", "party_bio", "party_chat"],
             )
-
-            plaintiff_opening_statement = await lawyer.opening_statement(
+            ai_opening = await lawyer.opening_statement(
                 "plaintiff",
                 case.details,
                 "defendant",
-                rag_context=rag_context,
-                evidence_context=format_evidence_context(case.evidence),
+                rag_context=opening_context,
+                evidence_context=evidence_context,
             )
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.info(f"Plaintiff opening statement generated in {duration_ms:.2f}ms")
-
-            case.plaintiff_arguments.append(
-                ArgumentItem(
-                    type="opening",
-                    content=plaintiff_opening_statement,
-                    user_id=None,
-                    role=Roles.PLAINTIFF,
-                    timestamp=get_current_datetime(),
-                )
+            record_argument(
+                case,
+                "plaintiff",
+                "opening",
+                ai_opening,
+                CourtroomProceedingsEventType.OPENING_STATEMENT,
+                AI_SPEAKER["plaintiff"],
             )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.OPENING_STATEMENT,
-                    content=plaintiff_opening_statement,
-                    speaker_role="plaintiff",
-                    speaker_name="Plaintiff Lawyer",
-                    timestamp=get_current_datetime(),
-                )
+            record_argument(
+                case,
+                "defendant",
+                "opening",
+                argument,
+                CourtroomProceedingsEventType.OPENING_STATEMENT,
+                speaker,
+                current_user.id,
             )
-
-            # User's submitted argument is recorded as the defendant's opening statement
-            case.defendant_arguments.append(
-                ArgumentItem(
-                    type="opening",
-                    content=argument,
-                    user_id=current_user.id,
-                    role=Roles.DEFENDANT,
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.OPENING_STATEMENT,
-                    content=argument,
-                    speaker_role="defendant",
-                    speaker_name=f"{current_user.first_name} {current_user.last_name}",
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            # Prepare history for counter-argument
-            history = f"Defendant: {argument}\n"
-
-            # AI (as plaintiff) generates a counter-argument
-            start_time = time.perf_counter()
             counter_context = await retrieve_case_context(
                 case,
                 f"plaintiff counter argument responding to defendant: {argument}",
@@ -332,338 +303,111 @@ async def submit_argument(
                     "proceeding",
                 ],
             )
-            ai_plaintiff_counter = await lawyer.generate_counter_argument(
+            ai_counter = await lawyer.generate_counter_argument(
                 argument,
                 "plaintiff",
-                case.user_role.value,
+                "defendant",
                 case.details,
                 rag_context=counter_context,
-                history=history if not settings.rag_enabled else None,
-                evidence_context=format_evidence_context(case.evidence),
+                history=(
+                    argument_history(case, "defendant")
+                    if not settings.rag_enabled
+                    else None
+                ),
+                evidence_context=evidence_context,
             )
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.info(f"Plaintiff counter-argument generated in {duration_ms:.2f}ms")
-
-            case.plaintiff_arguments.append(
-                ArgumentItem(
-                    type="counter",
-                    content=ai_plaintiff_counter,
-                    user_id=None,
-                    role=Roles.PLAINTIFF,
-                    timestamp=get_current_datetime(),
-                )
+            record_argument(
+                case,
+                "plaintiff",
+                "counter",
+                ai_counter,
+                CourtroomProceedingsEventType.AI_ARGUMENT,
+                AI_SPEAKER["plaintiff"],
             )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.AI_ARGUMENT,
-                    content=ai_plaintiff_counter,
-                    speaker_role="plaintiff",
-                    speaker_name="Plaintiff Lawyer",
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            # Update case status
-            if case.status == CaseStatus.NOT_STARTED:
-                case.status = CaseStatus.ACTIVE
-                logger.debug(f"Case {case_cnr} status updated to ACTIVE")
-
-            try:
-                await case.save()
-                await upsert_memory_item(
-                    case,
-                    "argument",
-                    "plaintiff_opening_auto",
-                    plaintiff_opening_statement,
-                    {
-                        "side": "plaintiff",
-                        "argument_type": "opening",
-                        "role": "plaintiff",
-                    },
-                )
-                await upsert_memory_item(
-                    case,
-                    "argument",
-                    "defendant_opening_user",
-                    argument,
-                    {
-                        "side": "defendant",
-                        "argument_type": "opening",
-                        "role": "defendant",
-                    },
-                )
-                await upsert_memory_item(
-                    case,
-                    "argument",
-                    "plaintiff_counter_auto_1",
-                    ai_plaintiff_counter,
-                    {
-                        "side": "plaintiff",
-                        "argument_type": "counter",
-                        "role": "plaintiff",
-                    },
-                )
-                logger.debug(f"Case {case_cnr} saved successfully")
-            except Exception as e:
-                logger.error(f"Error saving case {case_cnr}: {str(e)}", exc_info=True)
-                raise HTTPException(
-                    status_code=500, detail="Failed to save case. Please try again."
-                )
-
-            await argument_rate_limiter.register_usage(str(current_user.id))
-
-            return {
-                "ai_opening_statement": plaintiff_opening_statement,
+            memories = [
+                argument_memory(
+                    "plaintiff_opening_auto", ai_opening, "plaintiff", "opening"
+                ),
+                argument_memory(
+                    "defendant_opening_user", argument, "defendant", "opening"
+                ),
+                argument_memory(
+                    "plaintiff_counter_auto_1", ai_counter, "plaintiff", "counter"
+                ),
+            ]
+            response = {
+                "ai_opening_statement": ai_opening,
                 "ai_opening_role": "plaintiff",
-                "ai_counter_argument": ai_plaintiff_counter,
+                "ai_counter_argument": ai_counter,
                 "ai_counter_role": "plaintiff",
             }
         else:
-            logger.info(
-                f"User is plaintiff - submitting first argument for case {case_cnr}"
+            record_argument(
+                case,
+                "plaintiff",
+                "opening",
+                argument,
+                CourtroomProceedingsEventType.OPENING_STATEMENT,
+                speaker,
+                current_user.id,
             )
-            case.plaintiff_arguments.append(
-                ArgumentItem(
-                    type="opening",
-                    content=argument,
-                    user_id=current_user.id,
-                    role=role_enum,
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.OPENING_STATEMENT,
-                    content=argument,
-                    speaker_role="plaintiff",
-                    speaker_name=f"{current_user.first_name} {current_user.last_name}",
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            # Generate defendant's opening statement
-            start_time = time.perf_counter()
-            rag_context = await retrieve_case_context(
+            opening_context = await retrieve_case_context(
                 case,
                 f"defendant opening statement responding to plaintiff opening: {argument}",
                 source_types=["case_details", "evidence", "party_bio", "party_chat"],
             )
-            defendant_opening_statement = await lawyer.opening_statement(
+            ai_opening = await lawyer.opening_statement(
                 "defendant",
                 case.details,
                 "plaintiff",
-                rag_context=rag_context,
-                evidence_context=format_evidence_context(case.evidence),
+                rag_context=opening_context,
+                evidence_context=evidence_context,
             )
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.info(f"Defendant opening statement generated in {duration_ms:.2f}ms")
-
-            case.defendant_arguments.append(
-                ArgumentItem(
-                    type="opening",
-                    content=defendant_opening_statement,
-                    user_id=None,
-                    role=Roles.DEFENDANT,
-                    timestamp=get_current_datetime(),
-                )
+            record_argument(
+                case,
+                "defendant",
+                "opening",
+                ai_opening,
+                CourtroomProceedingsEventType.OPENING_STATEMENT,
+                AI_SPEAKER["defendant"],
             )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.OPENING_STATEMENT,
-                    content=defendant_opening_statement,
-                    speaker_role="defendant",
-                    speaker_name="Defense Lawyer",
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            # Update case status
-            if case.status == CaseStatus.NOT_STARTED:
-                case.status = CaseStatus.ACTIVE
-                logger.debug(f"Case {case_cnr} status updated to ACTIVE")
-
-            try:
-                await case.save()
-                await upsert_memory_item(
-                    case,
-                    "argument",
-                    "plaintiff_opening_user",
-                    argument,
-                    {
-                        "side": "plaintiff",
-                        "argument_type": "opening",
-                        "role": "plaintiff",
-                    },
-                )
-                await upsert_memory_item(
-                    case,
-                    "argument",
-                    "defendant_opening_auto",
-                    defendant_opening_statement,
-                    {
-                        "side": "defendant",
-                        "argument_type": "opening",
-                        "role": "defendant",
-                    },
-                )
-            except Exception as e:
-                logger.error(f"Error saving case {case_cnr}: {str(e)}", exc_info=True)
-                raise HTTPException(
-                    status_code=500, detail="Failed to save case. Please try again."
-                )
-
-            await argument_rate_limiter.register_usage(str(current_user.id))
-
-            return {
-                "ai_opening_statement": defendant_opening_statement,
+            memories = [
+                argument_memory(
+                    "plaintiff_opening_user", argument, "plaintiff", "opening"
+                ),
+                argument_memory(
+                    "defendant_opening_auto", ai_opening, "defendant", "opening"
+                ),
+            ]
+            response = {
+                "ai_opening_statement": ai_opening,
                 "ai_opening_role": "defendant",
             }
-    elif not case.plaintiff_arguments and role == "defendant":
-        logger.warning(
-            f"Defendant trying to submit before plaintiff for case {case_cnr}"
-        )
+
+        if case.status == CaseStatus.NOT_STARTED:
+            case.status = CaseStatus.ACTIVE
+        await save_with_memory(case, memories, "Failed to save case. Please try again.")
+        await argument_rate_limiter.register_usage(str(current_user.id))
+        return response
+
+    if not case.plaintiff_arguments and role == "defendant":
         raise HTTPException(
             status_code=400, detail="The plaintiff must go first in the case."
         )
-    else:
-        logger.debug(
-            f"Case {case_cnr} already has arguments - processing regular submission"
-        )
 
-    # For backward compatibility, check previous participation
-    existing_roles = set()
-    for arg in case.plaintiff_arguments:
-        if arg.user_id is not None and str(arg.user_id) == str(current_user.id):
-            existing_roles.add("plaintiff")
-    for arg in case.defendant_arguments:
-        if arg.user_id is not None and str(arg.user_id) == str(current_user.id):
-            existing_roles.add("defendant")
+    argument_type = "closing" if is_closing else "user"
+    record_argument(
+        case,
+        role,
+        argument_type,
+        argument,
+        CourtroomProceedingsEventType.ARGUMENT,
+        speaker,
+        current_user.id,
+    )
+    history = argument_history(case, role) if not settings.rag_enabled else None
 
-    if existing_roles and role not in existing_roles:
-        logger.warning(
-            f"Role switch attempt in case {case_cnr}: previous={existing_roles}, requested={role}"
-        )
-        raise HTTPException(
-            status_code=403,
-            detail=f"Cannot switch roles. Previously participated as {', '.join(existing_roles)}",
-        )
-    else:
-        user_id = current_user.id
-
-        if role == "plaintiff":
-            case.plaintiff_arguments.append(
-                ArgumentItem(
-                    type="user",
-                    content=argument,
-                    user_id=user_id,
-                    role=Roles.PLAINTIFF,
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.ARGUMENT,
-                    content=argument,
-                    speaker_role="plaintiff",
-                    speaker_name=f"{current_user.first_name} {current_user.last_name}",
-                    timestamp=get_current_datetime(),
-                )
-            )
-        else:
-            case.defendant_arguments.append(
-                ArgumentItem(
-                    type="user",
-                    content=argument,
-                    user_id=user_id,
-                    role=Roles.DEFENDANT,
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.ARGUMENT,
-                    content=argument,
-                    speaker_role="defendant",
-                    speaker_name=f"{current_user.first_name} {current_user.last_name}",
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-    # Prepare history for counter-argument generation
-    history = ""
-    if role == "plaintiff":
-        for arg in case.plaintiff_arguments:
-            content = arg.content if isinstance(arg, ArgumentItem) else arg["content"]
-            if content:
-                history += f"Plaintiff: {content}\n"
-        for arg in case.defendant_arguments:
-            content = arg.content if isinstance(arg, ArgumentItem) else arg["content"]
-            if content:
-                history += f"Defendant: {content}\n"
-    else:
-        for arg in case.defendant_arguments:
-            content = arg.content if isinstance(arg, ArgumentItem) else arg["content"]
-            if content:
-                history += f"Defendant: {content}\n"
-        for arg in case.plaintiff_arguments:
-            content = arg.content if isinstance(arg, ArgumentItem) else arg["content"]
-            if content:
-                history += f"Plaintiff: {content}\n"
-
-    # Determine AI role based on user's role
-    ai_role = "defendant" if role == "plaintiff" else "plaintiff"
-
-    # Check if this is a closing statement
     if is_closing:
-        logger.info(f"Processing closing statement for case {case_cnr}")
-        if role == "plaintiff":
-            case.plaintiff_arguments.append(
-                ArgumentItem(
-                    type="closing",
-                    content=argument,
-                    user_id=current_user.id,
-                    role=Roles.PLAINTIFF,
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.ARGUMENT,
-                    content=argument,
-                    speaker_role="plaintiff",
-                    speaker_name=f"{current_user.first_name} {current_user.last_name}",
-                    timestamp=get_current_datetime(),
-                )
-            )
-        else:
-            case.defendant_arguments.append(
-                ArgumentItem(
-                    type="closing",
-                    content=argument,
-                    user_id=current_user.id,
-                    role=Roles.DEFENDANT,
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.ARGUMENT,
-                    content=argument,
-                    speaker_role="defendant",
-                    speaker_name=f"{current_user.first_name} {current_user.last_name}",
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-        # Generate AI's closing statement
-        start_time = time.perf_counter()
         closing_context = await retrieve_case_context(
             case,
             f"{ai_role} closing statement evidence arguments testimony",
@@ -676,221 +420,60 @@ async def submit_argument(
                 "party_chat",
             ],
         )
-        counter = await lawyer.closing_statement(
+        ai_reply = await lawyer.closing_statement(
             ai_role,
-            case.user_role.value,
+            role,
             case_details=case.details,
             rag_context=closing_context,
-            history=history if not settings.rag_enabled else None,
-            evidence_context=format_evidence_context(case.evidence),
+            history=history,
+            evidence_context=evidence_context,
         )
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.info(f"AI closing statement generated in {duration_ms:.2f}ms")
-
-        if role == "plaintiff":
-            case.defendant_arguments.append(
-                ArgumentItem(
-                    type="closing",
-                    content=counter,
-                    user_id=None,
-                    role=Roles.DEFENDANT,
-                    timestamp=get_current_datetime(),
-                )
-            )
-        else:
-            case.plaintiff_arguments.append(
-                ArgumentItem(
-                    type="closing",
-                    content=counter,
-                    user_id=None,
-                    role=Roles.PLAINTIFF,
-                    timestamp=get_current_datetime(),
-                )
-            )
-
         case.status = CaseStatus.RESOLVED
     else:
-        # Generate counter-argument
-        start_time = time.perf_counter()
-        try:
-            counter_context = await retrieve_case_context(
-                case,
-                f"{ai_role} counter argument responding to: {argument}",
-                source_types=[
-                    "case_details",
-                    "evidence",
-                    "party_bio",
-                    "party_chat",
-                    "argument",
-                    "proceeding",
-                    "witness_testimony",
-                ],
-            )
-            counter = await lawyer.generate_counter_argument(
-                argument,
-                ai_role,
-                case.user_role.value,
-                case.details,
-                rag_context=counter_context,
-                history=history if not settings.rag_enabled else None,
-                evidence_context=format_evidence_context(case.evidence),
-            )
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.info(
-                f"Counter-argument generated for case {case_cnr} in {duration_ms:.2f}ms"
-            )
-
-            if counter.startswith(
-                "I apologize, but I'm unable to generate a counter argument"
-            ):
-                logger.warning(f"LLM returned error response for case {case_cnr}")
-                return {"error": counter}
-        except Exception as e:
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.error(
-                f"Counter-argument generation failed for case {case_cnr} after {duration_ms:.2f}ms: {str(e)}",
-                exc_info=True,
-            )
-            return {
-                "error": "I apologize, but I'm unable to generate a counter argument at this time. Please try again later."
-            }
-
-    if case.status == CaseStatus.NOT_STARTED:
-        case.status = CaseStatus.ACTIVE
-
-    # Add counter argument to appropriate side
-    if (
-        len(case.plaintiff_arguments) == 1
-        and len(case.defendant_arguments) == 0
-        and role == "plaintiff"
-    ):
-        case.defendant_arguments.append(
-            ArgumentItem(
-                type="opening",
-                content=counter,
-                user_id=None,
-                role=Roles.DEFENDANT,
-                timestamp=get_current_datetime(),
-            )
-        )
-
-        case.courtroom_proceedings.append(
-            CourtroomProceedingsEvent(
-                type=CourtroomProceedingsEventType.OPENING_STATEMENT,
-                content=counter,
-                speaker_role="defendant",
-                speaker_name="Defense Lawyer",
-                timestamp=get_current_datetime(),
-            )
-        )
-    else:
-        if role == "plaintiff":
-            case.defendant_arguments.append(
-                ArgumentItem(
-                    type="counter",
-                    content=counter,
-                    user_id=None,
-                    role=Roles.DEFENDANT,
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.AI_ARGUMENT,
-                    content=counter,
-                    speaker_role="defendant",
-                    speaker_name="Defense Lawyer",
-                    timestamp=get_current_datetime(),
-                )
-            )
-        else:
-            case.plaintiff_arguments.append(
-                ArgumentItem(
-                    type="counter",
-                    content=counter,
-                    user_id=None,
-                    role=Roles.PLAINTIFF,
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-            case.courtroom_proceedings.append(
-                CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.AI_ARGUMENT,
-                    content=counter,
-                    speaker_role="plaintiff",
-                    speaker_name="Plaintiff Lawyer",
-                    timestamp=get_current_datetime(),
-                )
-            )
-
-    await argument_rate_limiter.register_usage(str(current_user.id))
-
-    try:
-        await case.save()
-        await upsert_memory_item(
+        counter_context = await retrieve_case_context(
             case,
-            "argument",
-            f"{role}_user_{len(case.plaintiff_arguments) + len(case.defendant_arguments)}",
+            f"{ai_role} counter argument responding to: {argument}",
+            source_types=[
+                "case_details",
+                "evidence",
+                "party_bio",
+                "party_chat",
+                "argument",
+                "proceeding",
+                "witness_testimony",
+            ],
+        )
+        ai_reply = await lawyer.generate_counter_argument(
             argument,
-            {"side": role, "argument_type": "user", "role": role},
+            ai_role,
+            role,
+            case.details,
+            rag_context=counter_context,
+            history=history,
+            evidence_context=evidence_context,
         )
-        await upsert_memory_item(
-            case,
-            "argument",
-            f"{ai_role}_ai_{len(case.plaintiff_arguments) + len(case.defendant_arguments)}",
-            counter,
-            {"side": ai_role, "argument_type": "counter", "role": ai_role},
-        )
-        logger.debug(f"Case {case_cnr} saved after argument submission")
-    except Exception as e:
-        logger.error(f"Error saving case {case_cnr}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="Failed to save case. Please try again."
-        )
+        if case.status == CaseStatus.NOT_STARTED:
+            case.status = CaseStatus.ACTIVE
 
-    # Prepare response
-    response_data = {}
-
-    if (
-        len(case.plaintiff_arguments) == 1
-        and len(case.defendant_arguments) == 1
-        and role == "plaintiff"
-        and case.defendant_arguments[0].type == "opening"
-        and case.defendant_arguments[0].user_id is None
-    ):
-        response_data["ai_opening_statement"] = (
-            case.defendant_arguments[0].content
-            if isinstance(case.defendant_arguments[0], ArgumentItem)
-            else case.defendant_arguments[0]["content"]
-        )
-        response_data["ai_opening_role"] = "defendant"
-    elif (
-        len(case.plaintiff_arguments) == 1
-        and len(case.defendant_arguments) == 1
-        and role == "defendant"
-        and case.plaintiff_arguments[0].type == "opening"
-        and case.plaintiff_arguments[0].user_id is None
-    ):
-        response_data["ai_opening_statement"] = (
-            case.plaintiff_arguments[0].content
-            if isinstance(case.plaintiff_arguments[0], ArgumentItem)
-            else case.plaintiff_arguments[0]["content"]
-        )
-        response_data["ai_opening_role"] = "plaintiff"
-        response_data["ai_counter_argument"] = counter
-        response_data["ai_counter_role"] = ai_role
-    else:
-        response_data["ai_counter_argument"] = counter
-        response_data["ai_counter_role"] = ai_role
-
-    if role == "defendant" and len(case.defendant_arguments) > 1:
-        response_data["ai_counter_argument"] = counter
-        response_data["ai_counter_role"] = "plaintiff"
-
-    logger.debug(f"Argument submission completed for case {case_cnr}")
-    return response_data
+    record_argument(
+        case,
+        ai_role,
+        "closing" if is_closing else "counter",
+        ai_reply,
+        CourtroomProceedingsEventType.AI_ARGUMENT,
+        AI_SPEAKER[ai_role],
+    )
+    total = len(case.plaintiff_arguments) + len(case.defendant_arguments)
+    await save_with_memory(
+        case,
+        [
+            argument_memory(f"{role}_user_{total}", argument, role, "user"),
+            argument_memory(f"{ai_role}_ai_{total}", ai_reply, ai_role, "counter"),
+        ],
+        "Failed to save case. Please try again.",
+    )
+    await argument_rate_limiter.register_usage(str(current_user.id))
+    return {"ai_counter_argument": ai_reply, "ai_counter_role": ai_role}
 
 
 @router.post("/{case_cnr}/proceedings/{event_id}/regenerate")
@@ -901,14 +484,7 @@ async def regenerate_short_llm_response(
 ):
     logger.info(f"Regenerating LLM response for case {case_cnr}, event {event_id}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(case_cnr, current_user)
 
     event_index = next(
         (
@@ -947,7 +523,7 @@ async def regenerate_short_llm_response(
 
     try:
         if event.type == CourtroomProceedingsEventType.WITNESS_EXAMINED_A:
-            witness_party = get_party_by_id(case, event.witness_id or "")
+            witness_party = case.get_party(event.witness_id)
             question_event = next(
                 (
                     previous
@@ -1103,8 +679,8 @@ async def regenerate_short_llm_response(
         )
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to regenerate response: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Failed to regenerate response")
         raise HTTPException(status_code=500, detail="Failed to regenerate response")
 
     return {
@@ -1119,125 +695,29 @@ async def submit_closing_statement(
     case_cnr: str,
     role: str = Body(...),
     statement: str = Body(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(argument_rate_limiter.check_only),
 ):
     logger.info(f"Closing statement submission for case {case_cnr}, role={role}")
+    case = await get_owned_case(case_cnr, current_user)
+    check_can_argue_as(case, role, current_user)
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        logger.warning(f"Case not found: {case_cnr}")
-        raise HTTPException(status_code=404, detail="Case not found")
+    side_arguments(case, role).append(
+        ArgumentItem(
+            type="closing",
+            content=statement,
+            user_id=current_user.id,
+            role=Roles(role),
+            timestamp=get_current_datetime(),
+        )
+    )
+    total = len(case.plaintiff_arguments) + len(case.defendant_arguments)
+    await save_with_memory(
+        case,
+        [argument_memory(f"{role}_closing_user_{total}", statement, role, "closing")],
+        "Failed to save closing statement. Please try again.",
+    )
 
-    if str(case.user_id) != str(current_user.id):
-        logger.warning(
-            f"Unauthorized closing statement for case {case_cnr} by user: {current_user.email}"
-        )
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
-
-    if role not in ["plaintiff", "defendant"]:
-        raise HTTPException(status_code=400, detail="Invalid role specified")
-
-    if (
-        case.user_role
-        and case.user_role != Roles.NOT_STARTED
-        and case.user_role.value != role
-    ):
-        logger.warning(
-            f"Role mismatch for closing statement: user_role={case.user_role.value}, requested={role}"
-        )
-        raise HTTPException(
-            status_code=403,
-            detail=f"Cannot submit as {role}. Your assigned role in this case is {case.user_role.value}",
-        )
-
-    # Check previous participation
-    existing_roles = set()
-    for arg in case.plaintiff_arguments:
-        arg_user_id = (
-            arg.user_id if isinstance(arg, ArgumentItem) else arg.get("user_id")
-        )
-        if arg_user_id is not None and str(arg_user_id) == str(current_user.id):
-            existing_roles.add("plaintiff")
-    for arg in case.defendant_arguments:
-        arg_user_id = (
-            arg.user_id if isinstance(arg, ArgumentItem) else arg.get("user_id")
-        )
-        if arg_user_id is not None and str(arg_user_id) == str(current_user.id):
-            existing_roles.add("defendant")
-
-    if existing_roles and role not in existing_roles:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Cannot switch roles. Previously participated as {', '.join(existing_roles)}",
-        )
-
-    user_id = current_user.id if current_user.id is not None else ""
-
-    if role == "plaintiff":
-        case.plaintiff_arguments.append(
-            ArgumentItem(
-                type="closing",
-                content=statement,
-                user_id=user_id,
-                role=Roles.PLAINTIFF,
-                timestamp=get_current_datetime(),
-            )
-        )
-    else:
-        case.defendant_arguments.append(
-            ArgumentItem(
-                type="closing",
-                content=statement,
-                user_id=user_id,
-                role=Roles.DEFENDANT,
-                timestamp=get_current_datetime(),
-            )
-        )
-
-    try:
-        await case.save()
-        await upsert_memory_item(
-            case,
-            "argument",
-            f"{role}_closing_user_{len(case.plaintiff_arguments) + len(case.defendant_arguments)}",
-            statement,
-            {"side": role, "argument_type": "closing", "role": role},
-        )
-    except Exception as e:
-        logger.error(
-            f"Error saving closing statement for case {case_cnr}: {str(e)}",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to save closing statement. Please try again.",
-        )
-
-    # Prepare history for AI closing statement
-    history = ""
-    for arg in case.plaintiff_arguments:
-        content = arg.content if isinstance(arg, ArgumentItem) else arg.get("content")
-        arg_type = arg.type if isinstance(arg, ArgumentItem) else arg.get("type")
-        if content:
-            if arg_type == "plaintiff":
-                history += f"Plaintiff: {content}\n"
-            elif arg_type == "defendant":
-                history += f"Defendant: {content}\n"
-    for arg in case.defendant_arguments:
-        content = arg.content if isinstance(arg, ArgumentItem) else arg.get("content")
-        arg_type = arg.type if isinstance(arg, ArgumentItem) else arg.get("type")
-        if content:
-            if arg_type == "plaintiff":
-                history += f"Plaintiff: {content}\n"
-            elif arg_type == "defendant":
-                history += f"Defendant: {content}\n"
-
-    ai_role = "defendant" if role == "plaintiff" else "plaintiff"
-
-    # Generate AI's closing statement
-    start_time = time.perf_counter()
+    ai_role = other_side(role)
     try:
         closing_context = await retrieve_case_context(
             case,
@@ -1253,82 +733,38 @@ async def submit_closing_statement(
         )
         ai_closing = await lawyer.closing_statement(
             ai_role,
-            case.user_role.value,
+            role,
             case_details=case.details,
             rag_context=closing_context,
-            history=history if not settings.rag_enabled else None,
+            history=argument_history(case, role) if not settings.rag_enabled else None,
             evidence_context=format_evidence_context(case.evidence),
         )
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.info(
-            f"AI closing statement generated for case {case_cnr} in {duration_ms:.2f}ms"
-        )
-    except Exception as e:
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.error(
-            f"AI closing statement generation failed for case {case_cnr} after {duration_ms:.2f}ms: {str(e)}",
-            exc_info=True,
-        )
+    except Exception:
+        logger.exception(f"AI closing statement failed for case {case_cnr}")
         raise HTTPException(
             status_code=500,
             detail="Failed to generate AI closing statement. Please try again.",
         )
 
-    if role == "plaintiff":
-        case.defendant_arguments.append(
-            ArgumentItem(
-                type="closing",
-                content=ai_closing,
-                user_id=None,
-                role=Roles.DEFENDANT,
-                timestamp=get_current_datetime(),
-            )
+    side_arguments(case, ai_role).append(
+        ArgumentItem(
+            type="closing",
+            content=ai_closing,
+            user_id=None,
+            role=Roles(ai_role),
+            timestamp=get_current_datetime(),
         )
-    else:
-        case.plaintiff_arguments.append(
-            ArgumentItem(
-                type="closing",
-                content=ai_closing,
-                user_id=None,
-                role=Roles.PLAINTIFF,
-                timestamp=get_current_datetime(),
-            )
-        )
+    )
 
-    # Collect arguments for verdict generation
-    plaintiff_side_args = []
-    defendant_side_args = []
-
-    for arg in case.plaintiff_arguments:
-        if isinstance(arg, ArgumentItem):
-            if arg.type in ["user", "opening", "counter", "closing"]:
-                if arg.role == Roles.PLAINTIFF:
-                    plaintiff_side_args.append(arg.content)
-                elif arg.role == Roles.DEFENDANT:
-                    defendant_side_args.append(arg.content)
-        elif isinstance(arg, dict):
-            if arg.get("type") in ["user", "opening", "counter", "closing"]:
-                if arg.get("role") == Roles.PLAINTIFF.value:
-                    plaintiff_side_args.append(str(arg["content"]))
-                elif arg.get("role") == Roles.DEFENDANT.value:
-                    defendant_side_args.append(str(arg["content"]))
-
-    for arg in case.defendant_arguments:
-        if isinstance(arg, ArgumentItem):
-            if arg.type in ["user", "opening", "counter", "closing"]:
-                if arg.role == Roles.PLAINTIFF:
-                    plaintiff_side_args.append(arg.content)
-                elif arg.role == Roles.DEFENDANT:
-                    defendant_side_args.append(arg.content)
-        elif isinstance(arg, dict):
-            if arg.get("type") in ["user", "opening", "counter", "closing"]:
-                if arg.get("role") == Roles.PLAINTIFF.value:
-                    plaintiff_side_args.append(str(arg["content"]))
-                elif arg.get("role") == Roles.DEFENDANT.value:
-                    defendant_side_args.append(str(arg["content"]))
-
-    # Generate verdict
-    start_time = time.perf_counter()
+    all_arguments = case.plaintiff_arguments + case.defendant_arguments
+    arguments_for = {
+        side: [
+            arg.content
+            for arg in all_arguments
+            if arg.type in VERDICT_ARGUMENT_TYPES and arg.role == Roles(side)
+        ]
+        for side in ("plaintiff", "defendant")
+    }
     try:
         verdict_context = await retrieve_case_context(
             case,
@@ -1343,52 +779,32 @@ async def submit_closing_statement(
             ],
         )
         case.verdict = await judge.generate_verdict(
-            plaintiff_arguments=plaintiff_side_args,
-            defendant_arguments=defendant_side_args,
+            plaintiff_arguments=arguments_for["plaintiff"],
+            defendant_arguments=arguments_for["defendant"],
             case_details=case.details,
             title=case.title,
             rag_context=verdict_context,
             evidence_context=format_evidence_context(case.evidence),
         )
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.info(f"Verdict generated for case {case_cnr} in {duration_ms:.2f}ms")
-    except Exception as e:
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.error(
-            f"Verdict generation failed for case {case_cnr} after {duration_ms:.2f}ms: {str(e)}",
-            exc_info=True,
-        )
+    except Exception:
+        logger.exception(f"Verdict generation failed for case {case_cnr}")
         raise HTTPException(
             status_code=500, detail="Failed to generate verdict. Please try again."
         )
 
-    await argument_rate_limiter.register_usage(str(current_user.id))
-
     case.status = CaseStatus.RESOLVED
-    try:
-        await case.save()
-        await upsert_memory_item(
-            case,
-            "argument",
-            f"{ai_role}_closing_auto_{len(case.plaintiff_arguments) + len(case.defendant_arguments)}",
-            ai_closing,
-            {"side": ai_role, "argument_type": "closing", "role": ai_role},
-        )
-        await upsert_memory_item(
-            case,
-            "verdict",
-            "verdict",
-            case.verdict or "",
-            {"title": case.title},
-        )
-        logger.info(f"Case {case_cnr} resolved with verdict")
-    except Exception as e:
-        logger.error(
-            f"Error saving verdict for case {case_cnr}: {str(e)}", exc_info=True
-        )
-        raise HTTPException(
-            status_code=500, detail="Failed to save verdict. Please try again."
-        )
+    await save_with_memory(
+        case,
+        [
+            argument_memory(
+                f"{ai_role}_closing_auto_{total + 1}", ai_closing, ai_role, "closing"
+            ),
+            ("verdict", "verdict", case.verdict or "", {"title": case.title}),
+        ],
+        "Failed to save verdict. Please try again.",
+    )
+    await argument_rate_limiter.register_usage(str(current_user.id))
+    logger.info(f"Case {case_cnr} resolved with verdict")
 
     return {
         "verdict": case.verdict,

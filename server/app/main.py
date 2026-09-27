@@ -1,37 +1,39 @@
 # app/main.py
+import time
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.config import log_environment_status, settings
 from app.database import init_db
-from app.config import settings, log_environment_status
+from app.logging_config import (
+    generate_request_id,
+    get_logger,
+    get_request_id,
+    set_request_id,
+    setup_logging,
+)
+from app.models.case import Case
 from app.routes import (
-    auth,
-    cases,
     arguments,
-    rate_limit,
-    feedback,
+    auth,
     case_analysis,
-    evidence,
-    parties,
-    location,
+    cases,
     client_logs,
+    evidence,
+    feedback,
+    location,
+    parties,
+    rate_limit,
     witness,
 )
 from app.services.location_service import preload_cache as preload_location_cache
-from app.logging_config import (
-    setup_logging,
-    get_logger,
-    generate_request_id,
-    set_request_id,
-    get_request_id,
-)
 from app.utils.datetime import get_current_datetime
-from beanie.odm.fields import PydanticObjectId
-import json
-import time
-import uvicorn
+from app.utils.llm import LLMGenerationError
 
 # Initialize logging first
 setup_logging(log_level=settings.log_level, log_format=settings.log_format)
@@ -39,14 +41,6 @@ logger = get_logger(__name__)
 
 # Track service start time for uptime calculation
 SERVICE_START_TIME = time.time()
-
-
-# Custom JSON encoder to handle PydanticObjectId
-class CustomJSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, PydanticObjectId):
-            return str(o)
-        return super().default(o)
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -83,16 +77,15 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             response.headers["X-Request-ID"] = request_id
             return response
 
-        except Exception as e:
+        except Exception:
             duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.error(
-                f"❌ {request.method} {request.url.path} failed after {duration_ms:.2f}ms: {str(e)}",
+            logger.exception(
+                f"❌ {request.method} {request.url.path} failed after {duration_ms:.2f}ms",
                 extra={
                     "method": request.method,
                     "endpoint": request.url.path,
                     "duration_ms": round(duration_ms, 2),
                 },
-                exc_info=True,
             )
             raise
 
@@ -116,6 +109,14 @@ async def lifespan(app: FastAPI):
     await init_db(motor_client)
     logger.info("✅ Database initialized successfully")
 
+    # A restart kills any running AI cross-examination task; clear its flag so
+    # those cases are not stuck in "AI is examining" forever.
+    # awaitable at runtime (UpdateOne)
+    # pyrefly: ignore[not-async]
+    await Case.find(Case.is_ai_examining == True).update(
+        {"$set": {"is_ai_examining": False}}
+    )
+
     # Preload location cache in background (don't block startup)
     import asyncio
 
@@ -134,8 +135,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Courtroom",
     lifespan=lifespan,
-    # Configure JSON encoders globally
-    json_encoders={PydanticObjectId: str},
 )
 
 # Add request logging middleware (before CORS)
@@ -157,6 +156,16 @@ app.add_middleware(
     expose_headers=["Content-Length", "X-Request-ID"],
     max_age=3600,
 )
+
+
+@app.exception_handler(LLMGenerationError)
+async def llm_generation_error_handler(request: Request, exc: LLMGenerationError):
+    """The AI failed; report it as unavailable instead of saving fallback text."""
+    logger.error(f"LLM generation failed on {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "The AI could not respond right now. Please try again."},
+    )
 
 
 @app.get("/")
@@ -190,6 +199,3 @@ app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
 app.include_router(location.router, prefix="/location", tags=["Location"])
 app.include_router(client_logs.router, prefix="/logs", tags=["Client Logs"])
-
-if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.port, reload=True)

@@ -1,18 +1,17 @@
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class EvidenceCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=160)
     evidence_type: str = Field(..., min_length=1, max_length=80)
     description: str = Field(..., min_length=1)
-    source: Optional[str] = None
-    image_prompt: Optional[str] = None
+    source: str | None = None
+    image_prompt: str | None = None
 
 
 class EvidenceExtractRequest(BaseModel):
     text: str = Field(..., min_length=1)
-    source: Optional[str] = None
+    source: str | None = None
 
 
 class EvidenceGenerationSummary(BaseModel):

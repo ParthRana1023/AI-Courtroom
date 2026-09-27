@@ -4,15 +4,17 @@ Combined LLM service for parties involved in cases.
 Handles: extraction, role assignment, bio generation, and chat.
 """
 
-import time
-import re
 import asyncio
-from typing import List
-from app.utils.llm import get_llm
-from langchain_core.prompts import ChatPromptTemplate
+import re
+import time
+
+from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
-from app.models.party import PartyRole, PartyInvolved
+from langchain_core.prompts import ChatPromptTemplate
+
 from app.logging_config import get_logger
+from app.models.party import PartyInvolved, PartyRole
+from app.utils.llm import get_llm, pick_case_context, strip_thinking
 
 logger = get_logger(__name__)
 
@@ -20,7 +22,7 @@ logger = get_logger(__name__)
 async def extract_names_from_case(
     case_text: str,
     rag_context: str | None = None,
-) -> List[str]:
+) -> list[str]:
     """
     Extract all parties/organization names from case text.
 
@@ -59,7 +61,7 @@ Mumbai Trading Co. Pvt Ltd
         response = await chain.ainvoke({"case_context": case_context})
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
 
         # Extract names from response
         names = [name.strip() for name in response.split("\n") if name.strip()]
@@ -76,8 +78,8 @@ Mumbai Trading Co. Pvt Ltd
         logger.info(f"Extracted {len(unique_names)} party names in {duration_ms:.2f}ms")
         return unique_names
 
-    except Exception as e:
-        logger.error(f"Error extracting names from case: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error extracting names from case")
         return []
 
 
@@ -99,9 +101,7 @@ async def generate_party_details(
     """
     logger.debug(f"Generating details for party: {party_name}")
 
-    case_context = rag_context or (
-        case_text[:6000] if case_text else "No case text provided"
-    )
+    case_context = pick_case_context(rag_context, case_text)
 
     template = """Analyze this legal case and provide details about **{party_name}**.
 
@@ -135,7 +135,7 @@ Important: Base everything on the case text. For the role, look for keywords lik
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
 
         # Determine role from response
         role = PartyRole.NON_APPLICANT  # Default
@@ -195,10 +195,8 @@ Important: Base everything on the case text. For the role, look for keywords lik
             bio=response,  # Store raw markdown response
         )
 
-    except Exception as e:
-        logger.error(
-            f"Error generating details for {party_name}: {str(e)}", exc_info=True
-        )
+    except Exception:
+        logger.exception(f"Error generating details for {party_name}")
         return PartyInvolved(
             name=party_name,
             role=PartyRole.NON_APPLICANT,
@@ -209,7 +207,7 @@ Important: Base everything on the case text. For the role, look for keywords lik
 async def extract_and_assign_parties(
     case_text: str,
     rag_context: str | None = None,
-) -> List[PartyInvolved]:
+) -> list[PartyInvolved]:
     """
     Extract all parties from case and generate their details.
     Makes N LLM calls (one per party) to get rich markdown details.
@@ -283,9 +281,7 @@ async def chat_with_party(
             sender = "User (Lawyer)" if msg.get("sender") == "user" else party_name
             history_text += f"{sender}: {msg.get('content', '')}\n"
 
-    case_context = rag_context or (
-        case_details[:6000] if case_details else "No case details provided"
-    )
+    case_context = pick_case_context(rag_context, case_details)
 
     template = f"""You are role-playing as {party_name}, a {role_description} in a legal case.
 You are being interviewed by a lawyer to gather context about the case.
@@ -314,7 +310,7 @@ User (Lawyer): {user_message}
 Respond as {party_name}:
 """
 
-    prompt = ChatPromptTemplate.from_messages([("human", template)])
+    prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
     chain = prompt | get_llm("drafter") | StrOutputParser()
 
     try:
@@ -322,12 +318,12 @@ Respond as {party_name}:
         response = await chain.ainvoke({})
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
         # Remove any prefix like "Name:" that the LLM might add
         response = re.sub(rf"^{re.escape(party_name)}:\s*", "", response).strip()
 
         logger.info(f"Chat response generated for {party_name} in {duration_ms:.2f}ms")
         return response
-    except Exception as e:
-        logger.error(f"Error in chat with {party_name}: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception(f"Error in chat with {party_name}")
         return "I'm sorry, I'm having trouble responding right now. Could you please repeat that?"

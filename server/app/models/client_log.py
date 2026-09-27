@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Optional
+
 from beanie import Document
 from pydantic import Field
+
 from app.utils.datetime import get_current_datetime
 
 
@@ -16,21 +17,21 @@ class ClientLog(Document):
 
     # Context
     session_id: str  # Browser session ID
-    user_id: Optional[str] = None  # If authenticated
+    user_id: str | None = None  # If authenticated
     url: str  # Page URL where log occurred
     user_agent: str  # Browser info
 
     # Error details (for error logs)
-    error_name: Optional[str] = None
-    error_stack: Optional[str] = None
-    component_stack: Optional[str] = None  # React component stack
+    error_name: str | None = None
+    error_stack: str | None = None
+    component_stack: str | None = None  # React component stack
 
     # Additional context
-    context: Optional[dict] = None  # Arbitrary metadata
-    duration_ms: Optional[float] = None  # For performance logs
+    context: dict | None = None  # Arbitrary metadata
+    duration_ms: float | None = None  # For performance logs
 
     # Request correlation
-    request_id: Optional[str] = None
+    request_id: str | None = None
 
     class Settings:
         name = "client_logs"

@@ -24,9 +24,6 @@ venv/
 __pycache__/
 *.pyc
 
-# Testing Folder
-tests/
-
 htmlcov/
 
 .coverage
@@ -59,3 +56,7 @@ everything-claude-code/
 future_plans/
 
 pyrefly.toml
+
+graphify-out/
+
+CLAUDE.md

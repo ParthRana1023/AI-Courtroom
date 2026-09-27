@@ -13,14 +13,11 @@ dnspython
 cryptography
 argon2-cffi
 PyJWT
-passlib
-python-jose
 email-validator
 
 # Configuration & Environment
 python-dotenv
 pydantic-settings
-pytz
 
 # Data Validation & Parsing
 pydantic
@@ -29,15 +26,11 @@ pydantic
 python-multipart
 
 # Email & Messaging
-secure-smtplib
 
 # Async & Networking Utilities
 httpx
-nest_asyncio
 
 # AI / LLM / LangChain Stack
-langchain-community
-langchain-google-genai
 langchain-groq
 langchain-openai
 langchain-text-splitters
@@ -46,7 +39,6 @@ sentence-transformers
 
 # Google Authentication & OAuth
 google-auth
-google-auth-oauthlib
 
 # Cloud Storage
 cloudinary
@@ -55,7 +47,6 @@ cloudinary
 pytest
 pytest-asyncio>=0.23.0
 pytest-cov
-httpx
 mongomock-motor
 factory-boy
 faker

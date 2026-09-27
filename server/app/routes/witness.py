@@ -3,39 +3,42 @@
 API routes for witness examination during courtroom sessions.
 """
 
-import time
-import random
 import asyncio
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+import random
+import time
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+
+from app.config import settings
+from app.dependencies import get_current_user, get_owned_case
+from app.logging_config import get_logger
 from app.models.case import (
     Case,
     CaseStatus,
-    Roles,
-    ExaminationItem,
-    WitnessTestimony,
     CourtroomProceedingsEvent,
     CourtroomProceedingsEventType,
+    ExaminationItem,
+    Roles,
+    WitnessTestimony,
 )
-from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.witness import (
-    CallWitnessRequest,
-    ExamineWitnessRequest,
-    CallWitnessResponse,
-    WitnessExaminationResponse,
-    CurrentWitnessResponse,
-    AvailableWitnessesResponse,
-    WitnessInfo,
+    AICrossExaminationResponse,
     AllTestimoniesResponse,
-    WitnessTestimonyResponse,
+    AvailableWitnessesResponse,
+    CallWitnessRequest,
+    CallWitnessResponse,
+    ConcludeWitnessResponse,
+    CurrentWitnessResponse,
     ExaminationItemResponse,
+    ExamineWitnessRequest,
+    WitnessExaminationResponse,
+    WitnessInfo,
+    WitnessTestimonyResponse,
 )
 from app.services.llm import witness_service
-from app.config import settings
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
-from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2
@@ -43,15 +46,7 @@ MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2
 router = APIRouter()
 
 
-def get_party_by_id(case: Case, party_id: str):
-    """Helper to find a party by ID"""
-    for party in case.parties_involved:
-        if party.id == party_id:
-            return party
-    return None
-
-
-def get_current_testimony(case: Case) -> Optional[WitnessTestimony]:
+def get_current_testimony(case: Case) -> WitnessTestimony | None:
     """Get the current active testimony session"""
     if not case.current_witness_id:
         return None
@@ -92,14 +87,7 @@ async def get_available_witnesses(
     """Get list of available witnesses (parties) for the case"""
     logger.info(f"Getting available witnesses for case {case_cnr}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(case_cnr, current_user)
 
     # Get IDs of witnesses who have already testified
     testified_ids = {t.witness_id for t in case.witness_testimonies}
@@ -129,14 +117,7 @@ async def call_witness(
     """Call a witness to the stand"""
     logger.info(f"Calling witness {request.witness_id} for case {case_cnr}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(case_cnr, current_user)
 
     if case.status != CaseStatus.ACTIVE:
         raise HTTPException(
@@ -151,7 +132,7 @@ async def call_witness(
         )
 
     # Find the party
-    party = get_party_by_id(case, request.witness_id)
+    party = case.get_party(request.witness_id)
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
 
@@ -182,8 +163,8 @@ async def call_witness(
     try:
         await case.save()
         logger.info(f"Witness {party.name} called to the stand by {caller_role}")
-    except Exception as e:
-        logger.error(f"Error calling witness: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error calling witness")
         raise HTTPException(status_code=500, detail="Failed to call witness")
 
     return CallWitnessResponse(
@@ -204,14 +185,7 @@ async def examine_witness(
     """Examine the current witness with a question"""
     logger.info(f"Examining witness for case {case_cnr}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(case_cnr, current_user)
 
     if case.status != CaseStatus.ACTIVE:
         raise HTTPException(
@@ -230,7 +204,7 @@ async def examine_witness(
         raise HTTPException(status_code=400, detail="No active testimony session found")
 
     # Get the witness (party)
-    party = get_party_by_id(case, case.current_witness_id)
+    party = case.get_party(case.current_witness_id)
     if not party:
         raise HTTPException(status_code=404, detail="Witness not found")
 
@@ -273,8 +247,8 @@ async def examine_witness(
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Witness response generated in {duration_ms:.2f}ms")
-    except Exception as e:
-        logger.error(f"Error generating witness response: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error generating witness response")
         raise HTTPException(
             status_code=500, detail="Failed to generate witness response"
         )
@@ -350,8 +324,8 @@ async def examine_witness(
                 "witness_id": party.id,
             },
         )
-    except Exception as e:
-        logger.error(f"Error saving examination: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error saving examination")
         raise HTTPException(status_code=500, detail="Failed to save examination")
 
     return WitnessExaminationResponse(
@@ -379,15 +353,21 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
 
     if not case.current_witness_id:
         logger.info("No witness on stand, stopping background examination")
-        case.is_ai_examining = False
-        await case.save()
+        # awaitable at runtime (UpdateOne)
+        # pyrefly: ignore[not-async]
+        await Case.find_one(Case.cnr == case_cnr).update(
+            {"$set": {"is_ai_examining": False}}
+        )
         return
 
     # Get the witness
-    party = get_party_by_id(case, case.current_witness_id)
+    party = case.get_party(case.current_witness_id)
     if not party:
-        case.is_ai_examining = False
-        await case.save()
+        # awaitable at runtime (UpdateOne)
+        # pyrefly: ignore[not-async]
+        await Case.find_one(Case.cnr == case_cnr).update(
+            {"$set": {"is_ai_examining": False}}
+        )
         return
 
     # AI role is opposite of user role unless specified
@@ -417,11 +397,19 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
         # Randomize max questions to avoid predictability (e.g. 3-5)
         # Ensure at least 1 question
         questions_to_ask = random.randint(max(2, max_questions - 2), max_questions)
-        questions_asked_count = 0
 
         initial_witness_id = case.current_witness_id
+        # Writes below are atomic appends that only apply while this witness is
+        # still on the stand and the AI flag is still set. Saving the whole
+        # (stale) case would undo anything the user did meanwhile, e.g. a
+        # dismissal would put the witness back on the stand.
+        still_examining = {
+            "cnr": case_cnr,
+            "current_witness_id": initial_witness_id,
+            "is_ai_examining": True,
+        }
 
-        for _ in range(questions_to_ask):
+        for questions_asked_count in range(questions_to_ask):
             # Re-fetch case to check for interruptions and ensure we work on latest state
             case = await Case.find_one(Case.cnr == case_cnr)
             if not case or case.current_witness_id != initial_witness_id:
@@ -495,8 +483,8 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     case_arguments=arguments_summary,
                     rag_context=question_context,
                 )
-            except Exception as e:
-                logger.error(f"Error generating question: {e}")
+            except Exception:
+                logger.exception("Error generating question")
                 break
 
             # 4. Generate Answer (Simulate witness thinking)
@@ -517,8 +505,14 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                 witness_id=party.id,
                 question=question,
             )
-            case.courtroom_proceedings.append(q_event)
-            await case.save()
+            # awaitable at runtime (UpdateOne)
+            # pyrefly: ignore[not-async]
+            result = await Case.find_one(still_examining).update(
+                {"$push": {"courtroom_proceedings": q_event}}
+            )
+            if not result.modified_count:
+                logger.info("AI examination was stopped meanwhile, discarding question")
+                break
             await upsert_memory_item(
                 case,
                 "proceeding",
@@ -560,8 +554,8 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     ),
                     rag_context=answer_context,
                 )
-            except Exception as e:
-                logger.error(f"Error generating answer: {e}")
+            except Exception:
+                logger.exception("Error generating answer")
                 break
 
             # The answer is generated immediately, but only becomes visible after
@@ -573,16 +567,6 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                 examiner=ai_role, question=question, answer=answer
             )
 
-            # Add to testimony
-            # Need to find testimony index again as case object might be stale if we didn't refresh?
-            # We are modifying local 'case' object which we saved.
-            # But 'testimony' ref might be stale if we want to be super safe.
-            # Since we are the only writer to testimony likely, it's ok.
-            for t in case.witness_testimonies:
-                if t.id == testimony.id:
-                    t.examination.append(exam_item)
-                    break
-
             a_event = CourtroomProceedingsEvent(
                 type=CourtroomProceedingsEventType.WITNESS_EXAMINED_A,
                 timestamp=get_current_datetime(),
@@ -592,8 +576,28 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                 witness_id=party.id,
                 answer=answer,
             )
-            case.courtroom_proceedings.append(a_event)
-            await case.save()
+            # Address the testimony by index, guarded by its id (works on MongoDB
+            # and mongomock, which lacks the "$" positional operator).
+            index = next(
+                i
+                for i, t in enumerate(case.witness_testimonies)
+                if t.id == testimony.id
+            )
+            # awaitable at runtime (UpdateOne)
+            # pyrefly: ignore[not-async]
+            result = await Case.find_one(
+                {**still_examining, f"witness_testimonies.{index}.id": testimony.id}
+            ).update(
+                {
+                    "$push": {
+                        "courtroom_proceedings": a_event,
+                        f"witness_testimonies.{index}.examination": exam_item,
+                    }
+                }
+            )
+            if not result.modified_count:
+                logger.info("AI examination was stopped meanwhile, discarding answer")
+                break
             await upsert_memory_item(
                 case,
                 "witness_testimony",
@@ -617,24 +621,22 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                 },
             )
 
-            questions_asked_count += 1
-
-    except Exception as e:
-        logger.error(f"Error in background examination: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Error in background examination")
     finally:
-        # Finished
-        # Re-fetch case to set flag safely
-        case = await Case.find_one(Case.cnr == case_cnr)
-        if case:
-            case.is_ai_examining = False
-            # Add system message that examination is done?
-            done_event = CourtroomProceedingsEvent(
-                type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
-                timestamp=get_current_datetime(),
-                content="Cross-examination completed.",
-            )
-            case.courtroom_proceedings.append(done_event)
-            await case.save()
+        done_event = CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
+            timestamp=get_current_datetime(),
+            content="Cross-examination completed.",
+        )
+        # awaitable at runtime (UpdateOne)
+        # pyrefly: ignore[not-async]
+        await Case.find_one(Case.cnr == case_cnr).update(
+            {
+                "$set": {"is_ai_examining": False},
+                "$push": {"courtroom_proceedings": done_event},
+            }
+        )
         logger.info("Background examination finished")
 
 
@@ -645,18 +647,9 @@ async def ai_cross_examine_witness(
     current_user: User = Depends(get_current_user),
 ):
     """AI lawyer performs full cross-examination with multiple questions (Background Task)"""
-    from app.schemas.witness import AICrossExaminationResponse
-
     logger.info(f"AI starting cross-examination for case {case_cnr}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(case_cnr, current_user)
 
     if case.status != CaseStatus.ACTIVE:
         raise HTTPException(
@@ -683,7 +676,7 @@ async def ai_cross_examine_witness(
     # Return immediate response
     # We return an empty list of examinations because they will be generated in background
     # The frontend should see 'state'="ai_cross_examining" and refresh witness state
-    party = get_party_by_id(case, case.current_witness_id)
+    party = case.get_party(case.current_witness_id)
     if not party:
         raise HTTPException(status_code=404, detail="Current witness not found")
 
@@ -701,63 +694,25 @@ async def conclude_witness(
     case_cnr: str, current_user: User = Depends(get_current_user)
 ):
     """User concludes their examination - witness is dismissed by the judge"""
-    from app.schemas.witness import ConcludeWitnessResponse
-
     logger.info(f"Concluding witness examination for case {case_cnr}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+    case = await get_owned_case(case_cnr, current_user)
 
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
-
-    if not case.current_witness_id:
+    witness_id = case.current_witness_id
+    if not witness_id:
         raise HTTPException(
             status_code=400, detail="No witness is currently on the stand"
         )
 
-    # Get current testimony and count questions
-    testimony = get_current_testimony(case)
-    total_questions = len(testimony.examination) if testimony else 0
-
-    # Get witness name
-    witness_name = None
-    for party in case.parties_involved:
-        if party.id == case.current_witness_id:
-            witness_name = party.name
-            break
-
-    # End the testimony
-    for i, t in enumerate(case.witness_testimonies):
-        if t.witness_id == case.current_witness_id and t.ended_at is None:
-            case.witness_testimonies[i].ended_at = get_current_datetime()
-            break
-
-    witness_id = case.current_witness_id
-    case.current_witness_id = None
-    case.is_ai_examining = False
-
-    case.courtroom_proceedings.append(
-        CourtroomProceedingsEvent(
-            type=CourtroomProceedingsEventType.WITNESS_DISMISSED,
-            content=f"{witness_name or 'Witness'} dismissed from the stand.",
-            speaker_role="judge",
-            speaker_name="Judge",
-            witness_id=witness_id,
-            timestamp=get_current_datetime(),
-        )
-    )
+    _, witness_name, total_questions = case.dismiss_current_witness()
 
     try:
         await case.save()
         logger.info(
             f"Witness {witness_name} examination concluded with {total_questions} questions"
         )
-    except Exception as e:
-        logger.error(f"Error concluding witness: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error concluding witness")
         raise HTTPException(
             status_code=500, detail="Failed to conclude witness examination"
         )
@@ -765,9 +720,9 @@ async def conclude_witness(
     return ConcludeWitnessResponse(
         success=True,
         witness_id=witness_id,
-        witness_name=witness_name or "Witness",
+        witness_name=witness_name,
         total_questions_asked=total_questions,
-        message=f"The court thanks {witness_name or 'the witness'} for their testimony. The witness is dismissed.",
+        message=f"The court thanks {witness_name} for their testimony. The witness is dismissed.",
     )
 
 
@@ -778,58 +733,25 @@ async def dismiss_witness(
     """Dismiss the current witness from the stand"""
     logger.info(f"Dismissing witness for case {case_cnr}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(case_cnr, current_user)
 
     if not case.current_witness_id:
         raise HTTPException(
             status_code=400, detail="No witness is currently on the stand"
         )
 
-    # Get current testimony and mark it as ended
-    for i, t in enumerate(case.witness_testimonies):
-        if t.witness_id == case.current_witness_id and t.ended_at is None:
-            case.witness_testimonies[i].ended_at = get_current_datetime()
-            break
-
-    witness_name = None
-    witness_id_val = None
-    for party in case.parties_involved:
-        if party.id == case.current_witness_id:
-            witness_name = party.name
-            witness_id_val = party.id
-            break
-
-    case.current_witness_id = None
-    case.is_ai_examining = False
-
-    case.courtroom_proceedings.append(
-        CourtroomProceedingsEvent(
-            type=CourtroomProceedingsEventType.WITNESS_DISMISSED,
-            content=f"{witness_name or 'Witness'} dismissed from the stand.",
-            speaker_role="judge",
-            speaker_name="Judge",
-            witness_id=witness_id_val,
-            timestamp=get_current_datetime(),
-        )
-    )
+    _, witness_name, _ = case.dismiss_current_witness()
 
     try:
         await case.save()
         logger.info(f"Witness {witness_name} dismissed from the stand")
-    except Exception as e:
-        logger.error(f"Error dismissing witness: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error dismissing witness")
         raise HTTPException(status_code=500, detail="Failed to dismiss witness")
 
     return {
         "success": True,
-        "message": f"{witness_name or 'Witness'} has been dismissed from the stand.",
+        "message": f"{witness_name} has been dismissed from the stand.",
     }
 
 
@@ -840,21 +762,14 @@ async def get_current_witness(
     """Get the current witness examination state"""
     logger.debug(f"Getting current witness for case {case_cnr}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(case_cnr, current_user)
 
     if not case.current_witness_id:
         return CurrentWitnessResponse(
             has_witness=False, is_ai_examining=case.is_ai_examining
         )
 
-    party = get_party_by_id(case, case.current_witness_id)
+    party = case.get_party(case.current_witness_id)
     testimony = get_current_testimony(case)
 
     if not party or not testimony:
@@ -925,14 +840,7 @@ async def get_all_testimonies(
     """Get all witness testimonies for the case"""
     logger.debug(f"Getting all testimonies for case {case_cnr}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(case_cnr, current_user)
 
     testimonies = []
     for t in case.witness_testimonies:
@@ -972,14 +880,7 @@ async def ai_call_witness(
     """AI lawyer strategically decides whether to call a witness"""
     logger.info(f"AI evaluating whether to call a witness for case {case_cnr}")
 
-    case = await Case.find_one(Case.cnr == case_cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
+    case = await get_owned_case(case_cnr, current_user)
 
     if case.status != CaseStatus.ACTIVE:
         raise HTTPException(
@@ -1056,7 +957,7 @@ async def ai_call_witness(
                     break
 
             # Actually call the witness
-            party = get_party_by_id(case, witness_id)
+            party = case.get_party(witness_id)
             if party:
                 testimony = WitnessTestimony(
                     witness_id=party.id, witness_name=party.name, called_by=ai_role
@@ -1086,6 +987,6 @@ async def ai_call_witness(
             "should_call": False,
             "reason": "AI decided not to call a witness at this time",
         }
-    except Exception as e:
-        logger.error(f"Error in AI witness decision: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error in AI witness decision")
         return {"should_call": False, "reason": "Error evaluating witness strategy"}

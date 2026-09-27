@@ -1,8 +1,9 @@
 # app/models/user.py
+from datetime import date
+from typing import Literal
+
 from beanie import Document
 from pydantic import BaseModel, ConfigDict, EmailStr
-from datetime import date
-from typing import Optional, Literal
 
 # Gender type definition
 Gender = Literal["male", "female", "others", "prefer-not-to-say"]
@@ -19,23 +20,23 @@ class User(Document):
     date_of_birth: date  # Changed to date type
     phone_number: str
     email: EmailStr
-    password_hash: Optional[str] = None  # Optional for Google OAuth users
-    google_id: Optional[str] = None  # Google user ID for OAuth users
-    gender: Optional[Gender] = None  # User's gender preference
-    profile_photo_url: Optional[str] = None  # Cloudinary URL for profile photo
-    nickname: Optional[str] = None  # User's preferred nickname
+    password_hash: str | None = None  # Optional for Google OAuth users
+    google_id: str | None = None  # Google user ID for OAuth users
+    gender: Gender | None = None  # User's gender preference
+    profile_photo_url: str | None = None  # Cloudinary URL for profile photo
+    nickname: str | None = None  # User's preferred nickname
 
     # Location fields
-    city: Optional[str] = None
-    state: Optional[str] = None
-    state_iso2: Optional[str] = None  # ISO2 code for state (e.g., "MH")
-    country: Optional[str] = None
-    country_iso2: Optional[str] = None  # ISO2 code for country (e.g., "IN")
-    phone_code: Optional[str] = None  # Country phone code (e.g., "91")
+    city: str | None = None
+    state: str | None = None
+    state_iso2: str | None = None  # ISO2 code for state (e.g., "MH")
+    country: str | None = None
+    country_iso2: str | None = None  # ISO2 code for country (e.g., "IN")
+    phone_code: str | None = None  # Country phone code (e.g., "91")
 
     # Case generation preferences
     case_location_preference: CaseLocationPreference = "random"  # Default to random
-    preferred_case_state: Optional[str] = (
+    preferred_case_state: str | None = (
         None  # ISO2 code when preference is "specific_state"
     )
     rag_enabled: bool = True
@@ -47,9 +48,3 @@ class User(Document):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
-
-
-class GoogleTokenResponse(BaseModel):
-    access_token: str
-    token_type: str
-    is_new_user: bool = False

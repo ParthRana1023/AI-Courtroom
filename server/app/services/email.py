@@ -1,7 +1,8 @@
 # app/services/email.py
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from app.config import settings
 from app.logging_config import get_logger
 
@@ -29,8 +30,8 @@ async def send_email(to_email: str, subject: str, body: str):
         server.quit()
         logger.info(f"Email sent successfully to {to_email}")
         return True
-    except Exception as e:
-        logger.error(f"Failed to send email to {to_email}: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception(f"Failed to send email to {to_email}")
         return False
 
 
@@ -56,26 +57,3 @@ async def send_otp_email(email: str, otp: str, is_registration: bool = True):
     else:
         logger.warning(f"OTP email failed for {action}: {email}")
     return result
-
-
-async def send_contact_email(contact_data):
-    """Send contact form submission email"""
-    logger.info(f"Sending contact form email from: {contact_data.email}")
-
-    subject = f"Contact Form Submission from {contact_data.first_name} {contact_data.last_name}"
-    body = f"""
-    <html>
-    <body>
-        <h2>AI Courtroom - Contact Form Submission</h2>
-        <p><strong>Name:</strong> {contact_data.first_name} {contact_data.last_name}</p>
-        <p><strong>Email:</strong> {contact_data.email}</p>
-        <p><strong>Phone:</strong> {contact_data.phone_number}</p>
-        <h3>Message:</h3>
-        <p>{contact_data.message}</p>
-    </body>
-    </html>
-    """
-    # Using the same email address as the recipient (admin email)
-    from app.config import settings
-
-    return await send_email(settings.email_sender, subject, body)

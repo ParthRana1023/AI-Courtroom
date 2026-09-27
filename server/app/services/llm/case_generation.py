@@ -1,15 +1,17 @@
 # app/services/llm/case_generation.py
 import random
-import string
 import re
+import string
 import time
-from typing import Optional
-from app.utils.llm import get_llm
-from langchain_core.prompts import ChatPromptTemplate
+
+from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
-from app.services.high_court_mapping import get_random_high_court, INDIAN_HIGH_COURTS
-from datetime import datetime
+from langchain_core.prompts import ChatPromptTemplate
+
 from app.logging_config import get_logger
+from app.services.high_court_mapping import INDIAN_HIGH_COURTS, get_random_high_court
+from app.utils.datetime import get_current_datetime
+from app.utils.llm import get_llm, strip_thinking
 
 logger = get_logger(__name__)
 
@@ -125,8 +127,8 @@ async def random_names():
             return FALLBACK_NAMES
         return random.sample(names, min(5, len(names)))
 
-    except Exception as e:
-        logger.error(f"Error generating names with LLM: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error generating names with LLM")
         return FALLBACK_NAMES
 
 
@@ -151,8 +153,8 @@ async def random_cities():
         names = [name.strip() for name in llm_response.split("\n") if name.strip()]
         return random.sample(names, 5) if len(names) >= 5 else names
 
-    except Exception as e:
-        logger.error(f"Error generating cities with LLM: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error generating cities with LLM")
         return []
 
 
@@ -189,10 +191,8 @@ async def random_organizations():
             return FALLBACK_ORGANIZATIONS
         return random.sample(organizations, min(5, len(organizations)))
 
-    except Exception as e:
-        logger.error(
-            f"Error generating organization names with LLM: {str(e)}", exc_info=True
-        )
+    except Exception:
+        logger.exception("Error generating organization names with LLM")
         return FALLBACK_ORGANIZATIONS
 
 
@@ -239,30 +239,17 @@ def generate_realistic_cnr(high_court: str, city: str) -> str:
     case_number = f"{random.randint(1, 999999):06d}"
 
     # 5. Year (4 chars)
-    year = str(datetime.now().year)
+    year = str(get_current_datetime().year)
 
-    cnr = f"{state_code}{district_code}{establishment_code}{case_number}{year}"
-
-    # Ensure strictly 16 chars just in case
-    if len(cnr) != 16:
-        # Fallback to random if something goes wrong with length
-        logger.warning(
-            f"Generated CNR {cnr} length {len(cnr)} != 16. Falling back to structured random."
-        )
-        cnr = f"{state_code}{district_code}{establishment_code}{case_number[:6]}{year}"
-        if len(cnr) < 16:
-            cnr = cnr.ljust(16, "0")
-        elif len(cnr) > 16:
-            cnr = cnr[:16]
-
-    return cnr
+    # 2 + 2 + 2 + 6 + 4 = 16 characters, as the Case model requires
+    return f"{state_code}{district_code}{establishment_code}{case_number}{year}"
 
 
 async def generate_case_shell(
     sections: int,
     numbers: list[int],
-    high_court: Optional[str] = None,
-    city: Optional[str] = None,
+    high_court: str | None = None,
+    city: str | None = None,
 ) -> dict:
     """
     Stage A: Generates the raw case markdown text and CNR number.
@@ -416,7 +403,7 @@ async def generate_case_shell(
         Ensure the final output strictly mimics an official court petition. Use markdown bolding for all specified headers and keywords.
     """
 
-    prompt = ChatPromptTemplate.from_messages([("human", template)])
+    prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
 
     chain = prompt | get_llm("drafter") | StrOutputParser()
 
@@ -426,9 +413,7 @@ async def generate_case_shell(
         llm_duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Case LLM generation completed in {llm_duration_ms:.2f}ms")
 
-        llm_response_details = re.sub(
-            r"<think>.*?</think>", "", llm_response_details, flags=re.DOTALL
-        ).strip()
+        llm_response_details = strip_thinking(llm_response_details)
 
         if not llm_response_details:
             raise ValueError(
@@ -438,8 +423,6 @@ async def generate_case_shell(
         cnr = generate_realistic_cnr(selected_high_court, selected_city)
 
         def extract_title(case_text: str) -> str:
-            import re
-
             title_match = re.search(
                 r"\*\*IN THE MATTER OF:\*\*\s*\n\*\*(.*?)\*\*", case_text, re.DOTALL
             )
@@ -464,19 +447,6 @@ async def generate_case_shell(
             "status": "not started",
         }
 
-    except Exception as e:
-        logger.error(f"Error generating case shell with LLM: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error generating case shell with LLM")
         raise
-
-
-async def generate_case(
-    sections: int,
-    numbers: list[int],
-    high_court: Optional[str] = None,
-    city: Optional[str] = None,
-) -> dict:
-    """
-    Backward compatible function that generates shell.
-    Extraction is now handled by the RAG-first standard in the route.
-    """
-    return await generate_case_shell(sections, numbers, high_court, city)

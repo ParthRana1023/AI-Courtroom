@@ -75,7 +75,7 @@ export default function Register() {
     phone_code: "",
   });
   const [countryCode, setCountryCode] = useState("+91");
-  const [googleId, setGoogleId] = useState<string | null>(null);
+  const [googleSignupToken, setGoogleSignupToken] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [otp, setOtp] = useState<string[]>(new Array(6).fill(""));
@@ -96,7 +96,7 @@ export default function Register() {
             last_name: googleData.last_name || "",
             email: googleData.email || "",
           }));
-          setGoogleId(googleData.google_id || null);
+          setGoogleSignupToken(googleData.google_signup_token || null);
           setProfilePhotoUrl(googleData.profile_photo_url || null);
           // Don't clear sessionStorage here - keep it until registration completes
         } catch (e) {
@@ -217,9 +217,10 @@ export default function Register() {
       // Format date_of_birth as YYYY-MM-DD string for the API
       const formattedDob = formData.date_of_birth.toISOString().split("T")[0];
 
-      // Include googleId if this is a Google sign-up
-      const registrationData = googleId
-        ? { ...formData, date_of_birth: formattedDob, google_id: googleId }
+      // A Google sign-up sends the server-signed token from /auth/google;
+      // the server takes the Google account ID from it.
+      const registrationData = googleSignupToken
+        ? { ...formData, date_of_birth: formattedDob, google_signup_token: googleSignupToken }
         : { ...formData, date_of_birth: formattedDob };
       const response = (await register(registrationData)) as {
         skip_otp?: boolean;

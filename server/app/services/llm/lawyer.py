@@ -1,10 +1,11 @@
 # app/services/llm/lawyer.py
 import time
-import re
-from langchain_core.prompts import ChatPromptTemplate
+
 from langchain_core.output_parsers import StrOutputParser
-from app.utils.llm import get_llm
+from langchain_core.prompts import ChatPromptTemplate
+
 from app.logging_config import get_logger
+from app.utils.llm import LLMGenerationError, get_llm, pick_case_context, strip_thinking
 
 logger = get_logger(__name__)
 
@@ -21,9 +22,7 @@ async def generate_counter_argument(
     try:
         logger.info(f"Generating counter argument for {ai_role}")
 
-        case_context = rag_context or (
-            case_details[:6000] if case_details else "No case details provided"
-        )
+        case_context = pick_case_context(rag_context, case_details)
 
         # Use provided history or fallback to RAG context if history is not provided
         effective_history = history or "(Relevant history retrieved via RAG context)"
@@ -67,15 +66,15 @@ async def generate_counter_argument(
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
 
         logger.info(
             f"Counter argument generated in {duration_ms:.2f}ms, response length: {len(response)} chars"
         )
         return response
     except Exception as e:
-        logger.error(f"Error generating counter argument: {str(e)}", exc_info=True)
-        return "I apologize, but I'm unable to generate a counter argument at this time. Please try again later."
+        logger.exception("Error generating counter argument")
+        raise LLMGenerationError("Failed to generate counter argument") from e
 
 
 async def opening_statement(
@@ -88,9 +87,7 @@ async def opening_statement(
     try:
         logger.info(f"Generating opening statement for {ai_role}")
 
-        case_context = rag_context or (
-            case_details[:6000] if case_details else "No case details provided"
-        )
+        case_context = pick_case_context(rag_context, case_details)
 
         template = """
             You are an Indian lawyer from the {ai_role}'s side. 
@@ -119,15 +116,15 @@ async def opening_statement(
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
 
         logger.info(
             f"Opening statement generated in {duration_ms:.2f}ms, response length: {len(response)} chars"
         )
         return response
     except Exception as e:
-        logger.error(f"Error generating opening statement: {str(e)}", exc_info=True)
-        return "I apologize, but I'm unable to generate an opening statement at this time. Please try again later."
+        logger.exception("Error generating opening statement")
+        raise LLMGenerationError("Failed to generate opening statement") from e
 
 
 async def closing_statement(
@@ -176,12 +173,12 @@ async def closing_statement(
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
 
         logger.info(
             f"Closing statement generated in {duration_ms:.2f}ms, response length: {len(response)} chars"
         )
         return response
     except Exception as e:
-        logger.error(f"Error generating closing statement: {str(e)}", exc_info=True)
-        return "I apologize, but I'm unable to generate a closing statement at this time. Please try again later."
+        logger.exception("Error generating closing statement")
+        raise LLMGenerationError("Failed to generate closing statement") from e

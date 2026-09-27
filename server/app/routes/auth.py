@@ -1,31 +1,34 @@
 # app/routes/auth.py
-from fastapi import APIRouter, HTTPException, status, Depends, Request, UploadFile, File
+import time
+from datetime import date, timedelta
+
+from argon2.exceptions import VerifyMismatchError
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+
+from app.config import settings
+from app.dependencies import get_current_user
+from app.logging_config import get_logger
+from app.models.otp import LoginVerifyRequest, RegistrationVerifyRequest
+from app.models.user import TokenResponse, User
+from app.schemas.auth import GoogleLoginRequest, ProfileUpdateRequest
 from app.schemas.user import (
-    UserCreate,
-    UserOut,
     CaseLocationPreferenceUpdate,
     RagPreferenceUpdate,
+    UserCreate,
+    UserOut,
 )
-from app.schemas.auth import GoogleLoginRequest, ProfileUpdateRequest
-from app.models.user import User
-from app.models.user import TokenResponse
-from app.services.auth import create_user, create_access_token, ph
-from app.services.auth import VerifyMismatchError
-from app.services.otp import verify_otp, create_otp
+from app.services import cloudinary_service
+from app.services.auth import create_access_token, create_user, ph
+from app.services.cloudinary_service import extract_public_id_from_url
 from app.services.google_auth import (
     authenticate_google_user,
     exchange_code_for_token,
     generate_state_token,
+    read_google_signup_token,
     validate_state_token,
     verify_risc_token,
 )
-from app.config import settings
-from app.logging_config import get_logger
-from datetime import timedelta
-import time
-import motor.motor_asyncio
-from app.models.otp import RegistrationVerifyRequest, LoginVerifyRequest
-from app.dependencies import get_current_user
+from app.services.otp import create_otp, verify_otp
 
 logger = get_logger(__name__)
 
@@ -44,8 +47,21 @@ async def initiate_registration(user_data: UserCreate):
         )
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # A Google registration skips the email OTP, so it must carry our signed
+    # proof that Google verified this email; never trust a client google_id.
+    if user_data.google_id or user_data.google_signup_token:
+        claims = read_google_signup_token(user_data.google_signup_token or "")
+        if not claims or claims.get("email", "").lower() != user_data.email.lower():
+            logger.warning(
+                f"Rejected Google registration without valid proof: {user_data.email}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Google sign-up expired or does not match this email. Please continue with Google again.",
+            )
+        user_data.google_id = claims["sub"]
+
     # If registering via Google, skip OTP and directly create user
-    # Google has already verified the email
     if user_data.google_id:
         logger.info(f"Google registration detected for: {user_data.email}")
         try:
@@ -70,15 +86,14 @@ async def initiate_registration(user_data: UserCreate):
             logger.error(
                 f"Google registration failed for {user_data.email}: {e.detail}"
             )
-            raise e
+            raise
         except Exception as e:
-            logger.error(
-                f"Unexpected error during Google registration for {user_data.email}: {str(e)}",
-                exc_info=True,
+            logger.exception(
+                f"Unexpected error during Google registration for {user_data.email}"
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error creating user: {str(e)}",
+                detail=f"Error creating user: {e!s}",
             )
 
     # Generate and send OTP for regular registrations
@@ -106,14 +121,6 @@ async def verify_registration(data: RegistrationVerifyRequest):
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP"
         )
 
-    # Delete the OTP after successful verification
-    client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongodb_url)
-    db = client[settings.current_db_name]
-    await db.get_collection("otp").delete_one(
-        {"email": data.user_data.email, "otp": data.otp}
-    )
-    logger.debug(f"OTP deleted after verification for: {data.user_data.email}")
-
     # Create the user
     try:
         user = await create_user(data.user_data)
@@ -134,15 +141,14 @@ async def verify_registration(data: RegistrationVerifyRequest):
         logger.error(
             f"Registration verification failed for {data.user_data.email}: {e.detail}"
         )
-        raise e
+        raise
     except Exception as e:
-        logger.error(
-            f"Unexpected error during registration for {data.user_data.email}: {str(e)}",
-            exc_info=True,
+        logger.exception(
+            f"Unexpected error during registration for {data.user_data.email}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating user: {str(e)}",
+            detail=f"Error creating user: {e!s}",
         )
 
 
@@ -209,13 +215,6 @@ async def verify_login(request: Request):
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP"
             )
 
-        # Delete the OTP after successful verification
-        client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongodb_url)
-        db = client[settings.current_db_name]
-        await db.get_collection("otp").delete_one(
-            {"email": data.email, "otp": data.otp}
-        )
-
         # Get the user
         user = await User.find_one(User.email == data.email)
         if not user:
@@ -237,10 +236,10 @@ async def verify_login(request: Request):
         logger.info(f"Login successful for: {data.email}")
         return {"access_token": access_token, "token_type": "bearer"}
     except ValueError as e:
-        logger.error(f"Invalid login request format: {str(e)}")
+        logger.error(f"Invalid login request format: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid request format: {str(e)}",
+            detail=f"Invalid request format: {e!s}",
         )
 
 
@@ -255,7 +254,6 @@ async def update_profile(
     data: ProfileUpdateRequest, current_user: User = Depends(get_current_user)
 ):
     """Update user profile - only updates fields that are provided."""
-    from datetime import datetime
 
     logger.info(f"Profile update requested for user: {current_user.email}")
 
@@ -268,16 +266,11 @@ async def update_profile(
         if data.nickname is not None:
             current_user.nickname = data.nickname if data.nickname.strip() else None
         if data.gender is not None:
-            valid_genders = ("male", "female", "others", "prefer-not-to-say")
-            if data.gender not in valid_genders:
-                raise ValueError(
-                    f"Invalid gender value: {data.gender}. Must be one of {valid_genders}"
-                )
             current_user.gender = data.gender
         if data.phone_number is not None:
             current_user.phone_number = data.phone_number
         if data.date_of_birth is not None:
-            dob = datetime.strptime(data.date_of_birth, "%Y-%m-%d").date()
+            dob = date.fromisoformat(data.date_of_birth)
             current_user.date_of_birth = dob
 
         # Location fields
@@ -298,9 +291,9 @@ async def update_profile(
         logger.info(f"Profile updated successfully for user: {current_user.email}")
         return current_user
     except ValueError as e:
-        logger.error(f"Invalid profile update data for {current_user.email}: {str(e)}")
+        logger.error(f"Invalid profile update data for {current_user.email}: {e!s}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid data: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid data: {e!s}"
         )
 
 
@@ -309,36 +302,32 @@ async def google_login(data: GoogleLoginRequest):
     """
     Authenticate user with Google OAuth.
     Supports:
-    1. Implicit Flow (credential/access_token) - Client-side
-    2. Authorization Code Flow (code) - Server-side code exchange (More Secure)
+    1. Authorization Code Flow (code) - web; the code is exchanged server-side
+    2. ID token (credential) - native Google sign-in
     """
     logger.info("Google authentication initiated")
     try:
         # If using Authorization Code Flow
         if data.code:
             # 1. Validate State Parameter if provided
-            if data.state:
-                if not validate_state_token(data.state):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Invalid or expired state parameter",
-                    )
+            if data.state and not validate_state_token(data.state):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid or expired state parameter",
+                )
 
             # 2. Exchange code for tokens
             tokens = await exchange_code_for_token(data.code)
 
-            # 3. Use ID token or access token from exchange
+            # 3. Use the ID token from the exchange
             result = await authenticate_google_user(
                 credential=tokens.get("id_token"),
-                access_token=tokens.get("access_token"),
                 remember_me=data.remember_me,
             )
             return result
 
-        # Legacy/Implicit Flows
         result = await authenticate_google_user(
             credential=data.credential,
-            access_token=data.access_token,
             remember_me=data.remember_me,
         )
         logger.info("Google authentication successful")
@@ -346,10 +335,10 @@ async def google_login(data: GoogleLoginRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Google authentication failed: {str(e)}", exc_info=True)
+        logger.exception("Google authentication failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Google authentication failed: {str(e)}",
+            detail=f"Google authentication failed: {e!s}",
         )
 
 
@@ -358,11 +347,6 @@ async def upload_profile_photo(
     file: UploadFile = File(...), current_user: User = Depends(get_current_user)
 ):
     """Upload or update user's profile photo."""
-    from app.services.cloudinary_service import (
-        upload_profile_photo as cloudinary_upload,
-        extract_public_id_from_url,
-    )
-
     logger.info(f"Profile photo upload initiated for user: {current_user.email}")
 
     # Validate file type
@@ -393,7 +377,7 @@ async def upload_profile_photo(
             )
 
         # Upload to Cloudinary
-        secure_url, public_id = await cloudinary_upload(
+        secure_url, _ = await cloudinary_service.upload_profile_photo(
             file_bytes=file_bytes,
             user_id=str(current_user.id),
             existing_public_id=existing_public_id,
@@ -416,24 +400,16 @@ async def upload_profile_photo(
         )
         return current_user
     except Exception as e:
-        logger.error(
-            f"Profile photo upload failed for {current_user.email}: {str(e)}",
-            exc_info=True,
-        )
+        logger.exception(f"Profile photo upload failed for {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload profile photo: {str(e)}",
+            detail=f"Failed to upload profile photo: {e!s}",
         )
 
 
 @router.delete("/profile/photo", response_model=UserOut)
 async def delete_profile_photo(current_user: User = Depends(get_current_user)):
     """Remove user's profile photo."""
-    from app.services.cloudinary_service import (
-        delete_profile_photo as cloudinary_delete,
-        extract_public_id_from_url,
-    )
-
     logger.info(f"Profile photo deletion requested for user: {current_user.email}")
 
     if not current_user.profile_photo_url:
@@ -446,7 +422,7 @@ async def delete_profile_photo(current_user: User = Depends(get_current_user)):
         # Extract public_id and delete from Cloudinary
         public_id = extract_public_id_from_url(current_user.profile_photo_url)
         if public_id:
-            await cloudinary_delete(public_id)
+            await cloudinary_service.delete_profile_photo(public_id)
 
         # Update user profile
         current_user.profile_photo_url = None
@@ -457,13 +433,10 @@ async def delete_profile_photo(current_user: User = Depends(get_current_user)):
         )
         return current_user
     except Exception as e:
-        logger.error(
-            f"Profile photo deletion failed for {current_user.email}: {str(e)}",
-            exc_info=True,
-        )
+        logger.exception(f"Profile photo deletion failed for {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete profile photo: {str(e)}",
+            detail=f"Failed to delete profile photo: {e!s}",
         )
 
 
@@ -489,13 +462,12 @@ async def update_case_location_preference(
         logger.info(f"Case location preference updated for user: {current_user.email}")
         return current_user
     except Exception as e:
-        logger.error(
-            f"Failed to update case location preference for {current_user.email}: {str(e)}",
-            exc_info=True,
+        logger.exception(
+            f"Failed to update case location preference for {current_user.email}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update case location preference: {str(e)}",
+            detail=f"Failed to update case location preference: {e!s}",
         )
 
 
@@ -514,13 +486,10 @@ async def update_rag_preference(
         logger.info(f"RAG preference updated for user: {current_user.email}")
         return current_user
     except Exception as e:
-        logger.error(
-            f"Failed to update RAG preference for {current_user.email}: {str(e)}",
-            exc_info=True,
-        )
+        logger.exception(f"Failed to update RAG preference for {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update RAG preference: {str(e)}",
+            detail=f"Failed to update RAG preference: {e!s}",
         )
 
 
@@ -556,7 +525,7 @@ async def risc_webhook(request: Request):
 
         event_type = None
         if "events" in claims:
-            event_type = list(claims["events"].keys())[0]
+            event_type = next(iter(claims["events"]))
 
         subject = claims.get("sub")
         email = claims.get("email")
@@ -569,14 +538,13 @@ async def risc_webhook(request: Request):
             # For JWT (stateless), we'd need a blacklist or short expiry times
             # Since we don't have a token blacklist implemented yet, we log it
             # TODO: Implement token blacklisting
-            pass
 
         return {"status": "received"}
 
     except ValueError as e:
-        logger.error(f"RISC webhook validation failed: {str(e)}")
+        logger.error(f"RISC webhook validation failed: {e!s}")
         # Return 400/401 so Google knows something is wrong, but 202/200 if we just processed it
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"RISC webhook error: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("RISC webhook error")
         raise HTTPException(status_code=500, detail="Internal server error")

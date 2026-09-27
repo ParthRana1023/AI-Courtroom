@@ -1,7 +1,8 @@
+import asyncio
 from functools import lru_cache
 from importlib import import_module
-from typing import Sequence
 
+from app.config import settings
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -9,18 +10,9 @@ logger = get_logger(__name__)
 
 @lru_cache(maxsize=1)
 def _load_model():
-    from app.config import settings
-
     logger.info(f"Loading embedding model: {settings.embedding_model_name}")
     SentenceTransformer = import_module("sentence_transformers").SentenceTransformer
     return SentenceTransformer(settings.embedding_model_name)
-
-
-def _normalize(vector: Sequence[float]) -> list[float]:
-    magnitude = sum(value * value for value in vector) ** 0.5
-    if magnitude == 0:
-        return [0.0 for _ in vector]
-    return [float(value / magnitude) for value in vector]
 
 
 def embed_texts_sync(texts: list[str]) -> list[list[float]]:
@@ -37,8 +29,6 @@ def embed_texts_sync(texts: list[str]) -> list[list[float]]:
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:
-    import asyncio
-
     return await asyncio.to_thread(embed_texts_sync, texts)
 
 

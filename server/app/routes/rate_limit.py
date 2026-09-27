@@ -1,64 +1,47 @@
 # app/routes/rate_limit.py
 from fastapi import APIRouter, Depends, HTTPException
+
 from app.dependencies import get_current_user
-from app.models.user import User
-from app.utils.rate_limiter import argument_rate_limiter, case_generation_rate_limiter
 from app.logging_config import get_logger
+from app.models.user import User
+from app.utils.rate_limiter import (
+    RateLimiter,
+    argument_rate_limiter,
+    case_generation_rate_limiter,
+)
 
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["rate_limit"])
 
 
-@router.get("/argument")
-async def get_argument_rate_limit(current_user: User = Depends(get_current_user)):
-    """Get the remaining argument submissions and time until reset for the current user"""
-    user_id = str(current_user.id)
-    logger.debug(f"Checking argument rate limit for user: {current_user.email}")
-
+async def limit_status(limiter: RateLimiter, user: User) -> dict:
+    """Remaining submissions and seconds until the next one frees up."""
     try:
-        remaining, seconds_until_next = (
-            await argument_rate_limiter.get_remaining_attempts(user_id)
+        remaining, seconds_until_next = await limiter.get_remaining_attempts(
+            str(user.id)
         )
-    except Exception as e:
-        logger.error(
-            f"Error getting argument rate limit for {current_user.email}: {str(e)}",
-            exc_info=True,
+    except Exception:
+        logger.exception(
+            f"Error getting {limiter.rate_limiter_type} status for {user.email}"
         )
         raise HTTPException(
             status_code=500, detail="Failed to get rate limit status. Please try again."
         )
-
     return {
         "remaining_attempts": remaining,
-        "max_attempts": argument_rate_limiter.requests,
+        "max_attempts": limiter.requests,
         "seconds_until_next": seconds_until_next,
     }
+
+
+@router.get("/argument")
+async def get_argument_rate_limit(current_user: User = Depends(get_current_user)):
+    return await limit_status(argument_rate_limiter, current_user)
 
 
 @router.get("/case-generation")
 async def get_case_generation_rate_limit(
     current_user: User = Depends(get_current_user),
 ):
-    """Get the remaining case generation submissions and time until reset for the current user"""
-    user_id = str(current_user.id)
-    logger.debug(f"Checking case generation rate limit for user: {current_user.email}")
-
-    try:
-        remaining, seconds_until_next = (
-            await case_generation_rate_limiter.get_remaining_attempts(user_id)
-        )
-    except Exception as e:
-        logger.error(
-            f"Error getting case generation rate limit for {current_user.email}: {str(e)}",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500, detail="Failed to get rate limit status. Please try again."
-        )
-
-    return {
-        "remaining_attempts": remaining,
-        "max_attempts": case_generation_rate_limiter.requests,
-        "seconds_until_next": seconds_until_next,
-    }
+    return await limit_status(case_generation_rate_limiter, current_user)

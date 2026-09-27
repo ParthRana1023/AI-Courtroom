@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import Case, EvidenceItem, Roles
 from app.models.user import User
@@ -17,17 +17,6 @@ from app.services.evidence_service import (
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["evidence"])
-
-
-async def get_owned_case(cnr: str, current_user: User) -> Case:
-    case = await Case.find_one(Case.cnr == cnr)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-    if str(case.user_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="You don't have permission to access this case"
-        )
-    return case
 
 
 async def generate_if_role_selected(case: Case):
@@ -49,11 +38,8 @@ async def get_case_evidence(cnr: str, current_user: User = Depends(get_current_u
             await case.save()
             for item in case.evidence:
                 await index_evidence_item(case, item)
-        except Exception as e:
-            logger.error(
-                f"Error saving backfilled evidence for case {cnr}: {str(e)}",
-                exc_info=True,
-            )
+        except Exception:
+            logger.exception(f"Error saving backfilled evidence for case {cnr}")
             raise HTTPException(
                 status_code=500,
                 detail="Failed to prepare evidence. Please try again.",
@@ -84,8 +70,8 @@ async def add_case_evidence(
         await case.save()
         await index_evidence_item(case, item)
         generation_summary = await generate_if_role_selected(case)
-    except Exception as e:
-        logger.error(f"Error adding evidence for case {cnr}: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception(f"Error adding evidence for case {cnr}")
         raise HTTPException(status_code=500, detail="Failed to add evidence.")
 
     return {
@@ -115,10 +101,8 @@ async def extract_case_evidence(
         await case.save()
         await index_evidence_item(case, item)
         generation_summary = await generate_if_role_selected(case)
-    except Exception as e:
-        logger.error(
-            f"Error extracting evidence for case {cnr}: {str(e)}", exc_info=True
-        )
+    except Exception:
+        logger.exception(f"Error extracting evidence for case {cnr}")
         raise HTTPException(status_code=500, detail="Failed to extract evidence.")
 
     return {

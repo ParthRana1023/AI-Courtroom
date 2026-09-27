@@ -10,7 +10,7 @@ class MemoryChunk:
 
 
 _HEADER_RE = re.compile(
-    r"^\s*(?:#{1,6}\s+|\*\*[^*\n]{3,120}:\*\*|[A-Z][A-Z\s/&().-]{4,}:)\s*$"
+    r"^\s*(?:#{1,6}\s+\S.{0,118}|\*\*[^*\n]{3,120}:\*\*|[A-Z][A-Z\s/&().-]{4,}:)\s*$"
 )
 
 
@@ -59,16 +59,16 @@ def _fallback_split_text(text: str, chunk_size: int, chunk_overlap: int) -> list
 def _split_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
     try:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            separators=["\n\n", "\n", ". ", " ", ""],
-            length_function=len,
-        )
-        return splitter.split_text(text)
-    except Exception:
+    except ImportError:
         return _fallback_split_text(text, chunk_size, chunk_overlap)
+
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=["\n\n", "\n", ". ", " ", ""],
+        length_function=len,
+    )
+    return splitter.split_text(text)
 
 
 def chunk_text(

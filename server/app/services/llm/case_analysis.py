@@ -1,9 +1,13 @@
-import re
-from typing import List
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from app.utils.llm import get_llm
+from langchain_core.prompts import ChatPromptTemplate
+
 from app.logging_config import get_logger, log_execution_time
+from app.utils.llm import (
+    LLMGenerationError,
+    get_llm,
+    pick_case_context,
+    strip_thinking,
+)
 
 logger = get_logger(__name__)
 
@@ -12,8 +16,8 @@ class CaseAnalysisService:
     @staticmethod
     @log_execution_time(logger, "case_analysis_llm")
     def analyze_case(
-        defendant_args: List[str],
-        plaintiff_args: List[str] | None = None,
+        defendant_args: list[str],
+        plaintiff_args: list[str] | None = None,
         case_details: str | None = None,
         title: str | None = None,
         judges_verdict: str | None = None,
@@ -43,9 +47,7 @@ class CaseAnalysisService:
             logger.warning("No arguments provided for analysis")
             return "No analysis generated."
 
-        case_context = rag_context or (
-            case_details[:6000] if case_details else "No case details provided"
-        )
+        case_context = pick_case_context(rag_context, case_details)
 
         prompt = """
             You are a legal expert AI tasked with analyzing a legal case. Your role is to evaluate the arguments presented and provide constructive feedback.
@@ -118,9 +120,7 @@ class CaseAnalysisService:
                 }
             )
 
-            response = re.sub(
-                r"<think>.*?</think>", "", response, flags=re.DOTALL
-            ).strip()
+            response = strip_thinking(response)
 
             logger.info(
                 "Case analysis completed successfully",
@@ -129,5 +129,5 @@ class CaseAnalysisService:
             return response
 
         except Exception as e:
-            logger.error("Error during LLM analysis", extra={"error": str(e)})
-            raise Exception(f"Internal error during analysis: {e}")
+            logger.exception("Error during LLM analysis")
+            raise LLMGenerationError(f"Internal error during analysis: {e}") from e

@@ -1,7 +1,8 @@
 # app/schemas/party.py
-from pydantic import BaseModel, ConfigDict
-from typing import List, Optional
 from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
+
 from app.models.party import PartyRole
 
 
@@ -11,10 +12,10 @@ class PartyOut(BaseModel):
     id: str
     name: str
     role: PartyRole
-    occupation: Optional[str] = None
-    age: Optional[int] = None
-    address: Optional[str] = None
-    bio: Optional[str] = None
+    occupation: str | None = None
+    age: int | None = None
+    address: str | None = None
+    bio: str | None = None
     can_chat: bool = False  # Whether user can chat with this party based on their role
 
     model_config = ConfigDict(from_attributes=True)
@@ -47,7 +48,7 @@ class ChatResponse(BaseModel):
 class PartiesListOut(BaseModel):
     """Response schema for listing parties in a case"""
 
-    parties: List[PartyOut]
+    parties: list[PartyOut]
     user_role: str  # The user's role in the case (plaintiff/defendant)
     can_access_courtroom: bool = (
         False  # Whether user has chatted enough to access courtroom
@@ -65,4 +66,4 @@ class ChatHistoryOut(BaseModel):
 
     party_id: str
     party_name: str
-    messages: List[ChatMessageOut]
+    messages: list[ChatMessageOut]

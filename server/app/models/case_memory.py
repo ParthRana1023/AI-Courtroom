@@ -1,11 +1,11 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, ClassVar
 
 from beanie import Document
-from pymongo import IndexModel
 from pydantic import Field
 from pydantic_mongo import PydanticObjectId
+from pymongo import IndexModel
 
 from app.utils.datetime import get_current_datetime
 
@@ -31,7 +31,7 @@ class CaseMemoryChunk(Document):
     chunk_index: int = 0
     content: str
     content_hash: str
-    embedding: List[float] = Field(default_factory=list)
+    embedding: list[float] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     is_active: bool = True
     created_at: datetime = Field(default_factory=get_current_datetime)
@@ -39,7 +39,7 @@ class CaseMemoryChunk(Document):
 
     class Settings:
         name = "case_memory_chunks"
-        indexes = [
+        indexes: ClassVar[list[IndexModel]] = [
             IndexModel([("case_id", 1)]),
             IndexModel([("cnr", 1)]),
             IndexModel([("user_id", 1)]),

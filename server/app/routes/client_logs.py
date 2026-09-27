@@ -3,13 +3,13 @@ FastAPI route for receiving and storing client-side logs.
 Logs are processed in background to minimize response time.
 """
 
-from fastapi import APIRouter, Request, BackgroundTasks
-from typing import List
 from datetime import datetime
 
-from app.models.client_log import ClientLog
-from app.schemas.client_log import ClientLogEntry, ClientLogBatch
+from fastapi import APIRouter, BackgroundTasks, Request
+
 from app.logging_config import get_logger
+from app.models.client_log import ClientLog
+from app.schemas.client_log import ClientLogBatch, ClientLogEntry
 from app.utils.datetime import get_current_datetime
 
 logger = get_logger(__name__)
@@ -31,7 +31,7 @@ async def receive_client_logs(
     return {"received": len(batch.logs)}
 
 
-async def process_client_logs(logs: List[ClientLogEntry]):
+async def process_client_logs(logs: list[ClientLogEntry]):
     """Process and store client logs in MongoDB."""
     for entry in logs:
         try:
@@ -84,8 +84,8 @@ async def process_client_logs(logs: List[ClientLogEntry]):
             )
             await client_log.insert()
 
-        except Exception as e:
-            logger.error(f"Failed to store client log: {e}")
+        except Exception:
+            logger.exception("Failed to store client log")
 
 
 @router.get("/client/stats")
@@ -106,7 +106,12 @@ async def get_client_log_stats():
             {"$sort": {"count": -1}},
         ]
 
-        results = await ClientLog.aggregate(pipeline).to_list()
+        # Beanie 2's aggregate() awaits PyMongo's async API, but this app hands
+        # Beanie a Motor client whose aggregate() returns a cursor directly.
+        cursor = ClientLog.get_pymongo_collection().aggregate(pipeline)
+        # Motor cursor, not a coroutine
+        # pyrefly: ignore[missing-attribute]
+        results = await cursor.to_list(length=None)
 
         stats = {item["_id"]: item["count"] for item in results}
 
@@ -116,5 +121,5 @@ async def get_client_log_stats():
             "total": sum(stats.values()),
         }
     except Exception as e:
-        logger.error(f"Failed to get client log stats: {e}")
+        logger.exception("Failed to get client log stats")
         return {"error": str(e)}

@@ -1,7 +1,9 @@
 # app/models/otp.py
 from datetime import datetime
+
 from beanie import Document
 from pydantic import BaseModel, EmailStr
+
 from app.schemas.user import UserCreate
 
 

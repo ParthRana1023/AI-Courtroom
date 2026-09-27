@@ -1,12 +1,13 @@
-from typing import List, Optional
-from pydantic import Field, BaseModel, field_validator
-from pydantic_mongo import PydanticObjectId
+import uuid
 from datetime import datetime
 from enum import Enum
+
 from beanie import Document
-from app.utils.datetime import get_current_datetime
+from pydantic import BaseModel, Field, field_validator
+from pydantic_mongo import PydanticObjectId
+
 from app.models.party import PartyInvolved
-import uuid
+from app.utils.datetime import get_current_datetime
 
 
 class CaseStatus(str, Enum):
@@ -29,16 +30,11 @@ class EvidenceMediaStatus(str, Enum):
     FAILED = "failed"
 
 
-class Sides(BaseModel):
-    user_role: Roles = Field(default=Roles.NOT_STARTED)
-    ai_role: Roles = Field(default=Roles.NOT_STARTED)
-
-
 # Define a model for the items within the argument lists
 class ArgumentItem(BaseModel):
     type: str
     content: str
-    user_id: Optional[PydanticObjectId] = Field(
+    user_id: PydanticObjectId | None = Field(
         None, description="ID of the user who added this argument, optional"
     )
     role: Roles = Field(default=Roles.NOT_STARTED)
@@ -64,16 +60,16 @@ class CourtroomProceedingsEvent(BaseModel):
     timestamp: datetime = Field(default_factory=get_current_datetime)
 
     # Content fields - populated based on type
-    content: Optional[str] = None  # For arguments, messages, etc.
-    speaker_role: Optional[str] = (
+    content: str | None = None  # For arguments, messages, etc.
+    speaker_role: str | None = (
         None  # Who performed the action (plaintiff/defendant/judge/witness)
     )
-    speaker_name: Optional[str] = None  # Name of speaker (e.g. Witness Name)
+    speaker_name: str | None = None  # Name of speaker (e.g. Witness Name)
 
     # Witness specific fields
-    witness_id: Optional[str] = None
-    question: Optional[str] = None
-    answer: Optional[str] = None
+    witness_id: str | None = None
+    question: str | None = None
+    answer: str | None = None
 
 
 class EvidenceItem(BaseModel):
@@ -84,10 +80,10 @@ class EvidenceItem(BaseModel):
     title: str
     evidence_type: str
     description: str
-    source: Optional[str] = None
-    image_prompt: Optional[str] = None
-    image_url: Optional[str] = None
-    image_public_id: Optional[str] = None
+    source: str | None = None
+    image_prompt: str | None = None
+    image_url: str | None = None
+    image_public_id: str | None = None
     media_status: EvidenceMediaStatus = Field(default=EvidenceMediaStatus.NOT_REQUESTED)
 
 
@@ -99,8 +95,8 @@ class ExaminationItem(BaseModel):
     examiner: str  # 'plaintiff', 'defendant', or 'judge'
     question: str
     answer: str
-    objection: Optional[str] = None
-    objection_ruling: Optional[str] = None
+    objection: str | None = None
+    objection_ruling: str | None = None
     timestamp: datetime = Field(default_factory=get_current_datetime)
 
 
@@ -111,9 +107,9 @@ class WitnessTestimony(BaseModel):
     witness_id: str  # Party ID
     witness_name: str
     called_by: str  # 'plaintiff', 'defendant', or 'judge'
-    examination: List[ExaminationItem] = Field(default_factory=list)
+    examination: list[ExaminationItem] = Field(default_factory=list)
     started_at: datetime = Field(default_factory=get_current_datetime)
-    ended_at: Optional[datetime] = None
+    ended_at: datetime | None = None
 
 
 class Case(Document):
@@ -127,17 +123,17 @@ class Case(Document):
     )
     user_role: Roles = Field(default=Roles.NOT_STARTED)  # Default role is not started
     ai_role: Roles = Field(default=Roles.NOT_STARTED)  # Default role is not started
-    plaintiff_arguments: List[ArgumentItem] = Field(
+    plaintiff_arguments: list[ArgumentItem] = Field(
         default_factory=list,
         description="Contains arguments with 'type', 'content', 'user_id', and 'timestamp'",
     )
-    defendant_arguments: List[ArgumentItem] = Field(
+    defendant_arguments: list[ArgumentItem] = Field(
         default_factory=list,
         description="Contains arguments with 'type', 'content', 'user_id', and 'timestamp'",
     )
 
     # Unified timeline of events
-    courtroom_proceedings: List[CourtroomProceedingsEvent] = Field(
+    courtroom_proceedings: list[CourtroomProceedingsEvent] = Field(
         default_factory=list,
         description="Ordered list of all courtroom events including arguments and witness interactions",
     )
@@ -147,19 +143,19 @@ class Case(Document):
         description="Flag indicating if AI is currently running a background cross-examination",
     )
 
-    verdict: Optional[str] = None
-    analysis: Optional[str] = Field(default=None)
+    verdict: str | None = None
+    analysis: str | None = Field(default=None)
     # Track user arguments at session start (for per-session end session validation)
     session_args_at_start: int = Field(
         default=0,
         description="Number of user arguments when courtroom session became ACTIVE. Used to ensure user submits 2 args per session.",
     )
     # Parties involved in the case (applicants and non-applicants)
-    parties_involved: List[PartyInvolved] = Field(
+    parties_involved: list[PartyInvolved] = Field(
         default_factory=list,
         description="List of parties involved in the case with their roles",
     )
-    evidence: List[EvidenceItem] = Field(
+    evidence: list[EvidenceItem] = Field(
         default_factory=list,
         description="Structured evidence and exhibit metadata for the case",
     )
@@ -169,11 +165,11 @@ class Case(Document):
         description="Chat history per party: {party_id: [PartyChatMessage, ...]}",
     )
     # Witness examination fields
-    witness_testimonies: List[WitnessTestimony] = Field(
+    witness_testimonies: list[WitnessTestimony] = Field(
         default_factory=list,
         description="List of witness testimonies given during the case",
     )
-    current_witness_id: Optional[str] = Field(
+    current_witness_id: str | None = Field(
         default=None,
         description="ID of the witness currently on the stand (None if no active examination)",
     )
@@ -181,7 +177,7 @@ class Case(Document):
     is_deleted: bool = Field(
         default=False, description="Whether the case is soft-deleted"
     )
-    deleted_at: Optional[datetime] = Field(
+    deleted_at: datetime | None = Field(
         default=None, description="Timestamp when the case was soft-deleted"
     )
 
@@ -197,6 +193,45 @@ class Case(Document):
     @classmethod
     def normalize_legacy_null_lists(cls, value):
         return [] if value is None else value
+
+    def get_party(self, party_id: str | None) -> PartyInvolved | None:
+        return next((p for p in self.parties_involved if p.id == party_id), None)
+
+    def dismiss_current_witness(self, reason: str = "") -> tuple[str | None, str, int]:
+        """End the open testimony, clear the stand and log the dismissal.
+
+        Returns (witness_id, witness_name, questions_asked).
+        """
+        witness_id = self.current_witness_id
+        testimony = next(
+            (
+                t
+                for t in self.witness_testimonies
+                if t.witness_id == witness_id and t.ended_at is None
+            ),
+            None,
+        )
+        party = self.get_party(witness_id)
+        name = (
+            (testimony.witness_name if testimony else None)
+            or (party.name if party else None)
+            or "Witness"
+        )
+        if testimony:
+            testimony.ended_at = get_current_datetime()
+        self.current_witness_id = None
+        self.is_ai_examining = False
+        self.courtroom_proceedings.append(
+            CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.WITNESS_DISMISSED,
+                content=f"{name} dismissed from the stand{reason}.",
+                speaker_role="judge",
+                speaker_name="Judge",
+                witness_id=witness_id,
+                timestamp=get_current_datetime(),
+            )
+        )
+        return witness_id, name, len(testimony.examination) if testimony else 0
 
     class Settings:
         name = "cases"

@@ -5,10 +5,10 @@ Provides location data with MongoDB caching and monthly refresh.
 """
 
 import httpx
-from typing import Optional
+
 from app.config import settings
-from app.models.location_cache import LocationCache
 from app.logging_config import get_logger
+from app.models.location_cache import LocationCache
 from app.utils.datetime import get_current_datetime
 
 logger = get_logger(__name__)
@@ -17,10 +17,10 @@ CSC_API_BASE_URL = "https://api.countrystatecity.in/v1"
 CACHE_KEY = "location_data"
 
 # In-memory cache for fast access during runtime
-_countries_cache: Optional[list[dict]] = None
+_countries_cache: list[dict] | None = None
 _states_cache: dict[str, list[dict]] = {}  # country_iso2 -> states
 _cities_cache: dict[str, list[dict]] = {}  # "country_iso2:state_iso2" -> cities
-_all_locations_cache: Optional[list[dict]] = None  # Flattened searchable cache
+_all_locations_cache: list[dict] | None = None  # Flattened searchable cache
 
 
 def _get_headers() -> dict:
@@ -62,7 +62,9 @@ async def _should_refresh_cache() -> bool:
         return False
     except Exception as e:
         logger.warning(
-            "Error checking cache in MongoDB, will refresh", extra={"error": str(e)}
+            "Error checking cache in MongoDB, will refresh",
+            extra={"error": str(e)},
+            exc_info=True,
         )
         return True
 
@@ -104,7 +106,7 @@ async def _load_cache_from_db() -> bool:
         )
         return True
     except Exception as e:
-        logger.error("Error loading cache from MongoDB", extra={"error": str(e)})
+        logger.exception("Error loading cache from MongoDB", extra={"error": str(e)})
         return False
 
 
@@ -113,8 +115,6 @@ async def _save_cache_to_db():
     Save current cache data to MongoDB as a new month's document.
     Keeps only 2 months of data, deleting the oldest if necessary.
     """
-    global _countries_cache, _states_cache, _cities_cache, _all_locations_cache
-
     try:
         current_month = get_current_datetime().strftime("%Y-%m")
 
@@ -175,175 +175,65 @@ async def _save_cache_to_db():
                 await old_cache.delete()
 
     except Exception as e:
-        logger.error("Error saving cache to MongoDB", extra={"error": str(e)})
+        logger.exception("Error saving cache to MongoDB", extra={"error": str(e)})
+
+
+async def _fetch_csc(path: str, what: str) -> list[dict]:
+    """GET a Country State City API path, turning provider errors into readable ones."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{CSC_API_BASE_URL}{path}", headers=_get_headers(), timeout=30.0
+            )
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"Fetched {what} from CSC API", extra={"count": len(data)})
+            return data
+    except httpx.TimeoutException:
+        logger.error(f"Timeout while fetching {what} from CSC API")
+        raise RuntimeError("Request to location API timed out") from None
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            f"HTTP error fetching {what}", extra={"status_code": e.response.status_code}
+        )
+        raise RuntimeError(
+            f"Location API returned status {e.response.status_code}"
+        ) from e
+    except Exception as e:
+        logger.error(f"Error fetching {what}", extra={"error": str(e)})
+        raise
 
 
 async def get_countries() -> list[dict]:
-    """
-    Fetch all countries from the API.
-    Results are cached in memory.
-
-    Returns:
-        List of country dicts with id, name, iso2, phone_code, etc.
-    """
+    """All countries (id, name, iso2, phone code, ...), cached in memory."""
     global _countries_cache
-
-    if _countries_cache is not None:
-        return _countries_cache
-
-    try:
-        logger.debug("Fetching countries from CSC API")
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{CSC_API_BASE_URL}/countries",
-                headers=_get_headers(),
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            _countries_cache = response.json()
-            logger.info(
-                "Fetched countries from API", extra={"count": len(_countries_cache)}
-            )
-            return _countries_cache
-    except httpx.TimeoutException:
-        logger.error("Timeout while fetching countries from CSC API")
-        raise Exception("Request to location API timed out")
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            "HTTP error fetching countries",
-            extra={"status_code": e.response.status_code},
-        )
-        raise Exception(f"Location API returned status {e.response.status_code}")
-    except Exception as e:
-        logger.error("Error fetching countries", extra={"error": str(e)})
-        raise
+    if _countries_cache is None:
+        _countries_cache = await _fetch_csc("/countries", "countries")
+    return _countries_cache
 
 
 async def get_states(country_iso2: str) -> list[dict]:
-    """
-    Fetch all states for a country.
-    Results are cached in memory.
-
-    Args:
-        country_iso2: ISO2 code of the country (e.g., "IN")
-
-    Returns:
-        List of state dicts with id, name, iso2, etc.
-    """
-    global _states_cache
-
-    cache_key = country_iso2.upper()
-    if cache_key in _states_cache:
-        return _states_cache[cache_key]
-
-    try:
-        logger.debug(
-            "Fetching states for country from CSC API",
-            extra={"country_iso2": country_iso2},
+    """States of a country (e.g. "IN"), cached in memory."""
+    key = country_iso2.upper()
+    if key not in _states_cache:
+        _states_cache[key] = await _fetch_csc(
+            f"/countries/{country_iso2}/states", f"states of {country_iso2}"
         )
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{CSC_API_BASE_URL}/countries/{country_iso2}/states",
-                headers=_get_headers(),
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            states = response.json()
-            _states_cache[cache_key] = states
-            logger.info(
-                "Fetched states from API",
-                extra={"country_iso2": country_iso2, "count": len(states)},
-            )
-            return states
-    except httpx.TimeoutException:
-        logger.error(
-            "Timeout while fetching states", extra={"country_iso2": country_iso2}
-        )
-        raise Exception("Request to location API timed out")
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            "HTTP error fetching states",
-            extra={"country_iso2": country_iso2, "status_code": e.response.status_code},
-        )
-        raise Exception(f"Location API returned status {e.response.status_code}")
-    except Exception as e:
-        logger.error(
-            "Error fetching states",
-            extra={"country_iso2": country_iso2, "error": str(e)},
-        )
-        raise
+    return _states_cache[key]
 
 
 async def get_cities(country_iso2: str, state_iso2: str) -> list[dict]:
-    """
-    Fetch all cities for a state.
-    Results are cached in memory.
-
-    Args:
-        country_iso2: ISO2 code of the country (e.g., "IN")
-        state_iso2: ISO2 code of the state (e.g., "MH")
-
-    Returns:
-        List of city dicts with id, name, etc.
-    """
-    global _cities_cache
-
-    cache_key = f"{country_iso2.upper()}:{state_iso2.upper()}"
-    if cache_key in _cities_cache:
-        return _cities_cache[cache_key]
-
-    try:
-        logger.debug(
-            "Fetching cities for state from CSC API",
-            extra={"country_iso2": country_iso2, "state_iso2": state_iso2},
+    """Cities of a state (e.g. "IN", "MH"), cached in memory."""
+    key = f"{country_iso2.upper()}:{state_iso2.upper()}"
+    if key not in _cities_cache:
+        _cities_cache[key] = await _fetch_csc(
+            f"/countries/{country_iso2}/states/{state_iso2}/cities",
+            f"cities of {country_iso2}/{state_iso2}",
         )
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{CSC_API_BASE_URL}/countries/{country_iso2}/states/{state_iso2}/cities",
-                headers=_get_headers(),
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            cities = response.json()
-            _cities_cache[cache_key] = cities
-            logger.info(
-                "Fetched cities from API",
-                extra={
-                    "country_iso2": country_iso2,
-                    "state_iso2": state_iso2,
-                    "count": len(cities),
-                },
-            )
-            return cities
-    except httpx.TimeoutException:
-        logger.error(
-            "Timeout while fetching cities",
-            extra={"country_iso2": country_iso2, "state_iso2": state_iso2},
-        )
-        raise Exception("Request to location API timed out")
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            "HTTP error fetching cities",
-            extra={
-                "country_iso2": country_iso2,
-                "state_iso2": state_iso2,
-                "status_code": e.response.status_code,
-            },
-        )
-        raise Exception(f"Location API returned status {e.response.status_code}")
-    except Exception as e:
-        logger.error(
-            "Error fetching cities",
-            extra={
-                "country_iso2": country_iso2,
-                "state_iso2": state_iso2,
-                "error": str(e),
-            },
-        )
-        raise
+    return _cities_cache[key]
 
 
-async def get_country_by_iso2(country_iso2: str) -> Optional[dict]:
+async def get_country_by_iso2(country_iso2: str) -> dict | None:
     """
     Get a specific country by its ISO2 code.
 
@@ -361,7 +251,7 @@ async def get_country_by_iso2(country_iso2: str) -> Optional[dict]:
     return None
 
 
-async def get_phone_code(country_iso2: str) -> Optional[str]:
+async def get_phone_code(country_iso2: str) -> str | None:
     """
     Get the phone code for a country.
 
@@ -445,6 +335,7 @@ async def _build_all_locations_cache_from_api() -> list[dict]:
             logger.warning(
                 "Error fetching cities for state, skipping",
                 extra={"state": state.get("name"), "error": str(e)},
+                exc_info=True,
             )
             continue
 
@@ -465,8 +356,6 @@ async def search_locations(query: str, limit: int = 20) -> list[dict]:
     Returns:
         List of matching location dicts, sorted by relevance
     """
-    global _all_locations_cache
-
     if not query or len(query) < 2:
         return []
 
@@ -516,13 +405,9 @@ async def preload_cache():
     - If cache exists in MongoDB and is from current month, load from DB.
     - Otherwise, fetch from API and save to DB.
     """
-    global _all_locations_cache
-
     try:
-        if not await _should_refresh_cache():
-            # Load from MongoDB
-            if await _load_cache_from_db():
-                return
+        if not await _should_refresh_cache() and await _load_cache_from_db():
+            return
 
         # Fetch from API and save to MongoDB
         logger.info("Fetching fresh location data from API")
@@ -533,25 +418,7 @@ async def preload_cache():
             extra={"entry_count": len(_all_locations_cache or [])},
         )
     except Exception as e:
-        logger.error("Failed to preload location cache", extra={"error": str(e)})
+        logger.exception("Failed to preload location cache", extra={"error": str(e)})
         # Try to load stale cache as fallback
         logger.info("Attempting to load stale cache from MongoDB as fallback")
         await _load_cache_from_db()
-
-
-async def clear_cache():
-    """Clear all cached location data (memory and MongoDB)."""
-    global _countries_cache, _states_cache, _cities_cache, _all_locations_cache
-    _countries_cache = None
-    _states_cache = {}
-    _cities_cache = {}
-    _all_locations_cache = None
-
-    # Also delete the cache document from MongoDB
-    try:
-        cache_doc = await LocationCache.find_one(LocationCache.cache_key == CACHE_KEY)
-        if cache_doc:
-            await cache_doc.delete()
-            logger.info("Location cache cleared from MongoDB")
-    except Exception as e:
-        logger.error("Error deleting cache from MongoDB", extra={"error": str(e)})

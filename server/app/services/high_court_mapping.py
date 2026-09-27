@@ -5,7 +5,7 @@ Used for case generation to determine the appropriate court jurisdiction.
 """
 
 import random
-from typing import Optional
+
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -67,7 +67,7 @@ MAJOR_HIGH_COURTS = [
 ]
 
 
-def get_high_court_for_state(state_iso2: str) -> Optional[str]:
+def get_high_court_for_state(state_iso2: str) -> str | None:
     """
     Get the High Court for a given Indian state ISO2 code.
 
@@ -90,7 +90,7 @@ def get_high_court_for_state(state_iso2: str) -> Optional[str]:
     return high_court
 
 
-def get_high_court(state_iso2: Optional[str], country_iso2: Optional[str]) -> str:
+def get_high_court(state_iso2: str | None, country_iso2: str | None) -> str:
     """
     Get the appropriate High Court based on user's location.
 

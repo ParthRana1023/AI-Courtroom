@@ -9,7 +9,6 @@ import { useRef, useState, useEffect } from "react";
 interface GoogleSignInButtonProps {
   onSuccess: (response: {
     credential?: string;
-    access_token?: string;
     code?: string;
     state?: string;
   }) => Promise<void>;
@@ -90,7 +89,6 @@ export default function GoogleSignInButton({
 
     await onSuccess({
       credential: result.idToken,
-      access_token: result.accessToken || undefined,
     });
   };
 

@@ -1,18 +1,18 @@
 # app/services/llm/judge.py
 import time
-import re
-from typing import List
-from langchain_core.prompts import ChatPromptTemplate
+
 from langchain_core.output_parsers import StrOutputParser
-from app.utils.llm import get_llm
+from langchain_core.prompts import ChatPromptTemplate
+
 from app.logging_config import get_logger
+from app.utils.llm import LLMGenerationError, get_llm, pick_case_context, strip_thinking
 
 logger = get_logger(__name__)
 
 
 async def generate_verdict(
-    plaintiff_arguments: List[str],
-    defendant_arguments: List[str],
+    plaintiff_arguments: list[str],
+    defendant_arguments: list[str],
     case_details: str | None = None,
     title: str | None = None,
     rag_context: str | None = None,
@@ -26,13 +26,9 @@ async def generate_verdict(
             f"Plaintiff arguments: {len(plaintiff_arguments)}, Defendant arguments: {len(defendant_arguments)}"
         )
 
-        case_context = rag_context or (
-            case_details[:6000] if case_details else "No case details provided"
-        )
+        case_context = pick_case_context(rag_context, case_details)
 
-        judge_template = (
-            judge_template
-        ) = """
+        judge_template = """
 
             You are an impartial Indian Court judge. Draft a formal JUDGMENT in the style used by Indian High Courts / Supreme Court practice, following the rules below.
 
@@ -145,7 +141,7 @@ async def generate_verdict(
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        verdict = re.sub(r"<think>.*?</think>", "", verdict, flags=re.DOTALL).strip()
+        verdict = strip_thinking(verdict)
 
         logger.info(
             f"Verdict generated in {duration_ms:.2f}ms, response length: {len(verdict)} chars"
@@ -153,5 +149,5 @@ async def generate_verdict(
         return verdict
 
     except Exception as e:
-        logger.error(f"Error generating verdict: {str(e)}", exc_info=True)
-        return "I apologize, but I'm unable to generate a verdict at this time. Please try again later."
+        logger.exception("Error generating verdict")
+        raise LLMGenerationError("Failed to generate verdict") from e

@@ -1,0 +1,24 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# asyncio_mode and warning filters are also set in tests/conftest.py so they
+# apply when pytest is launched from the repo root.
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+target-version = "py313" # matches Dockerfile and CI
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency markers are meant to be called in argument defaults.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Body", "fastapi.File", "fastapi.Form"]
+
+[tool.pyrefly]
+search-path = ["."]
+project-includes = ["app", "tests"]

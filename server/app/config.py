@@ -1,22 +1,24 @@
 # app/config.py
 import random
 import string
-import re
-from typing import Optional
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     mongodb_url: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "AI-Courtroom"
     test_mongodb_db_name: str = "AI-Courtroom-Test"
-    secret_key: str = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+    secret_key: str = "".join(
+        random.choices(string.ascii_letters + string.digits, k=32)
+    )
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     extended_token_expire_days: int = 7
     testing: bool = False
-    groq_api_key: Optional[str] = None
-    openrouter_api_key: Optional[str] = None
-    csc_api_key: Optional[str] = None  # Country State City API key
+    groq_api_key: str | None = None
+    openrouter_api_key: str | None = None
+    csc_api_key: str | None = None  # Country State City API key
 
     # Per-task LLM configuration
     drafter_model: str = "llama-3.3-70b-versatile"
@@ -52,22 +54,22 @@ class Settings(BaseSettings):
     port: int = 8000
 
     # Google OAuth settings
-    google_client_id: Optional[str] = None
-    google_client_secret: Optional[str] = None
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
 
     # OAuth Security settings
     oauth_state_secret: str = "another-secret"
-    risc_webhook_secret: Optional[str] = None
+    risc_webhook_secret: str | None = None
     oauth_state_token_expiry: int = 600  # 10 minutes
 
     # Cloudinary settings for profile photos
-    cloudinary_cloud_name: Optional[str] = None
-    cloudinary_api_key: Optional[str] = None
-    cloudinary_api_secret: Optional[str] = None
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
+    cloudinary_api_secret: str | None = None
 
     # Evidence image generation settings
-    cloudflare_account_id: Optional[str] = None
-    cloudflare_api_token: Optional[str] = None
+    cloudflare_account_id: str | None = None
+    cloudflare_api_token: str | None = None
     evidence_image_model: str = "@cf/black-forest-labs/flux-1-schnell"
     evidence_image_fallback_model: str = "@cf/black-forest-labs/flux-2-dev"
     evidence_image_generation_limit_per_case: int = 2
@@ -98,7 +100,7 @@ class Settings(BaseSettings):
     log_format: str = "json"  # json (production) or text (development)
 
     # CORS settings
-    frontend_url: Optional[str] = None
+    frontend_url: str | None = None
     cors_allowed_origins: str = (
         "http://localhost:3000,"
         "http://127.0.0.1:3000,"

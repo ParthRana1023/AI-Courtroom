@@ -9,14 +9,13 @@ it can later be fed to a text-to-image pipeline when that integration
 is built out.
 """
 
-import re
 import time
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
-from app.utils.llm import get_llm
+from app.utils.llm import get_llm, strip_thinking
 
 logger = get_logger(__name__)
 
@@ -107,7 +106,7 @@ RULES:
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         # Strip thinking tags if present
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
 
         logger.info(
             f"Evidence prompt generated for '{title}' in {duration_ms:.2f}ms, "
@@ -115,9 +114,6 @@ RULES:
         )
         return response
 
-    except Exception as e:
-        logger.error(
-            f"Error generating evidence prompt for '{title}': {e}",
-            exc_info=True,
-        )
+    except Exception:
+        logger.exception(f"Error generating evidence prompt for '{title}'")
         return None

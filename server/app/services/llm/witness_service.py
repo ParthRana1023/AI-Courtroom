@@ -4,13 +4,15 @@ LLM service for witness examination during courtroom sessions.
 Handles witness responses, cross-examination, and judge moderation.
 """
 
-import time
 import re
-from typing import List, Optional, Dict
-from app.utils.llm import get_llm
-from langchain_core.prompts import ChatPromptTemplate
+import time
+
+from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+
 from app.logging_config import get_logger
+from app.utils.llm import get_llm, pick_case_context, strip_thinking
 
 logger = get_logger(__name__)
 
@@ -22,7 +24,7 @@ async def examine_witness(
     examiner_role: str,
     question: str,
     case_details: str,
-    examination_history: List[Dict] | None = None,
+    examination_history: list[dict] | None = None,
     rag_context: str | None = None,
 ) -> str:
     """
@@ -67,9 +69,7 @@ async def examine_witness(
     elif rag_context:
         history_text = "(Relevant testimony history retrieved via RAG context)"
 
-    case_context = rag_context or (
-        case_details[:6000] if case_details else "No case details provided"
-    )
+    case_context = pick_case_context(rag_context, case_details)
 
     template = f"""You are role-playing as {witness_name}, a {role_description} in a legal case.
 You are on the witness stand being examined by {examiner_description}.
@@ -101,7 +101,7 @@ Now respond to this question from {examiner_description}:
 Respond as {witness_name} (witness):
 """
 
-    prompt = ChatPromptTemplate.from_messages([("human", template)])
+    prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
     chain = prompt | get_llm("lawyer") | StrOutputParser()
 
     try:
@@ -109,7 +109,7 @@ Respond as {witness_name} (witness):
         response = await chain.ainvoke({})
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
         # Remove any prefix like "Name:" that the LLM might add
         response = re.sub(rf"^{re.escape(witness_name)}:\s*", "", response).strip()
         response = re.sub(
@@ -120,10 +120,8 @@ Respond as {witness_name} (witness):
             f"Witness response generated for {witness_name} in {duration_ms:.2f}ms"
         )
         return response
-    except Exception as e:
-        logger.error(
-            f"Error in witness examination for {witness_name}: {str(e)}", exc_info=True
-        )
+    except Exception:
+        logger.exception(f"Error in witness examination for {witness_name}")
         return "I'm sorry, My Lord, I'm feeling unwell and need a moment to compose myself."
 
 
@@ -132,7 +130,7 @@ async def generate_cross_examination_questions(
     witness_role: str,
     ai_lawyer_role: str,
     case_details: str,
-    testimony_so_far: List[Dict],
+    testimony_so_far: list[dict],
     case_arguments: str = "",
     rag_context: str | None = None,
 ) -> str:
@@ -170,9 +168,7 @@ async def generate_cross_examination_questions(
         else "friendly witness (your client's side)"
     )
 
-    case_context = rag_context or (
-        case_details[:6000] if case_details else "No case details provided"
-    )
+    case_context = pick_case_context(rag_context, case_details)
 
     template = f"""You are an experienced Indian trial lawyer representing the {ai_lawyer_role}.
 You are cross-examining {witness_name}, who is a {witness_stance}.
@@ -196,7 +192,7 @@ Generate ONE strategic cross-examination question. Your goals:
 Respond with ONLY the question, no preamble or explanation. Start directly with the question.
 """
 
-    prompt = ChatPromptTemplate.from_messages([("human", template)])
+    prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
     chain = prompt | get_llm("lawyer") | StrOutputParser()
 
     try:
@@ -204,7 +200,7 @@ Respond with ONLY the question, no preamble or explanation. Start directly with 
         response = await chain.ainvoke({})
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
         # Clean up any prefixes
         response = re.sub(
             r"^(Question|Q|Cross-examination question):\s*",
@@ -215,10 +211,8 @@ Respond with ONLY the question, no preamble or explanation. Start directly with 
 
         logger.info(f"Cross-examination question generated in {duration_ms:.2f}ms")
         return response
-    except Exception as e:
-        logger.error(
-            f"Error generating cross-examination question: {str(e)}", exc_info=True
-        )
+    except Exception:
+        logger.exception("Error generating cross-examination question")
         return f"{witness_name}, could you please clarify your earlier statement for the court?"
 
 
@@ -226,10 +220,10 @@ async def should_ai_call_witness(
     ai_role: str,
     case_details: str,
     arguments_history: str,
-    available_witnesses: List[Dict],
-    testimonies_given: List[str],
+    available_witnesses: list[dict],
+    testimonies_given: list[str],
     rag_context: str | None = None,
-) -> Optional[str]:
+) -> str | None:
     """
     Determine if the AI lawyer should call a witness, and which one.
 
@@ -262,9 +256,7 @@ async def should_ai_call_witness(
         ]
     )
 
-    case_context = rag_context or (
-        case_details[:6000] if case_details else "No case details provided"
-    )
+    case_context = pick_case_context(rag_context, case_details)
 
     template = f"""You are an experienced Indian trial lawyer representing the {ai_role}.
 
@@ -291,7 +283,7 @@ Respond with ONLY one of these exact formats (no extra text):
 Your response:
 """
 
-    prompt = ChatPromptTemplate.from_messages([("human", template)])
+    prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
     chain = prompt | get_llm("lawyer") | StrOutputParser()
 
     try:
@@ -299,7 +291,7 @@ Your response:
         response = await chain.ainvoke({})
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        response = strip_thinking(response)
 
         logger.info(
             f"AI witness decision raw response: '{response}' (took {duration_ms:.2f}ms)"
@@ -353,8 +345,8 @@ Your response:
 
         logger.info("AI decided not to call a witness at this time")
         return None
-    except Exception as e:
-        logger.error(f"Error in AI witness decision: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error in AI witness decision")
         return None
 
 
@@ -363,7 +355,7 @@ async def should_continue_cross_examination(
     witness_role: str,
     ai_lawyer_role: str,
     case_details: str,
-    testimony_so_far: List[Dict],
+    testimony_so_far: list[dict],
     questions_asked: int,
     max_questions: int = 5,
     rag_context: str | None = None,
@@ -396,9 +388,7 @@ async def should_continue_cross_examination(
     if questions_asked == 0:
         return True
 
-    case_context = rag_context or (
-        case_details[:6000] if case_details else "No case details provided"
-    )
+    case_context = pick_case_context(rag_context, case_details)
 
     # Format recent testimony
     testimony_text = ""
@@ -437,7 +427,7 @@ Respond with ONLY one word:
 Your decision:
 """
 
-    prompt = ChatPromptTemplate.from_messages([("human", template)])
+    prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
     chain = prompt | get_llm("lawyer") | StrOutputParser()
 
     try:
@@ -445,9 +435,7 @@ Your decision:
         response = await chain.ainvoke({})
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = (
-            re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip().upper()
-        )
+        response = strip_thinking(response).upper()
 
         should_continue = "CONTINUE" in response
         logger.info(
@@ -455,7 +443,7 @@ Your decision:
         )
 
         return should_continue
-    except Exception as e:
-        logger.error(f"Error in cross-examination decision: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error in cross-examination decision")
         # Default to stopping if error
         return False

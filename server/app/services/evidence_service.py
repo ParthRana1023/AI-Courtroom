@@ -1,15 +1,14 @@
+import json
 import re
 import time
-import json
-from typing import List
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 from app.config import settings
+from app.logging_config import get_logger
 from app.models.case import Case, EvidenceItem, EvidenceMediaStatus
 from app.schemas.evidence import EvidenceGenerationSummary
-from app.utils.llm import get_llm
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from app.logging_config import get_logger
 from app.services.cloudinary_service import upload_evidence_image
 from app.services.image_generation import (
     ImageGenerationError,
@@ -17,14 +16,21 @@ from app.services.image_generation import (
 )
 from app.services.llm.evidence import generate_evidence_prompt
 from app.services.rag import upsert_memory_item
+from app.utils.llm import get_llm, strip_thinking
 
 logger = get_logger(__name__)
+
+
+def parse_llm_json(response: str):
+    """Parse JSON from a model reply, ignoring ``` fences and <think> blocks."""
+    unfenced = re.sub(r"```(?:json)?\s*(.*?)\s*```", r"\1", response, flags=re.DOTALL)
+    return json.loads(strip_thinking(unfenced))
 
 
 async def extract_evidence_items(
     case_text: str | None,
     rag_context: str | None = None,
-) -> List[EvidenceItem]:
+) -> list[EvidenceItem]:
     """Extract structured evidence cards from the generated petition markdown using LLM."""
     if not case_text and not rag_context:
         return []
@@ -66,13 +72,8 @@ Example format:
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         # Clean up response (remove markdown code blocks if present)
-        response = re.sub(
-            r"```(?:json)?\s*(.*?)\s*```", r"\1", response, flags=re.DOTALL
-        ).strip()
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
-
-        evidence_data = json.loads(response)
-        items: List[EvidenceItem] = []
+        evidence_data = parse_llm_json(response)
+        items: list[EvidenceItem] = []
 
         for index, data in enumerate(evidence_data, start=1):
             title = str(data.get("title") or f"Evidence {index}")
@@ -93,8 +94,8 @@ Example format:
         )
         return items
 
-    except Exception as e:
-        logger.error(f"Error extracting evidence via LLM: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("Error extracting evidence via LLM")
         return []
 
 
@@ -132,17 +133,9 @@ JSON object only:
 
     try:
         response = await chain.ainvoke({"text": text[:3000]})
-        response = re.sub(
-            r"```(?:json)?\s*(.*?)\s*```", r"\1", response, flags=re.DOTALL
-        ).strip()
-        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
-        data = json.loads(response)
+        data = parse_llm_json(response)
     except Exception as e:
-        logger.error(
-            "Error extracting evidence from text",
-            extra={"error": str(e)},
-            exc_info=True,
-        )
+        logger.exception("Error extracting evidence from text", extra={"error": str(e)})
         data = {
             "title": "Extracted Evidence",
             "evidence_type": "Witness Testimony",
@@ -376,10 +369,9 @@ async def _attempt_evidence_image_generation(
         summary.failed += 1
         summary.message = e.user_message
     except Exception as e:
-        logger.error(
+        logger.exception(
             "Evidence image generation failed",
             extra={"cnr": case.cnr, "evidence_id": item.id, "error": str(e)},
-            exc_info=True,
         )
         item.media_status = EvidenceMediaStatus.FAILED
         summary.failed += 1

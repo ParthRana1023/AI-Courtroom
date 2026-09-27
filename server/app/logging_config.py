@@ -4,16 +4,16 @@ Centralized logging configuration for AI Courtroom backend.
 Provides structured logging with request tracing, performance metrics, and sensitive data masking.
 """
 
+import inspect
 import logging
-import sys
 import re
+import sys
 import time
 import uuid
-import inspect
-from functools import wraps
-from types import TracebackType
-from typing import Callable, Any
+from collections.abc import Callable
 from contextvars import ContextVar
+from functools import wraps
+from typing import Any, ClassVar
 
 # Context variable for request ID (thread-safe)
 request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
@@ -99,7 +99,7 @@ class CompactDebugFilter(logging.Filter):
 class ColoredFormatter(logging.Formatter):
     """Colored formatter for development console output."""
 
-    COLORS = {
+    COLORS: ClassVar[dict[str, str]] = {
         "DEBUG": "\033[36m",  # Cyan
         "INFO": "\033[32m",  # Green
         "WARNING": "\033[33m",  # Yellow
@@ -123,6 +123,7 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         import json
+
         from app.utils.datetime import get_current_datetime
 
         log_data = {
@@ -253,7 +254,7 @@ def log_execution_time(logger: logging.Logger, operation: str = "Operation"):
             except Exception as e:
                 duration_ms = (time.perf_counter() - start_time) * 1000
                 logger.error(
-                    f"{operation} failed after {duration_ms:.2f}ms: {str(e)}",
+                    f"{operation} failed after {duration_ms:.2f}ms: {e!s}",
                     extra={"duration_ms": round(duration_ms, 2)},
                 )
                 raise
@@ -272,7 +273,7 @@ def log_execution_time(logger: logging.Logger, operation: str = "Operation"):
             except Exception as e:
                 duration_ms = (time.perf_counter() - start_time) * 1000
                 logger.error(
-                    f"{operation} failed after {duration_ms:.2f}ms: {str(e)}",
+                    f"{operation} failed after {duration_ms:.2f}ms: {e!s}",
                     extra={"duration_ms": round(duration_ms, 2)},
                 )
                 raise
@@ -282,32 +283,3 @@ def log_execution_time(logger: logging.Logger, operation: str = "Operation"):
         return sync_wrapper
 
     return decorator
-
-
-class LogContext:
-    """Context manager for adding extra context to logs."""
-
-    def __init__(self, logger: logging.Logger, **context: Any):
-        self.logger = logger
-        self.context = context
-        self.start_time: float | None = None
-
-    def __enter__(self) -> "LogContext":
-        self.start_time = time.perf_counter()
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> bool:
-        if self.start_time is None:
-            return False
-        duration_ms = (time.perf_counter() - self.start_time) * 1000
-        if exc_type:
-            self.logger.error(
-                f"Context failed after {duration_ms:.2f}ms: {exc_val}",
-                extra={**self.context, "duration_ms": round(duration_ms, 2)},
-            )
-        return False  # Don't suppress exceptions

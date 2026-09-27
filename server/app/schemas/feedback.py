@@ -1,7 +1,6 @@
-from pydantic import BaseModel, Field
-from beanie.odm.fields import PydanticObjectId as ObjectId
-from datetime import datetime
 from enum import Enum
+
+from pydantic import BaseModel, Field
 
 
 class FeedbackCategory(str, Enum):
@@ -34,8 +33,3 @@ class FeedbackOut(BaseModel):
     feedback_category: str
     message: str
     created_at: str
-
-    class ConfigDict:
-        from_attributes = True
-        populate_by_name = True
-        json_encoders = {ObjectId: str, datetime: lambda dt: dt.isoformat()}

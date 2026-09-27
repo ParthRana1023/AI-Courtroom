@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import List, Dict
+
 from beanie import Document
 from pydantic import Field
+
 from app.utils.datetime import get_current_datetime
 
 
@@ -17,14 +18,14 @@ class LocationCache(Document):
     )
     cached_month: str = Field(..., description="Month when cache was created (YYYY-MM)")
     cached_at: datetime = Field(default_factory=get_current_datetime)
-    countries: List[dict] = Field(default_factory=list)
-    states: Dict[str, List[dict]] = Field(
+    countries: list[dict] = Field(default_factory=list)
+    states: dict[str, list[dict]] = Field(
         default_factory=dict
     )  # country_iso2 -> states
-    cities: Dict[str, List[dict]] = Field(
+    cities: dict[str, list[dict]] = Field(
         default_factory=dict
     )  # "country_iso2:state_iso2" -> cities
-    all_locations: List[dict] = Field(
+    all_locations: list[dict] = Field(
         default_factory=list
     )  # Flattened searchable cache
 

@@ -7,7 +7,8 @@ The factory returns a LangChain ChatModel wrapper so that the rest of the
 codebase can keep using ``chain.invoke()`` / ``chain.ainvoke()`` unchanged.
 """
 
-from functools import lru_cache
+import re
+from functools import cache
 from importlib import import_module
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -15,6 +16,25 @@ from langchain_core.runnables import Runnable
 from langchain_groq import ChatGroq
 
 from app.config import settings
+
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def strip_thinking(text: str) -> str:
+    """Drop reasoning models' <think>...</think> blocks and surrounding whitespace."""
+    return _THINK_BLOCK.sub("", text).strip()
+
+
+def pick_case_context(rag_context: str | None, case_details: str | None) -> str:
+    """Retrieved RAG context if any, else the start of the case document."""
+    return rag_context or (
+        case_details[:6000] if case_details else "No case details provided"
+    )
+
+
+class LLMGenerationError(RuntimeError):
+    """The model (primary and fallback) failed to produce a response."""
+
 
 # ---------------------------------------------------------------------------
 # Task → config attribute mapping
@@ -79,7 +99,7 @@ def _create_llm_instance(provider: str, model_id: str) -> BaseChatModel:
         raise ValueError(f"Unknown LLM provider '{provider}'.")
 
 
-@lru_cache(maxsize=None)
+@cache
 def get_llm(task: str) -> Runnable:
     config_attrs = _TASK_MODEL_MAP.get(task)
     if config_attrs is None:

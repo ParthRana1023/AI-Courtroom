@@ -3,9 +3,9 @@
 Pydantic schemas for witness examination API requests/responses.
 """
 
-from typing import List, Optional
-from pydantic import BaseModel, Field
 from datetime import datetime
+
+from pydantic import BaseModel, Field
 
 
 class CallWitnessRequest(BaseModel):
@@ -22,12 +22,6 @@ class ExamineWitnessRequest(BaseModel):
     )
 
 
-class DismissWitnessRequest(BaseModel):
-    """Request to dismiss the current witness"""
-
-    pass  # No fields needed, but keeping as a schema for consistency
-
-
 class ExaminationItemResponse(BaseModel):
     """A single Q&A exchange in witness examination"""
 
@@ -35,8 +29,8 @@ class ExaminationItemResponse(BaseModel):
     examiner: str  # 'plaintiff', 'defendant', or 'judge'
     question: str
     answer: str
-    objection: Optional[str] = None
-    objection_ruling: Optional[str] = None
+    objection: str | None = None
+    objection_ruling: str | None = None
     timestamp: datetime
 
 
@@ -49,18 +43,18 @@ class WitnessExaminationResponse(BaseModel):
     answer: str
     examination_id: str
     timestamp: datetime
-    ai_followup: Optional[str] = None  # If AI lawyer wants to follow up
+    ai_followup: str | None = None  # If AI lawyer wants to follow up
 
 
 class CurrentWitnessResponse(BaseModel):
     """Current witness examination state"""
 
     has_witness: bool
-    witness_id: Optional[str] = None
-    witness_name: Optional[str] = None
-    witness_role: Optional[str] = None
-    called_by: Optional[str] = None
-    examination_history: List[ExaminationItemResponse] = []
+    witness_id: str | None = None
+    witness_name: str | None = None
+    witness_role: str | None = None
+    called_by: str | None = None
+    examination_history: list[ExaminationItemResponse] = []
     is_ai_examining: bool = False
 
 
@@ -76,8 +70,8 @@ class WitnessInfo(BaseModel):
 class AvailableWitnessesResponse(BaseModel):
     """List of available witnesses"""
 
-    witnesses: List[WitnessInfo]
-    current_witness_id: Optional[str] = None
+    witnesses: list[WitnessInfo]
+    current_witness_id: str | None = None
 
 
 class WitnessTestimonyResponse(BaseModel):
@@ -87,15 +81,15 @@ class WitnessTestimonyResponse(BaseModel):
     witness_id: str
     witness_name: str
     called_by: str
-    examination: List[ExaminationItemResponse]
+    examination: list[ExaminationItemResponse]
     started_at: datetime
-    ended_at: Optional[datetime] = None
+    ended_at: datetime | None = None
 
 
 class AllTestimoniesResponse(BaseModel):
     """All witness testimonies in a case"""
 
-    testimonies: List[WitnessTestimonyResponse]
+    testimonies: list[WitnessTestimonyResponse]
 
 
 class CallWitnessResponse(BaseModel):
@@ -121,7 +115,7 @@ class AICrossExaminationResponse(BaseModel):
 
     witness_id: str
     witness_name: str
-    examinations: List[AICrossExaminationItem]
+    examinations: list[AICrossExaminationItem]
     total_questions: int
     state: str = (
         "awaiting_user_choice"  # user_questioning, ai_cross_examining, awaiting_user_choice

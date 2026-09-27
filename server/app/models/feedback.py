@@ -1,6 +1,8 @@
-from beanie import Document
 from datetime import datetime
-from pydantic import Field, EmailStr
+
+from beanie import Document
+from pydantic import EmailStr, Field
+
 from app.utils.datetime import get_current_datetime
 
 
