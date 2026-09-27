@@ -142,7 +142,7 @@ class FakeChatModel(BaseChatModel):
 
     responses: list[str] = Field(default_factory=list)
     responder: Callable[[str], str] | None = None
-    default_response: str = "Fake LLM response."
+    default_response: str = "Fake LLM response for tests."
     error: Exception | None = None
     calls: list[list[BaseMessage]] = Field(default_factory=list)
 

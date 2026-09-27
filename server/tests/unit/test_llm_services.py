@@ -12,11 +12,31 @@ from app.services.llm import case_analysis, judge, lawyer
 from app.services.llm import case_generation as cg
 from app.services.llm import parties_service as ps
 from app.services.llm import witness_service as ws
-from app.utils.llm import LLMGenerationError
+from app.utils.llm import MAX_SHORT_RESPONSE_RETRIES, LLMGenerationError
 
 # ---------------------------------------------------------------------------
 # lawyer
 # ---------------------------------------------------------------------------
+
+
+async def test_short_replies_are_regenerated_automatically(fake_llm):
+    fake_llm.responses.extend(["", "My Lord.", "My Lord, the deposit was never paid."])
+
+    result = await lawyer.generate_counter_argument("arg")
+
+    assert result == "My Lord, the deposit was never paid."
+    assert len(fake_llm.calls) == 3
+
+
+async def test_short_reply_kept_after_two_retries(fake_llm):
+    fake_llm.responses.extend(["No.", "No!", "Nope."])
+
+    answer = await ws.examine_witness(
+        "Ravi", "witness", "bio", "plaintiff", "Q?", "ctx"
+    )
+
+    assert answer == "Nope."
+    assert len(fake_llm.calls) == 1 + MAX_SHORT_RESPONSE_RETRIES
 
 
 async def test_counter_argument_prompt_contains_context_and_strips_thinking(fake_llm):
@@ -469,14 +489,14 @@ async def test_chat_with_party_accepts_curly_braces(fake_llm):
 
 
 async def test_examine_witness_formats_history_and_strips_prefixes(fake_llm):
-    fake_llm.responses.append("Ravi: Answer: Yes, My Lord.")
+    fake_llm.responses.append("Ravi: Answer: Yes, My Lord, I saw it.")
     history = [{"examiner": "plaintiff", "question": "Name?", "answer": "Ravi"}]
 
     reply = await ws.examine_witness(
         "Ravi", "applicant", "bio", "judge", "Were you there?", "d", history
     )
 
-    assert reply == "Yes, My Lord."
+    assert reply == "Yes, My Lord, I saw it."
     prompt = fake_llm.prompts[0]
     assert "Q (plaintiff): Name?" in prompt and "the Honorable Judge" in prompt
 
@@ -507,11 +527,11 @@ async def test_examine_witness_failure(fake_llm):
 
 
 async def test_examine_witness_accepts_curly_braces(fake_llm):
-    fake_llm.responses.append("No.")
+    fake_llm.responses.append("No, I was not there.")
 
     assert (
         await ws.examine_witness("W", "applicant", "", "plaintiff", "Is {x} true?", "d")
-        == "No."
+        == "No, I was not there."
     )
 
 

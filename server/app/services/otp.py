@@ -1,9 +1,6 @@
 # app/services/otp.py
-import math
 import secrets
 from datetime import UTC
-
-from fastapi import HTTPException, status
 
 from app.config import settings
 from app.logging_config import get_logger
@@ -25,14 +22,9 @@ async def create_otp(email: str, is_registration: bool = True) -> str:
     logger.info(f"Creating OTP for: {email}, is_registration={is_registration}")
 
     # Stops anyone from flooding an inbox (or our mail quota) with codes.
-    remaining, seconds = await otp_send_rate_limiter.get_remaining_attempts(email)
-    if not remaining:
-        minutes = math.ceil((seconds or 0) / 60) or 1
-        logger.warning(f"OTP send limit reached for: {email}")
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Too many codes requested. Please try again in {minutes} minute(s).",
-        )
+    await otp_send_rate_limiter.ensure_available(
+        email, "Too many codes requested. Please try again in {minutes} minute(s)."
+    )
 
     # Delete any existing OTPs for this email
     await OTP.find(OTP.email == email).delete()
@@ -41,7 +33,7 @@ async def create_otp(email: str, is_registration: bool = True) -> str:
     # Generate new OTP
     otp_code = generate_otp()
     # Calculate expiry time using utility function
-    expiry_ist = create_expiry_time(settings.access_token_expire_minutes)
+    expiry_ist = create_expiry_time(settings.otp_expire_minutes)
     expiry_utc = expiry_ist.astimezone(UTC)
 
     # Store OTP in database (UTC time)

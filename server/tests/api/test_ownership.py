@@ -12,7 +12,6 @@ CASE_ROUTES = [
     ("POST", "/cases/{cnr}/analyze-case", None),
     # arguments
     ("POST", "/cases/{cnr}/arguments", {"role": "plaintiff", "argument": "x"}),
-    ("POST", "/cases/{cnr}/proceedings/e1/regenerate", None),
     ("POST", "/cases/{cnr}/closing-statement", {"role": "plaintiff", "statement": "x"}),
     # parties
     ("GET", "/cases/{cnr}/parties", None),

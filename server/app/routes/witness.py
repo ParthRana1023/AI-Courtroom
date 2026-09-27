@@ -8,6 +8,7 @@ import random
 import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from pymongo.results import UpdateResult
 
 from app.config import settings
 from app.dependencies import get_current_user, get_owned_case
@@ -353,9 +354,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
 
     if not case.current_witness_id:
         logger.info("No witness on stand, stopping background examination")
-        # awaitable at runtime (UpdateOne)
-        # pyrefly: ignore[not-async]
-        await Case.find_one(Case.cnr == case_cnr).update(
+        await Case.find_one(Case.cnr == case_cnr).update_one(
             {"$set": {"is_ai_examining": False}}
         )
         return
@@ -363,9 +362,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
     # Get the witness
     party = case.get_party(case.current_witness_id)
     if not party:
-        # awaitable at runtime (UpdateOne)
-        # pyrefly: ignore[not-async]
-        await Case.find_one(Case.cnr == case_cnr).update(
+        await Case.find_one(Case.cnr == case_cnr).update_one(
             {"$set": {"is_ai_examining": False}}
         )
         return
@@ -505,12 +502,10 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                 witness_id=party.id,
                 question=question,
             )
-            # awaitable at runtime (UpdateOne)
-            # pyrefly: ignore[not-async]
-            result = await Case.find_one(still_examining).update(
+            result = await Case.find_one(still_examining).update_one(
                 {"$push": {"courtroom_proceedings": q_event}}
             )
-            if not result.modified_count:
+            if not isinstance(result, UpdateResult) or not result.modified_count:
                 logger.info("AI examination was stopped meanwhile, discarding question")
                 break
             await upsert_memory_item(
@@ -583,11 +578,9 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                 for i, t in enumerate(case.witness_testimonies)
                 if t.id == testimony.id
             )
-            # awaitable at runtime (UpdateOne)
-            # pyrefly: ignore[not-async]
             result = await Case.find_one(
                 {**still_examining, f"witness_testimonies.{index}.id": testimony.id}
-            ).update(
+            ).update_one(
                 {
                     "$push": {
                         "courtroom_proceedings": a_event,
@@ -595,7 +588,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     }
                 }
             )
-            if not result.modified_count:
+            if not isinstance(result, UpdateResult) or not result.modified_count:
                 logger.info("AI examination was stopped meanwhile, discarding answer")
                 break
             await upsert_memory_item(
@@ -629,9 +622,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
             timestamp=get_current_datetime(),
             content="Cross-examination completed.",
         )
-        # awaitable at runtime (UpdateOne)
-        # pyrefly: ignore[not-async]
-        await Case.find_one(Case.cnr == case_cnr).update(
+        await Case.find_one(Case.cnr == case_cnr).update_one(
             {
                 "$set": {"is_ai_examining": False},
                 "$push": {"courtroom_proceedings": done_event},

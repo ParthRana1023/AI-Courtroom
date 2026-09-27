@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.config import settings
 from app.models.case import (
     ArgumentItem,
     CaseStatus,
@@ -144,6 +145,24 @@ async def test_chat_with_party_saves_history(
     ).json()
     assert [m["sender"] for m in history["messages"]] == ["user", "party"]
     assert history["party_name"] == "Ravi Kumar"
+
+
+async def test_chat_is_limited_to_a_few_messages_per_minute(
+    client, auth_headers, prep_case, witness_party, fake_llm
+):
+    fake_llm.responses.extend(["ok"] * settings.party_chat_rate_limit)
+    case = await prep_case()
+    url = f"/cases/{case.cnr}/parties/{witness_party.id}/chat"
+
+    for _ in range(settings.party_chat_rate_limit):
+        response = await client.post(url, headers=auth_headers, json={"message": "Hi?"})
+        assert response.status_code == 200
+
+    blocked = await client.post(url, headers=auth_headers, json={"message": "Hi?"})
+
+    assert blocked.status_code == 429
+    assert "wait a minute" in blocked.json()["detail"]
+    assert len(fake_llm.calls) == settings.party_chat_rate_limit
 
 
 async def test_chat_generates_bio_first_for_new_party(

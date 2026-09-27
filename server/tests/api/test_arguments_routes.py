@@ -1,16 +1,13 @@
-"""Tests for argument submission, regeneration and closing statements."""
+"""Tests for argument submission and closing statements."""
 
 import pytest
-from beanie import PydanticObjectId
 
 from app.models.case import (
     ArgumentItem,
     Case,
     CaseStatus,
     CourtroomProceedingsEvent,
-    ExaminationItem,
     Roles,
-    WitnessTestimony,
 )
 from app.models.case import (
     CourtroomProceedingsEventType as EventType,
@@ -141,7 +138,7 @@ async def test_first_argument_as_defendant_generates_ai_opening_and_counter(
 async def test_first_argument_as_plaintiff_generates_defence_opening(
     client, auth_headers, courtroom_case, user, fake_llm
 ):
-    fake_llm.responses.append("AI defence opening")
+    fake_llm.responses.append("AI defence opening statement")
     case = await courtroom_case("plaintiff", status=CaseStatus.NOT_STARTED)
 
     response = await client.post(
@@ -151,12 +148,12 @@ async def test_first_argument_as_plaintiff_generates_defence_opening(
     )
 
     assert response.json() == {
-        "ai_opening_statement": "AI defence opening",
+        "ai_opening_statement": "AI defence opening statement",
         "ai_opening_role": "defendant",
     }
     saved = await reload(case)
     assert saved.plaintiff_arguments[0].user_id == user.id
-    assert saved.defendant_arguments[0].content == "AI defence opening"
+    assert saved.defendant_arguments[0].content == "AI defence opening statement"
     assert saved.status == CaseStatus.ACTIVE
 
 
@@ -202,7 +199,7 @@ async def test_regular_argument_gets_ai_counter(
     client, auth_headers, in_progress, user, fake_llm, user_role
 ):
     ai_role = "defendant" if user_role == "plaintiff" else "plaintiff"
-    fake_llm.responses.append("AI counter")
+    fake_llm.responses.append("AI counter argument reply")
     case = await in_progress(user_role)
 
     response = await client.post(
@@ -212,7 +209,7 @@ async def test_regular_argument_gets_ai_counter(
     )
 
     assert response.json() == {
-        "ai_counter_argument": "AI counter",
+        "ai_counter_argument": "AI counter argument reply",
         "ai_counter_role": ai_role,
     }
     saved = await reload(case)
@@ -262,7 +259,7 @@ async def test_closing_argument_resolves_case(
 async def test_closing_argument_is_recorded_once(
     client, auth_headers, in_progress, fake_llm
 ):
-    fake_llm.responses.append("AI closing")
+    fake_llm.responses.append("AI closing statement text")
     case = await in_progress("plaintiff")
 
     await client.post(
@@ -273,7 +270,9 @@ async def test_closing_argument_is_recorded_once(
 
     saved = await reload(case)
     assert [a.content for a in saved.plaintiff_arguments].count("My closing") == 1
-    assert [a.content for a in saved.defendant_arguments].count("AI closing") == 1
+    assert [a.content for a in saved.defendant_arguments].count(
+        "AI closing statement text"
+    ) == 1
 
 
 @pytest.mark.parametrize("is_closing", [False, True])
@@ -391,287 +390,6 @@ def test_record_argument_adds_argument_and_timeline_event():
     )
 
 
-def test_build_argument_history_until_skips_replaced_and_non_argument_events():
-    case = Case.model_construct(
-        courtroom_proceedings=[
-            event(EventType.OPENING_STATEMENT, "open", "plaintiff"),
-            event(EventType.WITNESS_CALLED, "called"),
-            event(EventType.AI_ARGUMENT, "replace me", "defendant", id="skip"),
-            event(EventType.ARGUMENT, "later", None),
-        ]
-    )
-
-    assert (
-        arguments.build_argument_history_until(case, 4, "skip")
-        == "plaintiff: open\nlawyer: later\n"
-    )
-
-
-def test_update_matching_ai_argument_falls_back_to_latest_ai_item():
-    case = Case.model_construct(
-        plaintiff_arguments=[],
-        defendant_arguments=[
-            arg("ai 1", "defendant"),
-            arg("user", "defendant", user_id=PydanticObjectId()),
-            arg("ai 2", "defendant"),
-        ],
-    )
-    ev = event(EventType.AI_ARGUMENT, role="defendant")
-
-    arguments.update_matching_ai_argument(case, ev, "ai 1", "ai 1 v2")
-    arguments.update_matching_ai_argument(case, ev, "no match", "fallback")
-
-    assert [a.content for a in case.defendant_arguments] == [
-        "ai 1 v2",
-        "user",
-        "fallback",
-    ]
-
-
-def test_update_matching_witness_answer():
-    testimony = WitnessTestimony(
-        witness_id="w1",
-        witness_name="W",
-        called_by="plaintiff",
-        examination=[ExaminationItem(examiner="plaintiff", question="Q", answer="old")],
-    )
-    case = Case.model_construct(
-        witness_testimonies=[
-            testimony,
-            WitnessTestimony(
-                witness_id="w2", witness_name="Other", called_by="plaintiff"
-            ),
-        ]
-    )
-
-    assert (
-        arguments.update_matching_witness_answer(case, "w1", "Q", "old", "new")
-        == testimony.examination[0].id
-    )
-    assert testimony.examination[0].answer == "new"
-    assert (
-        arguments.update_matching_witness_answer(case, None, "Q", "missing", "x")
-        is None
-    )
-
-
-def test_remove_proceedings_after_rolls_back_state():
-    testimony = WitnessTestimony(
-        witness_id="w1",
-        witness_name="W",
-        called_by="plaintiff",
-        examination=[ExaminationItem(examiner="defendant", question="Q", answer="A")],
-    )
-    empty_testimony = WitnessTestimony(
-        witness_id="w2", witness_name="W2", called_by="plaintiff"
-    )
-    case = Case.model_construct(
-        cnr="C",
-        status=CaseStatus.RESOLVED,
-        current_witness_id="w2",
-        is_ai_examining=True,
-        plaintiff_arguments=[arg("keep", "plaintiff"), arg("drop p", "plaintiff")],
-        defendant_arguments=[arg("drop d", "defendant")],
-        witness_testimonies=[testimony, empty_testimony],
-        courtroom_proceedings=[
-            event(EventType.ARGUMENT, "keep", "plaintiff"),
-            event(EventType.WITNESS_DISMISSED, witness_id="w1"),
-            event(EventType.WITNESS_EXAMINED_A, "A", witness_id="w1"),
-            event(EventType.WITNESS_CALLED, witness_id="w2"),
-            event(EventType.ARGUMENT, "drop p", "plaintiff"),
-            event(EventType.AI_ARGUMENT, "drop d", "defendant"),
-        ],
-    )
-    testimony.ended_at = testimony.started_at
-
-    arguments.remove_proceedings_after(case, 0)
-
-    assert len(case.courtroom_proceedings) == 1
-    assert [a.content for a in case.plaintiff_arguments] == ["keep"]
-    assert case.defendant_arguments == []
-    assert testimony.examination == [] and testimony.ended_at is None
-    assert case.witness_testimonies == [testimony]
-    assert case.current_witness_id == "w1" and case.is_ai_examining is False
-    assert case.status == CaseStatus.ACTIVE
-
-
-def test_remove_proceedings_after_last_event_is_noop():
-    case = Case.model_construct(
-        courtroom_proceedings=[event(EventType.ARGUMENT, "x")],
-        status=CaseStatus.RESOLVED,
-    )
-
-    arguments.remove_proceedings_after(case, 0)
-
-    assert case.status == CaseStatus.RESOLVED
-
-
-# ---------------------------------------------------------------------------
-# regenerate
-# ---------------------------------------------------------------------------
-
-
-async def regenerate(client, headers, case, event_id):
-    return await client.post(
-        f"/cases/{case.cnr}/proceedings/{event_id}/regenerate", headers=headers
-    )
-
-
-async def test_regenerate_guards(
-    client, auth_headers, courtroom_case, make_user, make_case
-):
-    foreign = await make_case(await make_user())
-    system = event(EventType.SYSTEM_MESSAGE, "hi")
-    case = await courtroom_case(courtroom_proceedings=[system])
-
-    assert (
-        await client.post(
-            "/cases/NOPE000000000000/proceedings/x/regenerate", headers=auth_headers
-        )
-    ).status_code == 404
-    assert (await regenerate(client, auth_headers, foreign, "x")).status_code == 403
-    assert (await regenerate(client, auth_headers, case, "missing")).status_code == 404
-    assert (await regenerate(client, auth_headers, case, system.id)).status_code == 400
-
-
-async def test_regenerate_ai_argument_truncates_later_proceedings(
-    client, auth_headers, courtroom_case, user, fake_llm
-):
-    fake_llm.responses.append("Better counter")
-    ai_event = event(EventType.AI_ARGUMENT, "weak counter", "defendant")
-    case = await courtroom_case(
-        plaintiff_arguments=[
-            arg("user point", "plaintiff", user_id=user.id),
-            arg("later point", "plaintiff", user_id=user.id),
-        ],
-        defendant_arguments=[
-            arg("weak counter", "defendant", type_="counter"),
-            arg("later counter", "defendant", type_="counter"),
-        ],
-        courtroom_proceedings=[
-            event(EventType.ARGUMENT, "user point", "plaintiff"),
-            ai_event,
-            event(EventType.ARGUMENT, "later point", "plaintiff"),
-            event(EventType.AI_ARGUMENT, "later counter", "defendant"),
-        ],
-    )
-
-    response = await regenerate(client, auth_headers, case, ai_event.id)
-
-    assert response.json() == {
-        "success": True,
-        "event_id": ai_event.id,
-        "content": "Better counter",
-    }
-    saved = await reload(case)
-    assert [e.content for e in saved.courtroom_proceedings] == [
-        "user point",
-        "Better counter",
-    ]
-    assert [a.content for a in saved.defendant_arguments] == ["Better counter"]
-    assert "user point" in fake_llm.prompts[0]
-
-
-async def test_regenerate_ai_argument_needs_prior_user_argument(
-    client, auth_headers, courtroom_case
-):
-    ai_event = event(EventType.AI_ARGUMENT, "orphan", "defendant")
-    case = await courtroom_case(courtroom_proceedings=[ai_event])
-
-    response = await regenerate(client, auth_headers, case, ai_event.id)
-
-    assert response.status_code == 400
-
-
-async def test_regenerate_opening_infers_roles_when_not_chosen(
-    client, auth_headers, courtroom_case, fake_llm
-):
-    fake_llm.responses.append("Fresh opening")
-    opening = event(EventType.OPENING_STATEMENT, "old opening", "plaintiff")
-    case = await courtroom_case(
-        user_role=Roles.NOT_STARTED,
-        plaintiff_arguments=[arg("old opening", "plaintiff", type_="opening")],
-        courtroom_proceedings=[opening],
-    )
-
-    response = await regenerate(client, auth_headers, case, opening.id)
-
-    assert response.json()["content"] == "Fresh opening"
-    assert "plaintiff's side" in fake_llm.prompts[0]
-    assert (await reload(case)).plaintiff_arguments[0].content == "Fresh opening"
-
-
-async def test_regenerate_witness_answer(
-    client, auth_headers, courtroom_case, witness_party, fake_llm
-):
-    fake_llm.responses.append("New answer")
-    question = event(
-        EventType.WITNESS_EXAMINED_Q,
-        "Did you pay?",
-        "defendant",
-        witness_id=witness_party.id,
-        question="Did you pay?",
-    )
-    answer = event(
-        EventType.WITNESS_EXAMINED_A,
-        "Old answer",
-        "applicant",
-        witness_id=witness_party.id,
-        answer="Old answer",
-    )
-    case = await courtroom_case(
-        current_witness_id=witness_party.id,
-        witness_testimonies=[
-            WitnessTestimony(
-                witness_id=witness_party.id,
-                witness_name=witness_party.name,
-                called_by="defendant",
-                examination=[
-                    ExaminationItem(
-                        examiner="defendant",
-                        question="Did you pay?",
-                        answer="Old answer",
-                    )
-                ],
-            )
-        ],
-        courtroom_proceedings=[question, answer],
-    )
-
-    response = await regenerate(client, auth_headers, case, answer.id)
-
-    assert response.json()["content"] == "New answer"
-    saved = await reload(case)
-    assert saved.witness_testimonies[0].examination[0].answer == "New answer"
-    assert saved.courtroom_proceedings[1].answer == "New answer"
-    assert "the defendant's lawyer" in fake_llm.prompts[0]
-
-
-async def test_regenerate_witness_answer_without_context(
-    client, auth_headers, courtroom_case
-):
-    answer = event(
-        EventType.WITNESS_EXAMINED_A, "Old", "applicant", witness_id="unknown-witness"
-    )
-    case = await courtroom_case(courtroom_proceedings=[answer])
-
-    response = await regenerate(client, auth_headers, case, answer.id)
-
-    assert response.status_code == 400
-
-
-async def test_regenerate_unexpected_error_returns_500(
-    client, auth_headers, courtroom_case, monkeypatch
-):
-    monkeypatch.setattr(arguments.lawyer, "opening_statement", boom)
-    opening = event(EventType.OPENING_STATEMENT, "old", "defendant")
-    case = await courtroom_case(courtroom_proceedings=[opening])
-
-    response = await regenerate(client, auth_headers, case, opening.id)
-
-    assert response.status_code == 500
-
-
 # ---------------------------------------------------------------------------
 # closing statement and verdict
 # ---------------------------------------------------------------------------
@@ -717,20 +435,22 @@ async def test_closing_statement_guards(
 async def test_closing_statement_generates_verdict(
     client, auth_headers, in_progress, user, fake_llm, user_role
 ):
-    fake_llm.responses.extend(["AI closing", "**FACTS**\n1. Suit decreed."])
+    fake_llm.responses.extend(
+        ["AI closing statement text", "**FACTS**\n1. Suit decreed."]
+    )
     case = await in_progress(user_role)
 
     response = await close(client, auth_headers, case, role=user_role)
 
     assert response.json()["verdict"] == "**FACTS**\n1. Suit decreed."
-    assert response.json()["ai_closing_statement"] == "AI closing"
+    assert response.json()["ai_closing_statement"] == "AI closing statement text"
     saved = await reload(case)
     assert saved.status == CaseStatus.RESOLVED and saved.verdict.startswith("**FACTS**")
     judge_prompt = fake_llm.prompts[1]
     assert (
         "user opening" in judge_prompt
         and "ai opening" in judge_prompt
-        and "AI closing" in judge_prompt
+        and "AI closing statement text" in judge_prompt
     )
     assert await usage_count(user) == 1
 
@@ -768,7 +488,7 @@ async def test_verdict_failure_does_not_resolve_case(
     def respond(prompt):
         if "impartial Indian Court judge" in prompt:
             raise RuntimeError("judge model down")
-        return "AI closing"
+        return "AI closing statement text"
 
     fake_llm.responder = respond
     case = await in_progress()

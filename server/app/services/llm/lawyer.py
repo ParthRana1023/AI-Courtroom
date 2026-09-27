@@ -5,7 +5,12 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
-from app.utils.llm import LLMGenerationError, get_llm, pick_case_context, strip_thinking
+from app.utils.llm import (
+    LLMGenerationError,
+    get_llm,
+    invoke_complete,
+    pick_case_context,
+)
 
 logger = get_logger(__name__)
 
@@ -53,7 +58,8 @@ async def generate_counter_argument(
         chain = prompt | get_llm("lawyer") | StrOutputParser()
 
         start_time = time.perf_counter()
-        response = chain.invoke(
+        response = await invoke_complete(
+            chain,
             {
                 "ai_role": ai_role,
                 "history": effective_history,
@@ -62,11 +68,10 @@ async def generate_counter_argument(
                 or "No structured evidence has been submitted.",
                 "user_role": user_role,
                 "user_input": user_input,
-            }
+            },
+            "counter argument",
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
-
-        response = strip_thinking(response)
 
         logger.info(
             f"Counter argument generated in {duration_ms:.2f}ms, response length: {len(response)} chars"
@@ -105,18 +110,18 @@ async def opening_statement(
         chain = prompt | get_llm("lawyer") | StrOutputParser()
 
         start_time = time.perf_counter()
-        response = chain.invoke(
+        response = await invoke_complete(
+            chain,
             {
                 "ai_role": ai_role,
                 "case_context": case_context,
                 "evidence_context": evidence_context
                 or "No structured evidence has been submitted.",
                 "user_role": user_role,
-            }
+            },
+            "opening statement",
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
-
-        response = strip_thinking(response)
 
         logger.info(
             f"Opening statement generated in {duration_ms:.2f}ms, response length: {len(response)} chars"
@@ -162,18 +167,18 @@ async def closing_statement(
         chain = prompt | get_llm("lawyer") | StrOutputParser()
 
         start_time = time.perf_counter()
-        response = chain.invoke(
+        response = await invoke_complete(
+            chain,
             {
                 "ai_role": ai_role,
                 "closing_context": closing_context,
                 "evidence_context": evidence_context
                 or "No structured evidence has been submitted.",
                 "user_role": user_role,
-            }
+            },
+            "closing statement",
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
-
-        response = strip_thinking(response)
 
         logger.info(
             f"Closing statement generated in {duration_ms:.2f}ms, response length: {len(response)} chars"

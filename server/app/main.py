@@ -111,9 +111,7 @@ async def lifespan(app: FastAPI):
 
     # A restart kills any running AI cross-examination task; clear its flag so
     # those cases are not stuck in "AI is examining" forever.
-    # awaitable at runtime (UpdateOne)
-    # pyrefly: ignore[not-async]
-    await Case.find(Case.is_ai_examining == True).update(
+    await Case.find(Case.is_ai_examining == True).update_many(
         {"$set": {"is_ai_examining": False}}
     )
 

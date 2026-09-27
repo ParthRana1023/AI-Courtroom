@@ -20,6 +20,7 @@ from app.schemas.party import (
 from app.services.llm.parties_service import chat_with_party, generate_party_details
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
+from app.utils.rate_limiter import party_chat_rate_limiter
 
 logger = get_logger(__name__)
 
@@ -202,6 +203,11 @@ async def chat_with_case_party(
             detail=f"As a {case.user_role.value} lawyer, you can only chat with {'applicants' if case.user_role == Roles.PLAINTIFF else 'non-applicants'}",
         )
 
+    await party_chat_rate_limiter.ensure_available(
+        str(current_user.id),
+        "The client wants to gather their thoughts. Please wait a minute before speaking to the client again.",
+    )
+
     await ensure_party_bio(case, party)
 
     # Get existing chat history for this party
@@ -293,6 +299,8 @@ async def chat_with_case_party(
         raise HTTPException(
             status_code=500, detail="Failed to save chat history. Please try again."
         )
+
+    await party_chat_rate_limiter.register_usage(str(current_user.id))
 
     return ChatResponse(
         user_message=ChatMessageOut(

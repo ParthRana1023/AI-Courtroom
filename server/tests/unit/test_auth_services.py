@@ -93,6 +93,22 @@ async def test_create_otp_replaces_previous_code(outbox):
     assert len(outbox) == 2 and first in outbox[0]["body"]
 
 
+async def test_create_otp_expires_after_configured_minutes(outbox):
+    before = get_current_datetime()
+    await otp_service.create_otp("t@example.com")
+
+    stored = await OTP.find_one(OTP.email == "t@example.com")
+    assert stored is not None
+    expiry = (
+        stored.expiry.replace(tzinfo=UTC)
+        if stored.expiry.tzinfo is None
+        else stored.expiry
+    )
+    lifetime = expiry - before
+    assert timedelta(minutes=settings.otp_expire_minutes - 1) < lifetime
+    assert lifetime <= timedelta(minutes=settings.otp_expire_minutes, seconds=5)
+
+
 async def test_verify_otp_expired_code_is_deleted():
     await OTP(
         email="e@example.com",

@@ -7,6 +7,7 @@ import {
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { EvidenceItem } from "@/types";
@@ -50,11 +51,16 @@ export default function EvidencePanel({
           className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
         >
           {item.image_url ? (
-            <img
-              src={item.image_url}
-              alt={`${item.exhibit_ref} ${item.title}`}
-              className="h-52 w-full object-cover"
-            />
+            <div className="relative h-52 w-full">
+              <Image
+                src={item.image_url}
+                alt={`${item.exhibit_ref} ${item.title}`}
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                unoptimized
+                className="object-cover"
+              />
+            </div>
           ) : item.media_status === "pending" ? (
             <div className="flex h-52 items-center justify-center bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-300">
               <div className="flex items-center gap-2 text-sm">

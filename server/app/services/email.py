@@ -46,7 +46,7 @@ async def send_otp_email(email: str, otp: str, is_registration: bool = True):
     <body>
         <h2>AI Courtroom - OTP Verification</h2>
         <p>Your One-Time Password (OTP) for {action} is: <strong>{otp}</strong></p>
-        <p>This OTP will expire in 10 minutes.</p>
+        <p>This OTP will expire in {settings.otp_expire_minutes} minutes.</p>
         <p>If you did not request this OTP, please ignore this email.</p>
     </body>
     </html>

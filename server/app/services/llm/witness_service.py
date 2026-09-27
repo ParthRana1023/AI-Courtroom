@@ -12,7 +12,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
-from app.utils.llm import get_llm, pick_case_context, strip_thinking
+from app.utils.llm import get_llm, invoke_complete, pick_case_context, strip_thinking
 
 logger = get_logger(__name__)
 
@@ -106,15 +106,17 @@ Respond as {witness_name} (witness):
 
     try:
         start_time = time.perf_counter()
-        response = await chain.ainvoke({})
-        duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = strip_thinking(response)
-        # Remove any prefix like "Name:" that the LLM might add
-        response = re.sub(rf"^{re.escape(witness_name)}:\s*", "", response).strip()
-        response = re.sub(
-            r"^(Witness|Answer|A):\s*", "", response, flags=re.IGNORECASE
-        ).strip()
+        def clean(text: str) -> str:
+            text = strip_thinking(text)
+            # Remove any prefix like "Name:" that the LLM might add
+            text = re.sub(rf"^{re.escape(witness_name)}:\s*", "", text).strip()
+            return re.sub(
+                r"^(Witness|Answer|A):\s*", "", text, flags=re.IGNORECASE
+            ).strip()
+
+        response = await invoke_complete(chain, {}, "witness answer", clean)
+        duration_ms = (time.perf_counter() - start_time) * 1000
 
         logger.info(
             f"Witness response generated for {witness_name} in {duration_ms:.2f}ms"

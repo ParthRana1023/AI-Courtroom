@@ -230,6 +230,64 @@ async def test_login_initiate_wrong_password(client, user, outbox):
 
 
 @pytest.mark.asyncio
+async def test_login_locks_email_after_repeated_wrong_passwords(client, user, outbox):
+    for _ in range(settings.login_failure_limit):
+        response = await client.post(
+            "/auth/login/initiate", json={"email": user.email, "password": "Wrong123!"}
+        )
+        assert response.status_code == 401
+
+    # Even the right password is refused until the window passes.
+    locked = await client.post(
+        "/auth/login/initiate",
+        json={"email": user.email.upper(), "password": VALID_PASSWORD},
+    )
+
+    assert locked.status_code == 429
+    assert "minute" in locked.json()["detail"]
+    assert outbox == []
+
+
+@pytest.mark.asyncio
+async def test_login_locks_ip_trying_many_accounts(client, monkeypatch):
+    monkeypatch.setattr(auth_routes.login_failure_ip_limiter, "requests", 3)
+    for i in range(3):
+        await client.post(
+            "/auth/login/initiate",
+            json={"email": f"nobody{i}@example.com", "password": VALID_PASSWORD},
+        )
+
+    response = await client.post(
+        "/auth/login/initiate",
+        json={"email": "fresh@example.com", "password": VALID_PASSWORD},
+    )
+
+    assert response.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_login_ip_limit_ignores_client_supplied_forwarded_for(
+    client, monkeypatch
+):
+    monkeypatch.setattr(auth_routes.login_failure_ip_limiter, "requests", 2)
+    for i in range(2):
+        await client.post(
+            "/auth/login/initiate",
+            json={"email": f"x{i}@example.com", "password": VALID_PASSWORD},
+            # a fake left entry, then the address the proxy appended
+            headers={"X-Forwarded-For": f"10.9.9.{i}, 203.0.113.7"},
+        )
+
+    response = await client.post(
+        "/auth/login/initiate",
+        json={"email": "y@example.com", "password": VALID_PASSWORD},
+        headers={"X-Forwarded-For": "198.51.100.1, 203.0.113.7"},
+    )
+
+    assert response.status_code == 429
+
+
+@pytest.mark.asyncio
 async def test_login_initiate_sends_login_otp(client, user, outbox):
     response = await client.post(
         "/auth/login/initiate", json={"email": user.email, "password": VALID_PASSWORD}
@@ -876,10 +934,22 @@ async def test_google_login_unexpected_error_is_500(client, monkeypatch):
         raise ValueError("Google OAuth credentials not configured")
 
     monkeypatch.setattr(auth_routes, "exchange_code_for_token", exchange)
+    state = google_auth.generate_state_token()
+
+    response = await client.post(
+        "/auth/google", json={"code": "auth-code", "state": state}
+    )
+
+    assert response.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_google_code_flow_requires_state(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "exchange_code_for_token", boom)
 
     response = await client.post("/auth/google", json={"code": "auth-code"})
 
-    assert response.status_code == 500
+    assert response.status_code == 400
 
 
 # ---------------------------------------------------------------------------

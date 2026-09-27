@@ -24,16 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { FilePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -59,33 +49,10 @@ import { getErrorDetail } from "@/lib/error-utils";
 
 const logger = getLogger("courtroom");
 const MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2;
-const SHORT_LLM_RESPONSE_THRESHOLD = 20;
 
 type OptimisticCourtroomEvent = CourtroomProceedingsEvent & {
   optimistic?: boolean;
 };
-
-function isShortLlmResponseEvent(
-  event: CourtroomProceedingsEvent,
-  currentRole: Roles,
-): boolean {
-  const isShort =
-    (event.content || "").trim().length < SHORT_LLM_RESPONSE_THRESHOLD;
-  if (!isShort || !event.id) return false;
-
-  if (event.type === CourtroomProceedingsEventType.AI_ARGUMENT) {
-    return event.speaker_role !== currentRole;
-  }
-
-  if (event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_A) {
-    return true;
-  }
-
-  return (
-    event.type === CourtroomProceedingsEventType.OPENING_STATEMENT &&
-    event.speaker_role !== currentRole
-  );
-}
 
 function countUserArguments(proceedings?: CourtroomProceedingsEvent[]): number {
   return (
@@ -149,12 +116,6 @@ export default function Courtroom({
   const [optimisticEvents, setOptimisticEvents] = useState<
     OptimisticCourtroomEvent[]
   >([]);
-  const [regeneratingEventIds, setRegeneratingEventIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [confirmRegenerateId, setConfirmRegenerateId] = useState<string | null>(
-    null,
-  );
   const [isWitnessDecisionPending, setIsWitnessDecisionPending] =
     useState(false);
   const [currentRole, setCurrentRole] = useState<Roles>(
@@ -222,32 +183,6 @@ export default function Courtroom({
         CourtroomProceedingsEventType.WITNESS_EXAMINED_Q
     );
   }, [displayEvents, caseData?.is_ai_examining]);
-  const activeShortResponseEventIds = useMemo(() => {
-    const activeIds = new Set<string>();
-
-    displayEvents.forEach((event, index) => {
-      if (!isShortLlmResponseEvent(event, currentRole) || !event.id) return;
-
-      const isSuperseded = displayEvents.slice(index + 1).some((laterEvent) => {
-        const isLaterUserArgument =
-          laterEvent.speaker_role === currentRole &&
-          (laterEvent.type === CourtroomProceedingsEventType.ARGUMENT ||
-            laterEvent.type ===
-              CourtroomProceedingsEventType.OPENING_STATEMENT);
-        const isLaterUserWitnessCall =
-          laterEvent.speaker_role === currentRole &&
-          laterEvent.type === CourtroomProceedingsEventType.WITNESS_CALLED;
-
-        return isLaterUserArgument || isLaterUserWitnessCall;
-      });
-
-      if (!isSuperseded) {
-        activeIds.add(event.id);
-      }
-    });
-
-    return activeIds;
-  }, [displayEvents, currentRole]);
   const isWitnessActive = Boolean(
     caseData?.current_witness_id || caseData?.is_ai_examining,
   );
@@ -447,23 +382,6 @@ export default function Courtroom({
       }, 3000);
     } catch (error) {
       logger.error("Error ending session", error as Error);
-    }
-  };
-
-  const handleRegenerateResponse = async (eventId: string) => {
-    setRegeneratingEventIds((prev) => new Set(prev).add(eventId));
-    try {
-      await argumentAPI.regenerateResponse(cnr, eventId);
-      await refreshCourtroomSnapshot();
-    } catch (err) {
-      logger.error("Failed to regenerate short response", err as Error);
-      setError(getErrorDetail(err) || "Failed to regenerate response.");
-    } finally {
-      setRegeneratingEventIds((prev) => {
-        const next = new Set(prev);
-        next.delete(eventId);
-        return next;
-      });
     }
   };
 
@@ -951,36 +869,6 @@ export default function Courtroom({
         </div>
       )}
 
-      {/* Confirmation Dialog for Regeneration */}
-      <AlertDialog
-        open={!!confirmRegenerateId}
-        onOpenChange={(open) => !open && setConfirmRegenerateId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Regenerate Response</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will generate a new AI response for this specific event. The
-              existing proceedings will remain unchanged.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (confirmRegenerateId) {
-                  handleRegenerateResponse(confirmRegenerateId);
-                  setConfirmRegenerateId(null);
-                }
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Regenerate
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       {/* Arguments display area - scrollable */}
       <div
         className={`flex-1 min-h-0 mt-2 sm:mt-4 ${
@@ -994,12 +882,6 @@ export default function Courtroom({
               const eventKey =
                 event.id || `${event.timestamp}-${event.type}-${index}`;
               const isOptimistic = Boolean(event.optimistic);
-              const showShortResponseAlert = Boolean(
-                event.id && activeShortResponseEventIds.has(event.id),
-              );
-              const isRegeneratingResponse = Boolean(
-                event.id && regeneratingEventIds.has(event.id),
-              );
 
               // System Messages (Witness Called/Dismissed)
               if (
@@ -1101,21 +983,6 @@ export default function Courtroom({
                           </Button>
                         </div>
                       )}
-                      {showShortResponseAlert && event.id && (
-                        <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-100/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200">
-                          <span>Short AI response detected.</span>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmRegenerateId(event.id!)}
-                            disabled={isRegeneratingResponse}
-                            className="shrink-0 rounded bg-amber-600 px-2 py-1 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isRegeneratingResponse
-                              ? "Regenerating..."
-                              : "Report & Regenerate"}
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -1182,21 +1049,6 @@ export default function Courtroom({
                           )}
                           Extract Evidence
                         </Button>
-                      </div>
-                    )}
-                    {showShortResponseAlert && event.id && (
-                      <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-100/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200">
-                        <span>Short AI response detected.</span>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmRegenerateId(event.id!)}
-                          disabled={isRegeneratingResponse}
-                          className="shrink-0 rounded bg-amber-600 px-2 py-1 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isRegeneratingResponse
-                            ? "Regenerating..."
-                            : "Report & Regenerate"}
-                        </button>
                       </div>
                     )}
                   </div>

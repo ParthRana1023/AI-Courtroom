@@ -16,6 +16,7 @@ from langchain_core.runnables import Runnable
 from langchain_groq import ChatGroq
 
 from app.config import settings
+from app.logging_config import get_logger
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
 
@@ -30,6 +31,30 @@ def pick_case_context(rag_context: str | None, case_details: str | None) -> str:
     return rag_context or (
         case_details[:6000] if case_details else "No case details provided"
     )
+
+
+logger = get_logger(__name__)
+
+# A reply shorter than this is treated as cut off or empty.
+MIN_RESPONSE_CHARS = 20
+MAX_SHORT_RESPONSE_RETRIES = 2
+
+
+async def invoke_complete(chain: Runnable, inputs: dict, label: str, clean=None) -> str:
+    """Invoke ``chain``; if the cleaned reply is suspiciously short, try again.
+
+    Retries at most ``MAX_SHORT_RESPONSE_RETRIES`` times, then keeps the last
+    reply. ``clean`` post-processes the raw text (default: strip_thinking).
+    """
+    clean = clean or strip_thinking
+    for attempt in range(MAX_SHORT_RESPONSE_RETRIES + 1):
+        response = clean(await chain.ainvoke(inputs))
+        if len(response.strip()) >= MIN_RESPONSE_CHARS:
+            return response
+        logger.warning(
+            f"Short {label} ({len(response.strip())} chars) on attempt {attempt + 1}"
+        )
+    return response
 
 
 class LLMGenerationError(RuntimeError):

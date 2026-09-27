@@ -90,6 +90,12 @@ class Settings(BaseSettings):
     otp_send_limit: int = 3  # OTP emails allowed per address per window
     otp_send_window: int = 600  # Window in seconds (10 minutes)
     otp_max_attempts: int = 5  # Wrong guesses before an OTP is discarded
+    otp_expire_minutes: int = 10  # How long an emailed code stays valid
+    login_failure_limit: int = 5  # Wrong passwords per email per window
+    login_failure_ip_limit: int = 20  # Wrong passwords per IP per window
+    login_failure_window: int = 900  # Window in seconds (15 minutes)
+    party_chat_rate_limit: int = 5  # Party chat messages per user per window
+    party_chat_rate_window: int = 60  # Window in seconds (1 minute)
 
     # RAG / local embeddings settings
     rag_enabled: bool = True

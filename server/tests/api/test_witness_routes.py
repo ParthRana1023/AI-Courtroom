@@ -402,9 +402,7 @@ async def test_dismissal_during_ai_examination_is_not_undone(
     async def question_then_user_dismisses(**kwargs):
         question = await original(**kwargs)
         # Meanwhile the user dismisses the witness from another request.
-        # awaitable at runtime (UpdateOne)
-        # pyrefly: ignore[not-async]
-        await Case.find_one(Case.cnr == case.cnr).update(
+        await Case.find_one(Case.cnr == case.cnr).update_one(
             {"$set": {"current_witness_id": None, "is_ai_examining": False}}
         )
         return question
@@ -712,9 +710,7 @@ async def test_background_task_stops_when_state_changes_between_questions(
     ):
         await original_upsert(case_arg, source_type, source_id, content, metadata)
         if metadata and metadata.get("event_type") == "witness_examined_a":
-            # awaitable at runtime (UpdateOne)
-            # pyrefly: ignore[not-async]
-            await Case.find_one(Case.cnr == case.cnr).update(interruption)
+            await Case.find_one(Case.cnr == case.cnr).update_one(interruption)
 
     monkeypatch.setattr(witness_routes, "upsert_memory_item", upsert_then_interrupt)
 
@@ -733,9 +729,7 @@ async def test_answer_is_discarded_if_user_stops_examination_before_it_arrives(
 
     async def answer_after_user_dismisses(**kwargs):
         answer = await original(**kwargs)
-        # awaitable at runtime (UpdateOne)
-        # pyrefly: ignore[not-async]
-        await Case.find_one(Case.cnr == case.cnr).update(
+        await Case.find_one(Case.cnr == case.cnr).update_one(
             {"$set": {"current_witness_id": None, "is_ai_examining": False}}
         )
         return answer

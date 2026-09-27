@@ -1,4 +1,5 @@
 # app/utils/rate_limiter.py
+import math
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException
@@ -57,6 +58,19 @@ class RateLimiter:
         oldest = ensure_ist_timezone(min(entry.timestamp for entry in entries))
         return 0, (oldest + timedelta(seconds=self.window) - now).total_seconds()
 
+    async def ensure_available(self, key: str, message: str) -> None:
+        """Raise 429 if ``key`` is out of attempts.
+
+        ``message`` is the error shown to the user; ``{minutes}`` in it is
+        replaced with the wait time.
+        """
+        remaining, seconds = await self.get_remaining_attempts(key)
+        if remaining or seconds is None:
+            return
+        minutes = max(1, math.ceil(seconds / 60))
+        logger.warning(f"Rate limit reached for {key} ({self.rate_limiter_type})")
+        raise HTTPException(status_code=429, detail=message.format(minutes=minutes))
+
     async def check_only(self, user: User = Depends(get_current_user)) -> User:
         """FastAPI dependency: 429 if the limit is reached, else the current user.
 
@@ -106,7 +120,21 @@ case_generation_rate_limiter = RateLimiter(
     "case_generation_rate_limiter",
 )
 
-# Keyed by email address, not user id: login and registration happen before auth.
+# The limiters below run before login, so they are keyed by email or IP, not user id.
 otp_send_rate_limiter = RateLimiter(
     settings.otp_send_limit, settings.otp_send_window, "otp_send_rate_limiter"
+)
+
+# Only wrong passwords are recorded. Per email stops guessing one account; per IP
+# stops one client trying many accounts.
+login_failure_email_limiter = RateLimiter(
+    settings.login_failure_limit, settings.login_failure_window, "login_failure_email"
+)
+login_failure_ip_limiter = RateLimiter(
+    settings.login_failure_ip_limit, settings.login_failure_window, "login_failure_ip"
+)
+
+# Silent burst guard: normal chatting never hits it; scripted spam does.
+party_chat_rate_limiter = RateLimiter(
+    settings.party_chat_rate_limit, settings.party_chat_rate_window, "party_chat"
 )

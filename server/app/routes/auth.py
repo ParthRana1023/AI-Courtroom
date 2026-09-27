@@ -29,6 +29,10 @@ from app.services.google_auth import (
     verify_risc_token,
 )
 from app.services.otp import create_otp, verify_otp
+from app.utils.rate_limiter import (
+    login_failure_email_limiter,
+    login_failure_ip_limiter,
+)
 
 logger = get_logger(__name__)
 
@@ -152,8 +156,23 @@ async def verify_registration(data: RegistrationVerifyRequest):
         )
 
 
+def client_ip(request: Request) -> str:
+    """The caller's IP as seen by our hosting proxy.
+
+    Render's proxy appends the address it received the request from to
+    X-Forwarded-For, so the rightmost entry is the one a client can't forge
+    (anything to its left may be client-supplied). Without the header (local
+    dev) the TCP peer is used.
+    """
+    forwarded = request.headers.get("x-forwarded-for", "")
+    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+    if hops:
+        return hops[-1]
+    return request.client.host if request.client else "unknown"
+
+
 @router.post("/login/initiate")
-async def initiate_login(login_data: dict):
+async def initiate_login(login_data: dict, request: Request):
     email = login_data.get("email")
     password = login_data.get("password")
     logger.info(f"Login initiated for: {email}")
@@ -164,10 +183,22 @@ async def initiate_login(login_data: dict):
             detail="Email and password are required",
         )
 
+    # Checked before the password so a locked-out guesser learns nothing more.
+    email_key = email.strip().lower()
+    ip_key = client_ip(request)
+    locked = "Too many failed login attempts. Please try again in {minutes} minute(s)."
+    await login_failure_email_limiter.ensure_available(email_key, locked)
+    await login_failure_ip_limiter.ensure_available(ip_key, locked)
+
+    async def record_failure():
+        await login_failure_email_limiter.register_usage(email_key)
+        await login_failure_ip_limiter.register_usage(ip_key)
+
     # Check if user exists and verify password
     user = await User.find_one(User.email == email)
     if not user:
-        logger.warning(f"Login failed - email not registered: {email}")
+        logger.warning(f"Login failed - email not registered: {email} (ip {ip_key})")
+        await record_failure()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Email not registered"
         )
@@ -186,7 +217,8 @@ async def initiate_login(login_data: dict):
     try:
         ph.verify(user.password_hash, password)
     except VerifyMismatchError:
-        logger.warning(f"Login failed - password mismatch for: {email}")
+        logger.warning(f"Login failed - password mismatch for: {email} (ip {ip_key})")
+        await record_failure()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
@@ -309,8 +341,8 @@ async def google_login(data: GoogleLoginRequest):
     try:
         # If using Authorization Code Flow
         if data.code:
-            # 1. Validate State Parameter if provided
-            if data.state and not validate_state_token(data.state):
+            # 1. The state proves this code flow was started by our own page (CSRF).
+            if not data.state or not validate_state_token(data.state):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid or expired state parameter",
