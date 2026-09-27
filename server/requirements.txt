@@ -5,7 +5,8 @@ uvicorn
 # Database & ODM (MongoDB)
 motor
 pymongo
-beanie
+# Pinned: newer releases are typed for PyMongo's async client and break Motor/mongomock tests.
+beanie==2.0.0
 pydantic_mongo
 dnspython
 
