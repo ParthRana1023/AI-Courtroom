@@ -101,6 +101,11 @@ def pytest_configure(config):
         "filterwarnings",
         "ignore:Accessing the 'model_fields' attribute on the instance:DeprecationWarning",
     )
+    # mongomock's TTL-index support calls the deprecated datetime.utcnow().
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore:datetime.datetime.utcnow:DeprecationWarning:mongomock",
+    )
 
 
 # ---------------------------------------------------------------------------

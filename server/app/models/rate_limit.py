@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 from beanie import Document, Indexed
 from pydantic import Field
+from pymongo import IndexModel
 
 from app.utils.datetime import get_current_datetime
 
@@ -15,3 +16,8 @@ class RateLimitEntry(Document):
 
     class Settings:
         name = "rate_limit_entries"
+        indexes: ClassVar[list[IndexModel]] = [
+            IndexModel([("user_id", 1), ("rate_limiter_type", 1)]),
+            # MongoDB deletes each entry once its window has passed.
+            IndexModel([("expiration_time", 1)], expireAfterSeconds=0),
+        ]

@@ -2,6 +2,7 @@
 
 import pytest
 
+from app import messages
 from app.config import settings
 from app.models.case import (
     ArgumentItem,
@@ -185,6 +186,23 @@ async def test_chat_closed_after_session_end_until_hearing_resumes(
         )
     allowed = await client.post(url, headers=auth_headers, json={"message": "Hi?"})
     assert allowed.status_code == 200
+
+
+async def test_chat_ai_failure_is_a_503_and_nothing_is_saved(
+    client, auth_headers, prep_case, witness_party, fake_llm
+):
+    case = await prep_case()
+    fake_llm.error = RuntimeError("provider down")
+
+    response = await client.post(
+        f"/cases/{case.cnr}/parties/{witness_party.id}/chat",
+        headers=auth_headers,
+        json={"message": "Hello?"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == messages.LLM_UNAVAILABLE
+    assert (await reload(case)).party_chats.get(witness_party.id, []) == []
 
 
 async def test_chat_generates_bio_first_for_new_party(

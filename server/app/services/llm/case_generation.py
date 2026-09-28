@@ -1,7 +1,6 @@
 # app/services/llm/case_generation.py
 import random
 import re
-import string
 import time
 
 from langchain_core.messages import HumanMessage
@@ -9,8 +8,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
-from app.services.high_court_mapping import INDIAN_HIGH_COURTS, get_random_high_court
-from app.utils.datetime import get_current_datetime
+from app.services.cnr import generate_cnr
+from app.services.high_court_mapping import INDIAN_HIGH_COURTS
 from app.utils.llm import get_llm, strip_thinking
 
 logger = get_logger(__name__)
@@ -196,59 +195,10 @@ async def random_organizations():
         return FALLBACK_ORGANIZATIONS
 
 
-def generate_realistic_cnr(high_court: str, city: str) -> str:
-    """
-    Generates a realistic CNR number based on the High Court (State) and City.
-    Format: [State Code 2][District Code 2][Establishment Code 2][Case Number 6][Year 4]
-    Total length: 16 characters
-    """
-    # 1. State Code (2 chars)
-    # Create reverse mapping: High Court Name -> State ISO2
-    high_court_to_state = {v: k for k, v in INDIAN_HIGH_COURTS.items()}
-
-    # Handle bench names that might be slightly different or missing
-    # Default to DL (Delhi) if not found, or try to find partial match
-    state_code = "DL"
-    if high_court in high_court_to_state:
-        state_code = high_court_to_state[high_court]
-    else:
-        # Try finding by substring (e.g. "Bombay High Court" in "Bombay High Court (Goa Bench)")
-        for hc_name, code in high_court_to_state.items():
-            if high_court in hc_name or hc_name in high_court:
-                state_code = code
-                break
-
-    # 2. District Code (2 chars)
-    # Use first two letters of city, or random keys if city is too short
-    if city and len(city) >= 2:
-        district_code = city[:2].upper()
-    else:
-        district_code = "".join(random.choices(string.ascii_uppercase, k=2))
-
-    # Ensure district code is alpha only
-    district_code = "".join(c for c in district_code if c.isalpha())
-    if len(district_code) < 2:
-        district_code = (district_code + "X")[:2]
-
-    # 3. Establishment Code (2 chars)
-    # Random 2 digits
-    establishment_code = f"{random.randint(1, 99):02d}"
-
-    # 4. Case Number (6 chars)
-    # Random 6 digits
-    case_number = f"{random.randint(1, 999999):06d}"
-
-    # 5. Year (4 chars)
-    year = str(get_current_datetime().year)
-
-    # 2 + 2 + 2 + 6 + 4 = 16 characters, as the Case model requires
-    return f"{state_code}{district_code}{establishment_code}{case_number}{year}"
-
-
 async def generate_case_shell(
     sections: int,
     numbers: list[int],
-    high_court: str | None = None,
+    state_code: str | None = None,
     city: str | None = None,
 ) -> dict:
     """
@@ -281,8 +231,10 @@ async def generate_case_shell(
         else FALLBACK_ORGANIZATIONS[:2]
     )
 
-    # Use provided high court or fallback to random
-    selected_high_court = high_court if high_court else get_random_high_court()
+    # The state drives both the High Court and the CNR, so they always agree.
+    if state_code not in INDIAN_HIGH_COURTS:
+        state_code = random.choice(list(INDIAN_HIGH_COURTS))
+    selected_high_court = INDIAN_HIGH_COURTS[state_code]
     logger.info(
         f"Case generation parameters: High Court={selected_high_court}, City={selected_city}"
     )
@@ -420,7 +372,7 @@ async def generate_case_shell(
                 "LLM generated an empty response or spent all tokens on reasoning."
             )
 
-        cnr = generate_realistic_cnr(selected_high_court, selected_city)
+        cnr = await generate_cnr(state_code, selected_city)
 
         def extract_title(case_text: str) -> str:
             title_match = re.search(

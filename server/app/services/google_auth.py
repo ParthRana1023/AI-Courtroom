@@ -29,7 +29,7 @@ from app.config import settings
 from app.logging_config import get_logger
 from app.models.case import Case
 from app.models.user import User
-from app.services.auth import create_access_token
+from app.services.auth import create_access_token, find_user_by_email
 
 logger = get_logger(__name__)
 
@@ -112,7 +112,8 @@ async def verify_risc_token(token: str) -> dict[str, Any]:
         audience = settings.google_client_id
 
         # Verify the token signature and claims
-        claims = id_token.verify_oauth2_token(
+        claims = await asyncio.to_thread(
+            id_token.verify_oauth2_token,
             token,
             requests.Request(),
             audience=audience,
@@ -165,7 +166,8 @@ async def verify_google_token(credential: str) -> dict:
             logger.error("GOOGLE_CLIENT_ID environment variable not set")
             raise ValueError("GOOGLE_CLIENT_ID environment variable is not set")
 
-        idinfo = id_token.verify_oauth2_token(
+        idinfo = await asyncio.to_thread(
+            id_token.verify_oauth2_token,
             credential,
             requests.Request(),
             client_id,
@@ -292,7 +294,7 @@ async def authenticate_google_user(
         )
 
     # Verified Google ID tokens always carry both claims.
-    email = google_info["email"]
+    email = google_info["email"].lower()
     google_id = google_info["sub"]
 
     # Check if user exists
@@ -300,7 +302,7 @@ async def authenticate_google_user(
 
     if not user:
         # Try to find by email
-        user = await User.find_one(User.email == email)
+        user = await find_user_by_email(email)
 
         if user:
             # Link Google account to existing user

@@ -1,4 +1,5 @@
 # app/services/email.py
+import asyncio
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -7,6 +8,15 @@ from app.config import settings
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def _deliver(message: MIMEMultipart) -> None:
+    """Blocking SMTP round trip; run it in a thread so requests aren't held up."""
+    server = smtplib.SMTP(settings.smtp_server, settings.smtp_port)
+    server.starttls()
+    server.login(settings.email_username, settings.email_password)
+    server.send_message(message)
+    server.quit()
 
 
 async def send_email(to_email: str, subject: str, body: str):
@@ -23,11 +33,7 @@ async def send_email(to_email: str, subject: str, body: str):
         logger.debug(
             f"Connecting to SMTP server: {settings.smtp_server}:{settings.smtp_port}"
         )
-        server = smtplib.SMTP(settings.smtp_server, settings.smtp_port)
-        server.starttls()
-        server.login(settings.email_username, settings.email_password)
-        server.send_message(message)
-        server.quit()
+        await asyncio.to_thread(_deliver, message)
         logger.info(f"Email sent successfully to {to_email}")
         return True
     except Exception:

@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 class CaseAnalysisService:
     @staticmethod
     @log_execution_time(logger, "case_analysis_llm")
-    def analyze_case(
+    async def analyze_case(
         defendant_args: list[str],
         plaintiff_args: list[str] | None = None,
         case_details: str | None = None,
@@ -108,7 +108,7 @@ class CaseAnalysisService:
         try:
             chain = analysis_prompt | get_llm("analyzer") | StrOutputParser()
             logger.debug("Invoking LLM for case analysis")
-            response = chain.invoke(
+            response = await chain.ainvoke(
                 {
                     "title": title,
                     "case_context": case_context,

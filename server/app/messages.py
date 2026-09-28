@@ -7,8 +7,8 @@ Validation and security-sensitive errors stay plain on purpose.
 
 # AI / server
 LLM_UNAVAILABLE = (
-    "Learned counsel seems to have lost their train of thought. "
-    "Kindly try again in a moment."
+    "Pardon me, I seem to have lost my train of thought and am unable to answer "
+    "at the moment. Kindly try again shortly."
 )
 
 # Rate limits

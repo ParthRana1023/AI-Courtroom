@@ -129,7 +129,7 @@ async def generate_verdict(
         judge_chain = judge_prompt | get_llm("judge") | StrOutputParser()
 
         start_time = time.perf_counter()
-        verdict = judge_chain.invoke(
+        verdict = await judge_chain.ainvoke(
             {
                 "title": title or "No title provided",
                 "case_context": case_context,

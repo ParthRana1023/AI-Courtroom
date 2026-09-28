@@ -7,6 +7,7 @@ from app.logging_config import get_logger
 from app.models.case import Case
 from app.models.case_memory import CaseMemoryChunk
 from app.models.client_log import ClientLog
+from app.models.cnr_counter import CnrCounter
 from app.models.feedback import Feedback
 from app.models.location_cache import LocationCache
 from app.models.otp import OTP
@@ -24,6 +25,7 @@ DOCUMENT_MODELS = [
     LocationCache,
     ClientLog,
     CaseMemoryChunk,
+    CnrCounter,
 ]
 
 

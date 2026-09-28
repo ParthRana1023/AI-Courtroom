@@ -33,6 +33,11 @@ class UserCreate(BaseModel):
     country_iso2: str
     phone_code: str | None = None  # Auto-derived from country
 
+    @field_validator("email")
+    @classmethod
+    def lowercase_email(cls, value: str) -> str:
+        return value.lower()
+
     @field_validator("phone_number")
     def validate_phone_number(cls, value):
         # Remove any non-digit characters

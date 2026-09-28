@@ -1,8 +1,8 @@
 # app/models/user.py
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
-from beanie import Document
+from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 # Gender type definition
@@ -19,7 +19,7 @@ class User(Document):
     last_name: str
     date_of_birth: date  # Changed to date type
     phone_number: str
-    email: EmailStr
+    email: Annotated[EmailStr, Indexed(unique=True)]  # stored lowercase
     password_hash: str | None = None  # Optional for Google OAuth users
     google_id: str | None = None  # Google user ID for OAuth users
     gender: Gender | None = None  # User's gender preference

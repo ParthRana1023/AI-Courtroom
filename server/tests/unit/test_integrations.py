@@ -336,19 +336,6 @@ def test_user_error_message_includes_detail():
 # ---------------------------------------------------------------------------
 
 
-def test_get_high_court_for_state_is_case_insensitive():
-    assert hcm.get_high_court_for_state("mh") == hcm.INDIAN_HIGH_COURTS["MH"]
-    assert hcm.get_high_court_for_state("ZZ") is None
-
-
-def test_get_high_court_maps_indian_states_and_randomises_others():
-    assert hcm.get_high_court("KA", "in") == hcm.INDIAN_HIGH_COURTS["KA"]
-    assert hcm.get_high_court("ZZ", "IN") in hcm.MAJOR_HIGH_COURTS
-    assert hcm.get_high_court("CA", "US") in hcm.MAJOR_HIGH_COURTS
-    assert hcm.get_high_court(None, None) in hcm.MAJOR_HIGH_COURTS
-    assert hcm.get_random_high_court() in hcm.MAJOR_HIGH_COURTS
-
-
 def test_get_all_indian_states_sorted_with_names():
     states = hcm.get_all_indian_states()
 

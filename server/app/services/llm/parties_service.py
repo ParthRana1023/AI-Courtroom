@@ -14,7 +14,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
 from app.models.party import PartyInvolved, PartyRole
-from app.utils.llm import get_llm, pick_case_context, strip_thinking
+from app.utils.llm import LLMGenerationError, get_llm, pick_case_context, strip_thinking
 
 logger = get_logger(__name__)
 
@@ -324,6 +324,6 @@ Respond as {party_name}:
 
         logger.info(f"Chat response generated for {party_name} in {duration_ms:.2f}ms")
         return response
-    except Exception:
+    except Exception as e:
         logger.exception(f"Error in chat with {party_name}")
-        return "I'm sorry, I'm having trouble responding right now. Could you please repeat that?"
+        raise LLMGenerationError("Failed to generate party reply") from e

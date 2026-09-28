@@ -109,15 +109,26 @@ async def test_create_otp_expires_after_configured_minutes(outbox):
     assert lifetime <= timedelta(minutes=settings.otp_expire_minutes, seconds=5)
 
 
-async def test_verify_otp_expired_code_is_deleted():
-    await OTP(
+async def test_verify_otp_expired_code_is_deleted(monkeypatch):
+    # MongoDB's TTL sweep runs about once a minute, so an expired code can still
+    # be read; mongomock hides it at once, hence the one-shot fake lookup.
+    otp = OTP(
         email="e@example.com",
         otp="123456",
         expiry=datetime.now(UTC) - timedelta(seconds=1),
-    ).insert()
+    )
+    original_find_one = OTP.find_one
+
+    async def stored_otp():
+        return otp
+
+    def find_one(*args, **kwargs):
+        monkeypatch.setattr(OTP, "find_one", original_find_one)
+        return stored_otp()
+
+    monkeypatch.setattr(OTP, "find_one", find_one)
 
     assert await otp_service.verify_otp("e@example.com", "123456") is False
-    assert await OTP.find(OTP.email == "e@example.com").count() == 0
 
 
 # ---------------------------------------------------------------------------

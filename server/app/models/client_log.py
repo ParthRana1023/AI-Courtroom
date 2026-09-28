@@ -1,7 +1,9 @@
 from datetime import datetime
+from typing import ClassVar
 
 from beanie import Document
 from pydantic import Field
+from pymongo import IndexModel
 
 from app.utils.datetime import get_current_datetime
 
@@ -35,3 +37,7 @@ class ClientLog(Document):
 
     class Settings:
         name = "client_logs"
+        indexes: ClassVar[list[IndexModel]] = [
+            # Keep 30 days of client logs.
+            IndexModel([("timestamp", 1)], expireAfterSeconds=30 * 24 * 3600),
+        ]

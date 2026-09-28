@@ -139,8 +139,9 @@ async def test_register_verify_rejects_wrong_otp(client):
 async def test_register_verify_rejects_expired_otp(client):
     await client.post("/auth/register/initiate", json=registration_payload())
     otp = await stored_otp("asha@example.com")
-    otp.expiry = get_current_datetime() - timedelta(minutes=1)
-    await otp.save()
+    await OTP.find_one(OTP.id == otp.id).update_one(
+        {"$set": {"expiry": get_current_datetime() - timedelta(minutes=1)}}
+    )
 
     response = await client.post(
         "/auth/register/verify",
@@ -390,6 +391,27 @@ async def test_login_keeps_live_hearings_but_adjourns_expired_ones(
 
     assert (await reload(live)).status == CaseStatus.ACTIVE
     assert (await reload(expired)).adjourned_by_session_end is True
+
+
+@pytest.mark.asyncio
+async def test_registration_stores_email_lowercase(client):
+    payload = registration_payload() | {"email": "Asha@Example.com"}
+
+    await client.post("/auth/register/initiate", json=payload)
+
+    assert await OTP.find_one(OTP.email == "asha@example.com") is not None
+
+
+@pytest.mark.asyncio
+async def test_login_matches_older_mixed_case_email(client, make_user, outbox):
+    await make_user(email="Legacy.User@Example.com")
+
+    response = await client.post(
+        "/auth/login/initiate",
+        json={"email": "legacy.user@example.com", "password": VALID_PASSWORD},
+    )
+
+    assert response.status_code == 200 and len(outbox) == 1
 
 
 @pytest.mark.asyncio

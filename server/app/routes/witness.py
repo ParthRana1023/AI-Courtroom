@@ -41,6 +41,7 @@ from app.schemas.witness import (
 from app.services.llm import witness_service
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
+from app.utils.llm import LLMGenerationError
 
 logger = get_logger(__name__)
 MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2
@@ -249,6 +250,8 @@ async def examine_witness(
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Witness response generated in {duration_ms:.2f}ms")
+    except LLMGenerationError:
+        raise
     except Exception:
         logger.exception("Error generating witness response")
         raise HTTPException(

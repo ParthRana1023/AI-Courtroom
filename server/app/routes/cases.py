@@ -28,7 +28,6 @@ from app.services.evidence_service import (
     format_evidence_context,
     generate_missing_evidence_images_for_case,
 )
-from app.services.high_court_mapping import get_high_court
 from app.services.llm import lawyer
 from app.services.llm.case_generation import generate_case_shell
 from app.services.llm.parties_service import extract_and_assign_parties
@@ -522,27 +521,20 @@ async def generate_new_case(
         f"Case generation requested by user: {current_user.email} with {case_data.sections_involved} sections"
     )
 
-    # Determine high court and city based on user's preference
-    high_court = None
+    # Pick the state (and city) from the user's preference; None means random.
+    state_code = None
     city = None
 
     if current_user.case_location_preference == "user_location":
-        # Use user's saved location
-        if current_user.state_iso2 and current_user.country_iso2:
-            high_court = get_high_court(
-                current_user.state_iso2, current_user.country_iso2
-            )
-        if current_user.city:
+        if current_user.country_iso2 == "IN":
+            state_code = current_user.state_iso2
             city = current_user.city
-        logger.debug(f"Using user location: high_court={high_court}, city={city}")
+        logger.debug(f"Using user location: state={state_code}, city={city}")
     elif current_user.case_location_preference == "specific_state":
-        # Use user's preferred state
-        if current_user.preferred_case_state:
-            high_court = get_high_court(current_user.preferred_case_state, "IN")
-        logger.debug(f"Using specific state: high_court={high_court}")
+        state_code = current_user.preferred_case_state
+        logger.debug(f"Using specific state: state={state_code}")
     else:
         logger.debug("Using random location for case generation")
-    # else: preference is "random" or not set, both stay None (will use random in generate_case)
 
     # Stage A: Generate the raw case markdown text and CNR number
     start_time = time.perf_counter()
@@ -550,7 +542,7 @@ async def generate_new_case(
         generated_case = await generate_case_shell(
             case_data.sections_involved,
             case_data.section_numbers,
-            high_court=high_court,
+            state_code=state_code,
             city=city,
         )
         duration_ms = (time.perf_counter() - start_time) * 1000

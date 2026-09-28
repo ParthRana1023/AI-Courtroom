@@ -64,7 +64,7 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
                 "plaintiff_args_count": len(plaintiff_arguments),
             },
         )
-        analysis_result = CaseAnalysisService.analyze_case(
+        analysis_result = await CaseAnalysisService.analyze_case(
             case_details=case.details,
             title=case.title,
             defendant_args=defendant_arguments,

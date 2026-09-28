@@ -8,10 +8,12 @@ import re
 import pytest
 
 from app.models.party import PartyRole
+from app.services.cnr import generate_cnr, next_filing_number
 from app.services.llm import case_analysis, judge, lawyer
 from app.services.llm import case_generation as cg
 from app.services.llm import parties_service as ps
 from app.services.llm import witness_service as ws
+from app.utils.datetime import get_current_datetime
 from app.utils.llm import MAX_SHORT_RESPONSE_RETRIES, LLMGenerationError
 
 # ---------------------------------------------------------------------------
@@ -151,10 +153,10 @@ async def test_generate_verdict_defaults_and_failure(fake_llm):
         await judge.generate_verdict([], [])
 
 
-def test_case_analysis_builds_prompt_with_roles(fake_llm):
+async def test_case_analysis_builds_prompt_with_roles(fake_llm):
     fake_llm.responses.append("<think>x</think>### Outcome\nThe user won.")
 
-    result = case_analysis.CaseAnalysisService.analyze_case(
+    result = await case_analysis.CaseAnalysisService.analyze_case(
         ["D1", "D2"],
         ["P1"],
         case_details="d",
@@ -173,21 +175,21 @@ def test_case_analysis_builds_prompt_with_roles(fake_llm):
     )
 
 
-def test_case_analysis_without_arguments_skips_llm(fake_llm):
+async def test_case_analysis_without_arguments_skips_llm(fake_llm):
     assert (
-        case_analysis.CaseAnalysisService.analyze_case([], [])
+        await case_analysis.CaseAnalysisService.analyze_case([], [])
         == "No analysis generated."
     )
     assert fake_llm.calls == []
 
 
-def test_case_analysis_unknown_roles_and_failure(fake_llm):
-    case_analysis.CaseAnalysisService.analyze_case(["D"])
+async def test_case_analysis_unknown_roles_and_failure(fake_llm):
+    await case_analysis.CaseAnalysisService.analyze_case(["D"])
     assert "USER'S ROLE: UNKNOWN" in fake_llm.prompts[0]
 
     fake_llm.error = RuntimeError("down")
     with pytest.raises(Exception, match="Internal error during analysis"):
-        case_analysis.CaseAnalysisService.analyze_case(["D"])
+        await case_analysis.CaseAnalysisService.analyze_case(["D"])
 
 
 # ---------------------------------------------------------------------------
@@ -261,29 +263,45 @@ async def test_random_helpers_fall_back(fake_llm):
 
 
 @pytest.mark.parametrize(
-    "high_court, city, prefix",
+    "state, city, prefix",
     [
-        ("Bombay High Court", "Pune", "MHPU"),
-        ("High Court of Karnataka at Bengaluru", "B", None),
-        ("Unknown Court", "", "DL"),
-        ("Madras High Court", "1A", None),
+        ("MH", "Pune", "MHPU"),  # ISO code already matches eCourts
+        ("TG", "Hyderabad", "TSHY"),  # eCourts uses TS for Telangana
+        ("OR", "Cuttack", "ODCU"),
+        ("CT", "Raipur", "CGRA"),
+        ("DL", "", "DL"),  # no city: random district letters
     ],
 )
-def test_generate_realistic_cnr_is_always_16_chars(high_court, city, prefix):
-    cnr = cg.generate_realistic_cnr(high_court, city)
+async def test_cnr_follows_ecourts_format(state, city, prefix):
+    cnr = await generate_cnr(state, city)
 
-    assert len(cnr) == 16
     assert re.fullmatch(r"[A-Z]{4}\d{12}", cnr)
-    if prefix:
-        assert cnr.startswith(prefix)
+    assert cnr.startswith(prefix)
+    assert 1 <= int(cnr[4:6]) <= 20  # establishment code
+    assert cnr[-4:] == str(get_current_datetime().year)
 
 
-def test_generate_realistic_cnr_partial_court_match():
-    from app.services.high_court_mapping import INDIAN_HIGH_COURTS
+async def test_cnr_skips_numbers_already_used_by_older_cases(
+    user, make_case, monkeypatch
+):
+    from app.services import cnr as cnr_service
 
-    code, court = next(iter(INDIAN_HIGH_COURTS.items()))
+    monkeypatch.setattr(cnr_service.random, "randint", lambda a, b: 1)
+    year = get_current_datetime().year
+    await make_case(user, cnr=f"MHPU01000001{year}")
 
-    assert cg.generate_realistic_cnr(f"{court} (Bench)", "Xy").startswith(code)
+    cnr = await generate_cnr("MH", "Pune")
+
+    assert cnr == f"MHPU01000002{year}"
+
+
+async def test_cnr_filing_numbers_run_in_order_per_court_and_year():
+    first = await next_filing_number("MHPU01", 2026)
+    second = await next_filing_number("MHPU01", 2026)
+    other_court = await next_filing_number("MHPU02", 2026)
+    next_year = await next_filing_number("MHPU01", 2027)
+
+    assert (first, second, other_court, next_year) == (1, 2, 1, 1)
 
 
 def case_markdown(title_block):
@@ -302,9 +320,7 @@ async def test_generate_case_shell_with_given_location(fake_llm):
         ]
     )
 
-    shell = await cg.generate_case_shell(
-        2, [303, 318], high_court="Bombay High Court", city="Pune"
-    )
+    shell = await cg.generate_case_shell(2, [303, 318], state_code="MH", city="Pune")
 
     assert shell["title"] == "Ravi Kumar vs. Asha Rao"
     assert shell["status"] == "not started"
@@ -467,9 +483,8 @@ async def test_chat_with_party_first_message_and_failure(fake_llm):
     assert "non-applicant/respondent" in fake_llm.prompts[0]
 
     fake_llm.error = RuntimeError("down")
-    assert "trouble responding" in await ps.chat_with_party(
-        "Acme", "non_applicant", "", "", [], "Hi"
-    )
+    with pytest.raises(LLMGenerationError):
+        await ps.chat_with_party("Acme", "non_applicant", "", "", [], "Hi")
 
 
 async def test_chat_with_party_accepts_curly_braces(fake_llm):
@@ -521,9 +536,8 @@ async def test_examine_witness_history_fallbacks(fake_llm, kwargs, expected):
 async def test_examine_witness_failure(fake_llm):
     fake_llm.error = RuntimeError("down")
 
-    assert "feeling unwell" in await ws.examine_witness(
-        "W", "applicant", "", "plaintiff", "Q?", "d"
-    )
+    with pytest.raises(LLMGenerationError):
+        await ws.examine_witness("W", "applicant", "", "plaintiff", "Q?", "d")
 
 
 async def test_examine_witness_accepts_curly_braces(fake_llm):

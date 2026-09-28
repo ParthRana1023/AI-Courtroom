@@ -20,7 +20,12 @@ from app.schemas.user import (
     UserOut,
 )
 from app.services import cloudinary_service
-from app.services.auth import create_access_token, create_user, ph
+from app.services.auth import (
+    create_access_token,
+    create_user,
+    find_user_by_email,
+    ph,
+)
 from app.services.cloudinary_service import extract_public_id_from_url
 from app.services.google_auth import (
     authenticate_google_user,
@@ -46,7 +51,7 @@ async def initiate_registration(user_data: UserCreate):
     logger.info(f"Registration initiated for email: {user_data.email}")
 
     # Add duplicate check
-    existing_user = await User.find_one(User.email == user_data.email)
+    existing_user = await find_user_by_email(user_data.email)
     if existing_user:
         logger.warning(
             f"Registration failed - email already registered: {user_data.email}"
@@ -186,7 +191,8 @@ async def initiate_login(login_data: dict, request: Request):
         )
 
     # Checked before the password so a locked-out guesser learns nothing more.
-    email_key = email.strip().lower()
+    email = email.strip().lower()
+    email_key = email
     ip_key = client_ip(request)
     locked = messages.LOGIN_LOCKED
     await login_failure_email_limiter.ensure_available(email_key, locked)
@@ -197,7 +203,7 @@ async def initiate_login(login_data: dict, request: Request):
         await login_failure_ip_limiter.register_usage(ip_key)
 
     # Check if user exists and verify password
-    user = await User.find_one(User.email == email)
+    user = await find_user_by_email(email)
     if not user:
         logger.warning(f"Login failed - email not registered: {email} (ip {ip_key})")
         await record_failure()
@@ -261,7 +267,7 @@ async def verify_login(request: Request):
             )
 
         # Get the user
-        user = await User.find_one(User.email == data.email)
+        user = await find_user_by_email(data.email)
         if not user:
             logger.error(f"User not found after OTP verification: {data.email}")
             raise HTTPException(

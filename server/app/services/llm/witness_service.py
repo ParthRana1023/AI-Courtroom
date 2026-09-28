@@ -12,7 +12,13 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
-from app.utils.llm import get_llm, invoke_complete, pick_case_context, strip_thinking
+from app.utils.llm import (
+    LLMGenerationError,
+    get_llm,
+    invoke_complete,
+    pick_case_context,
+    strip_thinking,
+)
 
 logger = get_logger(__name__)
 
@@ -122,9 +128,9 @@ Respond as {witness_name} (witness):
             f"Witness response generated for {witness_name} in {duration_ms:.2f}ms"
         )
         return response
-    except Exception:
+    except Exception as e:
         logger.exception(f"Error in witness examination for {witness_name}")
-        return "I'm sorry, My Lord, I'm feeling unwell and need a moment to compose myself."
+        raise LLMGenerationError("Failed to generate witness answer") from e
 
 
 async def generate_cross_examination_questions(

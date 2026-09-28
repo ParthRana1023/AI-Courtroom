@@ -21,6 +21,7 @@ from app.schemas.party import (
 from app.services.llm.parties_service import chat_with_party, generate_party_details
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
+from app.utils.llm import LLMGenerationError
 from app.utils.rate_limiter import party_chat_rate_limiter
 
 logger = get_logger(__name__)
@@ -258,6 +259,8 @@ async def chat_with_case_party(
         logger.info(
             f"Chat response generated for party {party.name} in {duration_ms:.2f}ms"
         )
+    except LLMGenerationError:
+        raise
     except Exception:
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.exception(

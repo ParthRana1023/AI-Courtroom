@@ -1,4 +1,5 @@
 # app/services/auth.py
+import re
 import secrets
 from datetime import timedelta
 
@@ -17,11 +18,25 @@ logger = get_logger(__name__)
 ph = PasswordHasher()
 
 
+async def find_user_by_email(email: str) -> User | None:
+    """Find a user by email regardless of case.
+
+    New emails are stored lowercase; accounts created earlier may not be.
+    """
+    normalized = email.strip().lower()
+    user = await User.find_one(User.email == normalized)
+    if user is None:
+        user = await User.find_one(
+            {"email": {"$regex": f"^{re.escape(normalized)}$", "$options": "i"}}
+        )
+    return user
+
+
 async def create_user(user_data: UserCreate) -> User:
     """Create new user with direct Motor operations"""
     logger.info(f"Creating user: {user_data.email}")
 
-    existing_user = await User.find_one(User.email == user_data.email)
+    existing_user = await find_user_by_email(user_data.email)
     if existing_user:
         logger.warning(
             f"User creation failed - email already registered: {user_data.email}"

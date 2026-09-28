@@ -1,10 +1,12 @@
 import uuid
 from datetime import UTC, datetime
 from enum import Enum
+from typing import ClassVar
 
 from beanie import Document
 from pydantic import BaseModel, Field, field_validator
 from pydantic_mongo import PydanticObjectId
+from pymongo import IndexModel
 
 from app.models.party import PartyInvolved
 from app.utils.datetime import get_current_datetime
@@ -304,3 +306,7 @@ class Case(Document):
 
     class Settings:
         name = "cases"
+        indexes: ClassVar[list[IndexModel]] = [
+            IndexModel([("cnr", 1)], unique=True),
+            IndexModel([("user_id", 1), ("status", 1)]),
+        ]

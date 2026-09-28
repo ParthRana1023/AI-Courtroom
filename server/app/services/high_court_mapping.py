@@ -4,8 +4,6 @@ Mapping of Indian states/UTs to their respective High Courts.
 Used for case generation to determine the appropriate court jurisdiction.
 """
 
-import random
-
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -51,91 +49,6 @@ INDIAN_HIGH_COURTS: dict[str, str] = {
     "UP": "Allahabad High Court",  # Uttar Pradesh
     "WB": "Calcutta High Court",  # West Bengal
 }
-
-# List of major Indian High Courts for random selection
-MAJOR_HIGH_COURTS = [
-    "Supreme Court of India",
-    "Delhi High Court",
-    "Bombay High Court",
-    "Madras High Court",
-    "Calcutta High Court",
-    "Karnataka High Court",
-    "Gujarat High Court",
-    "Allahabad High Court",
-    "Punjab and Haryana High Court",
-    "Rajasthan High Court",
-]
-
-
-def get_high_court_for_state(state_iso2: str) -> str | None:
-    """
-    Get the High Court for a given Indian state ISO2 code.
-
-    Args:
-        state_iso2: The ISO2 code of the Indian state (e.g., "MH" for Maharashtra)
-
-    Returns:
-        The name of the High Court, or None if not found
-    """
-    high_court = INDIAN_HIGH_COURTS.get(state_iso2.upper())
-    if high_court:
-        logger.debug(
-            "High court found for state",
-            extra={"state_iso2": state_iso2, "high_court": high_court},
-        )
-    else:
-        logger.debug(
-            "No high court mapping for state", extra={"state_iso2": state_iso2}
-        )
-    return high_court
-
-
-def get_high_court(state_iso2: str | None, country_iso2: str | None) -> str:
-    """
-    Get the appropriate High Court based on user's location.
-
-    Args:
-        state_iso2: The ISO2 code of the state
-        country_iso2: The ISO2 code of the country
-
-    Returns:
-        The name of the High Court. For Indian states, returns the specific
-        High Court. For non-Indian locations or unknown states, returns
-        a randomly selected major Indian High Court.
-    """
-    # Only use specific mapping for India
-    if country_iso2 and country_iso2.upper() == "IN" and state_iso2:
-        high_court = get_high_court_for_state(state_iso2)
-        if high_court:
-            logger.debug(
-                "Returning mapped high court for Indian state",
-                extra={"state_iso2": state_iso2, "high_court": high_court},
-            )
-            return high_court
-
-    # For non-Indian users or unknown states, return random major High Court
-    selected = random.choice(MAJOR_HIGH_COURTS)
-    logger.debug(
-        "Returning random high court",
-        extra={
-            "country_iso2": country_iso2,
-            "state_iso2": state_iso2,
-            "high_court": selected,
-        },
-    )
-    return selected
-
-
-def get_random_high_court() -> str:
-    """
-    Get a randomly selected major Indian High Court.
-
-    Returns:
-        The name of a randomly selected High Court
-    """
-    selected = random.choice(MAJOR_HIGH_COURTS)
-    logger.debug("Random high court selected", extra={"high_court": selected})
-    return selected
 
 
 def get_all_indian_states() -> list[dict]:

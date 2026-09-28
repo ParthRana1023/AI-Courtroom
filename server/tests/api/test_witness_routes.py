@@ -192,6 +192,21 @@ async def test_call_witness_save_failure(
 # ---------------------------------------------------------------------------
 
 
+async def test_examine_witness_ai_failure_is_a_503(
+    client, auth_headers, on_stand, fake_llm
+):
+    case = await on_stand()
+    fake_llm.error = RuntimeError("provider down")
+
+    response = await client.post(
+        f"/cases/{case.cnr}/witness/examine",
+        headers=auth_headers,
+        json={"question": "Where were you?"},
+    )
+
+    assert response.status_code == 503
+
+
 async def test_examine_witness_records_question_and_answer(
     client, auth_headers, on_stand, fake_llm
 ):
