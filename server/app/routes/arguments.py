@@ -3,7 +3,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app import messages
 from app.config import settings
-from app.dependencies import get_owned_case
+from app.dependencies import courtroom_control, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
     ArgumentItem,
@@ -154,7 +154,7 @@ async def adjournment_notice(user: User) -> dict:
     }
 
 
-@router.post("/{case_cnr}/arguments")
+@router.post("/{case_cnr}/arguments", dependencies=[Depends(courtroom_control)])
 async def submit_argument(
     case_cnr: str,
     role: str = Body(...),
@@ -166,6 +166,8 @@ async def submit_argument(
         f"Argument submission for case {case_cnr}, role={role}, length={len(argument)}"
     )
     case = await get_owned_case(case_cnr, current_user)
+    if case.status == CaseStatus.ADJOURNED:
+        raise HTTPException(status_code=409, detail=messages.COURT_NOT_IN_SESSION)
     check_can_argue_as(case, role, current_user)
     if case.status == CaseStatus.RESOLVED:
         raise HTTPException(
@@ -398,7 +400,7 @@ async def submit_argument(
     } | await adjournment_notice(current_user)
 
 
-@router.post("/{case_cnr}/closing-statement")
+@router.post("/{case_cnr}/closing-statement", dependencies=[Depends(courtroom_control)])
 async def submit_closing_statement(
     case_cnr: str,
     role: str = Body(...),
@@ -407,6 +409,8 @@ async def submit_closing_statement(
 ):
     logger.info(f"Closing statement submission for case {case_cnr}, role={role}")
     case = await get_owned_case(case_cnr, current_user)
+    if case.status != CaseStatus.ACTIVE:
+        raise HTTPException(status_code=409, detail=messages.COURT_NOT_IN_SESSION)
     check_can_argue_as(case, role, current_user)
 
     side_arguments(case, role).append(

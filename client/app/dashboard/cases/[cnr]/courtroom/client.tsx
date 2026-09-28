@@ -52,6 +52,8 @@ const logger = getLogger("courtroom");
 const MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2;
 // After the last argument allowed today, give the user time to read the AI's reply.
 const COURT_ADJOURN_DELAY_MS = 8000;
+// How often an open courtroom checks for changes made on other devices.
+const COURTROOM_POLL_MS = 4000;
 
 type OptimisticCourtroomEvent = CourtroomProceedingsEvent & {
   optimistic?: boolean;
@@ -157,6 +159,7 @@ export default function Courtroom({
   // Session popup states
   const [showSessionPopup, setShowSessionPopup] = useState(false);
   const [showAdjournedPopup, setShowAdjournedPopup] = useState(false);
+  const [isTakingOver, setIsTakingOver] = useState(false);
   const [adjournmentMessage, setAdjournmentMessage] = useState<string | null>(
     null,
   );
@@ -291,6 +294,41 @@ export default function Courtroom({
 
     return () => clearInterval(interval);
   }, [caseData?.is_ai_examining, refreshCourtroomSnapshot]);
+
+  // Keep every open device in sync: poll while the court is in session and
+  // this tab is visible (paused while this device is submitting).
+  useEffect(() => {
+    if (caseData?.status !== CaseStatus.ACTIVE || isSubmitting) return;
+
+    const interval = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        await refreshCourtroomSnapshot();
+      } catch (err) {
+        logger.error("Failed to poll courtroom updates", err as Error);
+      }
+    }, COURTROOM_POLL_MS);
+
+    return () => clearInterval(interval);
+  }, [caseData?.status, isSubmitting, refreshCourtroomSnapshot]);
+
+  const isViewingOnly =
+    caseData?.status === CaseStatus.ACTIVE &&
+    caseData?.hearing_controlled_here === false;
+
+  const handleTakeOver = async () => {
+    setIsTakingOver(true);
+    try {
+      await caseAPI.takeOverHearing(cnr);
+      await refreshCourtroomSnapshot();
+      setTimeout(() => argumentTextareaRef.current?.focus(), 100);
+    } catch (err) {
+      logger.error("Failed to take over hearing", err as Error);
+      setError(getErrorDetail(err) || "Failed to take over the case.");
+    } finally {
+      setIsTakingOver(false);
+    }
+  };
 
   const handleWitnessUpdate = useCallback(async () => {
     try {
@@ -530,7 +568,10 @@ export default function Courtroom({
       setOptimisticEvents([]);
       setIsAiResponding(false);
       setArgument(submittedArgument);
-      setError("Failed to submit argument. Please try again.");
+      setError(
+        getErrorDetail(error) || "Failed to submit argument. Please try again.",
+      );
+      void refreshCourtroomSnapshot().catch(() => undefined);
     } finally {
       setIsSubmitting(false);
       setIsAiResponding(false);
@@ -734,6 +775,9 @@ export default function Courtroom({
                   externalOpen={witnessDrawerOpen}
                   onExternalOpenChange={setWitnessDrawerOpen}
                   onWitnessUpdate={handleWitnessUpdate}
+                  viewOnly={isViewingOnly}
+                  onTakeOver={handleTakeOver}
+                  isTakingOver={isTakingOver}
                 />
                 <Button
                   variant="outline"
@@ -802,7 +846,7 @@ export default function Courtroom({
                     </ScrollArea>
                   </DrawerContent>
                 </Drawer>
-                {caseData?.status === CaseStatus.ACTIVE && (
+                {caseData?.status === CaseStatus.ACTIVE && !isViewingOnly && (
                   <Button
                     variant="destructive"
                     size="sm"
@@ -1340,52 +1384,47 @@ export default function Courtroom({
                 panel before submitting another statement.
               </div>
             )}
-            <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 pt-2 sm:pt-3 gap-2 sm:gap-0">
-              <div className="flex-1">
-                <SettingsAwareTextArea
-                  ref={argumentTextareaRef}
-                  value={argument}
-                  onChange={setArgument}
-                  onSubmit={handleSubmitArgument}
-                  placeholder="Type your argument here... (Press Enter to submit, Shift+Enter for new line)"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-zinc-800 dark:text-white resize-none"
-                  minHeight={80}
-                  maxHeight={120}
-                  disabled={
-                    isSubmitting ||
-                    isWitnessDecisionPending ||
-                    isWitnessActive ||
-                    !caseData ||
-                    caseData.status !== CaseStatus.ACTIVE
-                  }
-                />
-              </div>
-
-              {/* Vertically stacked buttons */}
-              <div className="flex flex-row sm:flex-col gap-2 sm:space-y-2 sm:gap-0 sm:min-w-35">
+            {isViewingOnly ? (
+              <div className="mt-2 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                <span>
+                  This hearing is being conducted from another device. You can
+                  follow the proceedings here.
+                </span>
                 <button
-                  onClick={handleSubmitArgument}
-                  disabled={
-                    isSubmitting ||
-                    isWitnessDecisionPending ||
-                    isWitnessActive ||
-                    !argument.trim() ||
-                    (timeRemaining !== null && timeRemaining > 0)
-                  }
-                  className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                  type="button"
+                  onClick={handleTakeOver}
+                  disabled={isTakingOver}
+                  className="shrink-0 rounded-md bg-amber-600 px-3 py-2 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isSubmitting
-                    ? "Submitting..."
-                    : isWitnessDecisionPending
-                      ? "Witness check..."
-                      : isWitnessActive
-                        ? "Witness active"
-                        : "Submit Argument"}
+                  {isTakingOver ? "Taking over..." : "Take over the case"}
                 </button>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 pt-2 sm:pt-3 gap-2 sm:gap-0">
+                <div className="flex-1">
+                  <SettingsAwareTextArea
+                    ref={argumentTextareaRef}
+                    value={argument}
+                    onChange={setArgument}
+                    onSubmit={handleSubmitArgument}
+                    placeholder="Type your argument here... (Press Enter to submit, Shift+Enter for new line)"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-zinc-800 dark:text-white resize-none"
+                    minHeight={80}
+                    maxHeight={120}
+                    disabled={
+                      isSubmitting ||
+                      isWitnessDecisionPending ||
+                      isWitnessActive ||
+                      !caseData ||
+                      caseData.status !== CaseStatus.ACTIVE
+                    }
+                  />
+                </div>
 
-                {showClosingButton && (
+                {/* Vertically stacked buttons */}
+                <div className="flex flex-row sm:flex-col gap-2 sm:space-y-2 sm:gap-0 sm:min-w-35">
                   <button
-                    onClick={handleSubmitClosingStatement}
+                    onClick={handleSubmitArgument}
                     disabled={
                       isSubmitting ||
                       isWitnessDecisionPending ||
@@ -1393,7 +1432,7 @@ export default function Courtroom({
                       !argument.trim() ||
                       (timeRemaining !== null && timeRemaining > 0)
                     }
-                    className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                    className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                   >
                     {isSubmitting
                       ? "Submitting..."
@@ -1401,11 +1440,33 @@ export default function Courtroom({
                         ? "Witness check..."
                         : isWitnessActive
                           ? "Witness active"
-                          : "Submit Closing"}
+                          : "Submit Argument"}
                   </button>
-                )}
+
+                  {showClosingButton && (
+                    <button
+                      onClick={handleSubmitClosingStatement}
+                      disabled={
+                        isSubmitting ||
+                        isWitnessDecisionPending ||
+                        isWitnessActive ||
+                        !argument.trim() ||
+                        (timeRemaining !== null && timeRemaining > 0)
+                      }
+                      className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                    >
+                      {isSubmitting
+                        ? "Submitting..."
+                        : isWitnessDecisionPending
+                          ? "Witness check..."
+                          : isWitnessActive
+                            ? "Witness active"
+                            : "Submit Closing"}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

@@ -264,7 +264,7 @@ export default function CasePrepPage({
                 setIsStartingCourtroom(true);
                 try {
                   // Only set status to ACTIVE if case is NOT resolved
-                  if (caseStatus !== "resolved") {
+                  if (caseStatus !== "resolved" && caseStatus !== "active") {
                     // If user is defendant, we need to generate plaintiff opening statement
                     // but ONLY if it hasn't been generated yet (which it shouldn't be now)
                     if (userRole === "defendant") {

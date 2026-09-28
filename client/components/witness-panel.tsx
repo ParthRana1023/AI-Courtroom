@@ -37,6 +37,10 @@ interface WitnessPanelProps {
   externalOpen?: boolean;
   onExternalOpenChange?: (open: boolean) => void;
   onWitnessUpdate?: () => void | Promise<void>;
+  // Another device is running the hearing: show the examination, not the controls.
+  viewOnly?: boolean;
+  onTakeOver?: () => Promise<void>;
+  isTakingOver?: boolean;
 }
 
 export default function WitnessPanel({
@@ -46,6 +50,9 @@ export default function WitnessPanel({
   externalOpen,
   onExternalOpenChange,
   onWitnessUpdate,
+  viewOnly = false,
+  onTakeOver,
+  isTakingOver = false,
 }: WitnessPanelProps) {
   const [internalOpen, setInternalOpen] = useState(false);
 
@@ -174,16 +181,27 @@ export default function WitnessPanel({
     prevIsOpenRef.current = isOpen;
   }, [isOpen, isActive, fetchWitnessState]);
 
+  // Poll while open: fast during AI cross-examination, slower otherwise so a
+  // watching device follows questions asked on the other device.
   useEffect(() => {
-    if (!isOpen || !isActive || !isCrossExamining) return;
+    if (!isOpen || !isActive) return;
 
-    const interval = setInterval(() => {
-      void fetchWitnessState(false);
-      void onWitnessUpdate?.();
-    }, 1000);
+    const interval = setInterval(
+      () => {
+        if (document.visibilityState !== "visible") return;
+        void fetchWitnessState(false);
+        if (isCrossExamining) void onWitnessUpdate?.();
+      },
+      isCrossExamining ? 1000 : 4000,
+    );
 
     return () => clearInterval(interval);
   }, [isOpen, isActive, isCrossExamining, fetchWitnessState, onWitnessUpdate]);
+
+  const handleTakeOverExamination = async () => {
+    await onTakeOver?.();
+    await fetchWitnessState(false);
+  };
 
   const handleCallWitness = async (witnessId: string) => {
     try {
@@ -399,7 +417,7 @@ export default function WitnessPanel({
                       <Button
                         size="sm"
                         onClick={() => handleCallWitness(witness.id)}
-                        disabled={isLoading}
+                        disabled={isLoading || viewOnly}
                       >
                         Call
                       </Button>
@@ -511,7 +529,25 @@ export default function WitnessPanel({
           </div>
         </ScrollArea>
 
-        {hasWitnessOnStand && (
+        {hasWitnessOnStand && viewOnly && (
+          <div className="p-4 border-t bg-white dark:bg-zinc-900 mt-auto">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+              <span>
+                The witness examination is being conducted from another device.
+                You can follow the testimony here.
+              </span>
+              <Button
+                onClick={handleTakeOverExamination}
+                disabled={isTakingOver}
+                className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {isTakingOver ? "Taking over..." : "Take over the examination"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {hasWitnessOnStand && !viewOnly && (
           <div className="p-4 border-t bg-white dark:bg-zinc-900 mt-auto">
             {/* Question Input - Only during user_questioning state */}
             {examinationState === "user_questioning" && (

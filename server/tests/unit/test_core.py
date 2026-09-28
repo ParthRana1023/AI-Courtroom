@@ -507,3 +507,14 @@ def test_settings_accept_strong_secrets_and_skip_check_in_tests(monkeypatch):
     monkeypatch.setenv("TESTING", "true")
     monkeypatch.setenv("SECRET_KEY", "")
     assert config_module.Settings().secret_key == ""
+
+
+def test_get_session_rejects_invalid_token():
+    from fastapi import HTTPException
+
+    from app.dependencies import get_session
+
+    with pytest.raises(HTTPException) as exc:
+        get_session("not-a-jwt")
+
+    assert exc.value.status_code == 401

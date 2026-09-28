@@ -12,7 +12,7 @@ from pymongo.results import UpdateResult
 
 from app import messages
 from app.config import settings
-from app.dependencies import get_current_user, get_owned_case
+from app.dependencies import courtroom_control, get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
     Case,
@@ -110,7 +110,7 @@ async def get_available_witnesses(
     )
 
 
-@router.post("/{case_cnr}/witness/call")
+@router.post("/{case_cnr}/witness/call", dependencies=[Depends(courtroom_control)])
 async def call_witness(
     case_cnr: str,
     request: CallWitnessRequest,
@@ -178,7 +178,7 @@ async def call_witness(
     )
 
 
-@router.post("/{case_cnr}/witness/examine")
+@router.post("/{case_cnr}/witness/examine", dependencies=[Depends(courtroom_control)])
 async def examine_witness(
     case_cnr: str,
     request: ExamineWitnessRequest,
@@ -632,7 +632,9 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
         logger.info("Background examination finished")
 
 
-@router.post("/{case_cnr}/witness/ai-cross-examine")
+@router.post(
+    "/{case_cnr}/witness/ai-cross-examine", dependencies=[Depends(courtroom_control)]
+)
 async def ai_cross_examine_witness(
     case_cnr: str,
     background_tasks: BackgroundTasks,
@@ -681,7 +683,7 @@ async def ai_cross_examine_witness(
     )
 
 
-@router.post("/{case_cnr}/witness/conclude")
+@router.post("/{case_cnr}/witness/conclude", dependencies=[Depends(courtroom_control)])
 async def conclude_witness(
     case_cnr: str, current_user: User = Depends(get_current_user)
 ):
@@ -718,7 +720,7 @@ async def conclude_witness(
     )
 
 
-@router.post("/{case_cnr}/witness/dismiss")
+@router.post("/{case_cnr}/witness/dismiss", dependencies=[Depends(courtroom_control)])
 async def dismiss_witness(
     case_cnr: str, current_user: User = Depends(get_current_user)
 ):
@@ -863,7 +865,7 @@ async def get_all_testimonies(
     return AllTestimoniesResponse(testimonies=testimonies)
 
 
-@router.post("/{case_cnr}/witness/ai-call")
+@router.post("/{case_cnr}/witness/ai-call", dependencies=[Depends(courtroom_control)])
 async def ai_call_witness(
     case_cnr: str,
     background_tasks: BackgroundTasks,

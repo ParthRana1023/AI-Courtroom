@@ -1,5 +1,7 @@
 """Tests for /cases routes: listing, status, roles, recycle bin, history and generation."""
 
+from datetime import timedelta
+
 import pytest
 
 from app.models.case import (
@@ -17,6 +19,7 @@ from app.models.case_memory import CaseMemoryChunk
 from app.models.rate_limit import RateLimitEntry
 from app.routes import cases as cases_routes
 from app.services.high_court_mapping import INDIAN_HIGH_COURTS
+from app.utils.datetime import get_current_datetime
 from tests.helpers import boom, reload
 
 # ---------------------------------------------------------------------------
@@ -133,6 +136,99 @@ async def test_activating_records_session_argument_count(
     assert response.json()["new_status"] == "active"
     saved = await reload(case)
     assert saved.status == CaseStatus.ACTIVE and saved.session_args_at_start == 1
+
+
+async def test_opening_a_case_adjourns_it_when_its_session_expired(
+    client, user, auth_headers, make_case
+):
+    case = await make_case(
+        user,
+        status=CaseStatus.ACTIVE,
+        active_session_id="expired-session",
+        active_session_expires_at=get_current_datetime() - timedelta(seconds=1),
+    )
+
+    response = await client.get(f"/cases/{case.cnr}", headers=auth_headers)
+
+    assert response.json()["status"] == "adjourned"
+    saved = await reload(case)
+    assert saved.adjourned_by_session_end and saved.active_session_id is None
+
+
+async def test_entering_court_claims_the_hearing_for_this_session(
+    client, user, auth_headers, make_case
+):
+    case = await make_case(user, user_role=Roles.PLAINTIFF, status=CaseStatus.ADJOURNED)
+
+    await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "active"}
+    )
+
+    saved = await reload(case)
+    assert saved.active_session_id and saved.active_session_expires_at
+
+
+async def test_other_device_is_view_only_until_it_takes_over(
+    client, auth_headers, courtroom_case, fake_llm
+):
+    fake_llm.responses.append("AI counter argument reply")
+    case = await courtroom_case(
+        active_session_id="laptop-session",
+        active_session_expires_at=get_current_datetime() + timedelta(hours=1),
+    )
+    argue = {"role": "plaintiff", "argument": "From the phone"}
+
+    view = (await client.get(f"/cases/{case.cnr}", headers=auth_headers)).json()
+    blocked = await client.post(
+        f"/cases/{case.cnr}/arguments", headers=auth_headers, json=argue
+    )
+    adjourn = await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "adjourned"}
+    )
+
+    assert view["hearing_controlled_here"] is False
+    assert blocked.status_code == 409 and "another device" in blocked.json()["detail"]
+    assert adjourn.status_code == 409
+
+    taken = await client.post(f"/cases/{case.cnr}/take-over", headers=auth_headers)
+    allowed = await client.post(
+        f"/cases/{case.cnr}/arguments", headers=auth_headers, json=argue
+    )
+
+    assert taken.json() == {"hearing_controlled_here": True}
+    assert allowed.status_code == 200
+    view = (await client.get(f"/cases/{case.cnr}", headers=auth_headers)).json()
+    assert view["hearing_controlled_here"] is True
+
+
+async def test_unclaimed_hearing_is_claimed_by_the_first_device_to_act(
+    client, auth_headers, courtroom_case
+):
+    case = await courtroom_case()  # running, no session recorded yet
+
+    await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "plaintiff", "argument": "First to speak"},
+    )
+
+    assert (await reload(case)).active_session_id is not None
+
+
+async def test_adjourned_hearing_rejects_arguments_and_take_over(
+    client, auth_headers, courtroom_case
+):
+    case = await courtroom_case(status=CaseStatus.ADJOURNED)
+
+    argue = await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "plaintiff", "argument": "Anyone there?"},
+    )
+    take_over = await client.post(f"/cases/{case.cnr}/take-over", headers=auth_headers)
+
+    assert argue.status_code == 409 and take_over.status_code == 409
+    assert "not in session" in argue.json()["detail"]
 
 
 async def test_court_cannot_resume_while_out_of_arguments(

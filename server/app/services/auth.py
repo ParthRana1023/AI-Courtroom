@@ -1,4 +1,5 @@
 # app/services/auth.py
+import secrets
 from datetime import timedelta
 
 import jwt
@@ -47,6 +48,8 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     else:
         expire = create_jwt_expiry()
 
+    # A fresh id per login lets hearings be tied to the device's session.
+    to_encode.setdefault("sid", secrets.token_urlsafe(16))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
         to_encode, settings.secret_key, algorithm=settings.algorithm

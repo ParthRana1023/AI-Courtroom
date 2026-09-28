@@ -47,7 +47,13 @@ OTP_INVALID = (
 CASE_NOT_FOUND = "This case file could not be found in the court registry."
 CASE_FORBIDDEN = "This case file belongs to another advocate."
 PARTY_NOT_FOUND = "This person is not on record in this case."
+HEARING_ON_OTHER_DEVICE = (
+    "This hearing is being conducted from another device. "
+    "Kindly take over the case to argue from here."
+)
+COURT_NOT_IN_SESSION = (
+    "The court is not in session at the moment. Kindly resume the proceedings first."
+)
 PARTY_CHAT_SESSION_ADJOURNED = (
-    "You are unable to reach the parties for now. "
-    "Kindly resume the proceedings."
+    "You are unable to reach the parties for now. " "Kindly resume the proceedings."
 )

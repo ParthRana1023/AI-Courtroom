@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 
 from app import messages
 from app.config import settings
-from app.dependencies import get_current_user
+from app.dependencies import Session, get_current_user, get_session
 from app.logging_config import get_logger
 from app.models.case import Case
 from app.models.otp import LoginVerifyRequest, RegistrationVerifyRequest
@@ -233,9 +233,12 @@ async def initiate_login(login_data: dict, request: Request):
 
 
 @router.post("/logout")
-async def logout(current_user: User = Depends(get_current_user)):
-    """Adjourn the user's running hearings; the client then drops its token."""
-    adjourned = await Case.adjourn_active_cases(current_user.id)
+async def logout(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Adjourn hearings this device was running; the client then drops its token."""
+    adjourned = await Case.adjourn_session_cases(current_user.id, session.id)
     logger.info(f"Logout for {current_user.email}: adjourned {adjourned} case(s)")
     return {"adjourned_cases": adjourned}
 
@@ -266,7 +269,7 @@ async def verify_login(request: Request):
             )
 
         # Hearings still running belong to a session that ended (e.g. expired).
-        await Case.adjourn_active_cases(user.id)
+        await Case.adjourn_abandoned_cases(user.id)
 
         # Create access token
         access_token_expires = timedelta(

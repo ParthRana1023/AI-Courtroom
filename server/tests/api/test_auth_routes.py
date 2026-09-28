@@ -332,6 +332,66 @@ async def test_login_adjourns_hearings_left_running_by_an_expired_session(
     assert (await reload(running)).adjourned_by_session_end is True
 
 
+def token_sid(headers) -> str:
+    token = headers["Authorization"].removeprefix("Bearer ")
+    return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])[
+        "sid"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_logout_leaves_other_devices_hearings_running(
+    client, user, auth_headers, make_case
+):
+    later = get_current_datetime() + timedelta(hours=1)
+    mine = await make_case(
+        user,
+        status=CaseStatus.ACTIVE,
+        active_session_id=token_sid(auth_headers),
+        active_session_expires_at=later,
+    )
+    other_device = await make_case(
+        user,
+        status=CaseStatus.ACTIVE,
+        active_session_id="phone-session",
+        active_session_expires_at=later,
+    )
+
+    response = await client.post("/auth/logout", headers=auth_headers)
+
+    assert response.json() == {"adjourned_cases": 1}
+    assert (await reload(mine)).status == CaseStatus.ADJOURNED
+    assert (await reload(other_device)).status == CaseStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_login_keeps_live_hearings_but_adjourns_expired_ones(
+    client, user, make_case
+):
+    now = get_current_datetime()
+    live = await make_case(
+        user,
+        status=CaseStatus.ACTIVE,
+        active_session_id="laptop-session",
+        active_session_expires_at=now + timedelta(hours=1),
+    )
+    expired = await make_case(
+        user,
+        status=CaseStatus.ACTIVE,
+        active_session_id="old-session",
+        active_session_expires_at=now - timedelta(minutes=1),
+    )
+    await client.post(
+        "/auth/login/initiate", json={"email": user.email, "password": VALID_PASSWORD}
+    )
+    otp = await stored_otp(user.email)
+
+    await client.post("/auth/login/verify", json={"email": user.email, "otp": otp.otp})
+
+    assert (await reload(live)).status == CaseStatus.ACTIVE
+    assert (await reload(expired)).adjourned_by_session_end is True
+
+
 @pytest.mark.asyncio
 async def test_login_verify_issues_token(client, user):
     await client.post(

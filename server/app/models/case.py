@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 
 from beanie import Document
@@ -8,6 +8,7 @@ from pydantic_mongo import PydanticObjectId
 
 from app.models.party import PartyInvolved
 from app.utils.datetime import get_current_datetime
+from app.utils.locks import case_lock
 
 
 class CaseStatus(str, Enum):
@@ -176,6 +177,10 @@ class Case(Document):
     # Set when the court was adjourned because the user's session ended (logout
     # or expiry). Party chat stays closed until the user resumes the hearing.
     adjourned_by_session_end: bool = False
+    # The login session running the hearing, so logging out on one device
+    # doesn't adjourn a hearing another device is using.
+    active_session_id: str | None = None
+    active_session_expires_at: datetime | None = None
     # Soft delete fields
     is_deleted: bool = Field(
         default=False, description="Whether the case is soft-deleted"
@@ -207,19 +212,59 @@ class Case(Document):
             self.dismiss_current_witness(" because the court was adjourned")
         self.status = CaseStatus.ADJOURNED
         self.adjourned_by_session_end = by_session_end
+        self.active_session_id = None
+        self.active_session_expires_at = None
+
+    def claim_session(self, session_id: str | None, expires_at: datetime) -> None:
+        """Record the login session now running this hearing."""
+        self.active_session_id = session_id
+        self.active_session_expires_at = expires_at
+
+    def session_expired(self) -> bool:
+        expires_at = self.active_session_expires_at
+        if expires_at is None:
+            return False
+        if expires_at.tzinfo is None:  # MongoDB returns naive UTC datetimes
+            expires_at = expires_at.replace(tzinfo=UTC)
+        return expires_at <= datetime.now(UTC)
 
     @classmethod
-    async def adjourn_active_cases(cls, user_id) -> int:
-        """Adjourn every hearing the user left running when their session ended."""
+    async def _adjourn_running(cls, user_id, should_adjourn) -> int:
         cases = await cls.find(
             cls.user_id == user_id,
             cls.status == CaseStatus.ACTIVE,
             cls.is_deleted != True,
         ).to_list()
+        adjourned = 0
         for case in cases:
-            case.adjourn(by_session_end=True)
-            await case.save()
-        return len(cases)
+            async with case_lock(case.cnr):
+                fresh = await cls.get(case.id)  # may have changed while we waited
+                if (
+                    fresh
+                    and fresh.status == CaseStatus.ACTIVE
+                    and should_adjourn(fresh)
+                ):
+                    fresh.adjourn(by_session_end=True)
+                    await fresh.save()
+                    adjourned += 1
+        return adjourned
+
+    @classmethod
+    async def adjourn_session_cases(cls, user_id, session_id: str | None) -> int:
+        """On logout: adjourn hearings run by this session (or by no known session)."""
+        return await cls._adjourn_running(
+            user_id,
+            lambda case: session_id is None
+            or case.active_session_id in (session_id, None),
+        )
+
+    @classmethod
+    async def adjourn_abandoned_cases(cls, user_id) -> int:
+        """On login: adjourn hearings whose session expired or is unknown."""
+        return await cls._adjourn_running(
+            user_id,
+            lambda case: case.active_session_id is None or case.session_expired(),
+        )
 
     def dismiss_current_witness(self, reason: str = "") -> tuple[str | None, str, int]:
         """End the open testimony, clear the stand and log the dismissal.

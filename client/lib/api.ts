@@ -469,6 +469,17 @@ export const caseAPI = {
     }
   },
 
+  takeOverHearing: async (cnr: string) => {
+    try {
+      const response = await api.post(`/cases/${cnr}/take-over`);
+      logger.info("Hearing taken over on this device", { cnr });
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to take over hearing");
+      throw error;
+    }
+  },
+
   updateCaseStatus: async (cnr: string, status: string) => {
     try {
       const response = await api.put(`/cases/${cnr}/status`, { status });

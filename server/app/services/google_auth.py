@@ -347,7 +347,7 @@ async def authenticate_google_user(
         await user.save()
 
     # Hearings still running belong to a session that ended (e.g. expired).
-    await Case.adjourn_active_cases(user.id)
+    await Case.adjourn_abandoned_cases(user.id)
 
     # Create JWT token
     access_token_expires = timedelta(

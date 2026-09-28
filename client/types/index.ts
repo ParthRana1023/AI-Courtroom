@@ -119,6 +119,8 @@ export interface Argument {
 
 export interface Case {
   cnr: string;
+  // False when another device is running this hearing (view-only here)
+  hearing_controlled_here?: boolean;
   status: CaseStatus;
   title: string;
   case_number?: string;

@@ -63,6 +63,20 @@ async def test_submit_argument_rejections(
     assert response.status_code == status
 
 
+async def test_closing_statement_needs_court_in_session(
+    client, auth_headers, courtroom_case
+):
+    case = await courtroom_case(status=CaseStatus.ADJOURNED)
+
+    response = await client.post(
+        f"/cases/{case.cnr}/closing-statement",
+        headers=auth_headers,
+        json={"role": "plaintiff", "statement": "In conclusion"},
+    )
+
+    assert response.status_code == 409
+
+
 async def test_defendant_cannot_go_before_plaintiff(
     client, auth_headers, courtroom_case, user
 ):

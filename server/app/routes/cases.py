@@ -5,7 +5,13 @@ from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app import messages
-from app.dependencies import get_current_user, get_owned_case
+from app.dependencies import (
+    Session,
+    courtroom_control,
+    get_current_user,
+    get_owned_case,
+    get_session,
+)
 from app.logging_config import get_logger
 from app.models.case import (
     ArgumentItem,
@@ -33,6 +39,7 @@ from app.services.rag import (
     upsert_memory_item,
 )
 from app.utils.datetime import get_current_datetime
+from app.utils.locks import case_lock
 from app.utils.rate_limiter import (
     argument_rate_limiter,
     case_generation_rate_limiter,
@@ -69,7 +76,11 @@ async def list_cases(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/{cnr}")
-async def get_case(cnr: str, current_user: User = Depends(get_current_user)):
+async def get_case(
+    cnr: str,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
     """Get a specific case by CNR"""
     logger.debug(f"Fetching case {cnr} for user: {current_user.email}")
 
@@ -97,14 +108,20 @@ async def get_case(cnr: str, current_user: User = Depends(get_current_user)):
         ),  # User args when session started
         "courtroom_proceedings": case_dict.get("courtroom_proceedings", []),
         "is_ai_examining": case_dict.get("is_ai_examining", False),
+        # False when another device is running this hearing (view-only here).
+        "hearing_controlled_here": case.status != CaseStatus.ACTIVE
+        or case.active_session_id in (None, session.id),
         "current_witness_id": case_dict.get("current_witness_id"),
         "evidence": case_dict.get("evidence", []),
     }
 
 
-@router.put("/{cnr}/status")
+@router.put("/{cnr}/status", dependencies=[Depends(courtroom_control)])
 async def update_case_status(
-    cnr: str, status_update: dict, current_user: User = Depends(get_current_user)
+    cnr: str,
+    status_update: dict,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
 ):
     """Update the status of a specific case by CNR"""
     logger.info(f"Status update requested for case {cnr} by user: {current_user.email}")
@@ -159,6 +176,8 @@ async def update_case_status(
     else:
         case.status = CaseStatus(new_status)
         case.adjourned_by_session_end = False
+        if case.status == CaseStatus.ACTIVE:
+            case.claim_session(session.id, session.expires_at)
     try:
         await case.save()
         logger.info(f"Case {cnr} status updated: {old_status} → {new_status}")
@@ -169,6 +188,23 @@ async def update_case_status(
         )
 
     return {"message": "Case status updated successfully", "new_status": case.status}
+
+
+@router.post("/{cnr}/take-over")
+async def take_over_hearing(
+    cnr: str,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Move a running hearing to this device; the other device becomes view-only."""
+    async with case_lock(cnr):
+        case = await get_owned_case(cnr, current_user)
+        if case.status != CaseStatus.ACTIVE:
+            raise HTTPException(status_code=409, detail=messages.COURT_NOT_IN_SESSION)
+        case.claim_session(session.id, session.expires_at)
+        await case.save()
+    logger.info(f"Case {cnr} hearing taken over by another device")
+    return {"hearing_controlled_here": True}
 
 
 @router.put("/{cnr}/roles")
