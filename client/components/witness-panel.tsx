@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { AI_EXAMINATION_POLL_MS, WITNESS_PANEL_POLL_MS } from "@/lib/config";
 import { witnessAPI } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -192,7 +193,7 @@ export default function WitnessPanel({
         void fetchWitnessState(false);
         if (isCrossExamining) void onWitnessUpdate?.();
       },
-      isCrossExamining ? 1000 : 4000,
+      isCrossExamining ? AI_EXAMINATION_POLL_MS : WITNESS_PANEL_POLL_MS,
     );
 
     return () => clearInterval(interval);

@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pymongo.results import UpdateResult
 
 from app import messages
+from app.config import settings
 from app.dependencies import courtroom_control, get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
@@ -228,6 +229,7 @@ async def examine_witness(
             case,
             f"witness {party.name} answer question: {request.question}",
             source_types=[
+                "ai_party_chat",
                 "case_details",
                 "evidence",
                 "party_bio",
@@ -236,6 +238,7 @@ async def examine_witness(
                 "proceeding",
                 "witness_testimony",
             ],
+            party_id=party.id,  # a witness knows only its own conversations
         )
         answer = await witness_service.examine_witness(
             witness_name=party.name,
@@ -244,7 +247,7 @@ async def examine_witness(
             examiner_role=examiner_role,
             question=request.question,
             case_details=case.details,
-            examination_history=exam_history[-8:],
+            examination_history=exam_history[-settings.witness_history_limit :],
             rag_context=rag_context,
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
@@ -437,6 +440,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     case,
                     f"continue cross examination of {party.name}",
                     source_types=[
+                        "ai_party_chat",
                         "case_details",
                         "evidence",
                         "argument",
@@ -466,6 +470,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     case,
                     f"{ai_role} cross examination question for {party.name}",
                     source_types=[
+                        "ai_party_chat",
                         "case_details",
                         "evidence",
                         "party_bio",
@@ -528,6 +533,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     case,
                     f"witness {party.name} answer cross examination: {question}",
                     source_types=[
+                        "ai_party_chat",
                         "case_details",
                         "evidence",
                         "party_bio",
@@ -536,6 +542,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                         "witness_testimony",
                         "proceeding",
                     ],
+                    party_id=party.id,  # a witness knows only its own conversations
                 )
                 answer = await witness_service.examine_witness(
                     witness_name=party.name,
@@ -545,7 +552,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     question=question,
                     case_details=case.details,
                     examination_history=(
-                        exam_history[-8:]
+                        exam_history[-settings.witness_history_limit :]
                         + [{"examiner": ai_role, "question": question, "answer": ""}]
                     ),
                     rag_context=answer_context,
@@ -930,12 +937,12 @@ async def ai_call_witness(
                 case,
                 f"{ai_role} decide whether to call a witness",
                 source_types=[
+                    "ai_party_chat",
                     "case_details",
                     "evidence",
                     "party_bio",
                     "argument",
                     "proceeding",
-                    "party_chat",
                 ],
             ),
         )

@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app import messages
+from app.config import settings
 from app.dependencies import courtroom_control, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
@@ -75,7 +76,7 @@ def record_argument(
     )
 
 
-def recent_history(case: Case, limit: int = 8) -> str:
+def recent_history(case: Case, limit: int | None = None) -> str:
     """The last few arguments in order, so the AI always knows where the hearing
     stands (RAG adds older, relevant material on top)."""
     lines = [
@@ -83,7 +84,7 @@ def recent_history(case: Case, limit: int = 8) -> str:
         for event in case.courtroom_proceedings
         if event.type in ARGUMENT_EVENTS and event.content
     ]
-    return "\n".join(lines[-limit:])
+    return "\n".join(lines[-(limit or settings.recent_history_limit) :])
 
 
 def check_can_argue_as(case: Case, role: str, user: User):
@@ -186,7 +187,7 @@ async def submit_argument(
             opening_context = await retrieve_case_context(
                 case,
                 "plaintiff opening statement key case facts evidence parties",
-                source_types=["case_details", "evidence", "party_bio", "party_chat"],
+                source_types=["ai_party_chat", "case_details", "evidence", "party_bio"],
             )
             ai_opening = await lawyer.opening_statement(
                 "plaintiff",
@@ -216,10 +217,10 @@ async def submit_argument(
                 case,
                 f"plaintiff counter argument responding to defendant: {argument}",
                 source_types=[
+                    "ai_party_chat",
                     "case_details",
                     "evidence",
                     "party_bio",
-                    "party_chat",
                     "argument",
                     "proceeding",
                 ],
@@ -271,7 +272,7 @@ async def submit_argument(
             opening_context = await retrieve_case_context(
                 case,
                 f"defendant opening statement responding to plaintiff opening: {argument}",
-                source_types=["case_details", "evidence", "party_bio", "party_chat"],
+                source_types=["ai_party_chat", "case_details", "evidence", "party_bio"],
             )
             ai_opening = await lawyer.opening_statement(
                 "defendant",
@@ -329,12 +330,12 @@ async def submit_argument(
             case,
             f"{ai_role} closing statement evidence arguments testimony",
             source_types=[
+                "ai_party_chat",
                 "case_details",
                 "evidence",
                 "argument",
                 "proceeding",
                 "witness_testimony",
-                "party_chat",
             ],
         )
         ai_reply = await lawyer.closing_statement(
@@ -351,10 +352,10 @@ async def submit_argument(
             case,
             f"{ai_role} counter argument responding to: {argument}",
             source_types=[
+                "ai_party_chat",
                 "case_details",
                 "evidence",
                 "party_bio",
-                "party_chat",
                 "argument",
                 "proceeding",
                 "witness_testimony",
@@ -431,12 +432,12 @@ async def submit_closing_statement(
             case,
             f"{ai_role} closing statement evidence arguments testimony",
             source_types=[
+                "ai_party_chat",
                 "case_details",
                 "evidence",
                 "argument",
                 "proceeding",
                 "witness_testimony",
-                "party_chat",
             ],
         )
         ai_closing = await lawyer.closing_statement(
@@ -483,7 +484,6 @@ async def submit_closing_statement(
                 "argument",
                 "proceeding",
                 "witness_testimony",
-                "party_chat",
             ],
         )
         case.verdict = await judge.generate_verdict(

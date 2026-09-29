@@ -97,6 +97,36 @@ class Settings(BaseSettings):
     party_chat_rate_limit: int = 5  # Party chat messages per user per window
     party_chat_rate_window: int = 60  # Window in seconds (1 minute)
 
+    # AI lawyer's private conferences with the parties on its side
+    counsel_questions_per_round: int = 2  # per party, each case prep / adjournment
+    counsel_questions_per_party: int = 6  # per party, whole case
+    # Recess after an adjournment while counsel confers; a random length in this
+    # range, ended early once the conferences finish.
+    counsel_recess_min_seconds: int = 60
+    counsel_recess_max_seconds: int = 180
+
+    # How much the AI reads (characters / items)
+    full_text_proceedings_limit: int = 16000  # proceedings in RAG-off input
+    proceedings_summary_reserve: int = 2000  # room for the older-proceedings summary
+    proceedings_summary_batch: int = 10  # new lines before the summary is updated
+    counsel_conference_text_limit: int = 6000  # AI lawyer's conference notes
+    analysis_section_limit: int = 20000  # each section of the case analysis input
+    recent_history_limit: int = 8  # latest arguments always given to the AI lawyer
+    witness_history_limit: int = 8  # latest Q&A given to a testifying witness
+
+    # AI replies shorter than this are treated as cut off and retried
+    min_ai_response_chars: int = 20
+    max_short_response_retries: int = 2
+
+    # Model temperatures (lower = more consistent)
+    default_temperature: float = 0.7
+    judge_temperature: float = 0.2
+    analyzer_temperature: float = 0.3
+    drafter_temperature: float = 0.8
+
+    # Highest establishment code (CNR positions 5-6) used for generated cases
+    cnr_max_establishment_code: int = 20
+
     # RAG / local embeddings settings
     rag_enabled: bool = True
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"

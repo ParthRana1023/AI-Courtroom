@@ -45,15 +45,17 @@ import {
   useLifecycleLogger,
 } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
+import {
+  AI_EXAMINATION_POLL_MS,
+  COURT_ADJOURN_DELAY_MS,
+  COURTROOM_POLL_MS,
+  MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS,
+  WITNESS_CHECK_COOLDOWN_MS,
+} from "@/lib/config";
 import { getErrorDetail } from "@/lib/error-utils";
 import { COURT_ADJOURNED_BY_USER } from "@/lib/messages";
 
 const logger = getLogger("courtroom");
-const MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2;
-// After the last argument allowed today, give the user time to read the AI's reply.
-const COURT_ADJOURN_DELAY_MS = 8000;
-// How often an open courtroom checks for changes made on other devices.
-const COURTROOM_POLL_MS = 4000;
 
 type OptimisticCourtroomEvent = CourtroomProceedingsEvent & {
   optimistic?: boolean;
@@ -290,7 +292,7 @@ export default function Courtroom({
       } catch (err) {
         logger.error("Failed to poll courtroom updates", err as Error);
       }
-    }, 1000);
+    }, AI_EXAMINATION_POLL_MS);
 
     return () => clearInterval(interval);
   }, [caseData?.is_ai_examining, refreshCourtroomSnapshot]);
@@ -505,7 +507,6 @@ export default function Courtroom({
       // Check if AI wants to call a witness (only if no witness is currently on stand)
       // Guarded: skip if already checking or if checked recently (30s cooldown)
       const now = Date.now();
-      const WITNESS_CHECK_COOLDOWN_MS = 30_000;
       const shouldCheckWitness =
         countUserArgumentsSinceLastWitnessActivity(
           updatedCase.courtroom_proceedings,

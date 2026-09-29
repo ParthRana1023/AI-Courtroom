@@ -20,6 +20,10 @@ COURT_ADJOURNED = (
     "The Court has heard enough arguments for today and is adjourned for the day. "
     "The Court will be back in session in {wait}."
 )
+COURT_IN_RECESS = (
+    "The Court is in a short recess while counsel confer with their clients. "
+    "The Court will be back in session in {wait}."
+)
 CASE_GENERATION_LIMIT = (
     "The Registry has closed filings for the day. "
     "You may file a fresh case again in {wait}."

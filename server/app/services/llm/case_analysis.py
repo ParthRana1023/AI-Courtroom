@@ -27,6 +27,8 @@ class CaseAnalysisService:
         user_role: str | None = None,
         ai_role: str | None = None,
         rag_context: str | None = None,
+        party_conferences: str | None = None,
+        witness_examinations: str | None = None,
     ) -> str:
         """Uses LLM to analyze the user's arguments and provides suggestions for improvement.
         :param defendant_args: List of arguments presented by the user.
@@ -45,8 +47,13 @@ class CaseAnalysisService:
             },
         )
 
-        # Handle empty arguments list
-        if not (defendant_args or plaintiff_args):
+        # Nothing the user did to review
+        if not (
+            defendant_args
+            or plaintiff_args
+            or party_conferences
+            or witness_examinations
+        ):
             logger.warning("No arguments provided for analysis")
             return "No analysis generated."
 
@@ -68,6 +75,13 @@ class CaseAnalysisService:
 
             PLAINTIFF'S ARGUMENTS:
             {plaintiff_args} 
+
+            USER'S PRIVATE CONFERENCES WITH THE PARTIES (before and between hearings;
+            the court and the opposing counsel never saw these):
+            {party_conferences}
+
+            WITNESS EXAMINATIONS (every question is labelled with who asked it):
+            {witness_examinations}
 
             JUDGE'S VERDICT: {judges_verdict}
 
@@ -102,11 +116,24 @@ class CaseAnalysisService:
             ### Reasoning
             Provide detailed reasoning for the outcome based on the arguments and verdict.
 
+            Review EVERYTHING the user did, not only their arguments:
+            - Arguments: each argument the user made in court.
+            - Client conferences: the questions the user asked the parties in private.
+              Note what they failed to ask, and facts they learned but never used in court.
+            - Witness examinations: each question the user put to a witness, in
+              examination-in-chief and cross-examination. Note leading or weak
+              questions, missed openings and contradictions they did not press.
+            Skip a group only if the user did nothing of that kind, and say so.
+
             ### Mistakes
-            Analyze each and every argument made by the user. Identify mistakes or weaknesses in each of the user's arguments as a bulleted list.
+            Use the sub-headings **Arguments**, **Client conferences** and **Witness examinations**.
+            Under each, list the user's mistakes or weaknesses as bullets, quoting or
+            naming the specific argument, message or question.
 
             ### Suggestions
-            Provide actionable suggestions for improvement in each argument as a bulleted list.
+            Use the same three sub-headings. Under each, give concrete, actionable
+            improvements as bullets, including better questions or arguments the user
+            could have used.
         """
         analysis_prompt = ChatPromptTemplate.from_messages([("human", prompt)])
 
@@ -124,6 +151,14 @@ class CaseAnalysisService:
                     ),
                     "plaintiff_args": tagged(
                         numbered(plaintiff_args or []), "petitioner_arguments"
+                    ),
+                    "party_conferences": tagged(
+                        party_conferences or "The user held no conferences.",
+                        "party_conferences",
+                    ),
+                    "witness_examinations": tagged(
+                        witness_examinations or "No witnesses were examined.",
+                        "witness_examinations",
                     ),
                     "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
                     "judges_verdict": judges_verdict,

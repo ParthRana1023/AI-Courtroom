@@ -20,6 +20,7 @@ class CaseMemorySourceType(str, Enum):
     VERDICT = "verdict"
     ANALYSIS = "analysis"
     PARTY_CHAT = "party_chat"
+    AI_PARTY_CHAT = "ai_party_chat"  # AI lawyer's private conferences
 
 
 class CaseMemoryChunk(Document):

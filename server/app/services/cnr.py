@@ -9,6 +9,7 @@ import random
 
 from pymongo import ReturnDocument
 
+from app.config import settings
 from app.models.case import Case
 from app.models.cnr_counter import CnrCounter
 from app.utils.datetime import get_current_datetime
@@ -39,7 +40,7 @@ async def next_filing_number(prefix: str, year: int) -> int:
 
 async def generate_cnr(state_iso2: str, city: str | None) -> str:
     state = ECOURTS_STATE_CODES.get(state_iso2, state_iso2)
-    establishment = f"{random.randint(1, 20):02d}"
+    establishment = f"{random.randint(1, settings.cnr_max_establishment_code):02d}"
     prefix = f"{state}{district_code(city)}{establishment}"
     year = get_current_datetime().year
     while True:

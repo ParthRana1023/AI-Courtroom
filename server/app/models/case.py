@@ -234,6 +234,50 @@ class Case(Document):
             expires_at = expires_at.replace(tzinfo=UTC)
         return expires_at <= datetime.now(UTC)
 
+    # The AI lawyer's private conferences live in the case document under this
+    # key, but are deliberately NOT a model field: normal loads never read them,
+    # they are never serialised to the user, and save() ($set of model fields
+    # only) leaves them untouched. Read/write them through the two helpers.
+    AI_PARTY_CHATS: ClassVar[str] = "ai_party_chats"
+
+    @classmethod
+    async def load_ai_party_chats(
+        cls, case_id, party_id: str | None = None
+    ) -> dict[str, list[dict]]:
+        """{party_id: [messages]} for the case (or just one party's)."""
+        field = f"{cls.AI_PARTY_CHATS}.{party_id}" if party_id else cls.AI_PARTY_CHATS
+        doc = await cls.get_pymongo_collection().find_one({"_id": case_id}, {field: 1})
+        return (doc or {}).get(cls.AI_PARTY_CHATS) or {}
+
+    @classmethod
+    async def append_ai_party_chat(
+        cls, case_id, party_id: str, messages: list[dict]
+    ) -> None:
+        await cls.get_pymongo_collection().update_one(
+            {"_id": case_id},
+            {"$push": {f"{cls.AI_PARTY_CHATS}.{party_id}": {"$each": messages}}},
+        )
+
+    # When the AI lawyer's post-adjournment conferences must finish by. Hidden
+    # like AI_PARTY_CHATS so a stale save of the case can't reset it.
+    COUNSEL_RECESS_UNTIL: ClassVar[str] = "counsel_recess_until"
+
+    @classmethod
+    async def get_counsel_recess(cls, case_id) -> datetime | None:
+        doc = await cls.get_pymongo_collection().find_one(
+            {"_id": case_id}, {cls.COUNSEL_RECESS_UNTIL: 1}
+        )
+        until = (doc or {}).get(cls.COUNSEL_RECESS_UNTIL)
+        if until is not None and until.tzinfo is None:  # MongoDB returns naive UTC
+            until = until.replace(tzinfo=UTC)
+        return until
+
+    @classmethod
+    async def set_counsel_recess(cls, case_id, until: datetime | None) -> None:
+        await cls.get_pymongo_collection().update_one(
+            {"_id": case_id}, {"$set": {cls.COUNSEL_RECESS_UNTIL: until}}
+        )
+
     @classmethod
     async def _adjourn_running(cls, user_id, should_adjourn) -> int:
         cases = await cls.find(

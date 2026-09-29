@@ -250,6 +250,53 @@ async def extract_and_assign_parties(
     return parties
 
 
+def can_lawyer_confer_with_party(lawyer_role, party_role: PartyRole) -> bool:
+    """Plaintiff's counsel confers with applicants, defendant's with non-applicants.
+
+    Applies to the user and to the AI lawyer alike; no role chosen means no one.
+    """
+    if lawyer_role is None:
+        return False
+    return (getattr(lawyer_role, "value", lawyer_role), party_role) in {
+        ("plaintiff", PartyRole.APPLICANT),
+        ("defendant", PartyRole.NON_APPLICANT),
+    }
+
+
+async def generate_counsel_questions(
+    counsel_role: str,
+    party_name: str,
+    case_context: str,
+    previous_messages: list[dict],
+    count: int,
+) -> list[str]:
+    """Questions the AI lawyer asks its own client or witness in private."""
+    earlier = "\n".join(
+        f"{'Counsel' if m.get('sender') == 'counsel' else party_name}: "
+        f"{m.get('content', '')}"
+        for m in previous_messages[-10:]
+    )
+    template = f"""You are an experienced Indian advocate for the {counsel_role},
+meeting your own client or witness {party_name} in private before the next hearing.
+
+Case context:
+{case_context}
+
+What {party_name} has already told you:
+{earlier or "(nothing yet)"}
+
+Ask {count} short, specific questions that uncover facts, documents or witnesses
+that will help your side, or that close gaps the other side could exploit. Do not
+repeat earlier questions. Return only the questions, one per line."""
+    prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
+    chain = prompt | get_llm("lawyer") | StrOutputParser()
+    text = strip_thinking(await chain.ainvoke({}))
+    questions = [
+        re.sub(r"^\s*(?:[-*\d.)]+\s*)", "", line).strip() for line in text.splitlines()
+    ]
+    return [q for q in questions if q.endswith("?")][:count]
+
+
 async def chat_with_party(
     party_name: str,
     party_role: str,

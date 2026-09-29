@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
+from app.config import settings
 from app.logging_config import get_logger
 from app.utils.llm import (
     UNTRUSTED_TEXT_RULE,
@@ -69,7 +70,7 @@ async def examine_witness(
     # Format examination history - only if provided and RAG is not the primary source
     history_text = ""
     if examination_history:
-        for item in examination_history[-8:]:  # Last 8 exchanges
+        for item in examination_history[-settings.witness_history_limit :]:
             history_text += (
                 f"Q ({item.get('examiner', 'Lawyer')}): {item.get('question', '')}\n"
             )

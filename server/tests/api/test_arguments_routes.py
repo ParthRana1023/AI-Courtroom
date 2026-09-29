@@ -364,6 +364,32 @@ async def test_last_argument_of_the_day_announces_adjournment(
     assert "back in session in" in body["adjournment_message"]
 
 
+async def test_ai_lawyer_and_judge_never_read_party_chats(
+    client, auth_headers, in_progress, monkeypatch
+):
+    requested: list[list[str]] = []
+
+    async def spy(case, query, source_types=None, **kwargs):
+        requested.append(list(source_types or []))
+        return ""
+
+    monkeypatch.setattr(arguments, "retrieve_case_context", spy)
+    case = await in_progress()
+
+    await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "plaintiff", "argument": "Point"},
+    )
+    await client.post(
+        f"/cases/{case.cnr}/closing-statement",
+        headers=auth_headers,
+        json={"role": "plaintiff", "statement": "In conclusion"},
+    )
+
+    assert requested and all("party_chat" not in types for types in requested)
+
+
 async def test_argument_limit_is_enforced_by_server(
     client, auth_headers, in_progress, user
 ):

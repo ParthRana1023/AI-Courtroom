@@ -6,10 +6,13 @@ from app import messages
 from app.config import settings
 from app.models.case import (
     ArgumentItem,
+    Case,
     CaseStatus,
     EvidenceItem,
     EvidenceMediaStatus,
+    ExaminationItem,
     Roles,
+    WitnessTestimony,
 )
 from app.models.client_log import ClientLog
 from app.models.feedback import Feedback
@@ -38,7 +41,7 @@ def prep_case(courtroom_case, witness_party, other_party):
 
 
 def test_can_user_chat_with_party_rules():
-    can = parties_routes.can_user_chat_with_party
+    can = parties_routes.can_lawyer_confer_with_party
 
     assert can(Roles.PLAINTIFF, PartyRole.APPLICANT) is True
     assert can(Roles.DEFENDANT, PartyRole.NON_APPLICANT) is True
@@ -745,6 +748,74 @@ async def test_analysis_role_from_plaintiff_arguments_or_case(
 
     assert "USER'S ROLE: PLAINTIFF" in fake_llm.prompts[0]
     assert "USER'S ROLE: DEFENDANT" in fake_llm.prompts[1]
+
+
+async def test_analysis_reviews_conferences_and_witness_examinations(
+    client, user, auth_headers, make_case, fake_llm, witness_party
+):
+    fake_llm.responses.append("### Outcome\nYou lost.")
+    case = await make_case(
+        user,
+        user_role=Roles.PLAINTIFF,
+        ai_role=Roles.DEFENDANT,
+        verdict="Suit dismissed",
+        parties_involved=[witness_party],
+        party_chats={
+            witness_party.id: [
+                {"sender": "user", "content": "Did you keep the receipt?"},
+                {"sender": "party", "content": "Yes, in my drawer."},
+            ]
+        },
+        witness_testimonies=[
+            WitnessTestimony(
+                witness_id=witness_party.id,
+                witness_name="Ravi Kumar",
+                called_by="plaintiff",
+                examination=[
+                    ExaminationItem(
+                        examiner="plaintiff",
+                        question="When did you pay?",
+                        answer="May.",
+                    ),
+                    ExaminationItem(
+                        examiner="defendant", question="Any proof?", answer="No."
+                    ),
+                ],
+            )
+        ],
+    )
+
+    await client.post(f"/cases/{case.cnr}/analyze-case", headers=auth_headers)
+
+    prompt = fake_llm.prompts[0]
+    assert "-- Conference with Ravi Kumar --" in prompt
+    assert "User: Did you keep the receipt?" in prompt
+    assert "-- Ravi Kumar (called by the user) --" in prompt
+    assert "User asked: When did you pay?" in prompt
+    assert "Opposing counsel asked: Any proof?" in prompt
+    assert "**Client conferences**" in prompt and "**Witness examinations**" in prompt
+
+
+def test_analysis_sections_keep_newest_entries(monkeypatch):
+    monkeypatch.setattr(settings, "analysis_section_limit", 40)
+    case = Case.model_construct(
+        parties_involved=[],
+        party_chats={
+            "p1": [{"sender": "user", "content": f"message {i}"} for i in range(10)],
+            "empty": [],
+        },
+    )
+
+    text = analysis_routes.format_party_conferences(case)
+
+    assert text.startswith("(earlier entries omitted for length)")
+    assert "User: message 9" in text and "message 0" not in text
+    no_questions = Case.model_construct(
+        witness_testimonies=[
+            WitnessTestimony(witness_id="w", witness_name="W", called_by="x")
+        ]
+    )
+    assert analysis_routes.format_witness_examinations(no_questions, "plaintiff") == ""
 
 
 async def test_analysis_rejections(client, user, auth_headers, make_case, make_user):

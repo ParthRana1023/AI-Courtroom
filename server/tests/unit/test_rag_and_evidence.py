@@ -338,9 +338,9 @@ def points(count, start=0):
 @pytest.fixture
 def small_budget(monkeypatch):
     # Each line is "Plaintiff: point NN" (19 chars + newline).
-    monkeypatch.setattr(rag, "PROCEEDINGS_LIMIT", 100)
-    monkeypatch.setattr(rag, "SUMMARY_RESERVE", 40)
-    monkeypatch.setattr(rag, "SUMMARY_BATCH", 3)
+    monkeypatch.setattr(settings, "full_text_proceedings_limit", 100)
+    monkeypatch.setattr(settings, "proceedings_summary_reserve", 40)
+    monkeypatch.setattr(settings, "proceedings_summary_batch", 3)
 
 
 async def test_short_record_is_sent_whole_without_summarising(
@@ -417,6 +417,29 @@ async def test_stale_summary_is_rebuilt(user, make_case, fake_llm, small_budget)
     text = await rag._full_case_text(case)
 
     assert "Fresh summary." in text and "Old summary." not in fake_llm.prompts[0]
+
+
+async def test_party_chats_are_limited_to_the_given_party(rich_case, monkeypatch):
+    monkeypatch.setattr(settings, "rag_min_score", 0.0)
+    case = await rich_case()
+    await rag.index_case_memory(case)
+    for party_id, text in (
+        ("ravi", "Ravi said the deposit was paid"),
+        ("other", "Other said the deposit was kept"),
+    ):
+        await rag.upsert_memory_item(
+            case, "party_chat", f"chat-{party_id}", text, {"party_id": party_id}
+        )
+
+    own = await rag.retrieve_case_context(
+        case, "deposit", source_types=["party_chat"], party_id="ravi"
+    )
+    everyone = await rag.retrieve_case_context(
+        case, "deposit", source_types=["party_chat"]
+    )
+
+    assert "Ravi said" in own and "Other said" not in own
+    assert "Ravi said" in everyone and "Other said" in everyone
 
 
 async def test_retrieve_ranks_relevant_chunks(rich_case, monkeypatch):

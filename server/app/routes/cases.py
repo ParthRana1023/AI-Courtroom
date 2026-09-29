@@ -1,10 +1,13 @@
 # app/routes/cases.py
+import random
 import time
+from datetime import UTC, datetime, timedelta
 
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app import messages
+from app.config import settings
 from app.dependencies import (
     Session,
     courtroom_control,
@@ -23,6 +26,7 @@ from app.models.case import (
 )
 from app.models.user import User
 from app.schemas.case import CaseCreate, CaseOut
+from app.services.counsel_conferences import run_counsel_conferences
 from app.services.evidence_service import (
     extract_evidence_items,
     format_evidence_context,
@@ -119,6 +123,7 @@ async def get_case(
 async def update_case_status(
     cnr: str,
     status_update: dict,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -145,6 +150,16 @@ async def update_case_status(
             status_code=400,
             detail="Cannot activate case without selecting a role first",
         )
+
+    # Short recess after an adjournment while the AI lawyer confers.
+    if new_status == CaseStatus.ACTIVE.value:
+        recess_until = await Case.get_counsel_recess(case.id)
+        wait = (recess_until - datetime.now(UTC)).total_seconds() if recess_until else 0
+        if wait > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=messages.COURT_IN_RECESS.format(wait=format_wait(wait)),
+            )
 
     # Out of arguments for today: the court stays adjourned until a slot frees up.
     if new_status == CaseStatus.ACTIVE.value:
@@ -186,6 +201,20 @@ async def update_case_status(
             status_code=500, detail="Failed to update case status. Please try again."
         )
 
+    if case.status == CaseStatus.ADJOURNED:
+        # Like the user, the AI lawyer confers with its parties between hearings;
+        # the court stays in recess until it is done (or the cap passes).
+        recess = random.randint(
+            settings.counsel_recess_min_seconds,
+            max(
+                settings.counsel_recess_min_seconds, settings.counsel_recess_max_seconds
+            ),
+        )
+        await Case.set_counsel_recess(
+            case.id, datetime.now(UTC) + timedelta(seconds=recess)
+        )
+        background_tasks.add_task(run_counsel_conferences, cnr)
+
     return {"message": "Case status updated successfully", "new_status": case.status}
 
 
@@ -208,7 +237,10 @@ async def take_over_hearing(
 
 @router.put("/{cnr}/roles")
 async def update_case_roles(
-    cnr: str, roles_update: dict, current_user: User = Depends(get_current_user)
+    cnr: str,
+    roles_update: dict,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
 ):
     """Update the user's and AI's roles for a specific case by CNR"""
     logger.info(f"Roles update requested for case {cnr} by user: {current_user.email}")
@@ -256,6 +288,10 @@ async def update_case_roles(
         raise HTTPException(
             status_code=500, detail="Failed to update case roles. Please try again."
         )
+
+    if case.status == CaseStatus.NOT_STARTED:
+        # Sides are set, so case prep begins: the AI lawyer meets its parties too.
+        background_tasks.add_task(run_counsel_conferences, cnr)
 
     image_generation_summary = None
     try:
@@ -313,7 +349,7 @@ async def generate_plaintiff_opening(
         rag_context = await retrieve_case_context(
             case,
             "plaintiff opening statement key facts parties evidence",
-            source_types=["case_details", "evidence", "party_bio"],
+            source_types=["ai_party_chat", "case_details", "evidence", "party_bio"],
         )
         plaintiff_opening_statement = await lawyer.opening_statement(
             "plaintiff",

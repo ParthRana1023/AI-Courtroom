@@ -55,15 +55,16 @@ def _argument_content(arg: ArgumentItem) -> str:
     return arg.content or ""
 
 
-# Character budget for the proceedings in the full-text (RAG off) context.
-# Case details are always sent whole; past this budget the newest proceedings
-# stay word for word and older ones are folded into a short summary.
-PROCEEDINGS_LIMIT = 16000
-# Room left for the summary inside the budget (~250 words).
-SUMMARY_RESERVE = 2000
-# Re-summarise only once this many lines have scrolled out of the verbatim
-# window, so a long hearing costs one small summary call every few turns.
-SUMMARY_BATCH = 10
+# Chat memory that belongs to one party; party_id filters it (see retrieval).
+PRIVATE_CHAT_SOURCES = {
+    CaseMemorySourceType.PARTY_CHAT,
+    CaseMemorySourceType.AI_PARTY_CHAT,
+}
+
+# RAG-off input: case details are always sent whole. Past
+# settings.full_text_proceedings_limit the newest proceedings stay word for word
+# and older ones are folded into a short summary, updated only every
+# settings.proceedings_summary_batch lines to keep the cost low.
 
 SUMMARY_PROMPT = """You are a court clerk keeping the record for counsel who will
 continue this hearing. Update the summary of the earlier proceedings.
@@ -107,14 +108,16 @@ async def _summarize_proceedings(previous: str | None, lines: list[str]) -> str:
 async def _proceedings_text(case: Case) -> str:
     """The courtroom record, with the oldest part summarised if it is too long."""
     lines = _transcript_lines(case)
-    if sum(len(line) + 1 for line in lines) <= PROCEEDINGS_LIMIT:
+    limit = settings.full_text_proceedings_limit
+    if sum(len(line) + 1 for line in lines) <= limit:
         return "\n".join(lines)
 
     # Newest lines that fit, leaving room for the summary of everything older.
     start, used = len(lines), 0
     while (
         start
-        and used + len(lines[start - 1]) + 1 <= PROCEEDINGS_LIMIT - SUMMARY_RESERVE
+        and used + len(lines[start - 1]) + 1
+        <= limit - settings.proceedings_summary_reserve
     ):
         start -= 1
         used += len(lines[start]) + 1
@@ -124,7 +127,7 @@ async def _proceedings_text(case: Case) -> str:
     if covered > start:  # record shrank or summary is stale: rebuild
         summary, covered = None, 0
 
-    if not summary or start - covered >= SUMMARY_BATCH:
+    if not summary or start - covered >= settings.proceedings_summary_batch:
         try:
             summary = await _summarize_proceedings(summary, lines[covered:start])
         except Exception:
@@ -147,25 +150,56 @@ async def _proceedings_text(case: Case) -> str:
                 }
             )
 
-    # Lines after the summary; at most SUMMARY_BATCH - 1 more than the budget.
+    # Lines after the summary; at most one batch more than the budget.
     recent = "\n".join(lines[covered:])
     return (
         f"Summary of earlier proceedings:\n{summary}\n\nRecent proceedings:\n{recent}"
     )
 
 
-async def _full_case_text(case: Case) -> str:
+async def _counsel_conference_text(case: Case, party_id: str | None) -> str:
+    """The AI lawyer's private conferences (optionally one party's), newest kept."""
+    if not getattr(case, "id", None):
+        return ""
+    names = {p.id: p.name for p in getattr(case, "parties_involved", None) or []}
+    lines: list[str] = []
+    ai_chats = await Case.load_ai_party_chats(case.id, party_id)
+    for conference_party_id, messages in ai_chats.items():
+        name = names.get(conference_party_id, "Party")
+        lines.append(f"-- Conference with {name} --")
+        lines += [
+            f"{'Counsel' if m.get('sender') == 'counsel' else name}: {m.get('content', '')}"
+            for m in messages
+        ]
+    text = "\n".join(lines)
+    return text[-settings.counsel_conference_text_limit :]
+
+
+async def _full_case_text(
+    case: Case, include_conferences: bool = False, party_id: str | None = None
+) -> str:
     """Case details (always whole) followed by the courtroom record."""
     details = (getattr(case, "details", None) or "").strip()
     proceedings = await _proceedings_text(case)
     parts = [f"Case details:\n{details}"] if details else []
     if proceedings:
         parts.append(f"Courtroom proceedings so far:\n{proceedings}")
+    if include_conferences:
+        conferences = await _counsel_conference_text(case, party_id)
+        if conferences:
+            parts.append(
+                f"Private conferences (not known to the court):\n{conferences}"
+            )
     return "\n\n".join(parts)
 
 
-async def _case_fallback_context(case: Case, status: RagStatus) -> str:
-    text = await _full_case_text(case)
+async def _case_fallback_context(
+    case: Case,
+    status: RagStatus,
+    include_conferences: bool = False,
+    party_id: str | None = None,
+) -> str:
+    text = await _full_case_text(case, include_conferences, party_id)
     if not text or not status.enabled:
         return text
     note = (
@@ -392,6 +426,17 @@ async def index_case_memory(case: Case) -> int:
                     {"party_id": party_id, "sender": message.get("sender")},
                 )
 
+        ai_chats = await Case.load_ai_party_chats(case.id)
+        for conference_party_id, messages in ai_chats.items():
+            for message in messages:
+                total += await upsert_memory_item(
+                    case,
+                    CaseMemorySourceType.AI_PARTY_CHAT,
+                    message.get("id", _hash_content(message.get("content", ""))),
+                    message.get("content", ""),
+                    {"party_id": conference_party_id, "sender": message.get("sender")},
+                )
+
         logger.info(f"Indexed {total} RAG chunks for case {case.cnr}")
         return total
     except Exception as exc:
@@ -409,12 +454,17 @@ async def retrieve_case_context(
     source_types: Iterable[str | CaseMemorySourceType] | None = None,
     top_k: int | None = None,
     always_rag: bool = False,
+    party_id: str | None = None,
 ) -> str:
     """Context for a prompt: retrieved chunks when RAG is on for this user,
     otherwise the full case details and courtroom record.
 
     ``always_rag`` retrieves regardless of the user's setting (case analysis).
+    ``party_id`` limits party-chat memory to that party's own conversations.
     """
+    include_conferences = CaseMemorySourceType.AI_PARTY_CHAT in {
+        _coerce_source_type(item) for item in source_types or []
+    }
     if always_rag and settings.rag_enabled and getattr(case, "id", None):
         status = RagStatus(True, "always_rag")
     else:
@@ -426,7 +476,7 @@ async def retrieve_case_context(
     if not query:
         return ""
     if not status.enabled:
-        return await _case_fallback_context(case, status)
+        return await _case_fallback_context(case, status, include_conferences, party_id)
 
     try:
         filters: list[Any] = [
@@ -441,7 +491,17 @@ async def retrieve_case_context(
                 )
             )
 
-        chunks = await CaseMemoryChunk.find(*filters).to_list()
+        def own_chats_only(found: list[CaseMemoryChunk]) -> list[CaseMemoryChunk]:
+            if party_id is None:
+                return found
+            return [
+                chunk
+                for chunk in found
+                if chunk.source_type not in PRIVATE_CHAT_SOURCES
+                or chunk.metadata.get("party_id") == party_id
+            ]
+
+        chunks = own_chats_only(await CaseMemoryChunk.find(*filters).to_list())
         if not chunks or any(not chunk.embedding for chunk in chunks):
             indexed_source_types = [
                 _coerce_source_type(item).value for item in source_types or []
@@ -452,13 +512,17 @@ async def retrieve_case_context(
                 f"(source_types={indexed_source_types})"
             )
             await index_case_memory(case)
-            chunks = await CaseMemoryChunk.find(*filters).to_list()
+            chunks = own_chats_only(await CaseMemoryChunk.find(*filters).to_list())
             if not chunks:
-                return await _case_fallback_context(case, status)
+                return await _case_fallback_context(
+                    case, status, include_conferences, party_id
+                )
 
         query_vector = np.array(await embed_query(query), dtype=np.float32)
         if query_vector.size == 0:
-            return await _case_fallback_context(case, status)
+            return await _case_fallback_context(
+                case, status, include_conferences, party_id
+            )
 
         scored: list[tuple[float, CaseMemoryChunk]] = []
         for chunk in chunks:
@@ -473,7 +537,9 @@ async def retrieve_case_context(
         scored.sort(key=lambda item: item[0], reverse=True)
         selected = scored[:limit]
         if not selected:
-            return await _case_fallback_context(case, status)
+            return await _case_fallback_context(
+                case, status, include_conferences, party_id
+            )
 
         context_blocks = []
         for index, (score, chunk) in enumerate(selected, start=1):
@@ -488,7 +554,7 @@ async def retrieve_case_context(
             extra={"case_cnr": getattr(case, "cnr", None), "error": str(exc)},
             exc_info=True,
         )
-        return await _case_fallback_context(case, status)
+        return await _case_fallback_context(case, status, include_conferences, party_id)
 
 
 async def delete_case_memory(case: Case) -> int:

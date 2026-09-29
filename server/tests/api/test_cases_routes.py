@@ -231,6 +231,73 @@ async def test_adjourned_hearing_rejects_arguments_and_take_over(
     assert "not in session" in argue.json()["detail"]
 
 
+async def test_court_stays_in_recess_while_ai_counsel_confers(
+    client, user, auth_headers, make_case
+):
+    case = await make_case(user, user_role=Roles.PLAINTIFF, status=CaseStatus.ADJOURNED)
+    await Case.set_counsel_recess(
+        case.id, get_current_datetime() + timedelta(minutes=2)
+    )
+
+    blocked = await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "active"}
+    )
+
+    assert blocked.status_code == 409
+    assert "short recess" in blocked.json()["detail"]
+    assert "2 minutes" in blocked.json()["detail"]
+
+    await Case.set_counsel_recess(
+        case.id, get_current_datetime() - timedelta(seconds=1)
+    )
+    resumed = await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "active"}
+    )
+    assert resumed.status_code == 200  # a lapsed recess never blocks
+
+
+async def test_recess_length_is_random_within_configured_range(
+    client, user, auth_headers, courtroom_case, monkeypatch
+):
+    from datetime import UTC, datetime
+
+    from app.config import settings
+
+    starts: list[float] = []
+    real_set = Case.set_counsel_recess
+
+    async def record(case_id, until):
+        if until is not None:
+            starts.append((until - datetime.now(UTC)).total_seconds())
+        await real_set(case_id, until)
+
+    monkeypatch.setattr(Case, "set_counsel_recess", record)
+    for _ in range(3):
+        case = await courtroom_case()
+        await client.put(
+            f"/cases/{case.cnr}/status",
+            headers=auth_headers,
+            json={"status": "adjourned"},
+        )
+
+    low, high = settings.counsel_recess_min_seconds, settings.counsel_recess_max_seconds
+    assert len(starts) == 3
+    assert all(low - 5 <= seconds <= high for seconds in starts)
+
+
+async def test_adjournment_recess_ends_when_conferences_finish(
+    client, user, auth_headers, courtroom_case
+):
+    case = await courtroom_case()
+
+    await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "adjourned"}
+    )
+
+    # The background conferences ran after the response and lifted the recess.
+    assert await Case.get_counsel_recess(case.id) is None
+
+
 async def test_court_cannot_resume_while_out_of_arguments(
     client, user, auth_headers, make_case
 ):
@@ -523,6 +590,80 @@ async def test_delete_restore_and_permanent_delete(
         await client.delete(f"/cases/{case.cnr}/permanent", headers=auth_headers)
     ).status_code == 200
     assert await Case.get(case.id) is None
+
+
+async def test_hidden_ai_conferences_survive_case_saves_and_stay_private(
+    client, user, auth_headers, make_case
+):
+    case = await make_case(user)
+    await Case.append_ai_party_chat(
+        case.id, "p", [{"id": "1", "sender": "counsel", "content": "Secret question?"}]
+    )
+
+    case.title = "Renamed"
+    await case.save()  # a normal save must not wipe the hidden field
+    shown = await client.get(f"/cases/{case.cnr}", headers=auth_headers)
+
+    assert (await Case.load_ai_party_chats(case.id))["p"][0]["id"] == "1"
+    assert "Secret question?" not in shown.text
+
+
+async def test_choosing_sides_starts_ai_counsel_conferences_for_case_prep(
+    client, user, auth_headers, make_case, fake_llm
+):
+    from app.models.party import PartyInvolved, PartyRole
+
+    def responder(prompt):
+        if "short, specific questions" in prompt:
+            return "Where were you?"
+        return "At home."
+
+    fake_llm.responder = responder
+    case = await make_case(
+        user,
+        parties_involved=[
+            PartyInvolved(id="c", name="Asha Rao", role=PartyRole.NON_APPLICANT)
+        ],
+    )
+
+    await client.put(
+        f"/cases/{case.cnr}/roles",
+        headers=auth_headers,
+        json={"user_role": "plaintiff", "ai_role": "defendant"},
+    )
+
+    assert len((await Case.load_ai_party_chats(case.id))["c"]) == 2
+
+
+async def test_adjourning_starts_hidden_ai_counsel_conferences(
+    client, user, auth_headers, make_case, fake_llm
+):
+    from app.models.party import PartyInvolved, PartyRole
+
+    def responder(prompt):
+        if "short, specific questions" in prompt:
+            return "Where were you?\nWho else saw it?"
+        return "At home with my brother, who saw everything."
+
+    fake_llm.responder = responder
+    case = await make_case(
+        user,
+        user_role=Roles.PLAINTIFF,
+        ai_role=Roles.DEFENDANT,
+        status=CaseStatus.ACTIVE,
+        parties_involved=[
+            PartyInvolved(id="c", name="Asha Rao", role=PartyRole.NON_APPLICANT)
+        ],
+    )
+
+    await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "adjourned"}
+    )
+    shown = await client.get(f"/cases/{case.cnr}", headers=auth_headers)
+
+    chats = await Case.load_ai_party_chats(case.id)
+    assert len(chats["c"]) == 4
+    assert "Where were you?" not in shown.text  # never sent to the user
 
 
 async def test_restore_and_permanent_delete_require_deleted_case(

@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from app.config import settings
 from app.models.party import PartyRole
 from app.services.cnr import generate_cnr, next_filing_number
 from app.services.llm import case_analysis, judge, lawyer
@@ -14,7 +15,7 @@ from app.services.llm import case_generation as cg
 from app.services.llm import parties_service as ps
 from app.services.llm import witness_service as ws
 from app.utils.datetime import get_current_datetime
-from app.utils.llm import MAX_SHORT_RESPONSE_RETRIES, LLMGenerationError
+from app.utils.llm import LLMGenerationError
 
 # ---------------------------------------------------------------------------
 # lawyer
@@ -38,7 +39,7 @@ async def test_short_reply_kept_after_two_retries(fake_llm):
     )
 
     assert answer == "Nope."
-    assert len(fake_llm.calls) == 1 + MAX_SHORT_RESPONSE_RETRIES
+    assert len(fake_llm.calls) == 1 + settings.max_short_response_retries
 
 
 async def test_counter_argument_prompt_contains_context_and_strips_thinking(fake_llm):

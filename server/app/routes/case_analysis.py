@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.config import settings
 from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
-from app.models.case import Roles
+from app.models.case import Case, Roles
 from app.models.user import User
 from app.services.llm.case_analysis import CaseAnalysisService
 from app.services.rag import retrieve_case_context, upsert_memory_item
@@ -10,6 +11,48 @@ from app.services.rag import retrieve_case_context, upsert_memory_item
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+def _newest_within_limit(lines: list[str]) -> str:
+    kept, size = [], 0
+    for line in reversed(lines):
+        # ponytail: per-section cap so a huge case can't overflow the model
+        if size + len(line) + 1 > settings.analysis_section_limit:
+            kept.append("(earlier entries omitted for length)")
+            break
+        kept.append(line)
+        size += len(line) + 1
+    return "\n".join(reversed(kept))
+
+
+def format_party_conferences(case: Case) -> str:
+    """Every private chat between the user and a party, labelled by speaker."""
+    lines: list[str] = []
+    for party_id, messages in case.party_chats.items():
+        if not messages:
+            continue
+        party = case.get_party(party_id)
+        name = party.name if party else "Party"
+        lines.append(f"-- Conference with {name} --")
+        for message in messages:
+            speaker = "User" if message.get("sender") == "user" else name
+            lines.append(f"{speaker}: {message.get('content', '')}")
+    return _newest_within_limit(lines)
+
+
+def format_witness_examinations(case: Case, user_role: str | None) -> str:
+    """Every witness examination, with each question marked as the user's or not."""
+    lines: list[str] = []
+    for testimony in case.witness_testimonies:
+        if not testimony.examination:
+            continue
+        caller = "the user" if testimony.called_by == user_role else "opposing counsel"
+        lines.append(f"-- {testimony.witness_name} (called by {caller}) --")
+        for exam in testimony.examination:
+            asker = "User" if exam.examiner == user_role else "Opposing counsel"
+            lines.append(f"{asker} asked: {exam.question}")
+            lines.append(f"{testimony.witness_name}: {exam.answer}")
+    return _newest_within_limit(lines)
 
 
 @router.post("/{caseId}/analyze-case")
@@ -72,6 +115,10 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
             judges_verdict=case.verdict,
             user_role=user_role_in_case.value if user_role_in_case else None,
             ai_role=case.ai_role.value if case.ai_role else None,
+            party_conferences=format_party_conferences(case),
+            witness_examinations=format_witness_examinations(
+                case, user_role_in_case.value if user_role_in_case else None
+            ),
             rag_context=await retrieve_case_context(
                 case,
                 "case analysis verdict argument mistakes suggestions evidence facts",

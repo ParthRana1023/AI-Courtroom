@@ -8,7 +8,7 @@ from app import messages
 from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import Case, CaseStatus, Roles
-from app.models.party import PartyInvolved, PartyRole
+from app.models.party import PartyInvolved
 from app.models.user import User
 from app.schemas.party import (
     ChatHistoryOut,
@@ -18,7 +18,11 @@ from app.schemas.party import (
     PartiesListOut,
     PartyOut,
 )
-from app.services.llm.parties_service import chat_with_party, generate_party_details
+from app.services.llm.parties_service import (
+    can_lawyer_confer_with_party,
+    chat_with_party,
+    generate_party_details,
+)
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
 from app.utils.llm import LLMGenerationError
@@ -27,21 +31,6 @@ from app.utils.rate_limiter import party_chat_rate_limiter
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["parties"])
-
-
-def can_user_chat_with_party(user_role: Roles | None, party_role: PartyRole) -> bool:
-    """
-    Determine if a user can chat with a party based on roles.
-    Plaintiff lawyers can chat with applicants.
-    Defendant lawyers can chat with non-applicants.
-    If user_role is None, user hasn't selected a role yet - they can't chat.
-    """
-    if user_role is None:
-        return False
-    return (user_role, party_role) in {
-        (Roles.PLAINTIFF, PartyRole.APPLICANT),
-        (Roles.DEFENDANT, PartyRole.NON_APPLICANT),
-    }
 
 
 def has_user_chatted(case: Case) -> bool:
@@ -61,6 +50,7 @@ async def ensure_party_bio(case: Case, party: PartyInvolved):
             case,
             f"party background role facts for {party.name}",
             source_types=["case_details", "evidence", "party_bio", "party_chat"],
+            party_id=party.id,
         )
         details = await generate_party_details(
             party.name, case.details, rag_context=rag_context
@@ -103,7 +93,7 @@ async def get_case_parties(cnr: str, current_user: User = Depends(get_current_us
     parties_out = []
     for party in case.parties_involved:
         can_chat = (
-            can_user_chat_with_party(user_role, party.role) and not is_in_courtroom
+            can_lawyer_confer_with_party(user_role, party.role) and not is_in_courtroom
         )
 
         parties_out.append(
@@ -148,7 +138,7 @@ async def get_party_details_route(
 
     is_in_courtroom = case.status == CaseStatus.ACTIVE
     can_chat = (
-        can_user_chat_with_party(case.user_role, party.role) and not is_in_courtroom
+        can_lawyer_confer_with_party(case.user_role, party.role) and not is_in_courtroom
     )
 
     return PartyOut(
@@ -202,7 +192,7 @@ async def chat_with_case_party(
         raise HTTPException(status_code=404, detail=messages.PARTY_NOT_FOUND)
 
     # Check if user can chat with this party based on their role
-    if not can_user_chat_with_party(case.user_role, party.role):
+    if not can_lawyer_confer_with_party(case.user_role, party.role):
         logger.warning(
             f"User {current_user.email} cannot chat with party {party.name} - role mismatch"
         )
@@ -245,6 +235,7 @@ async def chat_with_case_party(
                 "argument",
                 "proceeding",
             ],
+            party_id=party.id,  # each party remembers only its own conversation
         )
         response_content = await chat_with_party(
             party.name,
