@@ -8,191 +8,16 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
+from app.services.case_seed_data import (
+    random_city,
+    random_names,
+    random_organizations,
+)
 from app.services.cnr import generate_cnr
 from app.services.high_court_mapping import INDIAN_HIGH_COURTS
 from app.utils.llm import get_llm, strip_thinking
 
 logger = get_logger(__name__)
-
-
-FALLBACK_NAMES = [
-    "Parth Rana",
-    "Pranav Nagvekar",
-    "Prasiddhi Agarwal",
-    "Yashvi Savla",
-]
-
-FALLBACK_ORGANIZATIONS = [
-    "Mumbai Trading Co. Pvt Ltd",
-    "Delhi Textiles Ltd",
-    "Bangalore Tech Solutions",
-    "Chennai Industries Corp",
-    "Kolkata Exports Ltd",
-]
-
-
-def _clean_generated_line(line: str) -> str:
-    line = re.sub(r"^\s*[-*•]?\s*\d+[.)]\s*", "", line).strip()
-    line = line.strip("`'\"[]{}")
-    line = re.sub(r"^\*\*(.*?)\*\*$", r"\1", line).strip()
-    return line.rstrip(",;")
-
-
-def _looks_like_explanation(line: str) -> bool:
-    lowered = line.lower()
-    explanation_terms = (
-        "generate",
-        "random",
-        "shuffle",
-        "python",
-        "following",
-        "arrived",
-        "requested",
-        "category",
-        "example",
-        "pool",
-        "using",
-        "here",
-    )
-    return any(term in lowered for term in explanation_terms) or any(
-        marker in line for marker in ("```", "---", "–", "—")
-    )
-
-
-def _extract_simple_names(llm_response: str) -> list[str]:
-    names: list[str] = []
-    for raw_line in llm_response.splitlines():
-        line = _clean_generated_line(raw_line)
-        if not line or _looks_like_explanation(line) or len(line) > 45:
-            continue
-        if not re.fullmatch(r"[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}", line):
-            continue
-        names.append(line)
-    return list(dict.fromkeys(names))
-
-
-def _extract_simple_organizations(llm_response: str) -> list[str]:
-    organizations: list[str] = []
-    allowed_suffixes = (
-        "Ltd",
-        "Limited",
-        "Pvt Ltd",
-        "Private Limited",
-        "Corp",
-        "Corporation",
-        "Co.",
-        "Company",
-        "Foundation",
-        "Trust",
-        "Bank",
-        "Industries",
-        "Solutions",
-        "Enterprises",
-        "Exports",
-        "Services",
-    )
-
-    for raw_line in llm_response.splitlines():
-        line = _clean_generated_line(raw_line)
-        if not line or _looks_like_explanation(line) or len(line) > 70:
-            continue
-        if ":" in line or line.count(",") > 1:
-            continue
-        if not any(suffix.lower() in line.lower() for suffix in allowed_suffixes):
-            continue
-        organizations.append(line)
-    return list(dict.fromkeys(organizations))
-
-
-async def random_names():
-    template = (
-        "Generate 15 realistic Indian full names. Return only names, one per line. "
-        "No numbering, no bullets, no explanation."
-    )
-
-    prompt = ChatPromptTemplate.from_messages([("human", template)])
-
-    chain = prompt | get_llm("drafter") | StrOutputParser()
-
-    try:
-        start_time = time.perf_counter()
-        llm_response = await chain.ainvoke({})
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.debug(f"Random names generated in {duration_ms:.2f}ms")
-
-        names = _extract_simple_names(llm_response)
-        if not names:
-            logger.warning("Random name response had no usable names; using fallback")
-            return FALLBACK_NAMES
-        return random.sample(names, min(5, len(names)))
-
-    except Exception:
-        logger.exception("Error generating names with LLM")
-        return FALLBACK_NAMES
-
-
-async def random_cities():
-    """
-    Generate a list of random Indian cities.
-    """
-    names = []
-    template = "Generate 10 random names of Indian cities"
-
-    prompt = ChatPromptTemplate.from_messages([("human", template)])
-
-    chain = prompt | get_llm("drafter") | StrOutputParser()
-
-    try:
-        start_time = time.perf_counter()
-        llm_response = await chain.ainvoke({})
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.debug(f"Random cities generated in {duration_ms:.2f}ms")
-
-        # Split the response into lines and remove empty lines
-        names = [name.strip() for name in llm_response.split("\n") if name.strip()]
-        return random.sample(names, 5) if len(names) >= 5 else names
-
-    except Exception:
-        logger.exception("Error generating cities with LLM")
-        return []
-
-
-async def random_organizations():
-    """
-    Generate a list of random Indian company/organization names.
-    """
-    organizations = []
-    template = """Generate 10 random realistic Indian company or organization names.
-                    Include a mix of:
-                    - Private companies (e.g., Reliance Industries Pvt Ltd, Tata Motors Ltd)
-                    - Public sector organizations (e.g., State Bank of India, ONGC)
-                    - Local businesses (e.g., Mumbai Trading Co., Delhi Textiles)
-                    - NGOs and foundations (e.g., Akshaya Patra Foundation)
-
-                    Return only the names, one per line.
-                """
-
-    prompt = ChatPromptTemplate.from_messages([("human", template)])
-
-    chain = prompt | get_llm("drafter") | StrOutputParser()
-
-    try:
-        start_time = time.perf_counter()
-        llm_response = await chain.ainvoke({})
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.debug(f"Random organizations generated in {duration_ms:.2f}ms")
-
-        organizations = _extract_simple_organizations(llm_response)
-        if not organizations:
-            logger.warning(
-                "Random organization response had no usable organizations; using fallback"
-            )
-            return FALLBACK_ORGANIZATIONS
-        return random.sample(organizations, min(5, len(organizations)))
-
-    except Exception:
-        logger.exception("Error generating organization names with LLM")
-        return FALLBACK_ORGANIZATIONS
 
 
 async def generate_case_shell(
@@ -210,31 +35,13 @@ async def generate_case_shell(
     bns_section_numbers_str = ", ".join(map(str, numbers)) if numbers else "XXX"
     number_of_bns_sections = sections
 
-    # Generate random names and organizations
-    names = await random_names()
-    organizations = await random_organizations()
-
-    # Only generate random cities if no city is provided
-    if city:
-        selected_city = city
-    else:
-        cities = await random_cities()
-        selected_city = random.choice(cities) if cities else "Mumbai"
-
-    # Select a few random names, organizations
-    parties_involved_names = (
-        random.sample(names, min(len(names), 3)) if names else FALLBACK_NAMES
-    )
-    orgs_involved = (
-        random.sample(organizations, min(len(organizations), 2))
-        if organizations
-        else FALLBACK_ORGANIZATIONS[:2]
-    )
-
-    # The state drives both the High Court and the CNR, so they always agree.
+    # The state drives the High Court, the city and the CNR, so they all agree.
     if state_code not in INDIAN_HIGH_COURTS:
         state_code = random.choice(list(INDIAN_HIGH_COURTS))
     selected_high_court = INDIAN_HIGH_COURTS[state_code]
+    selected_city = city or random_city(state_code)
+    parties_involved_names = random_names(3)
+    orgs_involved = random_organizations(2)
     logger.info(
         f"Case generation parameters: High Court={selected_high_court}, City={selected_city}"
     )

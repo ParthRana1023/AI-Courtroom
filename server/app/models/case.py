@@ -179,6 +179,10 @@ class Case(Document):
     # Set when the court was adjourned because the user's session ended (logout
     # or expiry). Party chat stays closed until the user resumes the hearing.
     adjourned_by_session_end: bool = False
+    # Rolling summary of the oldest proceedings, used when the full record is
+    # too long to send to the AI; covers the first N transcript lines.
+    proceedings_summary: str | None = None
+    proceedings_summary_covers: int = 0
     # The login session running the hearing, so logging out on one device
     # doesn't adjourn a hearing another device is using.
     active_session_id: str | None = None

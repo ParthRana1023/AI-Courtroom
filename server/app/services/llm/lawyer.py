@@ -6,10 +6,12 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
 from app.utils.llm import (
+    UNTRUSTED_TEXT_RULE,
     LLMGenerationError,
     get_llm,
     invoke_complete,
     pick_case_context,
+    tagged,
 )
 
 logger = get_logger(__name__)
@@ -30,7 +32,7 @@ async def generate_counter_argument(
         case_context = pick_case_context(rag_context, case_details)
 
         # Use provided history or fallback to RAG context if history is not provided
-        effective_history = history or "(Relevant history retrieved via RAG context)"
+        effective_history = tagged(history or "(No earlier arguments.)", "history")
 
         template = """
 
@@ -39,7 +41,8 @@ async def generate_counter_argument(
             The relevant case context is: {case_context}
             Structured evidence available in this case:
             {evidence_context}
-            Below is the case history (relevant parts): {history} 
+            Below are the most recent arguments in this hearing: {history}
+            {untrusted_text_rule}
             Refer to the Judge as "My Lord" or "Your Honour".
             Cite exhibit references when relying on evidence. Do not invent exhibits or evidence that is not listed.
             Present your next arguments in a consise manner, and by not using all the facts available to you in a single argument.
@@ -52,7 +55,7 @@ async def generate_counter_argument(
         """
 
         prompt = ChatPromptTemplate.from_messages(
-            [("human", template + "\n\nUser's argument to respond to: {user_input}")]
+            [("human", template + "\n\nArgument to respond to:\n{user_input}")]
         )
 
         chain = prompt | get_llm("lawyer") | StrOutputParser()
@@ -67,7 +70,8 @@ async def generate_counter_argument(
                 "evidence_context": evidence_context
                 or "No structured evidence has been submitted.",
                 "user_role": user_role,
-                "user_input": user_input,
+                "user_input": tagged(user_input, "user_argument"),
+                "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
             },
             "counter argument",
         )

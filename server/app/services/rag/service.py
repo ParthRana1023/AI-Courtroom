@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 from beanie.operators import In
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 from app.config import settings
 from app.logging_config import get_logger
@@ -18,6 +20,7 @@ from app.models.user import User
 from app.services.rag.chunking import MemoryChunk, chunk_text
 from app.services.rag.embedding import embed_query, embed_texts
 from app.utils.datetime import get_current_datetime
+from app.utils.llm import UNTRUSTED_TEXT_RULE, get_llm, strip_thinking, tagged
 
 logger = get_logger(__name__)
 
@@ -52,22 +55,124 @@ def _argument_content(arg: ArgumentItem) -> str:
     return arg.content or ""
 
 
-def _case_fallback_context(case: Case, status: RagStatus) -> str:
-    details = (getattr(case, "details", None) or "").strip()
-    if not details:
-        return ""
+# Character budget for the proceedings in the full-text (RAG off) context.
+# Case details are always sent whole; past this budget the newest proceedings
+# stay word for word and older ones are folded into a short summary.
+PROCEEDINGS_LIMIT = 16000
+# Room left for the summary inside the budget (~250 words).
+SUMMARY_RESERVE = 2000
+# Re-summarise only once this many lines have scrolled out of the verbatim
+# window, so a long hearing costs one small summary call every few turns.
+SUMMARY_BATCH = 10
 
-    if status.enabled:
-        note = (
-            "RAG is enabled for this case, but no retrievable memory chunks are "
-            "available yet. Use the current case details below as the source of truth."
-        )
-    else:
-        note = (
-            "RAG is disabled for this case. Use the current case details below as "
-            "the source of truth instead of retrieved memory."
-        )
-    return f"{note}\n\nCurrent case details:\n{details[:6000]}"
+SUMMARY_PROMPT = """You are a court clerk keeping the record for counsel who will
+continue this hearing. Update the summary of the earlier proceedings.
+
+Keep every factual claim, admission, exhibit reference, witness statement and
+ruling, and say which side made each point. Leave out courtesies and repetition.
+Plain prose, at most 250 words.
+
+{untrusted_text_rule}
+
+Summary so far:
+{previous}
+
+Proceedings to add:
+{lines}
+"""
+
+
+def _transcript_lines(case: Case) -> list[str]:
+    return [
+        f"{event.speaker_name or (event.speaker_role or 'Court').capitalize()}: "
+        f"{_event_content(event)}"
+        for event in getattr(case, "courtroom_proceedings", None) or []
+        if _event_content(event)
+    ]
+
+
+async def _summarize_proceedings(previous: str | None, lines: list[str]) -> str:
+    prompt = ChatPromptTemplate.from_messages([("human", SUMMARY_PROMPT)])
+    chain = prompt | get_llm("analyzer") | StrOutputParser()
+    text = await chain.ainvoke(
+        {
+            "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
+            "previous": previous or "(none yet)",
+            "lines": tagged("\n".join(lines), "history"),
+        }
+    )
+    return strip_thinking(text)
+
+
+async def _proceedings_text(case: Case) -> str:
+    """The courtroom record, with the oldest part summarised if it is too long."""
+    lines = _transcript_lines(case)
+    if sum(len(line) + 1 for line in lines) <= PROCEEDINGS_LIMIT:
+        return "\n".join(lines)
+
+    # Newest lines that fit, leaving room for the summary of everything older.
+    start, used = len(lines), 0
+    while (
+        start
+        and used + len(lines[start - 1]) + 1 <= PROCEEDINGS_LIMIT - SUMMARY_RESERVE
+    ):
+        start -= 1
+        used += len(lines[start]) + 1
+
+    summary = getattr(case, "proceedings_summary", None)
+    covered = getattr(case, "proceedings_summary_covers", 0) if summary else 0
+    if covered > start:  # record shrank or summary is stale: rebuild
+        summary, covered = None, 0
+
+    if not summary or start - covered >= SUMMARY_BATCH:
+        try:
+            summary = await _summarize_proceedings(summary, lines[covered:start])
+        except Exception:
+            logger.warning(
+                "Proceedings summary failed; sending only the newest proceedings",
+                extra={"case_cnr": getattr(case, "cnr", None)},
+                exc_info=True,
+            )
+            return "\n".join(lines[start:])
+        covered = start
+        case.proceedings_summary = summary
+        case.proceedings_summary_covers = covered
+        if getattr(case, "id", None):
+            await Case.find_one(Case.id == case.id).update_one(
+                {
+                    "$set": {
+                        "proceedings_summary": summary,
+                        "proceedings_summary_covers": covered,
+                    }
+                }
+            )
+
+    # Lines after the summary; at most SUMMARY_BATCH - 1 more than the budget.
+    recent = "\n".join(lines[covered:])
+    return (
+        f"Summary of earlier proceedings:\n{summary}\n\nRecent proceedings:\n{recent}"
+    )
+
+
+async def _full_case_text(case: Case) -> str:
+    """Case details (always whole) followed by the courtroom record."""
+    details = (getattr(case, "details", None) or "").strip()
+    proceedings = await _proceedings_text(case)
+    parts = [f"Case details:\n{details}"] if details else []
+    if proceedings:
+        parts.append(f"Courtroom proceedings so far:\n{proceedings}")
+    return "\n\n".join(parts)
+
+
+async def _case_fallback_context(case: Case, status: RagStatus) -> str:
+    text = await _full_case_text(case)
+    if not text or not status.enabled:
+        return text
+    note = (
+        "No retrieved memory matched this request; the full case record follows "
+        "as the source of truth."
+    )
+    return f"{note}\n\n{text}"
 
 
 async def _get_rag_status_for_case(case: Case) -> RagStatus:
@@ -92,10 +197,6 @@ async def _get_rag_status_for_case(case: Case) -> RagStatus:
         return RagStatus(True, "user_preference_read_failed_default_enabled")
 
 
-async def _is_rag_enabled_for_case(case: Case) -> bool:
-    return (await _get_rag_status_for_case(case)).enabled
-
-
 async def _replace_source_chunks(
     case: Case,
     source_type: CaseMemorySourceType,
@@ -112,8 +213,11 @@ async def _replace_source_chunks(
     ).delete()
 
     texts = [chunk.content for chunk in chunks]
-    rag_enabled = await _is_rag_enabled_for_case(case)
-    embeddings = await embed_texts(texts) if rag_enabled else [[] for _ in texts]
+    # Every case keeps a searchable vector store, whatever the user's setting:
+    # case analysis always retrieves, and the user may turn RAG on later.
+    embeddings = (
+        await embed_texts(texts) if settings.rag_enabled else [[] for _ in texts]
+    )
     now = get_current_datetime()
     docs = [
         CaseMemoryChunk(
@@ -304,8 +408,17 @@ async def retrieve_case_context(
     query: str,
     source_types: Iterable[str | CaseMemorySourceType] | None = None,
     top_k: int | None = None,
+    always_rag: bool = False,
 ) -> str:
-    status = await _get_rag_status_for_case(case)
+    """Context for a prompt: retrieved chunks when RAG is on for this user,
+    otherwise the full case details and courtroom record.
+
+    ``always_rag`` retrieves regardless of the user's setting (case analysis).
+    """
+    if always_rag and settings.rag_enabled and getattr(case, "id", None):
+        status = RagStatus(True, "always_rag")
+    else:
+        status = await _get_rag_status_for_case(case)
     logger.debug(
         f"RAG retrieval status for case {getattr(case, 'cnr', None)}: "
         f"enabled={status.enabled}, reason={status.reason}"
@@ -313,7 +426,7 @@ async def retrieve_case_context(
     if not query:
         return ""
     if not status.enabled:
-        return _case_fallback_context(case, status)
+        return await _case_fallback_context(case, status)
 
     try:
         filters: list[Any] = [
@@ -329,29 +442,28 @@ async def retrieve_case_context(
             )
 
         chunks = await CaseMemoryChunk.find(*filters).to_list()
-        if not chunks:
+        if not chunks or any(not chunk.embedding for chunk in chunks):
             indexed_source_types = [
                 _coerce_source_type(item).value for item in source_types or []
             ]
             logger.debug(
-                f"No RAG chunks found for case {getattr(case, 'cnr', None)}; "
-                f"indexing available case details (source_types={indexed_source_types})"
+                f"RAG chunks missing or unembedded for case "
+                f"{getattr(case, 'cnr', None)}; re-indexing "
+                f"(source_types={indexed_source_types})"
             )
             await index_case_memory(case)
             chunks = await CaseMemoryChunk.find(*filters).to_list()
             if not chunks:
-                return _case_fallback_context(case, status)
+                return await _case_fallback_context(case, status)
 
         query_vector = np.array(await embed_query(query), dtype=np.float32)
         if query_vector.size == 0:
-            return _case_fallback_context(case, status)
+            return await _case_fallback_context(case, status)
 
         scored: list[tuple[float, CaseMemoryChunk]] = []
         for chunk in chunks:
-            if not chunk.embedding:
-                continue
             vector = np.array(chunk.embedding, dtype=np.float32)
-            if vector.size != query_vector.size:
+            if vector.size != query_vector.size:  # also skips empty vectors
                 continue
             score = float(np.dot(query_vector, vector))
             if score >= settings.rag_min_score:
@@ -361,7 +473,7 @@ async def retrieve_case_context(
         scored.sort(key=lambda item: item[0], reverse=True)
         selected = scored[:limit]
         if not selected:
-            return _case_fallback_context(case, status)
+            return await _case_fallback_context(case, status)
 
         context_blocks = []
         for index, (score, chunk) in enumerate(selected, start=1):
@@ -376,7 +488,7 @@ async def retrieve_case_context(
             extra={"case_cnr": getattr(case, "cnr", None), "error": str(exc)},
             exc_info=True,
         )
-        return _case_fallback_context(case, status)
+        return await _case_fallback_context(case, status)
 
 
 async def delete_case_memory(case: Case) -> int:

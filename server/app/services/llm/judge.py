@@ -5,7 +5,15 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
-from app.utils.llm import LLMGenerationError, get_llm, pick_case_context, strip_thinking
+from app.utils.llm import (
+    UNTRUSTED_TEXT_RULE,
+    LLMGenerationError,
+    get_llm,
+    numbered,
+    pick_case_context,
+    strip_thinking,
+    tagged,
+)
 
 logger = get_logger(__name__)
 
@@ -39,7 +47,7 @@ async def generate_verdict(
             - Use short, plain sentences; maintain a neutral, formal judicial tone.
             - Do NOT invent facts or actual case citations. If a precedent is needed, use a placeholder like [Cite: X v. Y, Year].
             - If any input data is missing, state it as: "Assumption: [text]".
-            - **AVOID single- or one-sentence paragraphs.** Except for the narrowly permitted exceptions below, each numbered paragraph must contain at least **THREE** sentences that develop a single coherent idea.
+            - **AVOID single- or one-sentence paragraphs.** Except for the narrowly permitted exceptions below, each numbered paragraph must contain at least **TWO** sentences that develop a single coherent idea.
             - **NO QUESTIONS:** Do not include any interrogative sentences or question marks ('?') anywhere in the judgment. Do not pose rhetorical questions. All sentences must be declarative or imperative as appropriate.
 
             DOCUMENT HEADER (include where available):
@@ -55,15 +63,15 @@ async def generate_verdict(
 
             **FACTS**
             - Provide a concise, chronological recital of material facts relevant to the dispute: how the dispute arose, key dates, filings (FIR, plaint, petition), and procedural history up to the hearing. Record undisputed facts separately from contested facts. If evidence (exhibits, witnesses) is relied upon, identify them briefly.
-            - If the factual material provided is sparse, combine related factual points into fewer numbered paragraphs so that each numbered paragraph contains at least THREE sentences. Do not create multiple short numbered paragraphs that cannot be developed.
+            - If the factual material provided is sparse, combine related factual points into fewer numbered paragraphs so that each numbered paragraph contains at least TWO sentences. Do not create multiple short numbered paragraphs that cannot be developed.
 
             **ISSUES**
             - Frame the precise legal questions the Court must decide. Each issue must be phrased neutrally and directly tied to the pleadings and facts.
-            - If there are only a small number of issues, combine sub-issues into a single well-developed numbered paragraph (minimum THREE sentences) rather than creating multiple short paragraphs.
+            - If there are only a small number of issues, combine sub-issues into a single well-developed numbered paragraph (minimum TWO sentences) rather than creating multiple short paragraphs.
 
             **PETITIONER'S ARGUMENTS**
             - Summarize the petitioner's contentions in numbered paragraphs. For each contention, identify the legal basis, primary factual points relied upon, evidence cited, and any precedents invoked (use placeholders for citations).
-            - Combine arguments where necessary to ensure each numbered paragraph contains at least THREE sentences developing the contention fully.
+            - Combine arguments where necessary to ensure each numbered paragraph contains at least TWO sentences developing the contention fully.
 
             **RESPONDENT'S ARGUMENTS**
             - Summarize the respondent's contentions in numbered paragraphs. For each contention, identify the factual counterpoints, evidence relied upon, and legal authorities (placeholders if necessary).
@@ -72,7 +80,7 @@ async def generate_verdict(
             **ANALYSIS OF THE LAW**
             - State the relevant legal provisions and legal principles/rules the Court will apply (statutes, essential ingredients of the offence/claim, leading legal tests). For each provision/state rule, give a one-sentence plain-language explanation of its essential ingredients.
             - Where appropriate, reproduce only short, necessary extracts (≤ 25 words) from statutes or authorities — otherwise paraphrase.
-            - Ensure each numbered paragraph in this section contains at least THREE sentences, combining discussion of closely related rules or authorities when needed.
+            - Ensure each numbered paragraph in this section contains at least TWO sentences, combining discussion of closely related rules or authorities when needed.
 
             **COURT'S REASONING**
             - Take each framed Issue in turn. For each Issue:
@@ -81,21 +89,21 @@ async def generate_verdict(
                 - Address the principal arguments of both parties and explain why each argument succeeds or fails.
                 - Distinguish or explain precedents where needed; use placeholders for full citations.
                 - Make findings of fact where the evidence requires. If credibility of witnesses is relevant, explain reasons for accepting or rejecting testimony.
-            - If the material for any subpoint is brief, synthesize related points into a single, well-developed numbered paragraph (minimum THREE sentences) rather than multiple short paragraphs.
+            - If the material for any subpoint is brief, synthesize related points into a single, well-developed numbered paragraph (minimum TWO sentences) rather than multiple short paragraphs.
             - Throughout this section, use only declarative sentences and avoid any interrogative phrasing.
 
             **FINDINGS / DECISION ON ISSUES**
-            - For each Issue, record a short, conclusive finding. Single-line answers are permitted in this section (for example, "Issue 1: Answered in the affirmative.") and may be a single sentence. If more explanation is needed, provide it in a separate numbered paragraph of at least THREE sentences immediately following the concise finding.
+            - For each Issue, record a short, conclusive finding. Single-line answers are permitted in this section (for example, "Issue 1: Answered in the affirmative.") and may be a single sentence. If more explanation is needed, provide it in a separate numbered paragraph of at least TWO sentences immediately following the concise finding.
 
             **CONCLUSION**
-            - State the overall outcome (petition allowed / dismissed / partly allowed). Summarize principal reasons leading to this outcome in one or two numbered paragraphs. Each such paragraph must contain at least THREE sentences unless it is a single, very brief recapitulation line permitted for clarity.
-            - State the operative relief (e.g., FIR quashed in relation to sections X and Y; injunction granted; decree as prayed; costs awarded to [party]) and describe the rationale in a developed paragraph of at least THREE sentences.
+            - State the overall outcome (petition allowed / dismissed / partly allowed). Summarize principal reasons leading to this outcome in one or two numbered paragraphs. Each such paragraph must contain at least TWO sentences unless it is a single, very brief recapitulation line permitted for clarity.
+            - State the operative relief (e.g., FIR quashed in relation to sections X and Y; injunction granted; decree as prayed; costs awarded to [party]) and describe the rationale in a developed paragraph of at least TWO sentences.
 
             **ORDER**
             - Give specific, precise, and practicable directions the parties / trial court / investigating agency must follow (timelines if necessary).
             - State whether costs are awarded and the quantum (if any).
             - If further proceedings are ordered (e.g., remand for trial), give clear instructions to the lower forum.
-            - Very short operative commands (single sentence) are permitted only where clarity requires concision. Otherwise each numbered paragraph in this section should contain at least THREE sentences. If operative directions are brief, combine them into a single numbered paragraph that meets the minimum sentence rule.
+            - Very short operative commands (single sentence) are permitted only where clarity requires concision. Otherwise each numbered paragraph in this section should contain at least TWO sentences. If operative directions are brief, combine them into a single numbered paragraph that meets the minimum sentence rule.
 
             **FORMALITIES**
             - Do not number paragraphs in this section. Do not include any question marks in this section.
@@ -105,7 +113,6 @@ async def generate_verdict(
             - If assumptions were made about any metadata (dates, counsel), list them as unnumbered "Assumption: ..." lines here.
 
             ADDITIONAL STYLE INSTRUCTIONS
-            - Do not include heading titles. Just the corresponding paragraphs.
             - Maintain continuous paragraph numbering across the entire judgment (e.g., 1, 2, 3, ... to the end), except do NOT number the FORMALITIES section.
             - Use the FIRAC approach (Facts, Issues, Rule/Relevant Law, Analysis, Conclusion) as a guiding method.
             - When evidence is referenced, mention exhibit numbers, witness names or shorthand (PW-1, Ex.P1) exactly as given in input, otherwise state "Assumption: [evidence description]".
@@ -113,6 +120,8 @@ async def generate_verdict(
             - Combine brief or related points into single, well-developed numbered paragraphs rather than creating several short numbered paragraphs. Each numbered paragraph (except permitted single-line findings and very short operative commands) must have a minimum of TWO sentences.
             - Absolutely no question marks ('?') must appear anywhere in the judgment. Replace any intended interrogative phrasing with a declarative restatement.
             - If the input materially conflicts or is insufficient, state the conflict or insufficiency as an "Assumption: ..." while still producing combined paragraphs that meet the minimum sentence rule.
+
+            {untrusted_text_rule}
 
             INPUTS PROVIDED:
             Case Description: {case_context}
@@ -135,8 +144,13 @@ async def generate_verdict(
                 "case_context": case_context,
                 "evidence_context": evidence_context
                 or "No structured evidence has been submitted.",
-                "plaintiff_arguments": plaintiff_arguments,
-                "defendant_arguments": defendant_arguments,
+                "plaintiff_arguments": tagged(
+                    numbered(plaintiff_arguments), "petitioner_arguments"
+                ),
+                "defendant_arguments": tagged(
+                    numbered(defendant_arguments), "respondent_arguments"
+                ),
+                "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
             }
         )
         duration_ms = (time.perf_counter() - start_time) * 1000

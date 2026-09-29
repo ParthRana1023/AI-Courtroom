@@ -178,7 +178,7 @@ def fake_llm(monkeypatch):
     """Replace every task model from ``get_llm`` with one FakeChatModel."""
     model = FakeChatModel()
     monkeypatch.setattr(
-        llm_utils, "_create_llm_instance", lambda provider, model_id: model
+        llm_utils, "_create_llm_instance", lambda provider, model_id, *_: model
     )
     llm_utils.get_llm.cache_clear()
     yield model

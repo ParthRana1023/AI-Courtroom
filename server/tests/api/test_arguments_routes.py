@@ -387,19 +387,27 @@ async def test_argument_limit_is_enforced_by_server(
 # ---------------------------------------------------------------------------
 
 
-def test_argument_history_lists_given_side_first():
+def test_recent_history_is_chronological_and_capped():
     case = Case.model_construct(
-        plaintiff_arguments=[arg("P1", "plaintiff"), arg("", "plaintiff")],
-        defendant_arguments=[arg("D1", "defendant")],
+        courtroom_proceedings=[
+            event(EventType.OPENING_STATEMENT, "P open", "plaintiff"),
+            event(EventType.SYSTEM_MESSAGE, "Witness called", "judge"),
+            event(EventType.OPENING_STATEMENT, "D open", "defendant"),
+            event(EventType.ARGUMENT, "", "plaintiff"),
+            event(EventType.ARGUMENT, "P point", "plaintiff"),
+            event(EventType.AI_ARGUMENT, "D reply", "defendant"),
+        ]
     )
 
-    assert arguments.argument_history(case, "defendant").splitlines() == [
-        "Defendant: D1",
-        "Plaintiff: P1",
+    assert arguments.recent_history(case).splitlines() == [
+        "Plaintiff: P open",
+        "Defendant: D open",
+        "Plaintiff: P point",
+        "Defendant: D reply",
     ]
-    assert arguments.argument_history(case, "plaintiff").splitlines() == [
-        "Plaintiff: P1",
-        "Defendant: D1",
+    assert arguments.recent_history(case, limit=2).splitlines() == [
+        "Plaintiff: P point",
+        "Defendant: D reply",
     ]
 
 

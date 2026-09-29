@@ -11,7 +11,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pymongo.results import UpdateResult
 
 from app import messages
-from app.config import settings
 from app.dependencies import courtroom_control, get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
@@ -245,7 +244,7 @@ async def examine_witness(
             examiner_role=examiner_role,
             question=request.question,
             case_details=case.details,
-            examination_history=exam_history if not settings.rag_enabled else None,
+            examination_history=exam_history[-8:],
             rag_context=rag_context,
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
@@ -546,10 +545,8 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     question=question,
                     case_details=case.details,
                     examination_history=(
-                        exam_history
+                        exam_history[-8:]
                         + [{"examiner": ai_role, "question": question, "answer": ""}]
-                        if not settings.rag_enabled
-                        else None
                     ),
                     rag_context=answer_context,
                 )

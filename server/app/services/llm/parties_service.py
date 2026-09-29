@@ -14,7 +14,14 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
 from app.models.party import PartyInvolved, PartyRole
-from app.utils.llm import LLMGenerationError, get_llm, pick_case_context, strip_thinking
+from app.utils.llm import (
+    UNTRUSTED_TEXT_RULE,
+    LLMGenerationError,
+    get_llm,
+    pick_case_context,
+    strip_thinking,
+    tagged,
+)
 
 logger = get_logger(__name__)
 
@@ -305,7 +312,10 @@ Important Guidelines:
 Previous Conversation:
 {history_text if history_text else "(No previous conversation)"}
 
-User (Lawyer): {user_message}
+{UNTRUSTED_TEXT_RULE}
+
+User (Lawyer):
+{tagged(user_message, "message")}
 
 Respond as {party_name}:
 """

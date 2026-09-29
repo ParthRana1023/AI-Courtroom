@@ -84,6 +84,7 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
                     "verdict",
                     "party_chat",
                 ],
+                always_rag=True,  # analysis reviews the whole case
             ),
         )
     except Exception as e:

@@ -745,8 +745,9 @@ export default function SettingsPage() {
                     Case Memory Retrieval
                   </h3>
                   <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    Control whether AI responses use retrieved case memory to
-                    reduce prompt size.
+                    Every case keeps a searchable memory. Choose whether the
+                    courtroom AI reads the most relevant parts of it or the full
+                    case record. Case analysis always uses the memory.
                   </p>
                   <label className="flex items-center justify-between gap-4 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
                     <div>
@@ -754,8 +755,8 @@ export default function SettingsPage() {
                         Use RAG for courtroom AI
                       </span>
                       <span className="text-sm text-gray-500 dark:text-gray-400">
-                        When off, prompts fall back to the original full-case
-                        context behavior.
+                        When off, the AI reads the full case details and
+                        courtroom proceedings instead.
                       </span>
                     </div>
                     <input

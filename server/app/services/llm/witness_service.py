@@ -13,11 +13,13 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
 from app.utils.llm import (
+    UNTRUSTED_TEXT_RULE,
     LLMGenerationError,
     get_llm,
     invoke_complete,
     pick_case_context,
     strip_thinking,
+    tagged,
 )
 
 logger = get_logger(__name__)
@@ -101,8 +103,10 @@ CRITICAL GUIDELINES FOR WITNESS TESTIMONY:
 9. Do NOT use formal legal language - speak like a real person testifying
 10. Your demeanor should reflect your role - if you're the accused, show appropriate anxiety
 
+{UNTRUSTED_TEXT_RULE}
+
 Now respond to this question from {examiner_description}:
-"{question}"
+{tagged(question, "question")}
 
 Respond as {witness_name} (witness):
 """

@@ -24,7 +24,7 @@ from app.services.image_generation import ImageGenerationError
 from app.services.llm.evidence import generate_evidence_prompt
 from app.services.rag import chunking, embedding
 from app.services.rag import service as rag
-from tests.helpers import boom
+from tests.helpers import boom, reload
 
 # ---------------------------------------------------------------------------
 # chunking
@@ -272,7 +272,7 @@ async def test_upsert_memory_item_survives_errors(rich_case):
     assert await rag.upsert_memory_item(case, "not-a-source-type", "x", "content") == 0
 
 
-async def test_user_with_rag_disabled_gets_unembedded_chunks_and_fallback(
+async def test_rag_off_user_gets_full_case_text_but_case_is_still_indexed(
     rich_case, user
 ):
     user.rag_enabled = False
@@ -283,10 +283,140 @@ async def test_user_with_rag_disabled_gets_unembedded_chunks_and_fallback(
     context = await rag.retrieve_case_context(case, "deposit")
 
     chunk = await CaseMemoryChunk.find_one(CaseMemoryChunk.source_id == "a")
-    assert chunk is not None
-    assert chunk.embedding == []
-    assert context.startswith("RAG is disabled for this case")
-    assert "security deposit" in context
+    assert chunk is not None and chunk.embedding  # vector store kept regardless
+    assert context.startswith("Case details:\n## FACTS")
+    assert "Courtroom proceedings so far:" in context
+    assert "Was there damage?" in context
+    assert "[1]" not in context  # no retrieved chunks
+
+
+async def test_case_analysis_retrieval_ignores_the_rag_off_setting(
+    rich_case, user, monkeypatch
+):
+    monkeypatch.setattr(settings, "rag_min_score", 0.0)
+    user.rag_enabled = False
+    await user.save()
+    case = await rich_case()
+
+    context = await rag.retrieve_case_context(case, "deposit", always_rag=True)
+
+    assert context.startswith("[1] ")
+
+
+async def test_chunks_saved_without_embeddings_are_reindexed(rich_case, monkeypatch):
+    monkeypatch.setattr(settings, "rag_min_score", 0.0)
+    case = await rich_case()
+    await CaseMemoryChunk(
+        case_id=case.id,
+        cnr=case.cnr,
+        user_id=case.user_id,
+        source_type=CaseMemorySourceType.CASE_DETAILS,
+        source_id="case_details",
+        content="stale unembedded chunk",
+        content_hash="h",
+        embedding=[],
+    ).insert()
+
+    context = await rag.retrieve_case_context(case, "deposit")
+
+    assert context.startswith("[1] ")
+    chunks = await CaseMemoryChunk.find(CaseMemoryChunk.case_id == case.id).to_list()
+    assert chunks and all(chunk.embedding for chunk in chunks)
+
+
+def points(count, start=0):
+    return [
+        CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.ARGUMENT,
+            content=f"point {i:02d}",
+            speaker_role="plaintiff",
+        )
+        for i in range(start, start + count)
+    ]
+
+
+@pytest.fixture
+def small_budget(monkeypatch):
+    # Each line is "Plaintiff: point NN" (19 chars + newline).
+    monkeypatch.setattr(rag, "PROCEEDINGS_LIMIT", 100)
+    monkeypatch.setattr(rag, "SUMMARY_RESERVE", 40)
+    monkeypatch.setattr(rag, "SUMMARY_BATCH", 3)
+
+
+async def test_short_record_is_sent_whole_without_summarising(
+    user, make_case, fake_llm, small_budget
+):
+    case = await make_case(user, details="Facts.", courtroom_proceedings=points(4))
+
+    text = await rag._full_case_text(case)
+
+    assert text.startswith("Case details:\nFacts.")
+    assert "Plaintiff: point 00" in text and "Plaintiff: point 03" in text
+    assert fake_llm.calls == []
+
+
+async def test_long_record_keeps_details_and_newest_lines_and_summarises_the_rest(
+    user, make_case, fake_llm, small_budget
+):
+    fake_llm.responses.append("Plaintiff argued points 0 to 7.")
+    case = await make_case(
+        user, details="Full facts " * 50, courtroom_proceedings=points(11)
+    )
+
+    text = await rag._full_case_text(case)
+
+    assert ("Full facts " * 50).strip() in text  # details never cut
+    assert "Summary of earlier proceedings:\nPlaintiff argued points 0 to 7." in text
+    assert "Plaintiff: point 10" in text and "Plaintiff: point 00" not in text
+    assert "<history>" in fake_llm.prompts[0]
+    saved = await reload(case)
+    assert saved.proceedings_summary == "Plaintiff argued points 0 to 7."
+    assert saved.proceedings_summary_covers == 8
+
+
+async def test_summary_is_reused_until_a_full_batch_scrolls_out(
+    user, make_case, fake_llm, small_budget
+):
+    fake_llm.responses.extend(["First summary.", "Second summary."])
+    case = await make_case(user, courtroom_proceedings=points(11))
+    await rag._full_case_text(case)
+
+    case.courtroom_proceedings += points(2, start=11)  # fewer than a batch
+    reused = await rag._full_case_text(case)
+
+    assert "First summary." in reused and len(fake_llm.calls) == 1
+
+    case.courtroom_proceedings += points(2, start=13)  # now a batch has passed
+    updated = await rag._full_case_text(case)
+
+    assert "Second summary." in updated and len(fake_llm.calls) == 2
+    assert "First summary." in fake_llm.prompts[1]  # folded, not redone
+
+
+async def test_summary_failure_falls_back_to_newest_lines(
+    user, make_case, fake_llm, small_budget
+):
+    fake_llm.error = RuntimeError("provider down")
+    case = await make_case(user, courtroom_proceedings=points(11))
+
+    text = await rag._full_case_text(case)
+
+    assert "Summary" not in text and "Plaintiff: point 10" in text
+    assert "Plaintiff: point 00" not in text
+
+
+async def test_stale_summary_is_rebuilt(user, make_case, fake_llm, small_budget):
+    fake_llm.responses.append("Fresh summary.")
+    case = await make_case(
+        user,
+        courtroom_proceedings=points(11),
+        proceedings_summary="Old summary.",
+        proceedings_summary_covers=50,  # more lines than exist
+    )
+
+    text = await rag._full_case_text(case)
+
+    assert "Fresh summary." in text and "Old summary." not in fake_llm.prompts[0]
 
 
 async def test_retrieve_ranks_relevant_chunks(rich_case, monkeypatch):
@@ -332,7 +462,7 @@ async def test_retrieve_fallbacks(rich_case, monkeypatch):
     assert await rag.retrieve_case_context(case, "") == ""
 
     monkeypatch.setattr(settings, "rag_min_score", 2.0)  # nothing can score this high
-    assert "no retrievable memory chunks" in await rag.retrieve_case_context(
+    assert "No retrieved memory matched" in await rag.retrieve_case_context(
         case, "deposit"
     )
 
@@ -340,7 +470,7 @@ async def test_retrieve_fallbacks(rich_case, monkeypatch):
 async def test_retrieve_skips_unembedded_or_mismatched_chunks(rich_case, monkeypatch):
     monkeypatch.setattr(settings, "rag_min_score", 0.0)
     case = await rich_case()
-    for embedding_value in ([], [1.0, 0.0]):
+    for embedding_value in ([1.0, 0.0],):  # wrong dimension for the model
         await CaseMemoryChunk(
             case_id=case.id,
             cnr=case.cnr,
@@ -366,7 +496,7 @@ async def test_retrieve_with_empty_query_vector(rich_case, monkeypatch):
 
     monkeypatch.setattr(rag, "embed_query", empty)
 
-    assert "no retrievable memory chunks" in await rag.retrieve_case_context(
+    assert "No retrieved memory matched" in await rag.retrieve_case_context(
         case, "deposit"
     )
 
@@ -396,15 +526,15 @@ async def test_global_rag_switch_off_falls_back_to_case_details(monkeypatch):
     without_details = SimpleNamespace(id="x", cnr="c")
 
     context = await rag.retrieve_case_context(with_details, "anything")
-    assert context.startswith("RAG is disabled for this case")
+    assert context.startswith("Case details:")
     assert "The current case details are still available." in context
     assert await rag.retrieve_case_context(without_details, "anything") == ""
 
 
-def test_fallback_context_empty_details():
+async def test_fallback_context_empty_details():
     status = rag.RagStatus(True, "enabled")
 
-    assert rag._case_fallback_context(SimpleNamespace(details="  "), status) == ""
+    assert await rag._case_fallback_context(SimpleNamespace(details="  "), status) == ""
 
 
 def test_event_content_prefers_question_and_answer():
@@ -442,7 +572,7 @@ async def test_delete_and_index_survive_database_errors(rich_case, monkeypatch):
 
     assert await rag.delete_case_memory(case) == 0
     assert await rag.index_case_memory(case) == 0
-    assert "no retrievable memory chunks" in await rag.retrieve_case_context(
+    assert "No retrieved memory matched" in await rag.retrieve_case_context(
         case, "deposit"
     )
 
@@ -805,6 +935,4 @@ async def test_retrieve_falls_back_when_indexing_produces_nothing(
 
     context = await rag.retrieve_case_context(case, "deposit")
 
-    assert context.startswith(
-        "RAG is enabled for this case, but no retrievable memory chunks"
-    )
+    assert context.startswith("No retrieved memory matched")

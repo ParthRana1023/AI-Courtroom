@@ -291,16 +291,19 @@ def test_get_llm_uses_configured_primary_and_fallback(monkeypatch):
     monkeypatch.setattr(
         llm_utils,
         "_create_llm_instance",
-        lambda provider, model_id: built.append((provider, model_id))
+        lambda provider, model_id, temperature: built.append(
+            (provider, model_id, temperature)
+        )
         or real_create_llm_instance("groq", "m"),
     )
     llm_utils.get_llm.cache_clear()
 
     llm_utils.get_llm("judge")
 
+    # The judge runs cool so verdicts stay consistent and faithful to the record.
     assert built == [
-        (settings.judge_provider, settings.judge_model),
-        (settings.judge_fallback_provider, settings.judge_fallback_model),
+        (settings.judge_provider, settings.judge_model, 0.2),
+        (settings.judge_fallback_provider, settings.judge_fallback_model, 0.2),
     ]
 
 

@@ -3,10 +3,13 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger, log_execution_time
 from app.utils.llm import (
+    UNTRUSTED_TEXT_RULE,
     LLMGenerationError,
     get_llm,
+    numbered,
     pick_case_context,
     strip_thinking,
+    tagged,
 )
 
 logger = get_logger(__name__)
@@ -58,6 +61,8 @@ class CaseAnalysisService:
             USER'S ROLE: {user_role}
             AI'S ROLE: {ai_role}
             
+            {untrusted_text_rule}
+
             DEFENDANT'S ARGUMENTS:
             {defendant_args}
 
@@ -114,8 +119,13 @@ class CaseAnalysisService:
                     "case_context": case_context,
                     "user_role": (user_role.upper() if user_role else "UNKNOWN"),
                     "ai_role": (ai_role.upper() if ai_role else "UNKNOWN"),
-                    "defendant_args": chr(10).join(defendant_args or []),
-                    "plaintiff_args": chr(10).join(plaintiff_args or []),
+                    "defendant_args": tagged(
+                        numbered(defendant_args or []), "respondent_arguments"
+                    ),
+                    "plaintiff_args": tagged(
+                        numbered(plaintiff_args or []), "petitioner_arguments"
+                    ),
+                    "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
                     "judges_verdict": judges_verdict,
                 }
             )

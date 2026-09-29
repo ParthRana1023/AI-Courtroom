@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app import messages
-from app.config import settings
 from app.dependencies import courtroom_control, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
@@ -76,14 +75,15 @@ def record_argument(
     )
 
 
-def argument_history(case: Case, first_role: str) -> str:
-    """Both sides' arguments, the given side first, one 'Side: text' line each."""
-    return "".join(
-        f"{side.capitalize()}: {arg.content}\n"
-        for side in (first_role, other_side(first_role))
-        for arg in side_arguments(case, side)
-        if arg.content
-    )
+def recent_history(case: Case, limit: int = 8) -> str:
+    """The last few arguments in order, so the AI always knows where the hearing
+    stands (RAG adds older, relevant material on top)."""
+    lines = [
+        f"{(event.speaker_role or 'Unknown').capitalize()}: {event.content}"
+        for event in case.courtroom_proceedings
+        if event.type in ARGUMENT_EVENTS and event.content
+    ]
+    return "\n".join(lines[-limit:])
 
 
 def check_can_argue_as(case: Case, role: str, user: User):
@@ -230,11 +230,7 @@ async def submit_argument(
                 "defendant",
                 case.details,
                 rag_context=counter_context,
-                history=(
-                    argument_history(case, "defendant")
-                    if not settings.rag_enabled
-                    else None
-                ),
+                history=recent_history(case),
                 evidence_context=evidence_context,
             )
             record_argument(
@@ -326,7 +322,7 @@ async def submit_argument(
         speaker,
         current_user.id,
     )
-    history = argument_history(case, role) if not settings.rag_enabled else None
+    history = recent_history(case)
 
     if is_closing:
         closing_context = await retrieve_case_context(
@@ -448,7 +444,7 @@ async def submit_closing_statement(
             role,
             case_details=case.details,
             rag_context=closing_context,
-            history=argument_history(case, role) if not settings.rag_enabled else None,
+            history=recent_history(case),
             evidence_context=format_evidence_context(case.evidence),
         )
     except Exception:
