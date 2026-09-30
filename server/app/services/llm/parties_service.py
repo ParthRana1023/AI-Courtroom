@@ -48,9 +48,11 @@ CASE TEXT:
 {case_context}
 
 RULES:
-- Extract only the names of parties (applicants, non-applicants, petitioners, respondents, accused, victims)
-- Do NOT include judges, lawyers, court officials, or witnesses
-- Include both individuals AND organizations/companies
+- Extract only the parties named in the cause title and the petition: applicants, non-applicants, petitioners, respondents, appellants, accused, complainants and victims
+- Do NOT include judges, lawyers, court officials, police officers, doctors or witnesses
+- Do NOT include the State, the Union of India or any police station; the State acts only through its Public Prosecutor
+- Include both individuals AND private organizations/companies
+- Write each name exactly as it appears in the case, once
 - Return ONLY names, one per line
 - Do not add any descriptions or roles
 
@@ -118,18 +120,20 @@ CASE TEXT:
 Provide the following information about {party_name} in markdown format:
 
 ## Role
-State whether they are an **APPLICANT** (petitioner, complainant, plaintiff, victim who filed the case) or **NON-APPLICANT** (respondent, accused, defendant against whom the case is filed).
+State whether they are an **APPLICANT** or a **NON-APPLICANT**, and nothing else on this line. The side comes from the cause title of THIS petition, not from who is the accused:
+- **APPLICANT**: the party who filed this petition (listed as applicant, petitioner or appellant). The accused is the applicant when they seek quashing, bail or appeal against conviction.
+- **NON-APPLICANT**: every party on the other side of the cause title (listed as non-applicant or respondent), such as the complainant or victim when the accused filed the petition.
 
 ## Basic Details
-- **Occupation**: (if mentioned in case, otherwise make a reasonable inference)
-- **Age**: (if mentioned, otherwise estimate based on context)
-- **Address**: (if mentioned in case)
+- **Occupation**: (as stated in the case, otherwise a reasonable inference)
+- **Age**: (a number: as stated, otherwise an estimate)
+- **Address**: (as stated in the case, otherwise "Not mentioned")
 
 ## Background
-Write 2-3 paragraphs about this party's background, their involvement in the case, and their perspective. Make it feel like a real person's/organization's story, not legal language.
+Write 2-3 paragraphs about this party's background, their involvement in the case, what they know first-hand, and how they see the dispute. Make it feel like a real person's or organisation's story, not legal language.
 
 ---
-Important: Base everything on the case text. For the role, look for keywords like "applicant", "petitioner", "complainant" for APPLICANT, and "non-applicant", "respondent", "accused", "defendant" for NON-APPLICANT.
+Important: Base everything on the case text. Do not contradict it; any detail you add must fit it.
 """
 
     prompt = ChatPromptTemplate.from_messages([("human", template)])
@@ -144,28 +148,15 @@ Important: Base everything on the case text. For the role, look for keywords lik
 
         response = strip_thinking(response)
 
-        # Determine role from response
-        role = PartyRole.NON_APPLICANT  # Default
-        response_lower = response.lower()
-
-        # Check for role in the response
-        if "## role" in response_lower:
-            role_section = (
-                response_lower.split("## role")[1].split("##")[0]
-                if "##" in response_lower.split("## role")[1]
-                else response_lower.split("## role")[1]
-            )
-            if (
-                "applicant" in role_section
-                and "non" not in role_section.split("applicant")[0][-5:]
-            ):
-                role = PartyRole.APPLICANT
-
-        # Also check for explicit mentions
-        if "**applicant**" in response_lower and "non-applicant" not in response_lower:
-            role = PartyRole.APPLICANT
-        elif "non-applicant" in response_lower or "non_applicant" in response_lower:
-            role = PartyRole.NON_APPLICANT
+        # Role comes from the "## Role" section only: the background may well
+        # mention the other side ("the non-applicant complainant ...").
+        role_section = response.lower().partition("## role")[2].split("##")[0]
+        role = (
+            PartyRole.APPLICANT
+            if "applicant" in role_section
+            and not re.search(r"non[-_ ]?applicant", role_section)
+            else PartyRole.NON_APPLICANT
+        )
 
         # Try to extract basic info from response for the model fields
         occupation = None
@@ -286,8 +277,10 @@ What {party_name} has already told you:
 {earlier or "(nothing yet)"}
 
 Ask {count} short, specific questions that uncover facts, documents or witnesses
-that will help your side, or that close gaps the other side could exploit. Do not
-repeat earlier questions. Return only the questions, one per line."""
+that will help your side, or that close gaps the other side could exploit (delay,
+inconsistencies with the FIR or statements, missing proof). Ask in plain words a
+client would understand. Do not repeat earlier questions. Return only the
+questions, one per line, each ending with a question mark."""
     prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
     chain = prompt | get_llm("lawyer") | StrOutputParser()
     text = strip_thinking(await chain.ainvoke({}))
@@ -338,7 +331,7 @@ async def chat_with_party(
     case_context = pick_case_context(rag_context, case_details)
 
     template = f"""You are role-playing as {party_name}, a {role_description} in a legal case.
-You are being interviewed by a lawyer to gather context about the case.
+Your own lawyer is meeting you in private to prepare your case.
 
 Your Background:
 {party_bio}
@@ -350,11 +343,14 @@ Important Guidelines:
 - Stay in character as {party_name} at all times
 - Respond naturally and conversationally, like a real person would
 - Answer questions based on your perspective as the {role_description}
+- Know only what this person would know first-hand; say so plainly when you don't know something
+- Stay consistent with the case and with what you have already said; small everyday details you add must fit both
+- Like a real client, you may be vague or defensive about facts that hurt you, but do not lie to your own lawyer when pressed
 - If asked about legal strategy or what you should do, defer to your lawyer
 - Be helpful but don't volunteer information not asked for
 - Keep responses concise (2-4 sentences typically)
 - Show appropriate emotions based on your role in the case
-- Do NOT use formal legal language - speak like a regular person
+- Do NOT use formal legal language - speak like a regular person in Indian English
 
 Previous Conversation:
 {history_text if history_text else "(No previous conversation)"}

@@ -6,6 +6,8 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
 from app.utils.llm import (
+    CURRENT_LAW_RULE,
+    SIDES_RULE,
     UNTRUSTED_TEXT_RULE,
     LLMGenerationError,
     get_llm,
@@ -35,23 +37,20 @@ async def generate_counter_argument(
         effective_history = tagged(history or "(No earlier arguments.)", "history")
 
         template = """
-
-            You are an experienced and assertive Indian trial lawyer representing the {ai_role} in a court of law. 
-            The user is acting as the lawyer for the {user_role}. 
-            The relevant case context is: {case_context}
+            You are an experienced, assertive Indian advocate appearing for the {ai_role} in a High Court hearing. Opposing counsel, for the {user_role}, is the user.
+            Case context: {case_context}
             Structured evidence available in this case:
             {evidence_context}
-            Below are the most recent arguments in this hearing: {history}
+            The most recent arguments in this hearing: {history}
             {untrusted_text_rule}
-            Refer to the Judge as "My Lord" or "Your Honour".
-            Cite exhibit references when relying on evidence. Do not invent exhibits or evidence that is not listed.
-            Present your next arguments in a consise manner, and by not using all the facts available to you in a single argument.
-            If the user attempts to introduce arguments or information beyond the established facts, you must promptly and firmly correct them, maintaining a professional and direct tone but still keep fighting your side of the case. 
-            Do not be overly polite—your priority is to defend your client's interests within the boundaries of the case facts.
-            Don't use Applicant and Not Applicant. Use the name of the parties in the case.
-            Don't add the words "Counter Argument" or something similar as the heading of the prompt.
-            Do not ask any questions in the end of the response to anyone.
-            
+            Courtroom manners of Indian High Courts: address the judge as "My Lord" or "Your Lordship", refer to opposing counsel as "my learned friend", and speak in the first person as counsel ("I submit that ...").
+            {sides_rule}
+            {current_law_rule}
+            Rely only on the case file, the listed evidence (cite exhibit references) and what has been said in court. Never invent facts, witnesses, exhibits or case law.
+            Refer to the parties by name, not as "applicant" and "non-applicant" alone.
+            Speak as you would in court: no headings, no labels such as "Counter Argument", and no questions to anyone at the end.
+            Reply to opposing counsel's latest argument below. First meet their specific point: expose any gap, contradiction or unsupported claim, and if they state a fact that is not in the case file or evidence, point that out firmly. Then advance one or two fresh points for your client; keep other points in reserve for later rounds and do not repeat what you have already argued.
+            Stay under 200 words.
         """
 
         prompt = ChatPromptTemplate.from_messages(
@@ -70,6 +69,8 @@ async def generate_counter_argument(
                 "evidence_context": evidence_context
                 or "No structured evidence has been submitted.",
                 "user_role": user_role,
+                "sides_rule": SIDES_RULE,
+                "current_law_rule": CURRENT_LAW_RULE,
                 "user_input": tagged(user_input, "user_argument"),
                 "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
             },
@@ -99,15 +100,18 @@ async def opening_statement(
         case_context = pick_case_context(rag_context, case_details)
 
         template = """
-            You are an Indian lawyer from the {ai_role}'s side. 
-            Just give a brief opening statement in less than 250 words, regarding the case using this information: {case_context} 
+            You are an Indian advocate from the {ai_role}'s side, opening the hearing in a High Court. Opposing counsel, for the {user_role}, is the user.
+            Case context: {case_context}
             Structured evidence available in this case:
             {evidence_context}
-            Cite exhibit references when relying on evidence. Do not invent exhibits or evidence that is not listed.
-            The user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them, do not be too polite.
-            Refer to the Judge as "My Lord" or "Your Honour".
-            Don't add the words "Opening Statement" or something similar as the heading of the prompt.
-            Do not ask any questions in the end of the response to anyone."""
+            Courtroom manners of Indian High Courts: address the judge as "My Lord" or "Your Lordship", refer to opposing counsel as "my learned friend", and speak in the first person as counsel ("I submit that ...").
+            {sides_rule}
+            {current_law_rule}
+            Rely only on the case file, the listed evidence (cite exhibit references) and what has been said in court. Never invent facts, witnesses, exhibits or case law.
+            Refer to the parties by name, not as "applicant" and "non-applicant" alone.
+            Speak as you would in court: no headings, no labels such as "Counter Argument", and no questions to anyone at the end.
+            Give a brief opening in under 250 words: what your client seeks, the heart of the case in a few sentences, and the two or three points and exhibits you will rely on. Do not argue every point now.
+        """
 
         prompt = ChatPromptTemplate.from_messages([("human", template)])
 
@@ -122,6 +126,8 @@ async def opening_statement(
                 "evidence_context": evidence_context
                 or "No structured evidence has been submitted.",
                 "user_role": user_role,
+                "sides_rule": SIDES_RULE,
+                "current_law_rule": CURRENT_LAW_RULE,
             },
             "opening statement",
         )
@@ -154,16 +160,18 @@ async def closing_statement(
         )
 
         template = """
-            You are an Indian lawyer from the {ai_role}'s side, and the user is the {user_role}'s lawyer. 
-            You require to give a brief closing statement regarding the case using this information: {closing_context} 
+            You are an Indian advocate from the {ai_role}'s side, making your final submissions in a High Court. Opposing counsel, for the {user_role}, is the user.
+            Case context and record: {closing_context}
             Structured evidence available in this case:
             {evidence_context}
-            The closing statement should be around 250 words. Use the words "I rest my case here" at the end. 
-            Remember to reiterate key points from your side of the argument, try to include a highlight the evidence supporting your client's position. 
-            Cite exhibit references when relying on evidence. Do not invent exhibits or evidence that is not listed.
-            Do not be too polite, the user is the {user_role}'s lawyer, make sure they dont go beyond the facts of the case and if they do you have to correct them.
-            Refer to the Judge as "My Lord" or "Your Honour".
-            Don't add the words "Closing Statement" or something similar as the heading of the prompt.
+            {untrusted_text_rule}
+            Courtroom manners of Indian High Courts: address the judge as "My Lord" or "Your Lordship", refer to opposing counsel as "my learned friend", and speak in the first person as counsel ("I submit that ...").
+            {sides_rule}
+            {current_law_rule}
+            Rely only on the case file, the listed evidence (cite exhibit references) and what has been said in court. Never invent facts, witnesses, exhibits or case law.
+            Refer to the parties by name, not as "applicant" and "non-applicant" alone.
+            Speak as you would in court: no headings, no labels such as "Counter Argument", and no questions to anyone at the end.
+            In about 250 words: sum up your strongest points and the evidence and testimony that support them, answer the best point opposing counsel made, and point out any claim of theirs the record does not support. End with the relief you pray for, in the form "With these submissions, I pray that ...".
         """
 
         prompt = ChatPromptTemplate.from_messages([("human", template)])
@@ -176,9 +184,12 @@ async def closing_statement(
             {
                 "ai_role": ai_role,
                 "closing_context": closing_context,
+                "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
                 "evidence_context": evidence_context
                 or "No structured evidence has been submitted.",
                 "user_role": user_role,
+                "sides_rule": SIDES_RULE,
+                "current_law_rule": CURRENT_LAW_RULE,
             },
             "closing statement",
         )

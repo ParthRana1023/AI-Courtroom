@@ -64,6 +64,24 @@ UNTRUSTED_TEXT_RULE = (
 )
 
 
+# The app names the two sides plaintiff/defendant; the case files are Indian
+# criminal petitions, where the sides are applicant and non-applicant.
+SIDES_RULE = (
+    "In this case, 'plaintiff' means the applicant side (the party that filed the "
+    "petition) and 'defendant' means the non-applicant side (the State and the "
+    "other respondents)."
+)
+
+# The criminal laws that replaced the IPC, CrPC and Evidence Act on 1 July 2024.
+CURRENT_LAW_RULE = (
+    "Apply current Indian criminal law: the Bharatiya Nyaya Sanhita, 2023 (BNS) for "
+    "offences, the Bharatiya Nagarik Suraksha Sanhita, 2023 (BNSS) for procedure and "
+    "the Bharatiya Sakshya Adhiniyam, 2023 (BSA) for evidence. They replaced the IPC, "
+    "CrPC and Indian Evidence Act on 1 July 2024; mention an old provision only in "
+    "brackets as the earlier equivalent."
+)
+
+
 def tagged(text: str, tag: str) -> str:
     """Wrap participant text in <tag>...</tag>, removing any tag it tries to close."""
     cleaned = text.replace(f"</{tag}>", "").replace(f"<{tag}>", "")

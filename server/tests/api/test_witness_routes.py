@@ -289,7 +289,7 @@ def cross_exam_responder(decisions=("CONTINUE",)):
     decisions = list(decisions)
 
     def respond(prompt):
-        if "Generate ONE strategic cross-examination question" in prompt:
+        if "Generate ONE strategic question" in prompt:
             return "Question: Where were you on 5 May?"
         if "Evaluate whether you should ask another question" in prompt:
             return decisions.pop(0) if decisions else "STOP"
@@ -317,7 +317,7 @@ async def test_ai_cross_examination_runs_in_background(
     assert len(saved.witness_testimonies[0].examination) == 2
     assert saved.courtroom_proceedings[-1].content == "Cross-examination completed."
     question_prompt = next(
-        p for p in fake_llm.prompts if "strategic cross-examination" in p
+        p for p in fake_llm.prompts if "Generate ONE strategic question" in p
     )
     assert "Plaintiff point" in question_prompt
 
@@ -731,7 +731,7 @@ async def test_background_task_stops_when_state_changes_between_questions(
 
     await witness_routes.process_ai_cross_examination(case.cnr)
 
-    questions = [p for p in fake_llm.prompts if "strategic cross-examination" in p]
+    questions = [p for p in fake_llm.prompts if "Generate ONE strategic question" in p]
     assert len(questions) == 1  # stopped before a second question
 
 

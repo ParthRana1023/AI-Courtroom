@@ -14,6 +14,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.config import settings
 from app.logging_config import get_logger
 from app.utils.llm import (
+    SIDES_RULE,
     UNTRUSTED_TEXT_RULE,
     LLMGenerationError,
     get_llm,
@@ -93,16 +94,18 @@ Previous Examination (if any):
 {history_text if history_text else "(This is the first question)"}
 
 CRITICAL GUIDELINES FOR WITNESS TESTIMONY:
-1. You are under oath - your responses must be truthful based on your character's knowledge
+1. You are under oath - your answers must be truthful to what your character actually knows
 2. Stay in character as {witness_name} - respond with appropriate emotions and personality
-3. If you don't know something, say so truthfully
-4. Keep responses concise and direct - typically 2-4 sentences
-5. If the question is unclear, politely ask for clarification
-6. Address the Judge as "My Lord" or "Your Honour" when appropriate
-7. Be respectful but respond based on your character's perspective
-8. If the question is leading or objectionable, still answer but show discomfort if appropriate
-9. Do NOT use formal legal language - speak like a real person testifying
-10. Your demeanor should reflect your role - if you're the accused, show appropriate anxiety
+3. Speak only to what you saw, heard or did yourself; if you don't know or don't remember, say so
+4. Stay consistent with the case file, your earlier answers and your statement to the police; do not invent major new facts
+5. Keep responses concise and direct - typically 2-4 sentences
+6. If the question is unclear, politely ask for clarification
+7. Address the Judge as "My Lord" and counsel as "Sir" or "Madam"
+8. You naturally see events from your own side, but under firm questioning admit facts that are true even when they hurt your side
+9. When counsel puts a suggestion to you ("I put it to you that ..."), clearly accept or deny it, as an Indian witness would ("It is wrong to say that ...")
+10. If the question is leading or objectionable, still answer but show discomfort if appropriate
+11. Do NOT use formal legal language - speak like a real person testifying, in Indian English
+12. Your demeanor should reflect your role - if you're the accused, show appropriate anxiety
 
 {UNTRUSTED_TEXT_RULE}
 
@@ -183,8 +186,17 @@ async def generate_cross_examination_questions(
 
     case_context = pick_case_context(rag_context, case_details)
 
+    examination = (
+        "cross-examination: use short, leading questions, and you may put suggestions "
+        'to the witness ("I put it to you that ...")'
+        if is_hostile
+        else "examination-in-chief: use open, non-leading questions that let the "
+        "witness tell the court what they know"
+    )
+
     template = f"""You are an experienced Indian trial lawyer representing the {ai_lawyer_role}.
-You are cross-examining {witness_name}, who is a {witness_stance}.
+{SIDES_RULE}
+You are examining {witness_name}, who is a {witness_stance}. This is {examination}.
 
 Case Details:
 {case_context}
@@ -195,12 +207,12 @@ Arguments made in this case so far:
 Testimony from this witness so far:
 {testimony_text if testimony_text else "(No testimony yet - this is the first question)"}
 
-Generate ONE strategic cross-examination question. Your goals:
-- {"Challenge the witness's credibility or find inconsistencies" if is_hostile else "Elicit testimony favorable to your client"}
-- {"Look for gaps in their story or contradictions" if is_hostile else "Strengthen your case through their testimony"}
-- Be professional but assertive
-- Ask pointed, specific questions (not vague or open-ended)
-- Refer to the Judge as "My Lord" or "Your Honour" if addressing the court
+Generate ONE strategic question. Your goals:
+- {"Challenge the witness's credibility: contradictions with the case file, their police statement or earlier answers, interest in the outcome, or what they could not have seen" if is_hostile else "Bring out the facts that support your client, one fact at a time"}
+- {"Pin down one specific fact per question" if is_hostile else "Pre-empt the weak points the other side will attack"}
+- Build on the answers so far; do not repeat a question already asked
+- Rely only on facts in the case file and the testimony; never invent any
+- Refer to the Judge as "My Lord" if addressing the court
 
 Respond with ONLY the question, no preamble or explanation. Start directly with the question.
 """
@@ -281,6 +293,8 @@ Arguments so far:
 
 Available witnesses who have NOT yet testified:
 {witness_list}
+
+{SIDES_RULE} Your own side's parties are the {"applicants" if ai_role == "plaintiff" else "non-applicants"}. Calling your own side's witness is usual; call the other side's party only to extract a specific admission.
 
 Based on the case progress, should you call a witness now? Consider:
 1. Would witness testimony strengthen your current argument?
@@ -413,8 +427,9 @@ async def should_continue_cross_examination(
         witness_role == "non_applicant" and ai_lawyer_role == "plaintiff"
     )
 
-    template = f"""You are an experienced trial lawyer representing the {ai_lawyer_role}.
-You are cross-examining {witness_name}, {'a hostile witness' if is_hostile else 'a friendly witness'}.
+    template = f"""You are an experienced Indian trial lawyer representing the {ai_lawyer_role}.
+{SIDES_RULE}
+You are examining {witness_name}, {'a hostile witness' if is_hostile else 'a friendly witness'}.
 You have asked {questions_asked} question(s) so far (maximum {max_questions}).
 
 Relevant case context:

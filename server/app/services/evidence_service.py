@@ -43,12 +43,13 @@ CASE TEXT:
 {context}
 
 RULES:
-- Identify every piece of evidence (witness testimony, physical objects, documents, digital evidence, etc.)
+- Identify every piece of evidence the case text actually mentions (witness testimony, physical objects, documents, digital evidence, etc.); never invent any
+- List each item once, even if it is mentioned in several places
 - For each item, provide:
     - title: A short descriptive name (e.g., "CCTV Footage", "Witness Statement of Rahul")
     - evidence_type: Choose from (Witness Testimony, Physical Evidence, Digital Evidence, Medical Record, Document, or other)
-    - description: A clear summary of what the evidence is and what it shows
-    - source: Who provided the evidence (e.g., "Prosecution", "Rahul Sharma", "Police")
+    - description: A neutral summary of what the evidence is and what it shows, including any weakness the case text notes; keep its annexure reference if it has one
+    - source: Who produced the evidence (e.g., "Prosecution", "Rahul Sharma", "Police")
 
 Return the data ONLY as a JSON list of objects. No other text.
 

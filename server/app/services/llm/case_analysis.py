@@ -3,6 +3,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger, log_execution_time
 from app.utils.llm import (
+    SIDES_RULE,
     UNTRUSTED_TEXT_RULE,
     LLMGenerationError,
     get_llm,
@@ -60,13 +61,14 @@ class CaseAnalysisService:
         case_context = pick_case_context(rag_context, case_details)
 
         prompt = """
-            You are a legal expert AI tasked with analyzing a legal case. Your role is to evaluate the arguments presented and provide constructive feedback.
+            You are a senior Indian criminal-law advocate mentoring a junior who has just argued this case in a simulated High Court hearing. Review their work honestly and constructively. Address the junior directly as "you".
 
             CASE TITLE: {title}
             RELEVANT CASE CONTEXT: {case_context}
 
             USER'S ROLE: {user_role}
             AI'S ROLE: {ai_role}
+            {sides_rule}
             
             {untrusted_text_rule}
 
@@ -92,7 +94,7 @@ class CaseAnalysisService:
                - Any orders for/against specific parties
                - The implications for each party
             
-            2. Then determine if the user won or lost:
+            2. Then determine if the user won, lost or partly succeeded:
                - If user is PLAINTIFF:
                  * A verdict favoring the plaintiff means the user WON
                  * A verdict favoring the defendant means the user LOST
@@ -100,6 +102,9 @@ class CaseAnalysisService:
                - If user is DEFENDANT:
                  * A verdict favoring the plaintiff means the user LOST
                  * A verdict favoring the defendant means the user WON
+
+               - A partly allowed petition, or relief granted with conditions, is a
+                 partial success: say which parts went which way.
             
             3. Base your analysis STRICTLY on:
                - The specific language and orders in the verdict
@@ -111,10 +116,10 @@ class CaseAnalysisService:
             Return your response as a well-structured Markdown document with the following sections:
             
             ### Outcome
-            Clearly state whether the user has won or lost the case.
+            Clearly state whether you (the user) won, lost or partly succeeded.
 
             ### Reasoning
-            Provide detailed reasoning for the outcome based on the arguments and verdict.
+            Explain the outcome from the verdict's own reasoning. Say how far it was decided by the law and the record (the case file and evidence) and how far by the advocacy on each side, so the user knows whether better arguing could have changed it.
 
             Review EVERYTHING the user did, not only their arguments:
             - Arguments: each argument the user made in court.
@@ -161,6 +166,7 @@ class CaseAnalysisService:
                         "witness_examinations",
                     ),
                     "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
+                    "sides_rule": SIDES_RULE,
                     "judges_verdict": judges_verdict,
                 }
             )

@@ -379,6 +379,14 @@ async def test_generate_party_details_role_section_without_bold(fake_llm):
     assert (await ps.generate_party_details("X", "case")).role == PartyRole.APPLICANT
 
 
+async def test_generate_party_details_role_ignores_other_side_in_background(fake_llm):
+    fake_llm.responses.append(
+        "## Role\n**APPLICANT**\n## Background\nHe filed against the non-applicant."
+    )
+
+    assert (await ps.generate_party_details("X", "case")).role == PartyRole.APPLICANT
+
+
 async def test_generate_party_details_failure(fake_llm):
     fake_llm.error = RuntimeError("down")
 
