@@ -198,7 +198,6 @@ def setup_logging(log_level: str = "INFO", log_format: str = "text") -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
-    logging.getLogger("motor").setLevel(logging.WARNING)
     logging.getLogger("pymongo").setLevel(logging.WARNING)
 
 

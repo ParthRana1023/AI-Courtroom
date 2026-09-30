@@ -4,9 +4,9 @@ Every test runs against an isolated MongoDB database, a scripted fake LLM, a
 fake embedder and a captured email outbox, so the suite never touches the
 real services configured in ``server/.env``.
 
-The database is in-memory (mongomock-motor) by default. Set TEST_MONGODB_URL
+The database is in-memory (mongomock-motor, adapted in tests/helpers.py) by default. Set TEST_MONGODB_URL
 (e.g. mongodb://localhost:27017) to run the same tests against a real MongoDB
-server through Motor, exactly as production does; each test then gets its own
+server through PyMongo's async client, exactly as production does; each test gets its own
 throwaway database.
 """
 
@@ -72,9 +72,8 @@ from beanie import init_beanie
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from mongomock_motor import AsyncMongoMockClient
-from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import Field
+from pymongo import AsyncMongoClient
 
 from app.config import settings
 from app.database import DOCUMENT_MODELS
@@ -84,6 +83,7 @@ from app.services import email as email_service
 from app.services.auth import create_access_token, ph
 from app.services.rag import service as rag_service
 from app.utils import llm as llm_utils
+from tests.helpers import mock_mongo_client
 
 TEST_PASSWORD = "Password123!"
 
@@ -117,18 +117,16 @@ def pytest_configure(config):
 async def db():
     """Fresh database with all Beanie models initialised."""
     if REAL_MONGODB_URL:
-        client = AsyncIOMotorClient(REAL_MONGODB_URL, serverSelectionTimeoutMS=5000)
+        client = AsyncMongoClient(REAL_MONGODB_URL, serverSelectionTimeoutMS=5000)
         database = client[f"ai_courtroom_test_{uuid.uuid4().hex[:12]}"]
     else:
-        client = AsyncMongoMockClient()
+        client = mock_mongo_client()
         database = client[settings.current_db_name]
-    # Beanie types expect PyMongo async; we run it on Motor
-    # pyrefly: ignore[bad-argument-type]
     await init_beanie(database=database, document_models=DOCUMENT_MODELS)
     yield database
     if REAL_MONGODB_URL:
         await client.drop_database(database.name)
-        client.close()
+        await client.close()
 
 
 # ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import AsyncMongoClient
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app import messages
@@ -98,8 +98,8 @@ async def lifespan(app: FastAPI):
     # Log environment configuration
     log_environment_status()
 
-    # Create Motor client and initialize database
-    motor_client = AsyncIOMotorClient(settings.mongodb_url)
+    # Create the database client and initialize Beanie
+    db_client = AsyncMongoClient(settings.mongodb_url)
 
     # Use test database if in testing mode
     if settings.testing:
@@ -107,7 +107,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.info(f"📦 Using production database: {settings.mongodb_db_name}")
 
-    await init_db(motor_client)
+    await init_db(db_client)
     logger.info("✅ Database initialized successfully")
 
     # A restart kills any running AI cross-examination task; clear its flag so
@@ -127,7 +127,7 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("🛑 Shutting down AI Courtroom API...")
-    motor_client.close()
+    await db_client.close()
     logger.info("✅ Database connection closed")
 
 

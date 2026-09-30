@@ -18,6 +18,7 @@ from app.schemas.user import CaseLocationPreferenceUpdate, UserCreate
 from app.utils import datetime as dt
 from app.utils import llm as llm_utils
 from app.utils.llm import _create_llm_instance as real_create_llm_instance
+from tests.helpers import mock_mongo_client
 
 # ---------------------------------------------------------------------------
 # config
@@ -423,17 +424,15 @@ async def test_middleware_logs_and_reraises_unhandled_errors(monkeypatch):
 async def test_lifespan_initialises_database_and_preloads_locations(
     monkeypatch, testing
 ):
-    from mongomock_motor import AsyncMongoMockClient
-
     monkeypatch.setattr(settings, "testing", testing)
 
-    client = AsyncMongoMockClient()
+    client = mock_mongo_client()
     preloaded = []
 
     async def fake_preload():
         preloaded.append(True)
 
-    monkeypatch.setattr(main, "AsyncIOMotorClient", lambda url: client)
+    monkeypatch.setattr(main, "AsyncMongoClient", lambda url: client)
     monkeypatch.setattr(main, "preload_location_cache", fake_preload)
     cases = client[settings.current_db_name]["cases"]
     await cases.insert_one({"cnr": "STUCK", "is_ai_examining": True})
@@ -450,10 +449,8 @@ async def test_lifespan_initialises_database_and_preloads_locations(
 
 @pytest.mark.asyncio
 async def test_init_db_uses_production_name_when_not_testing(monkeypatch):
-    from mongomock_motor import AsyncMongoMockClient
-
     monkeypatch.setattr(settings, "testing", False)
-    client = AsyncMongoMockClient()
+    client = mock_mongo_client()
 
     await database.init_db(client)
 

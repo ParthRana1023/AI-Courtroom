@@ -117,12 +117,7 @@ async def get_client_log_stats():
             {"$sort": {"count": -1}},
         ]
 
-        # Beanie 2's aggregate() awaits PyMongo's async API, but this app hands
-        # Beanie a Motor client whose aggregate() returns a cursor directly.
-        cursor = ClientLog.get_pymongo_collection().aggregate(pipeline)
-        # Motor cursor, not a coroutine
-        # pyrefly: ignore[missing-attribute]
-        results = await cursor.to_list(length=None)
+        results = await ClientLog.aggregate(pipeline).to_list()
 
         stats = {item["_id"]: item["count"] for item in results}
 

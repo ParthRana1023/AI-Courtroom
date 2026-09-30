@@ -1,6 +1,6 @@
 # app/database.py
 from beanie import init_beanie
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import AsyncMongoClient
 
 from app.config import settings
 from app.logging_config import get_logger
@@ -29,20 +29,14 @@ DOCUMENT_MODELS = [
 ]
 
 
-if not hasattr(AsyncIOMotorClient, "append_metadata"):
-    AsyncIOMotorClient.append_metadata = lambda self, *a, **kw: None
-
-
-async def init_db(motor_client: AsyncIOMotorClient):
-    """Initialize Beanie with explicit Motor client"""
+async def init_db(client: AsyncMongoClient):
+    """Initialize Beanie on PyMongo's async client."""
     try:
         db_name = settings.current_db_name
         logger.info(f"Initializing database: {db_name}")
 
         await init_beanie(
-            # Beanie types expect PyMongo async; we run it on Motor
-            # pyrefly: ignore[bad-argument-type]
-            database=motor_client[db_name],
+            database=client[db_name],
             document_models=DOCUMENT_MODELS,
             allow_index_dropping=True,
             recreate_views=True,

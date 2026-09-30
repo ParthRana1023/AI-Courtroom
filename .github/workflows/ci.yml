@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         # mongomock: fast, in-memory. mongodb: the same tests against a real
-        # server through Motor, as in production (catches driver mismatches).
+        # server through PyMongo's async client, as in production (catches driver mismatches).
         database: [mongomock, mongodb]
     services:
       mongodb:

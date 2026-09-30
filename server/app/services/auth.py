@@ -33,7 +33,7 @@ async def find_user_by_email(email: str) -> User | None:
 
 
 async def create_user(user_data: UserCreate) -> User:
-    """Create new user with direct Motor operations"""
+    """Create a new user."""
     logger.info(f"Creating user: {user_data.email}")
 
     existing_user = await find_user_by_email(user_data.email)
