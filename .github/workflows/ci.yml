@@ -39,21 +39,22 @@ jobs:
         with:
           python-version: "3.13" # matches server/Dockerfile
           cache: pip
-          cache-dependency-path: server/requirements.txt
+          cache-dependency-path: |
+            server/requirements.txt
+            server/requirements-dev.txt
 
       # sentence-transformers otherwise pulls the CUDA build of PyTorch (~2 GB).
       - name: Install CPU-only PyTorch
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+        run: pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
 
       # Lint once; the result doesn't depend on the database leg. pyrefly needs
       # the installed dependencies, so it runs here rather than in its own job.
       - name: Lint, format and type check
         if: matrix.database == 'mongomock'
         run: |
-          pip install ruff==0.16.0 black==26.5.1 pyrefly==1.1.1
           python -m ruff check .
           python -m black --check .
           pyrefly check

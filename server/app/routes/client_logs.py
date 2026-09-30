@@ -5,12 +5,15 @@ Logs are processed in background to minimize response time.
 
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
+from app.dependencies import get_current_user
 from app.logging_config import get_logger
 from app.models.client_log import ClientLog
+from app.routes.auth import client_ip
 from app.schemas.client_log import ClientLogBatch, ClientLogEntry
 from app.utils.datetime import get_current_datetime
+from app.utils.rate_limiter import client_log_rate_limiter
 
 logger = get_logger(__name__)
 
@@ -25,6 +28,14 @@ async def receive_client_logs(
     Receive and store client-side logs.
     Logs are processed in background to minimize response time.
     """
+    # Past the per-IP limit, batches are dropped quietly: a 429 would only make
+    # the browser queue and resend them.
+    ip = client_ip(request)
+    remaining, _ = await client_log_rate_limiter.get_remaining_attempts(ip)
+    if not remaining:
+        return {"received": 0}
+    await client_log_rate_limiter.register_usage(ip)
+
     # Add to background task for async processing
     background_tasks.add_task(process_client_logs, batch.logs)
 
@@ -88,7 +99,7 @@ async def process_client_logs(logs: list[ClientLogEntry]):
             logger.exception("Failed to store client log")
 
 
-@router.get("/client/stats")
+@router.get("/client/stats", dependencies=[Depends(get_current_user)])
 async def get_client_log_stats():
     """
     Get statistics about client logs.
@@ -120,6 +131,6 @@ async def get_client_log_stats():
             "counts": stats,
             "total": sum(stats.values()),
         }
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to get client log stats")
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail="Failed to get client log stats.")

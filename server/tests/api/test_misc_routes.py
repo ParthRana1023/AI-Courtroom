@@ -586,7 +586,7 @@ async def test_location_routes_report_provider_errors(
     response = await client.get(path)
 
     assert response.status_code == 500
-    assert "timed out" in response.json()["detail"]
+    assert "timed out" not in response.json()["detail"]  # cause stays in the log
 
 
 # ---------------------------------------------------------------------------
@@ -666,12 +666,12 @@ async def test_client_logs_are_stored_and_counted(client):
     assert stored["error"].error_stack == "Traceback"
 
 
-async def test_client_log_stats_counts_recent_logs(client):
+async def test_client_log_stats_counts_recent_logs(client, auth_headers):
     await client.post(
         "/logs/client", json={"logs": [log_entry(level="warn", timestamp="not-a-date")]}
     )
 
-    stats = (await client.get("/logs/client/stats")).json()
+    stats = (await client.get("/logs/client/stats", headers=auth_headers)).json()
 
     assert stats["period"] == "last_24_hours"
     assert stats["counts"] == {"warn": 1}
@@ -685,13 +685,60 @@ async def test_client_log_storage_errors_are_swallowed(client, monkeypatch):
     ).status_code == 200
 
 
-async def test_client_log_stats_error_is_reported(client, monkeypatch):
+async def test_client_log_stats_error_is_reported(client, auth_headers, monkeypatch):
     def broken_collection():
         raise RuntimeError("db down")
 
     monkeypatch.setattr(ClientLog, "get_pymongo_collection", broken_collection)
 
-    assert (await client.get("/logs/client/stats")).json() == {"error": "db down"}
+    response = await client.get("/logs/client/stats", headers=auth_headers)
+
+    assert response.status_code == 500
+    assert "db down" not in response.json()["detail"]
+
+
+async def test_client_log_stats_require_login(client):
+    assert (await client.get("/logs/client/stats")).status_code == 401
+
+
+async def test_client_log_fields_are_capped(client):
+    response = await client.post(
+        "/logs/client",
+        json={
+            "logs": [
+                log_entry(message="m" * 5000, context={"blob": "x" * 5000}),
+                log_entry(context={"page": 2}),
+            ]
+        },
+    )
+
+    assert response.json() == {"received": 2}
+    stored = await ClientLog.find_all().sort("+id").to_list()
+    assert len(stored[0].message) == 2000
+    assert stored[0].context == {"truncated": True}
+    assert stored[1].context == {"page": 2}
+
+
+async def test_client_log_rejects_bad_level_and_huge_batches(client):
+    bad_level = {"logs": [log_entry(level="fatal")]}
+    too_many = {"logs": [log_entry()] * 101}
+
+    assert (await client.post("/logs/client", json=bad_level)).status_code == 422
+    assert (await client.post("/logs/client", json=too_many)).status_code == 422
+    assert (await client.post("/logs/client", json={"logs": ["x"]})).status_code == 422
+
+
+async def test_client_logs_past_the_ip_limit_are_dropped(client, monkeypatch):
+    from app.utils.rate_limiter import client_log_rate_limiter
+
+    monkeypatch.setattr(client_log_rate_limiter, "requests", 1)
+    body = {"logs": [log_entry()]}
+
+    first = await client.post("/logs/client", json=body)
+    second = await client.post("/logs/client", json=body)
+
+    assert (first.json(), second.json()) == ({"received": 1}, {"received": 0})
+    assert await ClientLog.find_all().count() == 1
 
 
 # ---------------------------------------------------------------------------

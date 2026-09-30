@@ -38,8 +38,9 @@ async def submit_feedback(
         feedback_dict["_id"] = str(feedback.id)
         feedback_dict["created_at"] = feedback.created_at.isoformat()
         return feedback_dict
-    except Exception as e:
+    except Exception:
         logger.exception(f"Error saving feedback from {current_user.email}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save feedback. Please try again.",
         )

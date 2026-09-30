@@ -207,7 +207,8 @@ async def test_verify_google_token_requires_client_id(monkeypatch):
 
     with pytest.raises(HTTPException) as exc:
         await google_auth.verify_google_token("id-token")
-    assert "GOOGLE_CLIENT_ID" in exc.value.detail
+    # The misconfiguration is logged; the caller only learns the token failed.
+    assert exc.value.detail == "Invalid Google token."
 
 
 async def test_verify_risc_token(monkeypatch):

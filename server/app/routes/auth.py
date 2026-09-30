@@ -98,13 +98,13 @@ async def initiate_registration(user_data: UserCreate):
                 f"Google registration failed for {user_data.email}: {e.detail}"
             )
             raise
-        except Exception as e:
+        except Exception:
             logger.exception(
                 f"Unexpected error during Google registration for {user_data.email}"
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error creating user: {e!s}",
+                detail="Error creating user.",
             )
 
     # Generate and send OTP for regular registrations
@@ -153,13 +153,13 @@ async def verify_registration(data: RegistrationVerifyRequest):
             f"Registration verification failed for {data.user_data.email}: {e.detail}"
         )
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(
             f"Unexpected error during registration for {data.user_data.email}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating user: {e!s}",
+            detail="Error creating user.",
         )
 
 
@@ -293,7 +293,7 @@ async def verify_login(request: Request):
         logger.error(f"Invalid login request format: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid request format: {e!s}",
+            detail="Invalid request format.",
         )
 
 
@@ -347,7 +347,7 @@ async def update_profile(
     except ValueError as e:
         logger.error(f"Invalid profile update data for {current_user.email}: {e!s}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid data: {e!s}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data."
         )
 
 
@@ -388,11 +388,11 @@ async def google_login(data: GoogleLoginRequest):
         return result
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Google authentication failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Google authentication failed: {e!s}",
+            detail="Google authentication failed.",
         )
 
 
@@ -453,11 +453,11 @@ async def upload_profile_photo(
             f"Profile photo uploaded successfully for user: {current_user.email}"
         )
         return current_user
-    except Exception as e:
+    except Exception:
         logger.exception(f"Profile photo upload failed for {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload profile photo: {e!s}",
+            detail="Failed to upload profile photo.",
         )
 
 
@@ -486,11 +486,11 @@ async def delete_profile_photo(current_user: User = Depends(get_current_user)):
             f"Profile photo deleted successfully for user: {current_user.email}"
         )
         return current_user
-    except Exception as e:
+    except Exception:
         logger.exception(f"Profile photo deletion failed for {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete profile photo: {e!s}",
+            detail="Failed to delete profile photo.",
         )
 
 
@@ -515,13 +515,13 @@ async def update_case_location_preference(
         await current_user.save()
         logger.info(f"Case location preference updated for user: {current_user.email}")
         return current_user
-    except Exception as e:
+    except Exception:
         logger.exception(
             f"Failed to update case location preference for {current_user.email}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update case location preference: {e!s}",
+            detail="Failed to update case location preference.",
         )
 
 
@@ -539,11 +539,11 @@ async def update_rag_preference(
         await current_user.save()
         logger.info(f"RAG preference updated for user: {current_user.email}")
         return current_user
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to update RAG preference for {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update RAG preference: {e!s}",
+            detail="Failed to update RAG preference.",
         )
 
 
@@ -598,7 +598,7 @@ async def risc_webhook(request: Request):
     except ValueError as e:
         logger.error(f"RISC webhook validation failed: {e!s}")
         # Return 400/401 so Google knows something is wrong, but 202/200 if we just processed it
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Invalid security event token.")
     except Exception:
         logger.exception("RISC webhook error")
         raise HTTPException(status_code=500, detail="Internal server error")

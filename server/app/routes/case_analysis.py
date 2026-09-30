@@ -136,9 +136,7 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
         )
     except Exception as e:
         logger.exception("Error generating case analysis", extra={"case_id": caseId})
-        raise HTTPException(
-            status_code=500, detail=f"Error generating analysis: {e!s}"
-        ) from e
+        raise HTTPException(status_code=500, detail="Error generating analysis.") from e
 
     # The analysis result is already a string from CaseAnalysisService
     case.analysis = analysis_result

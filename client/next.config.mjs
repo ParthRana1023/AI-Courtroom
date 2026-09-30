@@ -13,6 +13,22 @@ const revision =
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === "true";
 const isDev = process.env.NODE_ENV === "development";
 
+// React's dev tooling needs eval and the local API; production builds need neither.
+const devScriptSrc = isDev ? " 'unsafe-eval'" : "";
+const devConnectSrc = isDev ? " http://localhost:8000" : "";
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${devScriptSrc} https://accounts.google.com https://*.vercel-scripts.com`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  `connect-src 'self'${devConnectSrc} ${apiOrigin} https://accounts.google.com https://*.vercel-insights.com https://*.vercel-analytics.com`,
+  "frame-src https://accounts.google.com",
+  "frame-ancestors 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+].join("; ");
+
 const withSerwist = withSerwistInit({
   swSrc: "app/sw.ts",
   swDest: "public/sw.js",
@@ -24,9 +40,6 @@ const withSerwist = withSerwistInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   turbopack: {},
   allowedDevOrigins: ["192.168.29.33", "localhost", "127.0.0.1"],
   images: {
@@ -44,7 +57,7 @@ const nextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://*.vercel-scripts.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 ${apiOrigin} https://accounts.google.com https://*.vercel-insights.com https://*.vercel-analytics.com; frame-src https://accounts.google.com;`,
+            value: contentSecurityPolicy,
           },
           {
             key: "X-Frame-Options",

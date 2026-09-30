@@ -1,53 +1,49 @@
+# Runtime dependencies, pinned so every deploy installs what was tested.
+# Test and lint tools live in requirements-dev.txt.
+# PyTorch comes in through sentence-transformers; the Dockerfile and CI install
+# the CPU-only build first, so the ~2 GB CUDA build is never pulled.
+
 # Core Web Framework & Server
-fastapi
-uvicorn
+fastapi==0.141.1
+uvicorn==0.54.0
 
 # Database & ODM (MongoDB)
-motor
-pymongo
-# Pinned: newer releases are typed for PyMongo's async client and break Motor/mongomock tests.
+motor==3.7.1
+pymongo==4.18.2
+# Newer releases are typed for PyMongo's async client and break Motor/mongomock tests.
 beanie==2.0.0
-pydantic_mongo
-dnspython
+pydantic-mongo==3.1.0
+dnspython==2.8.0  # mongodb+srv:// URLs
 
 # Authentication, Security & Passwords
-cryptography
-argon2-cffi
-PyJWT
-email-validator
+cryptography==50.0.1
+argon2-cffi==25.1.0
+PyJWT==2.15.0
+email-validator==2.3.0  # pydantic EmailStr
 
 # Configuration & Environment
-python-dotenv
-pydantic-settings
+python-dotenv==1.2.3  # pydantic-settings reads .env through it
+pydantic-settings==2.15.0
 
 # Data Validation & Parsing
-pydantic
+pydantic==2.13.5
 
 # File Uploads & Request Handling
-python-multipart
-
-# Email & Messaging
+python-multipart==0.0.32  # FastAPI form and file uploads
 
 # Async & Networking Utilities
-httpx
+httpx==0.28.1
 
 # AI / LLM / LangChain Stack
-langchain-groq
-langchain-openai
-langchain-text-splitters
-numpy
-sentence-transformers
+langchain-core==1.6.5
+langchain-groq==1.1.3
+langchain-openai==1.6.6
+langchain-text-splitters==1.1.2
+numpy==2.5.3
+sentence-transformers==6.1.0
 
 # Google Authentication & OAuth
-google-auth
+google-auth==2.58.1
 
 # Cloud Storage
-cloudinary
-
-# Testing
-pytest
-pytest-asyncio>=0.23.0
-pytest-cov
-mongomock-motor
-factory-boy
-faker
+cloudinary==1.46.2

@@ -43,3 +43,9 @@ export const WITNESS_CHECK_COOLDOWN_MS = numberFrom(
   process.env.NEXT_PUBLIC_WITNESS_CHECK_COOLDOWN_MS,
   30000,
 );
+
+// Android APK, published as an asset on the latest GitHub release rather than
+// kept in the repo. Upload new builds under the same file name.
+export const APK_DOWNLOAD_URL =
+  process.env.NEXT_PUBLIC_APK_DOWNLOAD_URL ||
+  "https://github.com/ParthRana1023/AI-Courtroom/releases/latest/download/ai-courtroom.apk";

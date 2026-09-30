@@ -190,7 +190,7 @@ async def verify_google_token(credential: str) -> dict:
         logger.warning("Google token verification failed", extra={"error": str(e)})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google token: {e!s}",
+            detail="Invalid Google token.",
         )
 
 

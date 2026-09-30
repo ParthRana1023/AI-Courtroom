@@ -149,6 +149,11 @@ login_failure_ip_limiter = RateLimiter(
     settings.login_failure_ip_limit, settings.login_failure_window, "login_failure_ip"
 )
 
+# Client logs arrive from signed-out visitors too, so they are keyed by IP.
+client_log_rate_limiter = RateLimiter(
+    settings.client_log_rate_limit, settings.client_log_rate_window, "client_log"
+)
+
 # Silent burst guard: normal chatting never hits it; scripted spam does.
 party_chat_rate_limiter = RateLimiter(
     settings.party_chat_rate_limit, settings.party_chat_rate_window, "party_chat"

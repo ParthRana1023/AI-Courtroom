@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import { APK_DOWNLOAD_URL } from "@/lib/config";
 import { isNativePlatform } from "@/lib/platform";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -26,11 +27,6 @@ interface BeforeInstallPromptEvent extends Event {
  */
 type InstallMode = "pwa" | "apk";
 
-/**
- * Path to the APK file hosted in the public directory.
- * Update this when you build a new version of the APK.
- */
-const APK_DOWNLOAD_URL = "/downloads/ai-courtroom.apk";
 
 interface PwaInstallContextValue {
   /** Whether the browser supports the install prompt and the app is not yet installed. */

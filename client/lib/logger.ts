@@ -227,7 +227,8 @@ class RemoteTransport implements LogTransport {
 
     if (this.queue.length === 0) return;
 
-    const logs = [...this.queue];
+    // The server takes at most 100 entries per batch; keep the newest.
+    const logs = this.queue.slice(-100);
     this.queue = [];
 
     try {

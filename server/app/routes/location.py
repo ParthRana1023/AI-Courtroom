@@ -33,9 +33,9 @@ async def list_countries():
         countries = await get_countries()
         logger.debug(f"Returned {len(countries)} countries")
         return countries
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to fetch countries")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch countries: {e!s}")
+        raise HTTPException(status_code=500, detail="Failed to fetch countries.")
 
 
 @router.get("/states/{country_iso2}")
@@ -54,9 +54,9 @@ async def list_states(country_iso2: str):
         states = await get_states(country_iso2)
         logger.debug(f"Returned {len(states)} states for {country_iso2}")
         return states
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to fetch states for {country_iso2}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch states: {e!s}")
+        raise HTTPException(status_code=500, detail="Failed to fetch states.")
 
 
 @router.get("/cities/{country_iso2}/{state_iso2}")
@@ -76,9 +76,9 @@ async def list_cities(country_iso2: str, state_iso2: str):
         cities = await get_cities(country_iso2, state_iso2)
         logger.debug(f"Returned {len(cities)} cities for {state_iso2}/{country_iso2}")
         return cities
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to fetch cities for {state_iso2}/{country_iso2}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch cities: {e!s}")
+        raise HTTPException(status_code=500, detail="Failed to fetch cities.")
 
 
 @router.get("/search")
@@ -102,9 +102,9 @@ async def search(
         results = await search_locations(q, limit)
         logger.debug(f"Search returned {len(results)} results for '{q}'")
         return results
-    except Exception as e:
+    except Exception:
         logger.exception(f"Location search failed for '{q}'")
-        raise HTTPException(status_code=500, detail=f"Search failed: {e!s}")
+        raise HTTPException(status_code=500, detail="Search failed.")
 
 
 @router.get("/phone-code/{country_iso2}")
@@ -127,11 +127,9 @@ async def get_country_phone_code(country_iso2: str):
         raise HTTPException(status_code=404, detail="Country not found")
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to fetch phone code for {country_iso2}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch phone code: {e!s}"
-        )
+        raise HTTPException(status_code=500, detail="Failed to fetch phone code.")
 
 
 @router.get("/indian-states")

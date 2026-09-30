@@ -1,0 +1,13 @@
+# Everything needed to run the tests and linters: pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Testing
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-cov==7.1.0
+mongomock-motor==0.0.36
+
+# Lint, format and type check (same versions as CI)
+ruff==0.16.0
+black==26.5.1
+pyrefly==1.1.1

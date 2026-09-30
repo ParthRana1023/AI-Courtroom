@@ -96,6 +96,8 @@ class Settings(BaseSettings):
     login_failure_window: int = 900  # Window in seconds (15 minutes)
     party_chat_rate_limit: int = 5  # Party chat messages per user per window
     party_chat_rate_window: int = 60  # Window in seconds (1 minute)
+    client_log_rate_limit: int = 30  # Client log batches per IP per window
+    client_log_rate_window: int = 60  # Window in seconds (1 minute)
 
     # AI lawyer's private conferences with the parties on its side
     counsel_questions_per_round: int = 2  # per party, each case prep / adjournment
@@ -147,10 +149,12 @@ class Settings(BaseSettings):
         "capacitor://localhost,"
         "ionic://localhost"
     )
+    # Local and LAN development only. Deployed frontends are listed exactly in
+    # FRONTEND_URL / CORS_ALLOWED_ORIGINS: "any *.vercel.app" would let anyone's
+    # Vercel app call this API.
     cors_allow_origin_regex: str = (
         r"^https?://("
         r"localhost|127\.0\.0\.1|10\.0\.2\.2|"
-        r"[a-z0-9-]+\.vercel\.app|"
         r"192\.168\.\d{1,3}\.\d{1,3}|"
         r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
         r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}"

@@ -101,7 +101,8 @@ docker compose up --build
 3. Install dependencies:
 
    ```bash
-   pip install -r requirements.txt
+   pip install torch --index-url https://download.pytorch.org/whl/cpu  # CPU-only, skips the ~2 GB CUDA build
+   pip install -r requirements-dev.txt  # app + test and lint tools
    ```
 
 4. Create a `.env` file (you can copy `.env.example` as a starting point):
@@ -214,7 +215,8 @@ docker compose up --build
 │   │   ├── routes/         # API routes (Cases, Witness, Arguments)
 │   │   ├── services/       # Business logic (RAG, LLM orchestration)
 │   │   └── utils/          # Utility functions
-│   └── requirements.txt    # Python dependencies
+│   ├── requirements.txt    # Runtime dependencies (pinned)
+│   └── requirements-dev.txt # Test and lint tools
 ├── future_plans/           # Development roadmaps & redesign plans
 ├── docker-compose.yaml     # Docker configuration
 └── README.md
