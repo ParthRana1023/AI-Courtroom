@@ -14,6 +14,7 @@ import {
   ChevronRight,
   BrainCircuit,
   Trophy,
+  Cpu,
 } from "lucide-react";
 import { useSettings } from "@/contexts/settings-context";
 import { useCookieConsent } from "@/contexts/cookie-consent-context";
@@ -76,7 +77,7 @@ function SidebarToggleButton() {
 export default function SettingsPage() {
   useLifecycleLogger("SettingsPage");
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const {
     enterKeySubmits,
     setEnterKeySubmits,
@@ -88,6 +89,8 @@ export default function SettingsPage() {
     setSkipArchiveConfirmation,
     skipDeleteConfirmation,
     setSkipDeleteConfirmation,
+    devMode,
+    setDevMode,
   } = useSettings();
   const { consent, openSettings: openCookieSettings } = useCookieConsent();
 
@@ -823,6 +826,36 @@ export default function SettingsPage() {
                     <option value="exclude">Left out of the win rate</option>
                   </select>
                 </div>
+
+                {/* Developer mode (allowlisted developers only) */}
+                {user?.is_developer && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                      <Cpu className="h-4 w-4" />
+                      Developer Mode
+                    </h3>
+                    <label className="flex items-center justify-between gap-4 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
+                      <div>
+                        <span
+                          className={`${getTextSizeClass()} font-medium block`}
+                        >
+                          Show which AI model answered
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          A panel in the bottom-left corner lists the model,
+                          provider and fallback used for each AI response.
+                          Applies immediately on this device.
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={devMode}
+                        onChange={(event) => setDevMode(event.target.checked)}
+                        className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500"
+                      />
+                    </label>
+                  </div>
+                )}
 
                 {/* Save Button */}
                 <div className="flex items-center justify-between mt-8 pt-4 border-t dark:border-zinc-700">

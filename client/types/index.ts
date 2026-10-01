@@ -49,6 +49,7 @@ export interface User {
   preferred_case_state?: string;
   rag_enabled?: boolean;
   partial_scoring?: PartialScoring;
+  is_developer?: boolean; // may turn on developer mode (server allowlist)
 }
 
 // How a partly successful case counts toward the win rate

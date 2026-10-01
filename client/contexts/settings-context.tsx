@@ -20,6 +20,10 @@ interface SettingsContextType {
   setSkipArchiveConfirmation: (value: boolean) => void;
   skipDeleteConfirmation: boolean;
   setSkipDeleteConfirmation: (value: boolean) => void;
+
+  // Developer mode: show which AI model answered each request (developers only)
+  devMode: boolean;
+  setDevMode: (value: boolean) => void;
 }
 
 const defaultSettings = {
@@ -28,6 +32,7 @@ const defaultSettings = {
   textSize: "medium" as const,
   skipArchiveConfirmation: false,
   skipDeleteConfirmation: false,
+  devMode: false,
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(
@@ -49,6 +54,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState<boolean>(
     defaultSettings.skipDeleteConfirmation,
   );
+  const [devMode, setDevMode] = useState<boolean>(defaultSettings.devMode);
 
   // Load settings from localStorage on initial render
   useEffect(() => {
@@ -73,6 +79,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             parsedSettings.skipDeleteConfirmation ??
               defaultSettings.skipDeleteConfirmation,
           );
+          setDevMode(parsedSettings.devMode ?? defaultSettings.devMode);
         }
       } catch (error) {
         console.error("Failed to load settings from localStorage:", error);
@@ -93,6 +100,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           textSize,
           skipArchiveConfirmation,
           skipDeleteConfirmation,
+          devMode,
         }),
       );
     } catch (error) {
@@ -104,6 +112,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     textSize,
     skipArchiveConfirmation,
     skipDeleteConfirmation,
+    devMode,
   ]);
 
   return (
@@ -119,6 +128,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setSkipArchiveConfirmation,
         skipDeleteConfirmation,
         setSkipDeleteConfirmation,
+        devMode,
+        setDevMode,
       }}
     >
       {children}

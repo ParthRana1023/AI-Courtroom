@@ -17,6 +17,7 @@ from langchain_groq import ChatGroq
 
 from app.config import settings
 from app.logging_config import get_logger
+from app.utils.llm_trace import record_llm_call
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
 
@@ -108,6 +109,19 @@ def task_temperature(task: str) -> float:
     }.get(task, settings.default_temperature)
 
 
+def task_max_tokens(task: str) -> int | None:
+    """Output-token budget for tasks that write long documents.
+
+    Groq stops at 3,072 output tokens unless told otherwise, which cuts a full
+    case petition (~4,100 tokens) off mid-sentence. None keeps the default.
+    """
+    return {
+        "drafter": settings.long_output_max_tokens,
+        "judge": settings.long_output_max_tokens,
+        "analyzer": settings.long_output_max_tokens,
+    }.get(task)
+
+
 # ---------------------------------------------------------------------------
 # Task → model chain. Each task reads <task>_model/_provider, then
 # <task>_fallback_model/_provider, then <task>_fallback2_model/_provider from
@@ -128,7 +142,10 @@ def task_model_chain(task: str) -> list[tuple[str, str]]:
 
 
 def _create_llm_instance(
-    provider: str, model_id: str, temperature: float | None = None
+    provider: str,
+    model_id: str,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
 ) -> BaseChatModel:
     temperature = settings.default_temperature if temperature is None else temperature
     if provider == "groq":
@@ -136,6 +153,7 @@ def _create_llm_instance(
             model=model_id,
             api_key=settings.groq_api_key or "not_set",
             temperature=temperature,
+            max_tokens=max_tokens,
         )
     elif provider == "openrouter":
         ChatOpenAI = import_module("langchain_openai").ChatOpenAI
@@ -144,6 +162,7 @@ def _create_llm_instance(
             api_key=settings.openrouter_api_key or "not_set",
             base_url="https://openrouter.ai/api/v1",
             temperature=temperature,
+            max_completion_tokens=max_tokens,
             extra_body={"reasoning": {"enabled": True}},
         )
     else:
@@ -160,6 +179,17 @@ def _log_failure(task: str, provider: str, model: str):
     return on_error
 
 
+def _log_success(task: str, provider: str, model: str, attempt: int):
+    def on_end(run) -> None:
+        ms = 0
+        if run.start_time and run.end_time:
+            ms = round((run.end_time - run.start_time).total_seconds() * 1000)
+        logger.info(f"LLM {task} answered by {provider}:{model} ({ms}ms)")
+        record_llm_call(task, provider, model, attempt, ms)
+
+    return on_end
+
+
 @cache
 def get_llm(task: str) -> Runnable:
     if task not in LLM_TASKS:
@@ -168,10 +198,12 @@ def get_llm(task: str) -> Runnable:
         )
 
     temperature = task_temperature(task)
+    max_tokens = task_max_tokens(task)
     models = [
-        _create_llm_instance(provider, model, temperature).with_listeners(
-            on_error=_log_failure(task, provider, model)
+        _create_llm_instance(provider, model, temperature, max_tokens).with_listeners(
+            on_end=_log_success(task, provider, model, attempt),
+            on_error=_log_failure(task, provider, model),
         )
-        for provider, model in task_model_chain(task)
+        for attempt, (provider, model) in enumerate(task_model_chain(task))
     ]
     return models[0].with_fallbacks(models[1:])

@@ -14,6 +14,7 @@ import {
   COOKIE_NAMES,
 } from "./cookies";
 import { getLogger } from "./logger";
+import { LLM_TRACE_HEADER, recordLLMTrace } from "./llm-trace";
 
 // Initialize logger for API calls
 const logger = getLogger("api");
@@ -89,8 +90,24 @@ api.interceptors.request.use(
 
 // Add response interceptor to handle common errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    recordLLMTrace(
+      response.headers[LLM_TRACE_HEADER],
+      response.config.method,
+      response.config.url,
+      response.status,
+    );
+    return response;
+  },
   (error: AxiosError) => {
+    if (error.response) {
+      recordLLMTrace(
+        error.response.headers[LLM_TRACE_HEADER],
+        error.config?.method,
+        error.config?.url,
+        error.response.status,
+      );
+    }
     // Handle unauthorized errors (401)
     if (error.response?.status === 401) {
       // Check if the error is from the login initiation endpoint

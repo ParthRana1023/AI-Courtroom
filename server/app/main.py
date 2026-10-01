@@ -35,6 +35,7 @@ from app.routes import (
 from app.services.location_service import preload_cache as preload_location_cache
 from app.utils.datetime import get_current_datetime
 from app.utils.llm import LLMGenerationError
+from app.utils.llm_trace import LLM_TRACE_HEADER, start_trace
 
 # Initialize logging first
 setup_logging(log_level=settings.log_level, log_format=settings.log_format)
@@ -51,6 +52,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         # Generate and set request ID
         request_id = request.headers.get("X-Request-ID", generate_request_id())
         set_request_id(request_id)
+        llm_trace = start_trace()
 
         # Log request
         start_time = time.perf_counter()
@@ -76,6 +78,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
             # Add request ID to response headers
             response.headers["X-Request-ID"] = request_id
+            # Developer mode: which LLM answered this request
+            if trace_header := llm_trace.header_value():
+                response.headers[LLM_TRACE_HEADER] = trace_header
             return response
 
         except Exception:
@@ -152,7 +157,7 @@ app.add_middleware(
         "Accept",
         "Origin",
     ],
-    expose_headers=["Content-Length", "X-Request-ID"],
+    expose_headers=["Content-Length", "X-Request-ID", LLM_TRACE_HEADER],
     max_age=3600,
 )
 

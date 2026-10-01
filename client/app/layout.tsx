@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/auth-context";
+import DevModelPanel from "@/components/dev-model-panel";
 import { ThemeProvider } from "next-themes";
 import { SettingsProvider } from "@/contexts/settings-context";
 import { CookieConsentProvider } from "@/contexts/cookie-consent-context";
@@ -162,9 +163,8 @@ export default function RootLayout({
                     <LoggerProvider>
                       <LoggingErrorBoundary>
                         <NotificationProvider>
-                          <PwaInstallProvider>
-                            {children}
-                          </PwaInstallProvider>
+                          <PwaInstallProvider>{children}</PwaInstallProvider>
+                          <DevModelPanel />
                         </NotificationProvider>
                       </LoggingErrorBoundary>
                     </LoggerProvider>

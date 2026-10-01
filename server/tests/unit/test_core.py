@@ -292,10 +292,10 @@ def test_get_llm_uses_configured_primary_and_fallback(monkeypatch):
     monkeypatch.setattr(
         llm_utils,
         "_create_llm_instance",
-        lambda provider, model_id, temperature: built.append(
-            (provider, model_id, temperature)
-        )
-        or real_create_llm_instance("groq", "m"),
+        lambda provider, model_id, temperature, max_tokens: (
+            built.append((provider, model_id, temperature))
+            or real_create_llm_instance("groq", "m")
+        ),
     )
     llm_utils.get_llm.cache_clear()
 
@@ -536,3 +536,14 @@ def test_get_session_rejects_invalid_token():
         get_session("not-a-jwt")
 
     assert exc.value.status_code == 401
+
+
+def test_long_document_tasks_get_a_bigger_output_budget():
+    # Groq's default 3,072-token cap cut case petitions off before the prayer.
+    for task in ("drafter", "judge", "analyzer"):
+        assert llm_utils.task_max_tokens(task) == settings.long_output_max_tokens
+    assert llm_utils.task_max_tokens("party") is None
+
+    groq = real_create_llm_instance("groq", "m", 0.5, 8192)
+    openrouter = real_create_llm_instance("openrouter", "m", 0.5, 8192)
+    assert (groq.max_tokens, openrouter.max_tokens) == (8192, 8192)

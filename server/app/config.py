@@ -33,8 +33,10 @@ class Settings(BaseSettings):
     drafter_provider: str = "groq"
     drafter_fallback_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     drafter_fallback_provider: str = "openrouter"
-    drafter_fallback2_model: str = "qwen/qwen3.8-27b"
-    drafter_fallback2_provider: str = "groq"
+    # Not qwen3.8-27b: Groq limits it to 1,000 output tokens a minute, so it can
+    # never finish a ~4,000-token petition.
+    drafter_fallback2_model: str = "inclusionai/ling-3.0-flash-sante:free"
+    drafter_fallback2_provider: str = "openrouter"
 
     lawyer_model: str = "openai/gpt-oss-120b"
     lawyer_provider: str = "groq"
@@ -152,6 +154,9 @@ class Settings(BaseSettings):
     judge_temperature: float = 0.2
     analyzer_temperature: float = 0.3
     outcome_temperature: float = 0.0
+    # Output budget for drafter, judge and analyzer (long documents). Groq's
+    # default of 3,072 tokens cut case petitions off before the prayer.
+    long_output_max_tokens: int = 8192
     drafter_temperature: float = 0.8
 
     # Highest establishment code (CNR positions 5-6) used for generated cases
@@ -170,6 +175,10 @@ class Settings(BaseSettings):
 
     # CORS settings
     frontend_url: str | None = None
+    # Comma-separated emails that get developer mode: each API response tells
+    # them which LLM answered (X-LLM-Models header, shown in the client panel).
+    dev_mode_emails: str = ""
+
     cors_allowed_origins: str = (
         "http://localhost:3000,"
         "http://127.0.0.1:3000,"
@@ -213,6 +222,14 @@ class Settings(BaseSettings):
     @property
     def current_db_name(self) -> str:
         return self.test_mongodb_db_name if self.testing else self.mongodb_db_name
+
+    @property
+    def dev_mode_email_set(self) -> set[str]:
+        return {
+            email.strip().lower()
+            for email in self.dev_mode_emails.split(",")
+            if email.strip()
+        }
 
     @property
     def parsed_cors_allowed_origins(self) -> list[str]:

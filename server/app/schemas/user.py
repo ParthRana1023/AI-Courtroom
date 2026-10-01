@@ -2,10 +2,18 @@
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from app.models.user import PartialScoring
 from app.utils.datetime import get_current_datetime
+from app.utils.llm_trace import is_developer
 
 # Gender type definition
 Gender = Literal["male", "female", "others", "prefer-not-to-say"]
@@ -100,6 +108,12 @@ class UserOut(BaseModel):
     preferred_case_state: str | None = None
     rag_enabled: bool = True
     partial_scoring: PartialScoring = "zero"
+
+    @computed_field
+    @property
+    def is_developer(self) -> bool:
+        """Whether this user may turn on developer mode (see DEV_MODE_EMAILS)."""
+        return is_developer(self.email)
 
 
 class CaseLocationPreferenceUpdate(BaseModel):

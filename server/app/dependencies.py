@@ -13,6 +13,7 @@ from app.config import settings
 from app.logging_config import get_logger
 from app.models.case import Case, CaseStatus
 from app.models.user import User
+from app.utils.llm_trace import mark_developer_request
 from app.utils.locks import case_lock
 
 logger = get_logger(__name__)
@@ -56,6 +57,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         raise credentials_exception
 
     logger.debug(f"User authenticated via token: {user.email}")
+    mark_developer_request(user.email)
     return user
 
 
