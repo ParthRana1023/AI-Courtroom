@@ -21,7 +21,7 @@ from app.models.party import PartyInvolved, PartyRole
 from app.services import evidence_service as es
 from app.services import rag as rag_package
 from app.services.image_generation import ImageGenerationError
-from app.services.llm.evidence import generate_evidence_prompt
+from app.services.llm.evidence import generate_evidence_prompt, looks_visual
 from app.services.rag import chunking, embedding
 from app.services.rag import service as rag
 from tests.helpers import boom, reload
@@ -699,7 +699,8 @@ async def test_extract_evidence_from_text_falls_back_on_bad_json(fake_llm):
         "Witness Testimony",
     )
     assert item.description == "He saw a weapon"
-    assert str(item.image_prompt).startswith("Create a neutral")
+    # testimony never gets an exhibit image, even when it mentions a weapon
+    assert item.image_prompt is None
 
 
 def test_next_exhibit_ref_and_format_context():
@@ -871,7 +872,12 @@ async def test_regenerate_single_item(
 async def test_regenerate_guard_rails(user, make_case, fake_llm, monkeypatch):
     monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 1)
     done = evidence("Done", image_url="u", media_status=EvidenceMediaStatus.GENERATED)
-    silent = evidence("Oral", image_prompt=None, description="He promised verbally")
+    silent = evidence(
+        "Oral",
+        evidence_type="Other",
+        image_prompt=None,
+        description="He promised verbally",
+    )
     case = await make_case(user, evidence=[done, silent])
 
     assert (
@@ -959,3 +965,22 @@ async def test_retrieve_falls_back_when_indexing_produces_nothing(
     context = await rag.retrieve_case_context(case, "deposit")
 
     assert context.startswith("No retrieved memory matched")
+
+
+@pytest.mark.parametrize(
+    ("title", "evidence_type", "expected"),
+    [
+        # typed as digital/physical/medical/document: always visual
+        ("Escrow Transfer Email", "Digital Evidence", True),
+        ("Bank Statements", "Digital Evidence", True),
+        ("Knife", "Physical Evidence", True),
+        ("Board Resolution", "Document", True),
+        # testimony never gets an image, even if its text mentions a scene
+        ("Testimony of Ramesh at the scene", "Witness Testimony", False),
+        # untyped items still fall back to the keyword check
+        ("CCTV still", None, True),
+        ("Promise made orally", "Other", False),
+    ],
+)
+def test_looks_visual_uses_evidence_type(title, evidence_type, expected):
+    assert looks_visual(title, "", evidence_type) is expected

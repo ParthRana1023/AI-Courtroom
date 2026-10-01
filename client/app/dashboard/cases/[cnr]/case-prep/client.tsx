@@ -184,21 +184,18 @@ export default function CasePrepPage({
   };
 
   const handleExtractEvidence = async (message: ChatMessage) => {
-    if (extractingMessageId) return;
+    if (extractingMessageId || !selectedPerson) return;
     setExtractingMessageId(message.id);
     try {
-      await caseAPI.extractEvidence(
-        cnr,
-        message.content,
-        selectedPerson
-          ? `${stripMarkdown(selectedPerson.name)} chat (${message.sender})`
-          : `Party chat (${message.sender})`,
-      );
+      await caseAPI.extractEvidence(cnr, {
+        party_id: selectedPerson.id,
+        message_id: message.id,
+      });
       await refreshEvidence();
       toast.success("Evidence extracted");
     } catch (error) {
       logger.error("Failed to extract evidence", error as Error);
-      toast.error("Failed to extract evidence");
+      toast.error(getErrorDetail(error) || "Failed to extract evidence");
     } finally {
       setExtractingMessageId(null);
     }
@@ -650,21 +647,25 @@ export default function CasePrepPage({
                                 {formatToLocaleString(msg.timestamp)}
                               </div>
                             )}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 gap-1 px-2 text-xs"
-                              disabled={extractingMessageId === msg.id}
-                              onClick={() => handleExtractEvidence(msg)}
-                            >
-                              {extractingMessageId === msg.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <FilePlus className="h-3.5 w-3.5" />
-                              )}
-                              Extract Evidence
-                            </Button>
+                            {/* Only what a party said can become evidence, not
+                                your own questions. */}
+                            {msg.sender !== "user" && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 gap-1 px-2 text-xs"
+                                disabled={extractingMessageId === msg.id}
+                                onClick={() => handleExtractEvidence(msg)}
+                              >
+                                {extractingMessageId === msg.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <FilePlus className="h-3.5 w-3.5" />
+                                )}
+                                Extract Evidence
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>

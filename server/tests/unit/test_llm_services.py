@@ -711,3 +711,26 @@ async def test_outcome_prompt_has_role_and_verdict(fake_llm):
 def test_win_rate_scoring(scoring, expected):
     assert user_stats.win_rate(2, 2, 1, scoring) == expected
     assert user_stats.win_rate(0, 0, 0, scoring) == 0.0
+
+
+@pytest.mark.parametrize(
+    "reply, expected",
+    [
+        ("My Lord, where were you on 5 May?", "Where were you on 5 May?"),
+        ("Your Lordship: did you see the knife?", "Did you see the knife?"),
+        ("my lord - is it true you owed him money?", "Is it true you owed him money?"),
+        ("Mr. Sharma, where were you?", "Mr. Sharma, where were you?"),
+    ],
+)
+async def test_witness_question_never_calls_the_witness_my_lord(
+    fake_llm, reply, expected
+):
+    fake_llm.responses.append(reply)
+
+    question = await ws.generate_cross_examination_questions(
+        "Mr. Sharma", "applicant", "defendant", "details", []
+    )
+
+    assert question == expected
+    assert "speaking to the WITNESS, not the judge" in fake_llm.prompts[0]
+    assert 'Refer to the Judge as "My Lord"' not in fake_llm.prompts[0]

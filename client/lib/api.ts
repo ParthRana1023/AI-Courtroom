@@ -228,12 +228,7 @@ export const authAPI = {
     rememberMe?: boolean;
   }) => {
     try {
-      const {
-        credential,
-        code,
-        state,
-        rememberMe = false,
-      } = data;
+      const { credential, code, state, rememberMe = false } = data;
       const response = await api.post("/auth/google", {
         credential,
         code,
@@ -293,7 +288,10 @@ export const authAPI = {
     } catch (error) {
       logApiError(error, "Failed to upload profile photo");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(error.response.data.detail || "Failed to upload photo", { cause: error });
+        throw new Error(
+          error.response.data.detail || "Failed to upload photo",
+          { cause: error },
+        );
       }
       throw error;
     }
@@ -308,7 +306,10 @@ export const authAPI = {
     } catch (error) {
       logApiError(error, "Failed to delete profile photo");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(error.response.data.detail || "Failed to delete photo", { cause: error });
+        throw new Error(
+          error.response.data.detail || "Failed to delete photo",
+          { cause: error },
+        );
       }
       throw error;
     }
@@ -445,31 +446,14 @@ export const caseAPI = {
     }
   },
 
-  addEvidence: async (
+  // Only a party's reply or a witness's answer can become evidence; the server
+  // reads the text itself from the case.
+  extractEvidence: async (
     cnr: string,
-    evidence: {
-      title: string;
-      evidence_type: string;
-      description: string;
-      source?: string;
-      image_prompt?: string;
-    },
+    target: { party_id: string; message_id: string } | { event_id: string },
   ) => {
     try {
-      const response = await api.post(`/cases/${cnr}/evidence`, evidence);
-      return response.data;
-    } catch (error) {
-      logApiError(error, "Failed to add case evidence");
-      throw error;
-    }
-  },
-
-  extractEvidence: async (cnr: string, text: string, source?: string) => {
-    try {
-      const response = await api.post(`/cases/${cnr}/evidence/extract`, {
-        text,
-        source,
-      });
+      const response = await api.post(`/cases/${cnr}/evidence/extract`, target);
       return response.data;
     } catch (error) {
       logApiError(error, "Failed to extract case evidence");
@@ -662,8 +646,6 @@ export const argumentAPI = {
       throw error;
     }
   },
-
-
 };
 
 // Contact API calls

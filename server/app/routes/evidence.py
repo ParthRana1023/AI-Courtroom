@@ -2,9 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
-from app.models.case import Case, EvidenceItem, Roles
+from app.models.case import (
+    Case,
+    CourtroomProceedingsEventType,
+    Roles,
+)
 from app.models.user import User
-from app.schemas.evidence import EvidenceCreate, EvidenceExtractRequest
+from app.schemas.evidence import EvidenceExtractRequest
 from app.services.evidence_service import (
     extract_evidence_from_text,
     extract_evidence_items,
@@ -48,38 +52,44 @@ async def get_case_evidence(cnr: str, current_user: User = Depends(get_current_u
     return {"evidence": [item.model_dump(mode="json") for item in case.evidence]}
 
 
-@router.post("/{cnr}/evidence", status_code=status.HTTP_201_CREATED)
-async def add_case_evidence(
-    cnr: str,
-    evidence_data: EvidenceCreate,
-    current_user: User = Depends(get_current_user),
-):
-    """Manually add evidence to a case."""
-    case = await get_owned_case(cnr, current_user)
-    item = EvidenceItem(
-        exhibit_ref=next_exhibit_ref(case),
-        title=evidence_data.title,
-        evidence_type=evidence_data.evidence_type,
-        description=evidence_data.description,
-        source=evidence_data.source,
-        image_prompt=evidence_data.image_prompt,
+def extraction_source(
+    case: Case, request: EvidenceExtractRequest
+) -> tuple[str, str, str]:
+    """(text, source label, origin id) for what the user asked to extract.
+
+    Only a party's own reply or a witness's answer in court can become evidence.
+    """
+    if request.event_id:
+        event = next(
+            (e for e in case.courtroom_proceedings if e.id == request.event_id), None
+        )
+        if event is None:
+            raise HTTPException(status_code=404, detail="Proceeding not found.")
+        if event.type != CourtroomProceedingsEventType.WITNESS_EXAMINED_A:
+            raise HTTPException(
+                status_code=400,
+                detail="Only a witness's answers can be extracted as evidence.",
+            )
+        source = f"{event.speaker_name or 'Witness'} testimony"
+        return event.content or "", source, event.id
+
+    # The schema guarantees both are set when event_id isn't.
+    party_id, message_id = request.party_id or "", request.message_id or ""
+    message = case.get_party_message(party_id, message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found.")
+    if message.get("sender") == "user":
+        raise HTTPException(
+            status_code=400,
+            detail="Only what a party said can be extracted as evidence.",
+        )
+    party = case.get_party(party_id)
+    source = f"{party.name if party else 'Party'} chat"
+    return (
+        message.get("content", ""),
+        source,
+        f"{party_id}:{message_id}",
     )
-    case.evidence.append(item)
-
-    try:
-        await case.save()
-        await index_evidence_item(case, item)
-        generation_summary = await generate_if_role_selected(case)
-    except Exception:
-        logger.exception(f"Error adding evidence for case {cnr}")
-        raise HTTPException(status_code=500, detail="Failed to add evidence.")
-
-    return {
-        "evidence": item.model_dump(mode="json"),
-        "image_generation": (
-            generation_summary.model_dump() if generation_summary else None
-        ),
-    }
 
 
 @router.post("/{cnr}/evidence/extract", status_code=status.HTTP_201_CREATED)
@@ -88,13 +98,20 @@ async def extract_case_evidence(
     request: EvidenceExtractRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Extract a structured evidence item from chat or courtroom text."""
+    """Extract a structured evidence item from a party reply or witness answer."""
     case = await get_owned_case(cnr, current_user)
+    text, source, origin_id = extraction_source(case, request)
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="There is nothing to extract.")
+    if any(item.origin_id == origin_id for item in case.evidence):
+        raise HTTPException(
+            status_code=409, detail="This has already been extracted as evidence."
+        )
+
     item = await extract_evidence_from_text(
-        request.text,
-        source=request.source,
-        exhibit_ref=next_exhibit_ref(case),
+        text, source=source, exhibit_ref=next_exhibit_ref(case)
     )
+    item.origin_id = origin_id
     case.evidence.append(item)
 
     try:

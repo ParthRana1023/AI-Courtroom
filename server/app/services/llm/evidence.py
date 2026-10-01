@@ -38,7 +38,18 @@ VISUAL_TERMS = (
 )
 
 
-def looks_visual(title: str, description: str) -> bool:
+# Evidence types that are always worth an exhibit image, whatever their text says
+VISUAL_EVIDENCE_TYPES = ("digital", "physical", "medical", "document")
+
+
+def looks_visual(
+    title: str, description: str, evidence_type: str | None = None
+) -> bool:
+    kind = (evidence_type or "").lower()
+    if "witness" in kind or "testimony" in kind:
+        return False
+    if any(term in kind for term in VISUAL_EVIDENCE_TYPES):
+        return True
     text = f"{title} {description}".lower()
     return any(term in text for term in VISUAL_TERMS)
 
@@ -70,7 +81,7 @@ async def generate_evidence_prompt(
         itself to visual representation.
     """
     # Quick pre-filter: skip evidence that is inherently non-visual.
-    if not looks_visual(title, description):
+    if not looks_visual(title, description, evidence_type):
         logger.debug(f"Skipping non-visual evidence: {title}")
         return None
 

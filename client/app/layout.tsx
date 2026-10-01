@@ -1,4 +1,5 @@
 import type React from "react";
+import Script from "next/script";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -130,21 +131,21 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.__deferredPrompt = null;
-              window.__appInstalled = false;
-              window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                window.__deferredPrompt = e;
-              });
-              window.addEventListener('appinstalled', () => {
-                window.__appInstalled = true;
-              });
-            `,
-          }}
-        />
+        {/* Runs before hydration so an early beforeinstallprompt isn't missed.
+            next/script, because React never runs a raw <script> it renders. */}
+        <Script id="pwa-install-capture" strategy="beforeInteractive">
+          {`
+            window.__deferredPrompt = null;
+            window.__appInstalled = false;
+            window.addEventListener('beforeinstallprompt', (e) => {
+              e.preventDefault();
+              window.__deferredPrompt = e;
+            });
+            window.addEventListener('appinstalled', () => {
+              window.__appInstalled = true;
+            });
+          `}
+        </Script>
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider

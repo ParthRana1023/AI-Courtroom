@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app import messages
 from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
-from app.models.case import Case, CaseStatus, Roles
+from app.models.case import Case, CaseStatus, Roles, party_message_id
 from app.models.party import PartyInvolved
 from app.models.user import User
 from app.schemas.party import (
@@ -341,12 +341,12 @@ async def get_party_chat_history(
     # Convert to ChatMessageOut format
     chat_messages = [
         ChatMessageOut(
-            id=msg.get("id", str(uuid.uuid4())),
+            id=party_message_id(msg, index),
             sender=msg.get("sender", "party"),
             content=msg.get("content", ""),
             timestamp=msg.get("timestamp", get_current_datetime().isoformat()),
         )
-        for msg in chat_history
+        for index, msg in enumerate(chat_history)
     ]
 
     return ChatHistoryOut(

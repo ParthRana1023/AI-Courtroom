@@ -96,6 +96,7 @@ async def test_verdict_decides_outcome_in_background(
     assert saved.outcome == CaseOutcome.LOST
     assert saved.outcome_reason == "Petition allowed."
     record = await CaseOutcomeRecord.find_one(CaseOutcomeRecord.case_id == case.id)
+    assert record is not None
     assert (record.role, record.outcome, record.arguments_count) == (
         Roles.PLAINTIFF,
         CaseOutcome.LOST,
@@ -196,6 +197,7 @@ async def test_activity_snapshot_counts_user_actions(resolved_case, fake_llm):
     await ensure_outcome(case)
 
     record = await CaseOutcomeRecord.find_one(CaseOutcomeRecord.case_id == case.id)
+    assert record is not None
     assert (
         record.arguments_count,
         record.witnesses_examined,

@@ -141,6 +141,12 @@ Respond as {witness_name} (witness):
         raise LLMGenerationError("Failed to generate witness answer") from e
 
 
+# "My Lord, ..." / "Your Lordship, ..." at the start of a question to a witness
+WITNESS_JUDGE_TITLE = re.compile(
+    r"^(?:my\s+lord|your\s+lordship|milord)\s*[,:.-]?\s*", re.IGNORECASE
+)
+
+
 async def generate_cross_examination_questions(
     witness_name: str,
     witness_role: str,
@@ -212,7 +218,10 @@ Generate ONE strategic question. Your goals:
 - {"Pin down one specific fact per question" if is_hostile else "Pre-empt the weak points the other side will attack"}
 - Build on the answers so far; do not repeat a question already asked
 - Rely only on facts in the case file and the testimony; never invent any
-- Refer to the Judge as "My Lord" if addressing the court
+
+You are speaking to the WITNESS, not the judge. "My Lord" and "Your Lordship" are
+only ever for the judge, so never use them in this question. Address the witness
+by name (e.g. "Mr. Sharma, ...") or not at all.
 
 Respond with ONLY the question, no preamble or explanation. Start directly with the question.
 """
@@ -226,13 +235,16 @@ Respond with ONLY the question, no preamble or explanation. Start directly with 
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         response = strip_thinking(response)
-        # Clean up any prefixes
+        # Clean up any prefixes, including a judge's title the question is not
+        # spoken to (the question goes to the witness).
         response = re.sub(
             r"^(Question|Q|Cross-examination question):\s*",
             "",
             response,
             flags=re.IGNORECASE,
         ).strip()
+        response = WITNESS_JUDGE_TITLE.sub("", response).strip()
+        response = response[:1].upper() + response[1:]
 
         logger.info(f"Cross-examination question generated in {duration_ms:.2f}ms")
         return response

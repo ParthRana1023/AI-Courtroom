@@ -439,16 +439,13 @@ export default function Courtroom({
     if (!event.id || extractingEventId || !event.content?.trim()) return;
     setExtractingEventId(event.id);
     try {
-      await caseAPI.extractEvidence(
-        cnr,
-        event.content,
-        `${event.speaker_name || event.speaker_role || "Courtroom"} proceeding`,
-      );
+      // Only witness answers offer this button; the server rejects anything else.
+      await caseAPI.extractEvidence(cnr, { event_id: event.id });
       await refreshCourtroomSnapshot();
       toast.success("Evidence extracted");
     } catch (err) {
       logger.error("Failed to extract evidence", err as Error);
-      toast.error("Failed to extract evidence");
+      toast.error(getErrorDetail(err) || "Failed to extract evidence");
     } finally {
       setExtractingEventId(null);
     }
@@ -1107,25 +1104,6 @@ export default function Courtroom({
                     <div className="text-gray-900 dark:text-gray-100">
                       <ChatMarkdownRenderer markdown={event.content} />
                     </div>
-                    {event.id && event.content && !isOptimistic && (
-                      <div className="mt-3 flex justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 gap-1 px-2 text-xs"
-                          disabled={extractingEventId === event.id}
-                          onClick={() => handleExtractEvidence(event)}
-                        >
-                          {extractingEventId === event.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <FilePlus className="h-3.5 w-3.5" />
-                          )}
-                          Extract Evidence
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 </div>
               );

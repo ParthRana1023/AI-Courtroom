@@ -55,7 +55,7 @@ async def _sync_from_record(case: Case, record: CaseOutcomeRecord) -> CaseOutcom
     if case.outcome != record.outcome:
         # $set only these fields; a full save could overwrite a concurrent
         # write from the request that is still finishing.
-        await Case.find_one(Case.id == case.id).update(
+        await Case.find_one(Case.id == case.id).update_one(
             {"$set": {"outcome": record.outcome, "outcome_reason": record.reason}}
         )
         case.outcome = record.outcome

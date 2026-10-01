@@ -79,14 +79,18 @@ Example format:
         for index, data in enumerate(evidence_data, start=1):
             title = str(data.get("title") or f"Evidence {index}")
             description = str(data.get("description") or "")
+            given_type = data.get("evidence_type")
+            evidence_type = str(given_type or "Document")
             items.append(
                 EvidenceItem(
                     exhibit_ref=f"EX-{index:02d}",
                     title=title,
-                    evidence_type=str(data.get("evidence_type") or "Document"),
+                    evidence_type=evidence_type,
                     description=description,
                     source=data.get("source"),
-                    image_prompt=_build_image_prompt(title, description),
+                    # Only a type the model actually gave decides the image; the
+                    # "Document" default alone must not.
+                    image_prompt=_build_image_prompt(title, description, given_type),
                 )
             )
 
@@ -147,12 +151,16 @@ JSON object only:
 
     title = str(data.get("title") or "Extracted Evidence")
     description = str(data.get("description") or text.strip())
-    prompt_text = data.get("image_prompt") or _build_image_prompt(title, description)
+    given_type = data.get("evidence_type")
+    evidence_type = str(given_type or "Other")
+    prompt_text = data.get("image_prompt") or _build_image_prompt(
+        title, description, given_type
+    )
 
     return EvidenceItem(
         exhibit_ref=exhibit_ref or "EX-01",
         title=title,
-        evidence_type=str(data.get("evidence_type") or "Other"),
+        evidence_type=evidence_type,
         description=description,
         source=data.get("source") or source,
         image_prompt=prompt_text,
@@ -382,8 +390,10 @@ async def _attempt_evidence_image_generation(
         await case.save()
 
 
-def _build_image_prompt(title: str, description: str) -> str | None:
-    if not looks_visual(title, description):
+def _build_image_prompt(
+    title: str, description: str, evidence_type: str | None = None
+) -> str | None:
+    if not looks_visual(title, description, evidence_type):
         return None
 
     clean_description = re.sub(r"\s+", " ", description.replace("**", "")).strip()
@@ -399,7 +409,7 @@ def _format_generation_summary_message(
     remaining_successes = max(0, summary.limit - summary.already_generated)
     failure_reason = summary.message.strip()
     message = (
-        f"Generated {summary.generated} evidence image(s), " f"{summary.failed} failed."
+        f"Generated {summary.generated} evidence image(s), {summary.failed} failed."
     )
 
     if summary.failed:

@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     csc_api_key: str | None = None  # Country State City API key
 
-    # Per-task LLM chains: model, then fallback, then fallback2. Every task has
-    # at least one Groq and one OpenRouter model, so one provider's outage or
+    # Per-task LLM chains: model, then fallback, fallback2, fallback3. Every task
+    # has a Groq and an OpenRouter model, plus Cloudflare Workers AI last, so one provider's outage or
     # quota doesn't stop it. Chosen from head-to-head tests on this app's
     # prompts (2026-10-01). Free OpenRouter keys get ~50 requests/day across the
     # whole app, so frequent tasks (lawyer, parties, witnesses, outcome, drafter)
@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # never finish a ~4,000-token petition.
     drafter_fallback2_model: str = "inclusionai/ling-3.0-flash-sante:free"
     drafter_fallback2_provider: str = "openrouter"
+    drafter_fallback3_model: str = "@cf/openai/gpt-oss-120b"
+    drafter_fallback3_provider: str = "cloudflare"
 
     lawyer_model: str = "openai/gpt-oss-120b"
     lawyer_provider: str = "groq"
@@ -44,6 +46,8 @@ class Settings(BaseSettings):
     lawyer_fallback_provider: str = "openrouter"
     lawyer_fallback2_model: str = "qwen/qwen3.8-27b"
     lawyer_fallback2_provider: str = "groq"
+    lawyer_fallback3_model: str = "@cf/openai/gpt-oss-120b"
+    lawyer_fallback3_provider: str = "cloudflare"
 
     judge_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     judge_provider: str = "openrouter"
@@ -51,6 +55,8 @@ class Settings(BaseSettings):
     judge_fallback_provider: str = "groq"
     judge_fallback2_model: str = "inclusionai/ling-3.0-flash-sante:free"
     judge_fallback2_provider: str = "openrouter"
+    judge_fallback3_model: str = "@cf/openai/gpt-oss-120b"
+    judge_fallback3_provider: str = "cloudflare"
 
     analyzer_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     analyzer_provider: str = "openrouter"
@@ -58,6 +64,8 @@ class Settings(BaseSettings):
     analyzer_fallback_provider: str = "groq"
     analyzer_fallback2_model: str = "inclusionai/ling-3.0-flash-sante:free"
     analyzer_fallback2_provider: str = "openrouter"
+    analyzer_fallback3_model: str = "@cf/openai/gpt-oss-120b"
+    analyzer_fallback3_provider: str = "cloudflare"
 
     # Decides won/lost/partial from the verdict (short JSON reply)
     outcome_model: str = "openai/gpt-oss-20b"
@@ -66,6 +74,8 @@ class Settings(BaseSettings):
     outcome_fallback_provider: str = "openrouter"
     outcome_fallback2_model: str = "openai/gpt-oss-120b"
     outcome_fallback2_provider: str = "groq"
+    outcome_fallback3_model: str = "@cf/openai/gpt-oss-20b"
+    outcome_fallback3_provider: str = "cloudflare"
 
     party_model: str = "qwen/qwen3.8-27b"
     party_provider: str = "groq"
@@ -73,6 +83,8 @@ class Settings(BaseSettings):
     party_fallback_provider: str = "openrouter"
     party_fallback2_model: str = "openai/gpt-oss-20b"
     party_fallback2_provider: str = "groq"
+    party_fallback3_model: str = "@cf/qwen/qwen3.8-27b"
+    party_fallback3_provider: str = "cloudflare"
 
     witness_model: str = "qwen/qwen3.8-27b"
     witness_provider: str = "groq"
@@ -80,6 +92,8 @@ class Settings(BaseSettings):
     witness_fallback_provider: str = "openrouter"
     witness_fallback2_model: str = "openai/gpt-oss-20b"
     witness_fallback2_provider: str = "groq"
+    witness_fallback3_model: str = "@cf/qwen/qwen3.8-27b"
+    witness_fallback3_provider: str = "cloudflare"
 
     port: int = 8000
 
@@ -100,8 +114,14 @@ class Settings(BaseSettings):
     cloudflare_account_id: str | None = None
     cloudflare_api_token: str | None = None
     evidence_image_model: str = "@cf/black-forest-labs/flux-1-schnell"
-    evidence_image_fallback_model: str = "@cf/black-forest-labs/flux-2-dev"
-    evidence_image_generation_limit_per_case: int = 2
+    # Image chain, cheapest first (neurons per 1024px image, 10,000 free/day):
+    # flux-1-schnell ~58, flux-2-klein-4b ~104, dreamshaper-8-lcm unpriced and
+    # returns a raw PNG. flux-2-dev (~1,900-3,750 per image) was dropped.
+    evidence_image_fallback_model: str = "@cf/black-forest-labs/flux-2-klein-4b"
+    evidence_image_fallback2_model: str = "@cf/lykon/dreamshaper-8-lcm"
+    # Average image-worthy (non-testimony) evidence per case was 3.2 across
+    # existing cases on 2026-10-01; 3 + 1 = 4.
+    evidence_image_generation_limit_per_case: int = 4
     evidence_image_generation_timeout_seconds: int = 120
 
     # Email settings
@@ -157,6 +177,9 @@ class Settings(BaseSettings):
     # Output budget for drafter, judge and analyzer (long documents). Groq's
     # default of 3,072 tokens cut case petitions off before the prayer.
     long_output_max_tokens: int = 8192
+    # Workers AI's default output limit is 256 tokens (empty replies from
+    # reasoning models); used for every other Cloudflare task.
+    cloudflare_max_tokens: int = 4096
     drafter_temperature: float = 0.8
 
     # Highest establishment code (CNR positions 5-6) used for generated cases
@@ -293,6 +316,7 @@ def log_environment_status():
         "CLOUDFLARE_API_TOKEN": is_set(settings.cloudflare_api_token),
         "EVIDENCE_IMAGE_MODEL": settings.evidence_image_model,
         "EVIDENCE_IMAGE_FALLBACK_MODEL": settings.evidence_image_fallback_model,
+        "EVIDENCE_IMAGE_FALLBACK2_MODEL": settings.evidence_image_fallback2_model,
         "EVIDENCE_IMAGE_GENERATION_LIMIT_PER_CASE": settings.evidence_image_generation_limit_per_case,
         # Email
         "EMAIL_SENDER": settings.email_sender,

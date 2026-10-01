@@ -8,6 +8,8 @@ from app.models.case import (
     ArgumentItem,
     Case,
     CaseStatus,
+    CourtroomProceedingsEvent,
+    CourtroomProceedingsEventType,
     EvidenceItem,
     EvidenceMediaStatus,
     ExaminationItem,
@@ -386,85 +388,176 @@ async def test_get_evidence_existing_and_backfill_failure(
     ).status_code == 500
 
 
-async def test_add_evidence_generates_image_when_role_selected(
-    client, auth_headers, courtroom_case, image_pipeline, monkeypatch
-):
-    from app.config import settings
+PARTY_REPLY = {"party_id": "p1", "message_id": "m2"}
 
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 2)
+
+async def case_with_chat_and_testimony(make_case, user, witness_party):
+    witness_party.id = "p1"
+    return await make_case(
+        user,
+        parties_involved=[witness_party],
+        party_chats={
+            "p1": [
+                {"id": "m1", "sender": "user", "content": "Did you pay the deposit?"},
+                {"id": "m2", "sender": "party", "content": "I paid 5000 in cash."},
+                {"sender": "party", "content": "Old reply saved without an id."},
+            ]
+        },
+        courtroom_proceedings=[
+            CourtroomProceedingsEvent(
+                id="answer",
+                type=CourtroomProceedingsEventType.WITNESS_EXAMINED_A,
+                content="I saw him at the gate at 9 pm.",
+                speaker_name="Asha Rao",
+            ),
+            CourtroomProceedingsEvent(
+                id="argument",
+                type=CourtroomProceedingsEventType.AI_ARGUMENT,
+                content="The applicant is lying.",
+            ),
+        ],
+    )
+
+
+async def test_extract_evidence_from_party_reply(
+    client, user, auth_headers, make_case, fake_llm, witness_party
+):
+    fake_llm.responses.append(
+        '{"title": "Receipt", "evidence_type": "Document", "description": "Paid 5000"}'
+    )
+    case = await case_with_chat_and_testimony(make_case, user, witness_party)
+
+    response = await client.post(
+        f"/cases/{case.cnr}/evidence/extract", headers=auth_headers, json=PARTY_REPLY
+    )
+
+    evidence = response.json()["evidence"]
+    assert (evidence["title"], evidence["source"]) == ("Receipt", "Ravi Kumar chat")
+    assert evidence["origin_id"] == "p1:m2"
+    # no side chosen yet, so no image is generated
+    assert response.json()["image_generation"] is None
+    # the text came from the stored message, not from the request
+    assert "I paid 5000 in cash." in fake_llm.prompts[0]
+
+
+async def test_extract_evidence_from_witness_answer_and_old_message(
+    client, user, auth_headers, make_case, fake_llm, witness_party
+):
+    case = await case_with_chat_and_testimony(make_case, user, witness_party)
+
+    answer = await client.post(
+        f"/cases/{case.cnr}/evidence/extract",
+        headers=auth_headers,
+        json={"event_id": "answer"},
+    )
+    old = await client.post(
+        f"/cases/{case.cnr}/evidence/extract",
+        headers=auth_headers,
+        json={"party_id": "p1", "message_id": "msg-2"},
+    )
+
+    assert answer.json()["evidence"]["source"] == "Asha Rao testimony"
+    assert old.status_code == 201
+    assert "I saw him at the gate at 9 pm." in fake_llm.prompts[0]
+
+
+@pytest.mark.parametrize(
+    "body, status, detail",
+    [
+        ({"party_id": "p1", "message_id": "m1"}, 400, "Only what a party said"),
+        ({"event_id": "argument"}, 400, "Only a witness's answers"),
+        ({"party_id": "p1", "message_id": "nope"}, 404, "Message not found."),
+        ({"event_id": "nope"}, 404, "Proceeding not found."),
+    ],
+)
+async def test_extract_evidence_rejects_other_text(
+    client, user, auth_headers, make_case, witness_party, body, status, detail
+):
+    case = await case_with_chat_and_testimony(make_case, user, witness_party)
+
+    response = await client.post(
+        f"/cases/{case.cnr}/evidence/extract", headers=auth_headers, json=body
+    )
+
+    assert response.status_code == status
+    assert response.json()["detail"].startswith(detail)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"text": "I invented this fact"},  # free text is no longer accepted
+        {"party_id": "p1", "message_id": "m2", "event_id": "answer"},
+        {"party_id": "p1"},
+    ],
+)
+async def test_extract_evidence_needs_exactly_one_source(
+    client, user, auth_headers, make_case, body
+):
+    case = await make_case(user)
+
+    response = await client.post(
+        f"/cases/{case.cnr}/evidence/extract", headers=auth_headers, json=body
+    )
+
+    assert response.status_code == 422
+
+
+async def test_same_message_cannot_be_extracted_twice(
+    client, user, auth_headers, make_case, witness_party
+):
+    case = await case_with_chat_and_testimony(make_case, user, witness_party)
+    url = f"/cases/{case.cnr}/evidence/extract"
+
+    first = await client.post(url, headers=auth_headers, json=PARTY_REPLY)
+    second = await client.post(url, headers=auth_headers, json=PARTY_REPLY)
+
+    assert (first.status_code, second.status_code) == (201, 409)
+
+
+async def test_extract_failure(
+    client, user, auth_headers, make_case, monkeypatch, witness_party
+):
+    monkeypatch.setattr(evidence_routes, "index_evidence_item", boom)
+    case = await case_with_chat_and_testimony(make_case, user, witness_party)
+
+    response = await client.post(
+        f"/cases/{case.cnr}/evidence/extract", headers=auth_headers, json=PARTY_REPLY
+    )
+
+    assert response.status_code == 500
+
+
+async def test_extracted_evidence_gets_image_once_role_selected(
+    client, auth_headers, courtroom_case, image_pipeline, fake_llm, witness_party
+):
+    fake_llm.responses.append(
+        '{"title": "Bank slip", "evidence_type": "Digital Evidence",'
+        ' "description": "Cash deposit slip"}'
+    )
     case = await courtroom_case(
         evidence=[
             EvidenceItem(
                 exhibit_ref="EX-04", title="Old", evidence_type="Doc", description="d"
             )
-        ]
+        ],
+        party_chats={
+            witness_party.id: [
+                {"id": "m1", "sender": "party", "content": "Here is my bank slip."}
+            ]
+        },
     )
 
     response = await client.post(
-        f"/cases/{case.cnr}/evidence",
+        f"/cases/{case.cnr}/evidence/extract",
         headers=auth_headers,
-        json={
-            "title": "Photo",
-            "evidence_type": "Digital",
-            "description": "Scene photo",
-            "image_prompt": "A photo",
-        },
+        json={"party_id": witness_party.id, "message_id": "m1"},
     )
 
     body = response.json()
     assert response.status_code == 201
     assert body["evidence"]["exhibit_ref"] == "EX-05"
     assert body["image_generation"]["generated"] == 1
-
-
-async def test_add_evidence_without_role_skips_images(
-    client, user, auth_headers, make_case
-):
-    case = await make_case(user)
-
-    response = await client.post(
-        f"/cases/{case.cnr}/evidence",
-        headers=auth_headers,
-        json={"title": "T", "evidence_type": "Document", "description": "D"},
-    )
-
-    assert response.json()["image_generation"] is None
-
-
-async def test_extract_evidence(client, user, auth_headers, make_case, fake_llm):
-    fake_llm.responses.append(
-        '{"title": "Receipt", "evidence_type": "Document", "description": "Paid 5000"}'
-    )
-    case = await make_case(user)
-
-    response = await client.post(
-        f"/cases/{case.cnr}/evidence/extract",
-        headers=auth_headers,
-        json={"text": "I paid 5000", "source": "Ravi"},
-    )
-
-    assert response.json()["evidence"]["title"] == "Receipt"
-    assert response.json()["evidence"]["source"] == "Ravi"
-
-
-@pytest.mark.parametrize(
-    "path, body",
-    [
-        ("evidence", {"title": "T", "evidence_type": "Document", "description": "D"}),
-        ("evidence/extract", {"text": "x"}),
-    ],
-)
-async def test_add_and_extract_failures(
-    client, user, auth_headers, make_case, monkeypatch, path, body
-):
-    monkeypatch.setattr(evidence_routes, "index_evidence_item", boom)
-    case = await make_case(user)
-
-    response = await client.post(
-        f"/cases/{case.cnr}/{path}", headers=auth_headers, json=body
-    )
-
-    assert response.status_code == 500
 
 
 async def test_generate_missing_and_regenerate_images(

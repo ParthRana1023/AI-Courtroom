@@ -1,17 +1,23 @@
-from pydantic import BaseModel, Field
-
-
-class EvidenceCreate(BaseModel):
-    title: str = Field(..., min_length=1, max_length=160)
-    evidence_type: str = Field(..., min_length=1, max_length=80)
-    description: str = Field(..., min_length=1)
-    source: str | None = None
-    image_prompt: str | None = None
+from pydantic import BaseModel, model_validator
 
 
 class EvidenceExtractRequest(BaseModel):
-    text: str = Field(..., min_length=1)
-    source: str | None = None
+    """What to turn into evidence: a party's chat reply or a witness's answer.
+
+    The server reads the text from the case itself, so a user can't submit
+    their own words as evidence.
+    """
+
+    party_id: str | None = None
+    message_id: str | None = None
+    event_id: str | None = None
+
+    @model_validator(mode="after")
+    def one_source(self):
+        from_chat = bool(self.party_id and self.message_id)
+        if from_chat == bool(self.event_id):
+            raise ValueError("Give either party_id and message_id, or event_id.")
+        return self
 
 
 class EvidenceGenerationSummary(BaseModel):

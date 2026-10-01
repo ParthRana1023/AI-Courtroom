@@ -29,6 +29,8 @@ const getIcon = (
   );
 };
 
+const subscribeNoop = () => () => {};
+
 const getNextTheme = (
   effective: ThemeSelection,
   modes: ThemeSelection[],
@@ -56,6 +58,13 @@ function ThemeTogglerButton({
   ...props
 }: ThemeTogglerButtonProps) {
   const { theme, resolvedTheme, setTheme } = useTheme();
+  // The server can't know the theme, so render a hidden placeholder until
+  // hydration finishes; otherwise the server's Sun and the client's Moon clash.
+  const hydrated = React.useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  );
 
   return (
     <ThemeTogglerPrimitive
@@ -75,7 +84,11 @@ function ThemeTogglerButton({
           }}
           {...props}
         >
-          {getIcon(effective, resolved, modes)}
+          {hydrated ? (
+            getIcon(effective, resolved, modes)
+          ) : (
+            <Sun className="opacity-0" aria-hidden="true" />
+          )}
         </button>
       )}
     </ThemeTogglerPrimitive>

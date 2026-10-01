@@ -56,12 +56,12 @@ async def generate_image_from_prompt(prompt: str) -> bytes:
             )
         except ImageGenerationError as exc:
             last_error = exc
-            if index == 0 and len(configured_models) > 1:
+            if index + 1 < len(configured_models):
                 logger.warning(
-                    "Primary evidence image model failed, trying fallback",
+                    "Evidence image model failed, trying the next one",
                     extra={
                         "model": model,
-                        "fallback_model": configured_models[1],
+                        "fallback_model": configured_models[index + 1],
                         "status_code": exc.status_code,
                         "retryable": exc.retryable,
                         "provider_detail": exc.provider_detail,
@@ -108,6 +108,12 @@ async def _generate_image_with_model(
             model=model,
             user_message="Cloudflare Workers AI request failed. Please retry.",
         ) from exc
+
+    if response.status_code < 400 and response.headers.get(
+        "content-type", ""
+    ).startswith("image/"):
+        # Some models (e.g. dreamshaper-8-lcm) return the PNG itself, not JSON.
+        return response.content
 
     if response.status_code >= 400:
         detail = _extract_provider_error_detail(response)
@@ -168,6 +174,7 @@ def _configured_image_models() -> list[str]:
     models = [
         settings.evidence_image_model,
         settings.evidence_image_fallback_model,
+        settings.evidence_image_fallback2_model,
     ]
     return list(dict.fromkeys(model.strip() for model in models if model.strip()))
 
@@ -181,9 +188,10 @@ def _build_json_payload(prompt: str) -> dict[str, str | int]:
 
 
 def _build_multipart_payload(prompt: str) -> dict[str, tuple[None, str]]:
+    # FLUX.2 models (klein-4b) take multipart form data; klein is priced per
+    # output tile, so no steps field is sent.
     return {
         "prompt": (None, prompt),
-        "steps": (None, "25"),
         "width": (None, "1024"),
         "height": (None, "1024"),
     }

@@ -96,6 +96,14 @@ class EvidenceItem(BaseModel):
     image_url: str | None = None
     image_public_id: str | None = None
     media_status: EvidenceMediaStatus = Field(default=EvidenceMediaStatus.NOT_REQUESTED)
+    # The party message or courtroom event this was extracted from, so the same
+    # one can't be extracted twice.
+    origin_id: str | None = None
+
+
+def party_message_id(message: dict, index: int) -> str:
+    """A party-chat message's id; old messages saved without one use msg-<index>."""
+    return message.get("id") or f"msg-{index}"
 
 
 # Witness examination models
@@ -222,6 +230,12 @@ class Case(Document):
 
     def get_party(self, party_id: str | None) -> PartyInvolved | None:
         return next((p for p in self.parties_involved if p.id == party_id), None)
+
+    def get_party_message(self, party_id: str, message_id: str) -> dict | None:
+        for index, message in enumerate(self.party_chats.get(party_id) or []):
+            if party_message_id(message, index) == message_id:
+                return message
+        return None
 
     def adjourn(self, by_session_end: bool = False) -> None:
         """Stop the hearing: end any AI examination and send the witness home."""

@@ -124,11 +124,11 @@ def task_max_tokens(task: str) -> int | None:
 
 # ---------------------------------------------------------------------------
 # Task → model chain. Each task reads <task>_model/_provider, then
-# <task>_fallback_model/_provider, then <task>_fallback2_model/_provider from
-# settings; an empty fallback model is skipped.
+# <task>_fallback_model/_provider, <task>_fallback2_... and <task>_fallback3_...
+# from settings; an empty fallback model is skipped.
 # ---------------------------------------------------------------------------
 LLM_TASKS = ("drafter", "lawyer", "judge", "analyzer", "outcome", "party", "witness")
-_CHAIN_PREFIXES = ("", "fallback_", "fallback2_")
+_CHAIN_PREFIXES = ("", "fallback_", "fallback2_", "fallback3_")
 
 
 def task_model_chain(task: str) -> list[tuple[str, str]]:
@@ -162,8 +162,25 @@ def _create_llm_instance(
             api_key=settings.openrouter_api_key or "not_set",
             base_url="https://openrouter.ai/api/v1",
             temperature=temperature,
-            max_completion_tokens=max_tokens,
+            # No cap: OpenRouter models' own limits work, and with reasoning
+            # enabled a cap would also have to cover the hidden reasoning.
             extra_body={"reasoning": {"enabled": True}},
+        )
+    elif provider == "cloudflare":
+        # Workers AI's OpenAI-compatible endpoint. Shares the account's 10,000
+        # free neurons/day with evidence images, so it is only a last resort.
+        ChatOpenAI = import_module("langchain_openai").ChatOpenAI
+        return ChatOpenAI(
+            model=model_id,
+            api_key=settings.cloudflare_api_token or "not_set",
+            base_url=(
+                "https://api.cloudflare.com/client/v4/accounts/"
+                f"{settings.cloudflare_account_id or 'not_set'}/ai/v1"
+            ),
+            temperature=temperature,
+            # Workers AI stops at 256 tokens by default, which a reasoning
+            # model spends before writing anything, so always send a budget.
+            max_completion_tokens=max_tokens or settings.cloudflare_max_tokens,
         )
     else:
         raise ValueError(f"Unknown LLM provider '{provider}'.")

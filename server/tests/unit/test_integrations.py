@@ -185,7 +185,10 @@ def cloudflare_configured(monkeypatch):
     monkeypatch.setattr(settings, "cloudflare_account_id", "acct")
     monkeypatch.setattr(settings, "cloudflare_api_token", "token")
     monkeypatch.setattr(settings, "evidence_image_model", "@cf/flux-1-schnell")
-    monkeypatch.setattr(settings, "evidence_image_fallback_model", "@cf/flux-2-dev")
+    monkeypatch.setattr(
+        settings, "evidence_image_fallback_model", "@cf/flux-2-klein-4b"
+    )
+    monkeypatch.setattr(settings, "evidence_image_fallback2_model", "")
 
 
 async def test_generate_image_requires_credentials_and_prompt(
@@ -223,11 +226,35 @@ async def test_generate_image_falls_back_to_multipart_model(
                 503, json={"errors": [{"code": 3040, "message": "Capacity"}]}
             )
         assert request.headers["content-type"].startswith("multipart/form-data")
+        # klein is priced per output tile, so no steps are sent
+        assert b'name="steps"' not in request.content
         return httpx.Response(200, json={"image": PNG_B64})
 
     mock_http(ig, handler)
 
     assert await ig.generate_image_from_prompt("scene") == b"\x89PNG-bytes"
+
+
+async def test_generate_image_reaches_third_model_that_returns_raw_png(
+    monkeypatch, cloudflare_configured, mock_http
+):
+    monkeypatch.setattr(
+        settings, "evidence_image_fallback2_model", "@cf/lykon/dreamshaper-8-lcm"
+    )
+    tried = []
+
+    def handler(request):
+        tried.append(request.url.path.rsplit("/", 1)[-1])
+        if "dreamshaper" not in request.url.path:
+            return httpx.Response(503, text="busy")
+        return httpx.Response(
+            200, content=b"\x89PNG-raw", headers={"content-type": "image/png"}
+        )
+
+    mock_http(ig, handler)
+
+    assert await ig.generate_image_from_prompt("scene") == b"\x89PNG-raw"
+    assert tried == ["flux-1-schnell", "flux-2-klein-4b", "dreamshaper-8-lcm"]
 
 
 async def test_generate_image_reports_rate_limit_from_last_model(
@@ -240,7 +267,7 @@ async def test_generate_image_reports_rate_limit_from_last_model(
 
     assert exc.value.status_code == 429
     assert exc.value.retryable is True
-    assert exc.value.model == "@cf/flux-2-dev"
+    assert exc.value.model == "@cf/flux-2-klein-4b"
     assert "rate limiting" in exc.value.user_message
     assert exc.value.provider_detail == "slow down"
 

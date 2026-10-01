@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
 import pytest
+from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from pydantic import ValidationError
 
@@ -271,10 +272,15 @@ def test_log_execution_time_sync(caplog):
 def test_create_llm_instance_builds_each_provider():
     groq = real_create_llm_instance("groq", "llama-3.3-70b-versatile")
     openrouter = real_create_llm_instance("openrouter", "some/model:free")
+    cloudflare = real_create_llm_instance("cloudflare", "@cf/openai/gpt-oss-20b")
 
     assert type(groq).__name__ == "ChatGroq"
     assert isinstance(openrouter, ChatOpenAI)
     assert openrouter.openai_api_base == "https://openrouter.ai/api/v1"
+    assert isinstance(cloudflare, ChatOpenAI)
+    base = str(cloudflare.openai_api_base)
+    assert base.startswith("https://api.cloudflare.com/client/v4/accounts/")
+    assert base.endswith("/ai/v1")
 
 
 def test_create_llm_instance_rejects_unknown_provider():
@@ -306,6 +312,7 @@ def test_get_llm_uses_configured_primary_and_fallback(monkeypatch):
         (settings.judge_provider, settings.judge_model, 0.2),
         (settings.judge_fallback_provider, settings.judge_fallback_model, 0.2),
         (settings.judge_fallback2_provider, settings.judge_fallback2_model, 0.2),
+        (settings.judge_fallback3_provider, settings.judge_fallback3_model, 0.2),
     ]
 
 
@@ -315,13 +322,20 @@ def test_empty_fallback_is_skipped(monkeypatch):
     assert llm_utils.task_model_chain("judge") == [
         (settings.judge_provider, settings.judge_model),
         (settings.judge_fallback_provider, settings.judge_fallback_model),
+        (settings.judge_fallback3_provider, settings.judge_fallback3_model),
     ]
 
 
-def test_every_task_has_one_openrouter_and_one_groq_model():
+def test_every_task_has_groq_openrouter_and_cloudflare_last():
     for task in llm_utils.LLM_TASKS:
-        providers = {provider for provider, _ in llm_utils.task_model_chain(task)}
-        assert providers == {"openrouter", "groq"}, task
+        chain = llm_utils.task_model_chain(task)
+        assert {provider for provider, _ in chain} == {
+            "openrouter",
+            "groq",
+            "cloudflare",
+        }, task
+        # Cloudflare shares its free budget with evidence images: last resort only.
+        assert chain[-1][0] == "cloudflare", task
 
 
 # ---------------------------------------------------------------------------
@@ -503,9 +517,9 @@ async def test_fake_llm_error_fails_primary_and_fallbacks(fake_llm, caplog):
 
     with pytest.raises(RuntimeError, match="provider down"):
         await llm_utils.get_llm("judge").ainvoke("hello")
-    assert len(fake_llm.calls) == 3  # primary, then both fallbacks
+    assert len(fake_llm.calls) == 4  # primary, then all three fallbacks
     # every model's failure is logged, not only the first
-    assert caplog.text.count("LLM judge model failed") == 3
+    assert caplog.text.count("LLM judge model failed") == 4
 
 
 @pytest.mark.parametrize("bad", ["", "secret", "another-secret", "short-but-random"])
@@ -546,4 +560,17 @@ def test_long_document_tasks_get_a_bigger_output_budget():
 
     groq = real_create_llm_instance("groq", "m", 0.5, 8192)
     openrouter = real_create_llm_instance("openrouter", "m", 0.5, 8192)
-    assert (groq.max_tokens, openrouter.max_tokens) == (8192, 8192)
+    cloudflare_long = real_create_llm_instance("cloudflare", "m", 0.5, 8192)
+    cloudflare_short = real_create_llm_instance("cloudflare", "m", 0.5, None)
+    assert isinstance(groq, ChatGroq)
+    assert isinstance(openrouter, ChatOpenAI)
+    assert isinstance(cloudflare_long, ChatOpenAI)
+    assert isinstance(cloudflare_short, ChatOpenAI)
+    assert groq.max_tokens == 8192
+    # OpenRouter keeps the model's own limit (reasoning tokens count against a cap)
+    assert openrouter.max_tokens is None
+    # Workers AI's 256-token default would leave reasoning models empty
+    assert (cloudflare_long.max_tokens, cloudflare_short.max_tokens) == (
+        8192,
+        settings.cloudflare_max_tokens,
+    )

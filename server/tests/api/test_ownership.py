@@ -20,12 +20,7 @@ CASE_ROUTES = [
     ("POST", "/cases/{cnr}/parties/p1/chat", {"message": "hi"}),
     # evidence
     ("GET", "/cases/{cnr}/evidence", None),
-    (
-        "POST",
-        "/cases/{cnr}/evidence",
-        {"title": "T", "evidence_type": "Document", "description": "D"},
-    ),
-    ("POST", "/cases/{cnr}/evidence/extract", {"text": "x"}),
+    ("POST", "/cases/{cnr}/evidence/extract", {"event_id": "x"}),
     ("POST", "/cases/{cnr}/evidence/images/generate-missing", None),
     ("POST", "/cases/{cnr}/evidence/e1/image/regenerate", None),
     # witness
