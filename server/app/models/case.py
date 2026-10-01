@@ -26,6 +26,14 @@ class Roles(str, Enum):
     NOT_STARTED = "not_started"
 
 
+class CaseOutcome(str, Enum):
+    """How the verdict went for the user, decided once after the verdict."""
+
+    WON = "won"
+    LOST = "lost"
+    PARTIAL = "partial"
+
+
 class EvidenceMediaStatus(str, Enum):
     NOT_REQUESTED = "not_requested"
     PENDING = "pending"
@@ -148,6 +156,10 @@ class Case(Document):
 
     verdict: str | None = None
     analysis: str | None = Field(default=None)
+    analyzed_at: datetime | None = None
+    # Set once by the outcome classifier after the verdict; never changed after.
+    outcome: CaseOutcome | None = None
+    outcome_reason: str | None = None
     # Track user arguments at session start (for per-session end session validation)
     session_args_at_start: int = Field(
         default=0,
@@ -304,8 +316,9 @@ class Case(Document):
         """On logout: adjourn hearings run by this session (or by no known session)."""
         return await cls._adjourn_running(
             user_id,
-            lambda case: session_id is None
-            or case.active_session_id in (session_id, None),
+            lambda case: (
+                session_id is None or case.active_session_id in (session_id, None)
+            ),
         )
 
     @classmethod

@@ -8,6 +8,7 @@ import WitnessPanel from "@/components/witness-panel";
 import { argumentRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
 import {
   type Case,
+  type CaseOutcome,
   CaseStatus,
   Roles,
   CourtroomProceedingsEventType,
@@ -53,6 +54,7 @@ import {
   WITNESS_CHECK_COOLDOWN_MS,
 } from "@/lib/config";
 import { getErrorDetail } from "@/lib/error-utils";
+import OutcomeBadge from "@/components/outcome-badge";
 import { COURT_ADJOURNED_BY_USER } from "@/lib/messages";
 
 const logger = getLogger("courtroom");
@@ -135,6 +137,7 @@ export default function Courtroom({
   const [showCaseDetails, setShowCaseDetails] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [caseAnalysis, setCaseAnalysis] = useState<string | null>(null);
+  const [caseOutcome, setCaseOutcome] = useState<CaseOutcome | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [refreshWitnessPanel, setRefreshWitnessPanel] = useState(0);
   const [extractingEventId, setExtractingEventId] = useState<string | null>(
@@ -598,6 +601,7 @@ export default function Courtroom({
       if (analysis) {
         // The analysis field contains the formatted markdown
         setCaseAnalysis(analysis.analysis || "");
+        setCaseOutcome(analysis.outcome ?? null);
       } else {
         logger.debug("No analysis in response");
       }
@@ -632,7 +636,8 @@ export default function Courtroom({
 
         // Call the case analysis endpoint
         try {
-          await caseAPI.analyzeCase(cnr);
+          const analysis = await caseAPI.analyzeCase(cnr);
+          setCaseOutcome(analysis?.outcome ?? null);
           logger.debug("Case analysis initiated successfully");
         } catch (analysisErr: unknown) {
           logger.error(
@@ -1202,9 +1207,16 @@ export default function Courtroom({
                             </p>
                           </div>
                         </div>
-                        <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                          Analysis Complete
-                        </span>
+                        {caseOutcome ? (
+                          <OutcomeBadge
+                            outcome={caseOutcome}
+                            className="shrink-0 px-3 text-sm"
+                          />
+                        ) : (
+                          <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            Analysis Complete
+                          </span>
+                        )}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
                         Detailed analysis for case {caseData.cnr}.

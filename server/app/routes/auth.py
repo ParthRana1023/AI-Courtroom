@@ -13,9 +13,11 @@ from app.models.case import Case
 from app.models.otp import LoginVerifyRequest, RegistrationVerifyRequest
 from app.models.user import TokenResponse, User
 from app.schemas.auth import GoogleLoginRequest, ProfileUpdateRequest
+from app.schemas.stats import UserStatsOut
 from app.schemas.user import (
     CaseLocationPreferenceUpdate,
     RagPreferenceUpdate,
+    StatsPreferenceUpdate,
     UserCreate,
     UserOut,
 )
@@ -36,6 +38,7 @@ from app.services.google_auth import (
     verify_risc_token,
 )
 from app.services.otp import create_otp, verify_otp
+from app.services.user_stats import compute_user_stats
 from app.utils.rate_limiter import (
     login_failure_email_limiter,
     login_failure_ip_limiter,
@@ -544,6 +547,40 @@ async def update_rag_preference(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update RAG preference.",
+        )
+
+
+@router.put("/profile/stats-preference", response_model=UserOut)
+async def update_stats_preference(
+    data: StatsPreferenceUpdate, current_user: User = Depends(get_current_user)
+):
+    """Update how partly successful cases count toward the user's win rate."""
+    logger.info(
+        f"Stats preference update for user: {current_user.email} -> {data.partial_scoring}"
+    )
+
+    try:
+        current_user.partial_scoring = data.partial_scoring
+        await current_user.save()
+        return current_user
+    except Exception:
+        logger.exception(f"Failed to update stats preference for {current_user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update stats preference.",
+        )
+
+
+@router.get("/profile/stats", response_model=UserStatsOut)
+async def profile_stats(current_user: User = Depends(get_current_user)):
+    """Win/loss record and activity stats for the profile page."""
+    try:
+        return await compute_user_stats(current_user)
+    except Exception:
+        logger.exception(f"Failed to compute stats for {current_user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load stats.",
         )
 
 

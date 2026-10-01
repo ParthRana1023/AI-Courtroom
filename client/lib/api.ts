@@ -3,7 +3,9 @@ import type {
   CaseGenerationFormData,
   ContactFormData,
   LoginFormData,
+  PartialScoring,
   RegisterFormData,
+  UserStats,
 } from "@/types";
 import {
   getCookie,
@@ -337,6 +339,32 @@ export const authAPI = {
           { cause: error },
         );
       }
+      throw error;
+    }
+  },
+  updateStatsPreference: async (data: { partial_scoring: PartialScoring }) => {
+    try {
+      const response = await api.put("/auth/profile/stats-preference", data);
+      logger.info("Stats preference updated");
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to update stats preference");
+      if (axios.isAxiosError(error) && error.response) {
+        throw new Error(
+          error.response.data.detail || "Failed to update stats preference",
+          { cause: error },
+        );
+      }
+      throw error;
+    }
+  },
+
+  getProfileStats: async (): Promise<UserStats> => {
+    try {
+      const response = await api.get("/auth/profile/stats");
+      return response.data;
+    } catch (error) {
+      logApiError(error, "Failed to get profile stats");
       throw error;
     }
   },

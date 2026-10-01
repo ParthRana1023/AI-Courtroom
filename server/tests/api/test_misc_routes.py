@@ -768,7 +768,7 @@ async def test_analysis_uses_role_from_user_arguments(
         f"/cases/{case.cnr}/analyze-case", headers=auth_headers
     )
 
-    assert response.json() == {"analysis": "### Outcome\nYou won."}
+    assert response.json() == {"analysis": "### Outcome\nYou won.", "outcome": None}
     assert "USER'S ROLE: DEFENDANT" in fake_llm.prompts[0]
     assert (await reload(case)).analysis == "### Outcome\nYou won."
 

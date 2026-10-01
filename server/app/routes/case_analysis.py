@@ -3,10 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.config import settings
 from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
-from app.models.case import Case, Roles
+from app.models.case import Case, CaseOutcome, Roles
 from app.models.user import User
+from app.services.case_outcomes import ensure_outcome, user_role_in_case
 from app.services.llm.case_analysis import CaseAnalysisService
 from app.services.rag import retrieve_case_context, upsert_memory_item
+from app.utils.datetime import get_current_datetime
+from app.utils.locks import case_lock
 
 logger = get_logger(__name__)
 
@@ -64,37 +67,37 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
 
     case = await get_owned_case(caseId, current_user)
 
-    # Find which role the user participated in by checking user_id
-    user_role_in_case = None
-    for arg in case.plaintiff_arguments:
-        if arg.user_id and str(arg.user_id) == str(current_user.id):
-            user_role_in_case = arg.role
-            break
-    if not user_role_in_case:
-        for arg in case.defendant_arguments:
-            if arg.user_id and str(arg.user_id) == str(current_user.id):
-                user_role_in_case = arg.role
-                break
+    # The analysis is generated once; later requests get the saved copy.
+    if case.analysis:
+        return {"analysis": case.analysis, "outcome": case.outcome}
 
-    if not user_role_in_case:
-        # If user hasn't submitted any arguments, check the user_role field in the case itself
-        if case.user_role != Roles.NOT_STARTED:
-            user_role_in_case = case.user_role
-        else:
-            logger.warning("User role not determined", extra={"case_id": caseId})
-            raise HTTPException(
-                status_code=400, detail="User role not determined for this case."
-            )
+    role = user_role_in_case(case)
+    if not role:
+        logger.warning("User role not determined", extra={"case_id": caseId})
+        raise HTTPException(
+            status_code=400, detail="User role not determined for this case."
+        )
 
     logger.debug(
         "User role determined",
-        extra={
-            "case_id": caseId,
-            "user_role": user_role_in_case.value if user_role_in_case else None,
-        },
+        extra={"case_id": caseId, "user_role": role.value},
     )
 
-    # Extract argument contents
+    # Normally decided in the background right after the verdict; this retries
+    # it if that failed. Must run outside case_lock (it takes the lock itself).
+    outcome = await ensure_outcome(case)
+
+    async with case_lock(case.cnr):
+        case = await Case.get(case.id) or case
+        if case.analysis:  # another request generated it while we waited
+            return {"analysis": case.analysis, "outcome": case.outcome}
+        return await _generate_analysis(case, role, outcome)
+
+
+async def _generate_analysis(
+    case: Case, user_role: Roles, outcome: CaseOutcome | None
+) -> dict:
+    caseId = case.cnr
     defendant_arguments = [arg.content for arg in case.defendant_arguments]
     plaintiff_arguments = [arg.content for arg in case.plaintiff_arguments]
 
@@ -113,12 +116,11 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
             defendant_args=defendant_arguments,
             plaintiff_args=plaintiff_arguments,
             judges_verdict=case.verdict,
-            user_role=user_role_in_case.value if user_role_in_case else None,
+            user_role=user_role.value,
             ai_role=case.ai_role.value if case.ai_role else None,
+            outcome=outcome.value if outcome else None,
             party_conferences=format_party_conferences(case),
-            witness_examinations=format_witness_examinations(
-                case, user_role_in_case.value if user_role_in_case else None
-            ),
+            witness_examinations=format_witness_examinations(case, user_role.value),
             rag_context=await retrieve_case_context(
                 case,
                 "case analysis verdict argument mistakes suggestions evidence facts",
@@ -138,8 +140,8 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
         logger.exception("Error generating case analysis", extra={"case_id": caseId})
         raise HTTPException(status_code=500, detail="Error generating analysis.") from e
 
-    # The analysis result is already a string from CaseAnalysisService
     case.analysis = analysis_result
+    case.analyzed_at = get_current_datetime()
     try:
         await case.save()
         await upsert_memory_item(
@@ -156,5 +158,4 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
             status_code=500, detail="Failed to save analysis. Please try again."
         )
 
-    # Return the analysis string directly in the response object
-    return {"analysis": case.analysis}
+    return {"analysis": case.analysis, "outcome": case.outcome}

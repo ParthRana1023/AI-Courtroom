@@ -305,7 +305,23 @@ def test_get_llm_uses_configured_primary_and_fallback(monkeypatch):
     assert built == [
         (settings.judge_provider, settings.judge_model, 0.2),
         (settings.judge_fallback_provider, settings.judge_fallback_model, 0.2),
+        (settings.judge_fallback2_provider, settings.judge_fallback2_model, 0.2),
     ]
+
+
+def test_empty_fallback_is_skipped(monkeypatch):
+    monkeypatch.setattr(settings, "judge_fallback2_model", "")
+
+    assert llm_utils.task_model_chain("judge") == [
+        (settings.judge_provider, settings.judge_model),
+        (settings.judge_fallback_provider, settings.judge_fallback_model),
+    ]
+
+
+def test_every_task_has_one_openrouter_and_one_groq_model():
+    for task in llm_utils.LLM_TASKS:
+        providers = {provider for provider, _ in llm_utils.task_model_chain(task)}
+        assert providers == {"openrouter", "groq"}, task
 
 
 # ---------------------------------------------------------------------------
@@ -482,12 +498,14 @@ def test_settings_come_from_test_env_not_dotenv():
     assert settings.openrouter_api_key == "test-openrouter-key"
 
 
-async def test_fake_llm_error_fails_primary_and_fallback(fake_llm):
+async def test_fake_llm_error_fails_primary_and_fallbacks(fake_llm, caplog):
     fake_llm.error = RuntimeError("provider down")
 
     with pytest.raises(RuntimeError, match="provider down"):
         await llm_utils.get_llm("judge").ainvoke("hello")
-    assert len(fake_llm.calls) == 2  # primary, then fallback
+    assert len(fake_llm.calls) == 3  # primary, then both fallbacks
+    # every model's failure is logged, not only the first
+    assert caplog.text.count("LLM judge model failed") == 3
 
 
 @pytest.mark.parametrize("bad", ["", "secret", "another-secret", "short-but-random"])

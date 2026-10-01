@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator
 
+from app.models.user import PartialScoring
 from app.utils.datetime import get_current_datetime
 
 # Gender type definition
@@ -98,6 +99,7 @@ class UserOut(BaseModel):
     case_location_preference: CaseLocationPreference | None = "random"
     preferred_case_state: str | None = None
     rag_enabled: bool = True
+    partial_scoring: PartialScoring = "zero"
 
 
 class CaseLocationPreferenceUpdate(BaseModel):
@@ -125,3 +127,9 @@ class RagPreferenceUpdate(BaseModel):
     """Schema for updating the user's RAG preference from settings."""
 
     rag_enabled: bool
+
+
+class StatsPreferenceUpdate(BaseModel):
+    """Schema for choosing how partly successful cases count toward the win rate."""
+
+    partial_scoring: PartialScoring

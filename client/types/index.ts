@@ -48,6 +48,60 @@ export interface User {
   case_location_preference?: CaseLocationPreference;
   preferred_case_state?: string;
   rag_enabled?: boolean;
+  partial_scoring?: PartialScoring;
+}
+
+// How a partly successful case counts toward the win rate
+export type PartialScoring = "zero" | "half" | "exclude";
+
+// How the verdict went for the user, decided once after the verdict
+export type CaseOutcome = "won" | "lost" | "partial";
+
+export interface OutcomeCounts {
+  wins: number;
+  losses: number;
+  partials: number;
+  total: number;
+  win_rate: number; // percent, 0-100
+}
+
+export interface RecentOutcome {
+  cnr: string;
+  title: string;
+  role: Roles;
+  outcome: CaseOutcome;
+  decided_at: string;
+}
+
+export interface MonthlyOutcomes {
+  month: string; // "YYYY-MM"
+  wins: number;
+  losses: number;
+  partials: number;
+}
+
+export interface ActivityStats {
+  arguments: number;
+  witnesses_examined: number;
+  conferences_held: number;
+  evidence: number;
+  avg_arguments: number;
+  avg_witnesses_examined: number;
+  avg_conferences_held: number;
+  avg_evidence: number;
+}
+
+export interface UserStats {
+  partial_scoring: PartialScoring;
+  overall: OutcomeCounts;
+  as_plaintiff: OutcomeCounts;
+  as_defendant: OutcomeCounts;
+  current_streak: number;
+  best_streak: number;
+  recent_form: RecentOutcome[];
+  monthly: MonthlyOutcomes[];
+  activity: ActivityStats;
+  pending_outcomes: number;
 }
 
 // Case types
@@ -87,6 +141,7 @@ export interface CaseListItem {
   title: string;
   created_at: string;
   status: CaseStatus;
+  outcome?: CaseOutcome | null;
 }
 
 export type EvidenceMediaStatus =
@@ -129,6 +184,7 @@ export interface Case {
   plaintiff_arguments: Argument[];
   defendant_arguments: Argument[];
   verdict: string | null;
+  outcome?: CaseOutcome | null;
   created_at: string;
   role?: Roles; // User's role for this specific case (backwards compat)
   user_role?: Roles; // User's role in the case

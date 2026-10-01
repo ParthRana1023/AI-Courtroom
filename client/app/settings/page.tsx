@@ -13,12 +13,17 @@ import {
   ChevronLeft,
   ChevronRight,
   BrainCircuit,
+  Trophy,
 } from "lucide-react";
 import { useSettings } from "@/contexts/settings-context";
 import { useCookieConsent } from "@/contexts/cookie-consent-context";
 import { useAuth } from "@/contexts/auth-context";
 import { locationAPI, authAPI } from "@/lib/api";
-import type { IndianState, CaseLocationPreference } from "@/types";
+import type {
+  IndianState,
+  CaseLocationPreference,
+  PartialScoring,
+} from "@/types";
 import Navigation from "@/components/navigation";
 
 // Add custom styles for animations
@@ -117,6 +122,9 @@ export default function SettingsPage() {
     useState<string>("");
   const [ragEnabled, setRagEnabled] = useState(true);
   const [originalRagEnabled, setOriginalRagEnabled] = useState(true);
+  const [partialScoring, setPartialScoring] = useState<PartialScoring>("zero");
+  const [originalPartialScoring, setOriginalPartialScoring] =
+    useState<PartialScoring>("zero");
 
   const [saveMessage, setSaveMessage] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
@@ -131,7 +139,8 @@ export default function SettingsPage() {
       localSkipDeleteConfirmation !== skipDeleteConfirmation ||
       caseLocationPreference !== originalCaseLocationPreference ||
       preferredCaseState !== originalPreferredCaseState ||
-      ragEnabled !== originalRagEnabled;
+      ragEnabled !== originalRagEnabled ||
+      partialScoring !== originalPartialScoring;
 
     setHasChanges(hasUnsavedChanges);
   }, [
@@ -151,6 +160,8 @@ export default function SettingsPage() {
     originalPreferredCaseState,
     ragEnabled,
     originalRagEnabled,
+    partialScoring,
+    originalPartialScoring,
   ]);
 
   // Load Indian states and user preferences
@@ -182,6 +193,8 @@ export default function SettingsPage() {
         }
         setRagEnabled(profile.rag_enabled ?? true);
         setOriginalRagEnabled(profile.rag_enabled ?? true);
+        setPartialScoring(profile.partial_scoring ?? "zero");
+        setOriginalPartialScoring(profile.partial_scoring ?? "zero");
       } catch (error) {
         logger.error("Failed to load user preferences", error as Error);
       }
@@ -229,6 +242,18 @@ export default function SettingsPage() {
         } catch (error) {
           backendSaveFailed = true;
           logger.error("Failed to save RAG preference", error as Error);
+        }
+      }
+
+      if (partialScoring !== originalPartialScoring) {
+        try {
+          await authAPI.updateStatsPreference({
+            partial_scoring: partialScoring,
+          });
+          setOriginalPartialScoring(partialScoring);
+        } catch (error) {
+          backendSaveFailed = true;
+          logger.error("Failed to save stats preference", error as Error);
         }
       }
     }
@@ -766,6 +791,37 @@ export default function SettingsPage() {
                       className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500"
                     />
                   </label>
+                </div>
+
+                {/* Win rate preference */}
+                <div className="mb-8">
+                  <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                    <Trophy className="h-4 w-4" />
+                    Win Rate
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    Choose how a partly successful case (for example, a
+                    petition allowed only in part) counts toward the win rate
+                    on your profile.
+                  </p>
+                  <label
+                    htmlFor="partial-scoring"
+                    className={`${getTextSizeClass()} font-medium block mb-2`}
+                  >
+                    Partial wins count as
+                  </label>
+                  <select
+                    id="partial-scoring"
+                    value={partialScoring}
+                    onChange={(e) =>
+                      setPartialScoring(e.target.value as PartialScoring)
+                    }
+                    className="w-full md:w-1/2 p-3 border-2 rounded-lg border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="zero">A loss (not a win)</option>
+                    <option value="half">Half a win</option>
+                    <option value="exclude">Left out of the win rate</option>
+                  </select>
                 </div>
 
                 {/* Save Button */}

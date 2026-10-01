@@ -103,51 +103,28 @@ def task_temperature(task: str) -> float:
     return {
         "judge": settings.judge_temperature,
         "analyzer": settings.analyzer_temperature,
+        "outcome": settings.outcome_temperature,
         "drafter": settings.drafter_temperature,
     }.get(task, settings.default_temperature)
 
 
 # ---------------------------------------------------------------------------
-# Task → config attribute mapping
+# Task → model chain. Each task reads <task>_model/_provider, then
+# <task>_fallback_model/_provider, then <task>_fallback2_model/_provider from
+# settings; an empty fallback model is skipped.
 # ---------------------------------------------------------------------------
-_TASK_MODEL_MAP: dict[str, tuple[str, str, str, str]] = {
-    "drafter": (
-        "drafter_model",
-        "drafter_provider",
-        "drafter_fallback_model",
-        "drafter_fallback_provider",
-    ),
-    "lawyer": (
-        "lawyer_model",
-        "lawyer_provider",
-        "lawyer_fallback_model",
-        "lawyer_fallback_provider",
-    ),
-    "judge": (
-        "judge_model",
-        "judge_provider",
-        "judge_fallback_model",
-        "judge_fallback_provider",
-    ),
-    "analyzer": (
-        "analyzer_model",
-        "analyzer_provider",
-        "analyzer_fallback_model",
-        "analyzer_fallback_provider",
-    ),
-    "party": (
-        "party_model",
-        "party_provider",
-        "party_fallback_model",
-        "party_fallback_provider",
-    ),
-    "witness": (
-        "witness_model",
-        "witness_provider",
-        "witness_fallback_model",
-        "witness_fallback_provider",
-    ),
-}
+LLM_TASKS = ("drafter", "lawyer", "judge", "analyzer", "outcome", "party", "witness")
+_CHAIN_PREFIXES = ("", "fallback_", "fallback2_")
+
+
+def task_model_chain(task: str) -> list[tuple[str, str]]:
+    """(provider, model) pairs for a task, in the order they are tried."""
+    chain = []
+    for prefix in _CHAIN_PREFIXES:
+        model = getattr(settings, f"{task}_{prefix}model", "")
+        if model:
+            chain.append((getattr(settings, f"{task}_{prefix}provider"), model))
+    return chain
 
 
 def _create_llm_instance(
@@ -173,28 +150,28 @@ def _create_llm_instance(
         raise ValueError(f"Unknown LLM provider '{provider}'.")
 
 
-@cache
-def get_llm(task: str) -> Runnable:
-    config_attrs = _TASK_MODEL_MAP.get(task)
-    if config_attrs is None:
-        raise ValueError(
-            f"Unknown LLM task '{task}'. "
-            f"Valid tasks: {', '.join(sorted(_TASK_MODEL_MAP))}"
+def _log_failure(task: str, provider: str, model: str):
+    def on_error(run) -> None:
+        # with_fallbacks re-raises only the first error, so log each one here.
+        logger.warning(
+            f"LLM {task} model failed ({provider}:{model}): {str(run.error)[:300]}"
         )
 
-    model_attr, provider_attr, fallback_model_attr, fallback_provider_attr = (
-        config_attrs
-    )
+    return on_error
 
-    primary_model_id: str = getattr(settings, model_attr)
-    primary_provider: str = getattr(settings, provider_attr)
-    fallback_model_id: str = getattr(settings, fallback_model_attr)
-    fallback_provider: str = getattr(settings, fallback_provider_attr)
+
+@cache
+def get_llm(task: str) -> Runnable:
+    if task not in LLM_TASKS:
+        raise ValueError(
+            f"Unknown LLM task '{task}'. Valid tasks: {', '.join(sorted(LLM_TASKS))}"
+        )
 
     temperature = task_temperature(task)
-    primary_llm = _create_llm_instance(primary_provider, primary_model_id, temperature)
-    fallback_llm = _create_llm_instance(
-        fallback_provider, fallback_model_id, temperature
-    )
-
-    return primary_llm.with_fallbacks([fallback_llm])
+    models = [
+        _create_llm_instance(provider, model, temperature).with_listeners(
+            on_error=_log_failure(task, provider, model)
+        )
+        for provider, model in task_model_chain(task)
+    ]
+    return models[0].with_fallbacks(models[1:])

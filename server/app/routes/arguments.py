@@ -1,5 +1,5 @@
 # app/routes/arguments.py
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
 
 from app import messages
 from app.config import settings
@@ -14,6 +14,7 @@ from app.models.case import (
     Roles,
 )
 from app.models.user import User
+from app.services.case_outcomes import ensure_outcome
 from app.services.evidence_service import format_evidence_context
 from app.services.llm import judge, lawyer
 from app.services.rag import retrieve_case_context, upsert_memory_item
@@ -400,6 +401,7 @@ async def submit_argument(
 @router.post("/{case_cnr}/closing-statement", dependencies=[Depends(courtroom_control)])
 async def submit_closing_statement(
     case_cnr: str,
+    background_tasks: BackgroundTasks,
     role: str = Body(...),
     statement: str = Body(...),
     current_user: User = Depends(argument_rate_limiter.check_only),
@@ -512,6 +514,8 @@ async def submit_closing_statement(
         "Failed to save verdict. Please try again.",
     )
     await argument_rate_limiter.register_usage(str(current_user.id))
+    # Decide won/lost after the response is sent, so the verdict isn't delayed.
+    background_tasks.add_task(ensure_outcome, case)
     logger.info(f"Case {case_cnr} resolved with verdict")
 
     return {

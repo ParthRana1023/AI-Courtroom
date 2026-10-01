@@ -15,6 +15,16 @@ from app.utils.llm import (
 
 logger = get_logger(__name__)
 
+OUTCOME_TEXT = {
+    "won": "WON - the verdict favours the user's side.",
+    "lost": "LOST - the verdict favours the opposing side.",
+    "partial": "PARTLY SUCCEEDED - the verdict went partly each way.",
+}
+NO_OUTCOME_TEXT = (
+    "NOT DECIDED - describe how the verdict's orders affect the user without "
+    "calling it a win or a loss."
+)
+
 
 class CaseAnalysisService:
     @staticmethod
@@ -30,6 +40,7 @@ class CaseAnalysisService:
         rag_context: str | None = None,
         party_conferences: str | None = None,
         witness_examinations: str | None = None,
+        outcome: str | None = None,
     ) -> str:
         """Uses LLM to analyze the user's arguments and provides suggestions for improvement.
         :param defendant_args: List of arguments presented by the user.
@@ -37,7 +48,9 @@ class CaseAnalysisService:
         :param case_details: Details of the case.
         :param title: Title of the case.
         :param judges_verdict: The verdict given by the judge.
-        :return: Dictionary with 'mistakes', 'suggestions', 'outcome', and 'reasoning'.
+        :param outcome: "won", "lost" or "partial", already decided by the
+            outcome classifier; None when it could not be decided.
+        :return: Markdown with Outcome, Reasoning, Mistakes and Suggestions sections.
         """
         logger.debug(
             "Case analysis started",
@@ -87,36 +100,16 @@ class CaseAnalysisService:
 
             JUDGE'S VERDICT: {judges_verdict}
 
-            IMPORTANT VERDICT ANALYSIS INSTRUCTIONS:
-            1. First, carefully analyze who the verdict favors by examining:
-               - The outcome of petitions/applications
-               - Which party's requests were granted or denied
-               - Any orders for/against specific parties
-               - The implications for each party
-            
-            2. Then determine if the user won, lost or partly succeeded:
-               - If user is PLAINTIFF:
-                 * A verdict favoring the plaintiff means the user WON
-                 * A verdict favoring the defendant means the user LOST
-               
-               - If user is DEFENDANT:
-                 * A verdict favoring the plaintiff means the user LOST
-                 * A verdict favoring the defendant means the user WON
-
-               - A partly allowed petition, or relief granted with conditions, is a
-                 partial success: say which parts went which way.
-            
-            3. Base your analysis STRICTLY on:
-               - The specific language and orders in the verdict
-               - Legal implications of those orders
-               - Which party benefits from the outcome
+            OUTCOME FOR THE USER: {outcome}
+            The outcome has already been decided from the verdict's operative
+            orders. Do not decide it again or contradict it.
 
             Required sections for your analysis:
 
             Return your response as a well-structured Markdown document with the following sections:
             
             ### Outcome
-            Clearly state whether you (the user) won, lost or partly succeeded.
+            State the outcome given above in one line, naming the operative order it rests on.
 
             ### Reasoning
             Explain the outcome from the verdict's own reasoning. Say how far it was decided by the law and the record (the case file and evidence) and how far by the advocacy on each side, so the user knows whether better arguing could have changed it.
@@ -168,6 +161,7 @@ class CaseAnalysisService:
                     "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
                     "sides_rule": SIDES_RULE,
                     "judges_verdict": judges_verdict,
+                    "outcome": OUTCOME_TEXT.get(outcome or "", NO_OUTCOME_TEXT),
                 }
             )
 

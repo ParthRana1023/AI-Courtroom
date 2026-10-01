@@ -73,6 +73,7 @@ async def list_cases(current_user: User = Depends(get_current_user)):
             "title": case.title,
             "created_at": case.created_at,
             "status": case.status,
+            "outcome": case.outcome,
         }
         for case in cases
     ]
@@ -103,6 +104,7 @@ async def get_case(
         "plaintiff_arguments": case_dict["plaintiff_arguments"],
         "defendant_arguments": case_dict["defendant_arguments"],
         "verdict": case_dict["verdict"],
+        "outcome": case_dict.get("outcome"),
         "created_at": case_dict["created_at"],
         "user_role": case_dict.get("user_role"),  # Include user's role
         "ai_role": case_dict.get("ai_role"),  # Include AI's role

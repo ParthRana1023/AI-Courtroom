@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { caseAPI } from "@/lib/api";
 import { type CaseListItem, CaseStatus } from "@/types";
 import ProfileBento from "@/components/profile-bento";
+import ProfileStats from "@/components/profile-stats";
+import OutcomeBadge from "@/components/outcome-badge";
 import {
   Search,
   Plus,
@@ -170,6 +172,9 @@ export default function ProfilePage() {
               glowColor="59, 130, 246"
               onRefreshUser={refreshUser}
             />
+            <div className="pt-6">
+              <ProfileStats />
+            </div>
           </>
         )}
 
@@ -379,8 +384,11 @@ export default function ProfilePage() {
                               ).toLocaleDateString()}
                             </td>
                             <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-center">
-                              <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300">
-                                {caseItem.status}
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-zinc-300">
+                                  {caseItem.status}
+                                </span>
+                                <OutcomeBadge outcome={caseItem.outcome} />
                               </span>
                             </td>
                             <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-center">

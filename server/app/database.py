@@ -6,6 +6,7 @@ from app.config import settings
 from app.logging_config import get_logger
 from app.models.case import Case
 from app.models.case_memory import CaseMemoryChunk
+from app.models.case_outcome import CaseOutcomeRecord
 from app.models.client_log import ClientLog
 from app.models.cnr_counter import CnrCounter
 from app.models.feedback import Feedback
@@ -26,6 +27,7 @@ DOCUMENT_MODELS = [
     ClientLog,
     CaseMemoryChunk,
     CnrCounter,
+    CaseOutcomeRecord,
 ]
 
 

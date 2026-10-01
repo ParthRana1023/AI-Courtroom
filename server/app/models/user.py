@@ -11,6 +11,9 @@ Gender = Literal["male", "female", "others", "prefer-not-to-say"]
 # Case location preference type
 CaseLocationPreference = Literal["user_location", "specific_state", "random"]
 
+# How a partly successful case counts toward the win rate
+PartialScoring = Literal["zero", "half", "exclude"]
+
 
 class User(Document):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -40,6 +43,7 @@ class User(Document):
         None  # ISO2 code when preference is "specific_state"
     )
     rag_enabled: bool = True
+    partial_scoring: PartialScoring = "zero"
 
     class Settings:
         name = "users"

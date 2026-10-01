@@ -21,36 +21,63 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     csc_api_key: str | None = None  # Country State City API key
 
-    # Per-task LLM configuration
-    drafter_model: str = "llama-3.3-70b-versatile"
+    # Per-task LLM chains: model, then fallback, then fallback2. Every task has
+    # at least one Groq and one OpenRouter model, so one provider's outage or
+    # quota doesn't stop it. Chosen from head-to-head tests on this app's
+    # prompts (2026-10-01). Free OpenRouter keys get ~50 requests/day across the
+    # whole app, so frequent tasks (lawyer, parties, witnesses, outcome, drafter)
+    # start on Groq; judge and analyzer run once per case and start on the
+    # strongest OpenRouter model. qwen3.8-27b never refused to play a party or
+    # the accused; gpt-oss-20b classified outcomes correctly every time.
+    drafter_model: str = "openai/gpt-oss-120b"
     drafter_provider: str = "groq"
-    drafter_fallback_model: str = "qwen/qwen3-next-80b-a3b-instruct:free"
+    drafter_fallback_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     drafter_fallback_provider: str = "openrouter"
+    drafter_fallback2_model: str = "qwen/qwen3.8-27b"
+    drafter_fallback2_provider: str = "groq"
 
-    lawyer_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
-    lawyer_provider: str = "openrouter"
-    lawyer_fallback_model: str = "llama-3.3-70b-versatile"
-    lawyer_fallback_provider: str = "groq"
+    lawyer_model: str = "openai/gpt-oss-120b"
+    lawyer_provider: str = "groq"
+    lawyer_fallback_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    lawyer_fallback_provider: str = "openrouter"
+    lawyer_fallback2_model: str = "qwen/qwen3.8-27b"
+    lawyer_fallback2_provider: str = "groq"
 
-    judge_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    judge_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     judge_provider: str = "openrouter"
-    judge_fallback_model: str = "llama-3.3-70b-versatile"
+    judge_fallback_model: str = "openai/gpt-oss-120b"
     judge_fallback_provider: str = "groq"
+    judge_fallback2_model: str = "inclusionai/ling-3.0-flash-sante:free"
+    judge_fallback2_provider: str = "openrouter"
 
-    analyzer_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    analyzer_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     analyzer_provider: str = "openrouter"
-    analyzer_fallback_model: str = "llama-3.3-70b-versatile"
+    analyzer_fallback_model: str = "openai/gpt-oss-120b"
     analyzer_fallback_provider: str = "groq"
+    analyzer_fallback2_model: str = "inclusionai/ling-3.0-flash-sante:free"
+    analyzer_fallback2_provider: str = "openrouter"
 
-    party_model: str = "llama-3.3-70b-versatile"
+    # Decides won/lost/partial from the verdict (short JSON reply)
+    outcome_model: str = "openai/gpt-oss-20b"
+    outcome_provider: str = "groq"
+    outcome_fallback_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    outcome_fallback_provider: str = "openrouter"
+    outcome_fallback2_model: str = "openai/gpt-oss-120b"
+    outcome_fallback2_provider: str = "groq"
+
+    party_model: str = "qwen/qwen3.8-27b"
     party_provider: str = "groq"
-    party_fallback_model: str = "qwen/qwen3-next-80b-a3b-instruct:free"
+    party_fallback_model: str = "inclusionai/ling-3.0-flash-sante:free"
     party_fallback_provider: str = "openrouter"
+    party_fallback2_model: str = "openai/gpt-oss-20b"
+    party_fallback2_provider: str = "groq"
 
-    witness_model: str = "llama-3.3-70b-versatile"
+    witness_model: str = "qwen/qwen3.8-27b"
     witness_provider: str = "groq"
-    witness_fallback_model: str = "qwen/qwen3-next-80b-a3b-instruct:free"
+    witness_fallback_model: str = "inclusionai/ling-3.0-flash-sante:free"
     witness_fallback_provider: str = "openrouter"
+    witness_fallback2_model: str = "openai/gpt-oss-20b"
+    witness_fallback2_provider: str = "groq"
 
     port: int = 8000
 
@@ -124,6 +151,7 @@ class Settings(BaseSettings):
     default_temperature: float = 0.7
     judge_temperature: float = 0.2
     analyzer_temperature: float = 0.3
+    outcome_temperature: float = 0.0
     drafter_temperature: float = 0.8
 
     # Highest establishment code (CNR positions 5-6) used for generated cases
