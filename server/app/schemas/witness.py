@@ -32,6 +32,7 @@ class ExaminationItemResponse(BaseModel):
     objection: str | None = None
     objection_ruling: str | None = None
     timestamp: datetime
+    phase: str | None = None  # chief, cross or re_exam
 
 
 class WitnessExaminationResponse(BaseModel):
@@ -56,6 +57,8 @@ class CurrentWitnessResponse(BaseModel):
     called_by: str | None = None
     examination_history: list[ExaminationItemResponse] = []
     is_ai_examining: bool = False
+    phase: str | None = None  # chief, cross or re_exam
+    next_examiner: str | None = None  # plaintiff or defendant: whose turn it is
 
 
 class WitnessInfo(BaseModel):

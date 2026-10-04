@@ -26,7 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FilePlus, Loader2 } from "lucide-react";
+import { ChevronDown, FilePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Drawer,
@@ -55,6 +55,11 @@ import {
 } from "@/lib/config";
 import { getErrorDetail } from "@/lib/error-utils";
 import OutcomeBadge from "@/components/outcome-badge";
+import {
+  countQuestions,
+  groupWitnessSessions,
+  type WitnessSession,
+} from "@/lib/witness-sessions";
 import { COURT_ADJOURNED_BY_USER } from "@/lib/messages";
 
 const logger = getLogger("courtroom");
@@ -182,21 +187,22 @@ export default function Courtroom({
     () => [...timelineEvents, ...optimisticEvents],
     [timelineEvents, optimisticEvents],
   );
-  const isWitnessAnswerPending = useMemo(() => {
-    const latestWitnessEvent = [...displayEvents]
-      .reverse()
-      .find(
-        (event) =>
-          event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_Q ||
-          event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_A,
-      );
-
-    return (
-      Boolean(caseData?.is_ai_examining) &&
-      latestWitnessEvent?.type ===
-        CourtroomProceedingsEventType.WITNESS_EXAMINED_Q
-    );
-  }, [displayEvents, caseData?.is_ai_examining]);
+  // Witness examinations show as one collapsible card per witness, and only
+  // once the witness has left the stand (the drawer holds the live exchange).
+  const transcriptItems = useMemo(
+    () => groupWitnessSessions(displayEvents),
+    [displayEvents],
+  );
+  const [expandedWitnessSessions, setExpandedWitnessSessions] = useState<
+    Set<string>
+  >(new Set());
+  const toggleWitnessSession = (key: string) =>
+    setExpandedWitnessSessions((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const isWitnessActive = Boolean(
     caseData?.current_witness_id || caseData?.is_ai_examining,
   );
@@ -206,7 +212,7 @@ export default function Courtroom({
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [displayEvents, isAiResponding, isWitnessAnswerPending]);
+  }, [displayEvents, isAiResponding]);
 
   // Fetch rate limit information and update countdown timer
   const fetchRateLimitInfo = useCallback(async () => {
@@ -285,6 +291,15 @@ export default function Courtroom({
     );
     return updatedCase;
   }, [cnr]);
+
+  // Witness examinations happen in the drawer, so bring it up whenever the AI
+  // starts a turn (chief, cross or re-examination).
+  const [lastAiExamining, setLastAiExamining] = useState(false);
+  const aiExamining = Boolean(caseData?.is_ai_examining);
+  if (aiExamining !== lastAiExamining) {
+    setLastAiExamining(aiExamining);
+    if (aiExamining) setWitnessDrawerOpen(true);
+  }
 
   useEffect(() => {
     if (!caseData?.is_ai_examining) return;
@@ -370,13 +385,6 @@ export default function Courtroom({
     return () => clearInterval(timer);
   }, [timeRemaining, fetchRateLimitInfo]);
 
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [displayEvents, isAiResponding, isWitnessAnswerPending]);
-
   // Show "Court in Session" popup only when entering or resuming an active session.
   useEffect(() => {
     const currentStatus = caseData?.status ?? null;
@@ -433,6 +441,223 @@ export default function Courtroom({
     } catch (error) {
       logger.error("Error ending session", error as Error);
     }
+  };
+
+  const renderEvent = (event: OptimisticCourtroomEvent, index: number) => {
+    const eventKey = event.id || `${event.timestamp}-${event.type}-${index}`;
+    const isOptimistic = Boolean(event.optimistic);
+
+    // System Messages (Witness Called/Dismissed)
+    if (
+      event.type === CourtroomProceedingsEventType.WITNESS_CALLED ||
+      event.type === CourtroomProceedingsEventType.WITNESS_DISMISSED ||
+      event.type === CourtroomProceedingsEventType.SYSTEM_MESSAGE
+    ) {
+      return (
+        <div key={eventKey} className="flex justify-center my-4">
+          <div className="bg-gray-100 dark:bg-zinc-700 px-4 py-2 rounded-full text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-600 shadow-sm">
+            <span className="font-semibold mr-1">
+              {event.type === CourtroomProceedingsEventType.WITNESS_CALLED
+                ? "🏛️ Witness Stand:"
+                : event.type === CourtroomProceedingsEventType.WITNESS_DISMISSED
+                  ? "⚖️ Court Order:"
+                  : "ℹ️ Info:"}
+            </span>
+            {event.content}
+          </div>
+        </div>
+      );
+    }
+
+    // Witness Question (Examiner)
+    if (event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_Q) {
+      // Examiner is usually on the side of their role
+      const isExaminerUserSide = event.speaker_role === currentRole;
+      return (
+        <div
+          key={eventKey}
+          className={`flex ${
+            isExaminerUserSide ? "justify-end" : "justify-start"
+          } mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300`}
+        >
+          <div
+            className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
+              isExaminerUserSide
+                ? "bg-blue-50 dark:bg-blue-900/10 border-blue-600"
+                : "bg-purple-50 dark:bg-purple-900/10 border-purple-600"
+            }`}
+          >
+            <div
+              className={`text-xs font-bold mb-1 ${
+                isExaminerUserSide ? "text-blue-600" : "text-purple-600"
+              }`}
+            >
+              {event.speaker_name} (Examiner)
+            </div>
+            <div className="text-sm font-medium italic text-gray-800 dark:text-gray-200">
+              "{event.content}"
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Witness Answer
+    if (event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_A) {
+      return (
+        <div
+          key={eventKey}
+          className="flex justify-center mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
+        >
+          <div className="max-w-[95%] sm:max-w-[85%] rounded-lg p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm relative">
+            <div className="absolute -top-3 left-4 bg-amber-100 dark:bg-amber-900/80 px-2 py-0.5 rounded text-[10px] font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
+              Witness Testimony
+            </div>
+            <div className="text-xs font-bold mb-1 text-amber-700 dark:text-amber-400 mt-1">
+              {event.speaker_name}
+            </div>
+            <div className="text-gray-900 dark:text-gray-100">
+              <ChatMarkdownRenderer markdown={event.content} />
+            </div>
+            {event.id && event.content && (
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs"
+                  disabled={extractingEventId === event.id}
+                  onClick={() => handleExtractEvidence(event)}
+                >
+                  {extractingEventId === event.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <FilePlus className="h-3.5 w-3.5" />
+                  )}
+                  Extract Evidence
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Regular Arguments / Opening / Closing
+    const isUserArg = event.speaker_role === currentRole;
+
+    return (
+      <div
+        key={eventKey}
+        className={`flex ${
+          isUserArg ? "justify-end" : "justify-start"
+        } animate-in fade-in slide-in-from-bottom-2 duration-300`}
+      >
+        <div
+          className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
+            isUserArg
+              ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
+              : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"
+          } ${isOptimistic ? "opacity-80" : ""}`}
+        >
+          <div
+            className={`text-xs font-medium mb-1 flex justify-between ${
+              isUserArg
+                ? "text-blue-600 dark:text-blue-400"
+                : "text-purple-600 dark:text-purple-400"
+            }`}
+          >
+            <span>
+              {event.speaker_name}
+              {event.type ===
+                CourtroomProceedingsEventType.OPENING_STATEMENT && (
+                <span className="ml-1 font-bold">(Opening)</span>
+              )}
+              {event.type === CourtroomProceedingsEventType.AI_ARGUMENT && (
+                <span className="ml-1 opacity-75">(AI)</span>
+              )}
+            </span>
+            {event.timestamp && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                {formatToLocaleString(event.timestamp)}
+              </span>
+            )}
+          </div>
+          <div className="text-gray-900 dark:text-gray-100">
+            <ChatMarkdownRenderer markdown={event.content} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderWitnessSession = (
+    session: WitnessSession<OptimisticCourtroomEvent>,
+  ) => {
+    const name = session.witnessName || "Witness";
+    const calledBy = session.calledEvent?.speaker_role;
+    const calledAt =
+      session.calledEvent?.timestamp ?? session.events[0]?.timestamp;
+
+    // Still on the stand: the exchange lives in the witness panel for now.
+    if (!session.dismissedEvent) {
+      return (
+        <div key={session.key} className="flex justify-center my-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 bg-gray-100 dark:bg-zinc-700 px-4 py-2 rounded-full text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-600 shadow-sm">
+            <span>
+              <span className="font-semibold mr-1">🏛️ Witness Stand:</span>
+              {name} is being examined
+              {calledBy ? ` (called by the ${calledBy})` : ""}.
+            </span>
+            <button
+              type="button"
+              onClick={() => setWitnessDrawerOpen(true)}
+              className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Open witness panel
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const expanded = expandedWitnessSessions.has(session.key);
+    const questions = countQuestions(session);
+    return (
+      <div
+        key={session.key}
+        className="my-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 shadow-sm"
+      >
+        <button
+          type="button"
+          onClick={() => toggleWitnessSession(session.key)}
+          aria-expanded={expanded}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+        >
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-amber-800 dark:text-amber-300">
+              🏛️ Testimony of {name}
+            </span>
+            <span className="block text-xs text-gray-600 dark:text-gray-400">
+              {calledBy ? `Called by the ${calledBy}` : "Witness examination"}
+              {calledAt ? ` · ${formatToLocaleString(calledAt)}` : ""}
+              {` · ${questions} question${questions === 1 ? "" : "s"}`}
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-5 w-5 shrink-0 text-amber-700 transition-transform dark:text-amber-400 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+        {expanded && (
+          <div className="space-y-2 border-t border-amber-200 px-3 pb-3 pt-4 dark:border-amber-800">
+            {session.events.map((event, index) => renderEvent(event, index))}
+            {renderEvent(session.dismissedEvent, session.events.length)}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const handleExtractEvidence = async (event: CourtroomProceedingsEvent) => {
@@ -950,164 +1175,11 @@ export default function Courtroom({
         {/* Chat messages */}
         <ScrollArea className="h-full">
           <div className="p-4 space-y-4">
-            {displayEvents.map((event, index: number) => {
-              const eventKey =
-                event.id || `${event.timestamp}-${event.type}-${index}`;
-              const isOptimistic = Boolean(event.optimistic);
-
-              // System Messages (Witness Called/Dismissed)
-              if (
-                event.type === CourtroomProceedingsEventType.WITNESS_CALLED ||
-                event.type ===
-                  CourtroomProceedingsEventType.WITNESS_DISMISSED ||
-                event.type === CourtroomProceedingsEventType.SYSTEM_MESSAGE
-              ) {
-                return (
-                  <div key={eventKey} className="flex justify-center my-4">
-                    <div className="bg-gray-100 dark:bg-zinc-700 px-4 py-2 rounded-full text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-600 shadow-sm">
-                      <span className="font-semibold mr-1">
-                        {event.type ===
-                        CourtroomProceedingsEventType.WITNESS_CALLED
-                          ? "🏛️ Witness Stand:"
-                          : event.type ===
-                              CourtroomProceedingsEventType.WITNESS_DISMISSED
-                            ? "⚖️ Court Order:"
-                            : "ℹ️ Info:"}
-                      </span>
-                      {event.content}
-                    </div>
-                  </div>
-                );
-              }
-
-              // Witness Question (Examiner)
-              if (
-                event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_Q
-              ) {
-                // Examiner is usually on the side of their role
-                const isExaminerUserSide = event.speaker_role === currentRole;
-                return (
-                  <div
-                    key={eventKey}
-                    className={`flex ${
-                      isExaminerUserSide ? "justify-end" : "justify-start"
-                    } mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300`}
-                  >
-                    <div
-                      className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
-                        isExaminerUserSide
-                          ? "bg-blue-50 dark:bg-blue-900/10 border-blue-600"
-                          : "bg-purple-50 dark:bg-purple-900/10 border-purple-600"
-                      }`}
-                    >
-                      <div
-                        className={`text-xs font-bold mb-1 ${
-                          isExaminerUserSide
-                            ? "text-blue-600"
-                            : "text-purple-600"
-                        }`}
-                      >
-                        {event.speaker_name} (Examiner)
-                      </div>
-                      <div className="text-sm font-medium italic text-gray-800 dark:text-gray-200">
-                        "{event.content}"
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              // Witness Answer
-              if (
-                event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_A
-              ) {
-                return (
-                  <div
-                    key={eventKey}
-                    className="flex justify-center mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
-                  >
-                    <div className="max-w-[95%] sm:max-w-[85%] rounded-lg p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm relative">
-                      <div className="absolute -top-3 left-4 bg-amber-100 dark:bg-amber-900/80 px-2 py-0.5 rounded text-[10px] font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
-                        Witness Testimony
-                      </div>
-                      <div className="text-xs font-bold mb-1 text-amber-700 dark:text-amber-400 mt-1">
-                        {event.speaker_name}
-                      </div>
-                      <div className="text-gray-900 dark:text-gray-100">
-                        <ChatMarkdownRenderer markdown={event.content} />
-                      </div>
-                      {event.id && event.content && (
-                        <div className="mt-3 flex justify-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 gap-1 px-2 text-xs"
-                            disabled={extractingEventId === event.id}
-                            onClick={() => handleExtractEvidence(event)}
-                          >
-                            {extractingEventId === event.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <FilePlus className="h-3.5 w-3.5" />
-                            )}
-                            Extract Evidence
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              }
-
-              // Regular Arguments / Opening / Closing
-              const isUserArg = event.speaker_role === currentRole;
-
-              return (
-                <div
-                  key={eventKey}
-                  className={`flex ${
-                    isUserArg ? "justify-end" : "justify-start"
-                  } animate-in fade-in slide-in-from-bottom-2 duration-300`}
-                >
-                  <div
-                    className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
-                      isUserArg
-                        ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
-                        : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"
-                    } ${isOptimistic ? "opacity-80" : ""}`}
-                  >
-                    <div
-                      className={`text-xs font-medium mb-1 flex justify-between ${
-                        isUserArg
-                          ? "text-blue-600 dark:text-blue-400"
-                          : "text-purple-600 dark:text-purple-400"
-                      }`}
-                    >
-                      <span>
-                        {event.speaker_name}
-                        {event.type ===
-                          CourtroomProceedingsEventType.OPENING_STATEMENT && (
-                          <span className="ml-1 font-bold">(Opening)</span>
-                        )}
-                        {event.type ===
-                          CourtroomProceedingsEventType.AI_ARGUMENT && (
-                          <span className="ml-1 opacity-75">(AI)</span>
-                        )}
-                      </span>
-                      {event.timestamp && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                          {formatToLocaleString(event.timestamp)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-gray-900 dark:text-gray-100">
-                      <ChatMarkdownRenderer markdown={event.content} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {transcriptItems.map((item, index) =>
+              item.kind === "witness"
+                ? renderWitnessSession(item.session)
+                : renderEvent(item.event, index),
+            )}
             {isAiResponding && (
               <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="max-w-[75%] rounded-lg p-3 border-l-4 shadow-sm bg-purple-100 dark:bg-purple-900/20 border-purple-600">
@@ -1121,23 +1193,6 @@ export default function Courtroom({
                     <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.2s]" />
                     <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.1s]" />
                     <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce" />
-                  </div>
-                </div>
-              </div>
-            )}
-            {isWitnessAnswerPending && (
-              <div className="flex justify-center mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="max-w-[85%] rounded-lg p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm">
-                  <div className="text-xs font-bold mb-2 text-amber-700 dark:text-amber-400">
-                    Witness is responding
-                  </div>
-                  <div
-                    className="flex items-center justify-center gap-1.5"
-                    aria-label="Witness is thinking"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-bounce [animation-delay:-0.2s]" />
-                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-bounce [animation-delay:-0.1s]" />
-                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-bounce" />
                   </div>
                 </div>
               </div>

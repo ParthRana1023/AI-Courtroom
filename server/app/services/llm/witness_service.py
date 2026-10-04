@@ -147,62 +147,73 @@ WITNESS_JUDGE_TITLE = re.compile(
 )
 
 
-async def generate_cross_examination_questions(
+NO_FURTHER_QUESTIONS = "NO_FURTHER_QUESTIONS"
+
+PHASE_RULES = {
+    "chief": (
+        "This is EXAMINATION-IN-CHIEF of a witness you called. Ask open, "
+        "non-leading questions (who, what, when, where, how) that let the witness "
+        "tell the court, one fact at a time, what supports your client. Draw out "
+        "the facts you need before the other side cross-examines."
+    ),
+    "cross": (
+        "This is CROSS-EXAMINATION of the other side's witness. Use short, leading "
+        "questions and pin down one fact per question. Test credibility: "
+        "contradictions with the case file, their police statement or earlier "
+        "answers, interest in the outcome, what they could not have seen. You may "
+        'put your case to the witness ("I put it to you that ..."). If their '
+        "testimony did not hurt your client, the right choice is often to ask "
+        "nothing at all."
+    ),
+    "re_exam": (
+        "This is RE-EXAMINATION of a witness you called, after the other side "
+        "cross-examined. Ask ONLY to explain or repair specific points raised in "
+        "that cross-examination; never open a new topic. Non-leading questions. If "
+        "the cross-examination did no damage, ask nothing."
+    ),
+}
+
+
+async def generate_witness_question(
     witness_name: str,
     witness_role: str,
     ai_lawyer_role: str,
     case_details: str,
     testimony_so_far: list[dict],
+    phase: str,
+    can_stop: bool,
     case_arguments: str = "",
     rag_context: str | None = None,
-) -> str:
+) -> str | None:
+    """The AI lawyer's next question to the witness, or None to stop.
+
+    One call decides both whether to continue and what to ask. ``can_stop`` is
+    False until the phase's minimum number of questions has been asked; the
+    caller enforces the minimum and maximum.
     """
-    Generate a cross-examination question for the AI lawyer.
+    logger.info(f"Generating {phase} question for {witness_name} by {ai_lawyer_role}")
 
-    Args:
-        witness_name: Name of the witness
-        witness_role: Role of the witness (applicant or non_applicant)
-        ai_lawyer_role: The AI lawyer's role ('plaintiff' or 'defendant')
-        case_details: The case document for context
-        testimony_so_far: Previous Q&A exchanges in this examination
-        case_arguments: Summary of arguments made so far in the case
-
-    Returns:
-        A cross-examination question
-    """
-    logger.info(
-        f"Generating cross-examination question for {witness_name} by {ai_lawyer_role}"
-    )
-
-    # Format testimony
     testimony_text = ""
-    for item in testimony_so_far[-6:]:
-        testimony_text += f"Q: {item.get('question', '')}\n"
-        testimony_text += f"A: {item.get('answer', '')}\n\n"
+    for item in testimony_so_far[-8:]:
+        asker = "You" if item.get("examiner") == ai_lawyer_role else "Opposing counsel"
+        label = f" [{item['phase']}]" if item.get("phase") else ""
+        testimony_text += f"{asker}{label}: {item.get('question', '')}\n"
+        testimony_text += f"{witness_name}: {item.get('answer', '')}\n\n"
 
-    is_hostile = (witness_role == "applicant" and ai_lawyer_role == "defendant") or (
-        witness_role == "non_applicant" and ai_lawyer_role == "plaintiff"
-    )
-
-    witness_stance = (
-        "hostile witness (opposing party)"
-        if is_hostile
-        else "friendly witness (your client's side)"
+    stop_rule = (
+        f"If a further question would not help your client (the point is made, the "
+        f"witness is not yielding, or more questions risk damaging your case), reply "
+        f"with exactly {NO_FURTHER_QUESTIONS} instead of a question."
+        if can_stop
+        else "You must ask a question now."
     )
 
     case_context = pick_case_context(rag_context, case_details)
 
-    examination = (
-        "cross-examination: use short, leading questions, and you may put suggestions "
-        'to the witness ("I put it to you that ...")'
-        if is_hostile
-        else "examination-in-chief: use open, non-leading questions that let the "
-        "witness tell the court what they know"
-    )
-
     template = f"""You are an experienced Indian trial lawyer representing the {ai_lawyer_role}.
 {SIDES_RULE}
-You are examining {witness_name}, who is a {witness_stance}. This is {examination}.
+You are examining {witness_name} ({witness_role}).
+{PHASE_RULES.get(phase, PHASE_RULES["cross"])}
 
 Case Details:
 {case_context}
@@ -213,17 +224,16 @@ Arguments made in this case so far:
 Testimony from this witness so far:
 {testimony_text if testimony_text else "(No testimony yet - this is the first question)"}
 
-Generate ONE strategic question. Your goals:
-- {"Challenge the witness's credibility: contradictions with the case file, their police statement or earlier answers, interest in the outcome, or what they could not have seen" if is_hostile else "Bring out the facts that support your client, one fact at a time"}
-- {"Pin down one specific fact per question" if is_hostile else "Pre-empt the weak points the other side will attack"}
-- Build on the answers so far; do not repeat a question already asked
+Rules:
+- Ask ONE question; build on the answers so far and never repeat a question
 - Rely only on facts in the case file and the testimony; never invent any
+- {stop_rule}
 
 You are speaking to the WITNESS, not the judge. "My Lord" and "Your Lordship" are
 only ever for the judge, so never use them in this question. Address the witness
 by name (e.g. "Mr. Sharma, ...") or not at all.
 
-Respond with ONLY the question, no preamble or explanation. Start directly with the question.
+Respond with ONLY the question (or {NO_FURTHER_QUESTIONS}), no preamble or explanation.
 """
 
     prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
@@ -231,26 +241,29 @@ Respond with ONLY the question, no preamble or explanation. Start directly with 
 
     try:
         start_time = time.perf_counter()
-        response = await chain.ainvoke({})
+        response = strip_thinking(await chain.ainvoke({}))
         duration_ms = (time.perf_counter() - start_time) * 1000
-
-        response = strip_thinking(response)
-        # Clean up any prefixes, including a judge's title the question is not
-        # spoken to (the question goes to the witness).
-        response = re.sub(
-            r"^(Question|Q|Cross-examination question):\s*",
-            "",
-            response,
-            flags=re.IGNORECASE,
-        ).strip()
-        response = WITNESS_JUDGE_TITLE.sub("", response).strip()
-        response = response[:1].upper() + response[1:]
-
-        logger.info(f"Cross-examination question generated in {duration_ms:.2f}ms")
-        return response
     except Exception:
-        logger.exception("Error generating cross-examination question")
-        return f"{witness_name}, could you please clarify your earlier statement for the court?"
+        logger.exception(f"Error generating {phase} question")
+        return None
+
+    if NO_FURTHER_QUESTIONS in response.upper().replace(" ", "_"):
+        logger.info(f"AI chose to ask no further {phase} questions")
+        return None
+
+    # Clean up any prefixes, including a judge's title the question is not
+    # spoken to (the question goes to the witness).
+    response = re.sub(
+        r"^(Question|Q|Cross-examination question):\s*",
+        "",
+        response,
+        flags=re.IGNORECASE,
+    ).strip()
+    response = WITNESS_JUDGE_TITLE.sub("", response).strip()
+    response = response[:1].upper() + response[1:]
+
+    logger.info(f"{phase} question generated in {duration_ms:.2f}ms")
+    return response or None
 
 
 async def should_ai_call_witness(
@@ -308,16 +321,22 @@ Available witnesses who have NOT yet testified:
 
 {SIDES_RULE} Your own side's parties are the {"applicants" if ai_role == "plaintiff" else "non-applicants"}. Calling your own side's witness is usual; call the other side's party only to extract a specific admission.
 
-Based on the case progress, should you call a witness now? Consider:
-1. Would witness testimony strengthen your current argument?
-2. Is there a strategic advantage to calling a witness at this point?
-3. Would it be better to continue with arguments instead?
+Should you call a witness now? Calling a witness takes the court's time, so a
+real advocate calls one ONLY when it is genuinely necessary. Call a witness only if
+at least one of these is true:
+1. You are losing: the other side's arguments have damaged your case and only
+   testimony can repair it.
+2. You asserted a fact in your arguments that you now need a witness to prove.
+3. Another important circumstance makes this witness's evidence essential now
+   (e.g. a contradiction only they can resolve, or an admission you must secure).
 
-You should call a witness if their testimony could support your case. Do NOT always refuse.
+Do NOT call a witness merely because you are allowed to, because witnesses are
+available, or to fill time. If none of the reasons above clearly applies, continue
+with arguments. When in doubt, do not call.
 
 Respond with ONLY one of these exact formats (no extra text):
-- CALL: [number] (e.g. CALL: 1) if you want to call a witness
-- NO_WITNESS if you should continue with arguments
+- CALL: [number] (e.g. CALL: 1) only if one of the reasons above clearly applies
+- NO_WITNESS otherwise (the usual answer)
 
 Your response:
 """
@@ -387,103 +406,3 @@ Your response:
     except Exception:
         logger.exception("Error in AI witness decision")
         return None
-
-
-async def should_continue_cross_examination(
-    witness_name: str,
-    witness_role: str,
-    ai_lawyer_role: str,
-    case_details: str,
-    testimony_so_far: list[dict],
-    questions_asked: int,
-    max_questions: int = 5,
-    rag_context: str | None = None,
-) -> bool:
-    """
-    Determine if the AI lawyer should continue cross-examination.
-
-    Args:
-        witness_name: Name of the witness
-        witness_role: Role of the witness (applicant or non_applicant)
-        ai_lawyer_role: The AI lawyer's role
-        case_details: The case document for context
-        testimony_so_far: Previous Q&A exchanges
-        questions_asked: Number of questions already asked by AI
-        max_questions: Maximum allowed questions (default 5)
-
-    Returns:
-        True if AI should ask another question, False to stop
-    """
-    logger.info(
-        f"Evaluating if AI should continue cross-examination (questions asked: {questions_asked}/{max_questions})"
-    )
-
-    # Hard cap
-    if questions_asked >= max_questions:
-        logger.info("Max questions reached, stopping cross-examination")
-        return False
-
-    # First question always asked
-    if questions_asked == 0:
-        return True
-
-    case_context = pick_case_context(rag_context, case_details)
-
-    # Format recent testimony
-    testimony_text = ""
-    for item in testimony_so_far[-4:]:
-        testimony_text += f"Q: {item.get('question', '')}\n"
-        testimony_text += f"A: {item.get('answer', '')}\n\n"
-
-    is_hostile = (witness_role == "applicant" and ai_lawyer_role == "defendant") or (
-        witness_role == "non_applicant" and ai_lawyer_role == "plaintiff"
-    )
-
-    template = f"""You are an experienced Indian trial lawyer representing the {ai_lawyer_role}.
-{SIDES_RULE}
-You are examining {witness_name}, {'a hostile witness' if is_hostile else 'a friendly witness'}.
-You have asked {questions_asked} question(s) so far (maximum {max_questions}).
-
-Relevant case context:
-{case_context}
-
-Recent testimony:
-{testimony_text}
-
-Evaluate whether you should ask another question. Consider:
-1. Have you achieved your strategic goals with this witness?
-2. Is there more valuable information to extract? (If NO, say STOP)
-3. Would further questioning risk damaging your case?
-4. Have you exposed sufficient contradictions/weaknesses?
-
-IMPORTANT: DO NOT feel obligated to reach the maximum question limit.
-If you have made your point or the witness is not yielding new info, choose STOP.
-Quality over quantity.
-
-Respond with ONLY one word:
-- "CONTINUE" if you should ask another question
-- "STOP" if you have achieved your objectives
-
-Your decision:
-"""
-
-    prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
-    chain = prompt | get_llm("lawyer") | StrOutputParser()
-
-    try:
-        start_time = time.perf_counter()
-        response = await chain.ainvoke({})
-        duration_ms = (time.perf_counter() - start_time) * 1000
-
-        response = strip_thinking(response).upper()
-
-        should_continue = "CONTINUE" in response
-        logger.info(
-            f"AI cross-examination decision: {'continue' if should_continue else 'stop'} (took {duration_ms:.2f}ms)"
-        )
-
-        return should_continue
-    except Exception:
-        logger.exception("Error in cross-examination decision")
-        # Default to stopping if error
-        return False

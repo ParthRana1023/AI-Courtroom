@@ -143,6 +143,10 @@ class Settings(BaseSettings):
     login_failure_limit: int = 5  # Wrong passwords per email per window
     login_failure_ip_limit: int = 20  # Wrong passwords per IP per window
     login_failure_window: int = 900  # Window in seconds (15 minutes)
+    # Questions a user may put to witnesses per window (each one is an AI call)
+    witness_question_rate_limit: int = 20
+    witness_question_dev_rate_limit: int = 40  # for DEV_MODE_EMAILS accounts
+    witness_question_rate_window: int = 86400  # Window in seconds (24 hours)
     party_chat_rate_limit: int = 5  # Party chat messages per user per window
     party_chat_rate_window: int = 60  # Window in seconds (1 minute)
     client_log_rate_limit: int = 30  # Client log batches per IP per window

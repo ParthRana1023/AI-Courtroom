@@ -11,6 +11,7 @@ from app.logging_config import get_logger
 from app.models.rate_limit import RateLimitEntry
 from app.models.user import User
 from app.utils.datetime import get_current_datetime, get_timezone
+from app.utils.llm_trace import is_developer
 
 logger = get_logger(__name__)
 
@@ -153,6 +154,27 @@ login_failure_ip_limiter = RateLimiter(
 client_log_rate_limiter = RateLimiter(
     settings.client_log_rate_limit, settings.client_log_rate_window, "client_log"
 )
+
+# Both share one counter ("witness_question"); developers just get a higher cap.
+witness_question_rate_limiter = RateLimiter(
+    settings.witness_question_rate_limit,
+    settings.witness_question_rate_window,
+    "witness_question",
+    messages.WITNESS_QUESTION_LIMIT,
+)
+witness_question_dev_rate_limiter = RateLimiter(
+    settings.witness_question_dev_rate_limit,
+    settings.witness_question_rate_window,
+    "witness_question",
+    messages.WITNESS_QUESTION_LIMIT,
+)
+
+
+def witness_question_limiter_for(user: User) -> RateLimiter:
+    if is_developer(user.email):
+        return witness_question_dev_rate_limiter
+    return witness_question_rate_limiter
+
 
 # Silent burst guard: normal chatting never hits it; scripted spam does.
 party_chat_rate_limiter = RateLimiter(

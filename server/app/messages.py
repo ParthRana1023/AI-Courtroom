@@ -28,6 +28,10 @@ CASE_GENERATION_LIMIT = (
     "The Registry has closed filings for the day. "
     "You may file a fresh case again in {wait}."
 )
+WITNESS_QUESTION_LIMIT = (
+    "The Court has heard enough from the witnesses for today. "
+    "You may examine witnesses again in {wait}."
+)
 PARTY_CHAT_LIMIT = (
     "The client wants to gather their thoughts. "
     "Please wait a minute before speaking to the client again."

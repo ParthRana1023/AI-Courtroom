@@ -4,7 +4,6 @@ API routes for witness examination during courtroom sessions.
 """
 
 import asyncio
-import random
 import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -21,6 +20,7 @@ from app.models.case import (
     CourtroomProceedingsEventType,
     ExaminationItem,
     Roles,
+    WitnessPhase,
     WitnessTestimony,
 )
 from app.models.user import User
@@ -42,6 +42,7 @@ from app.services.llm import witness_service
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
 from app.utils.llm import LLMGenerationError
+from app.utils.rate_limiter import witness_question_limiter_for
 
 logger = get_logger(__name__)
 MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2
@@ -215,6 +216,14 @@ async def examine_witness(
     examiner_role = (
         case.user_role.value if case.user_role != Roles.NOT_STARTED else "plaintiff"
     )
+    if case.is_ai_examining or testimony.examining_side() != examiner_role:
+        raise HTTPException(
+            status_code=409, detail="It is not your turn to examine the witness."
+        )
+
+    # Each question is an AI call, so users get a daily allowance.
+    limiter = witness_question_limiter_for(current_user)
+    await limiter.check_only(current_user)
 
     # Build examination history for context
     exam_history = [
@@ -262,7 +271,10 @@ async def examine_witness(
 
     # Create examination item
     exam_item = ExaminationItem(
-        examiner=examiner_role, question=request.question, answer=answer
+        examiner=examiner_role,
+        question=request.question,
+        answer=answer,
+        phase=testimony.phase,
     )
 
     # Add to testimony - find the right testimony in the list
@@ -335,6 +347,8 @@ async def examine_witness(
         logger.exception("Error saving examination")
         raise HTTPException(status_code=500, detail="Failed to save examination")
 
+    await limiter.register_usage(str(current_user.id))
+
     return WitnessExaminationResponse(
         witness_id=party.id,
         witness_name=party.name,
@@ -345,162 +359,186 @@ async def examine_witness(
     )
 
 
-async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
-    """
-    Background task to run AI cross-examination sequentially with delays.
-    Updates the database with new questions/answers and timeline events.
-    """
-    logger.info(f"Starting background AI cross-examination for case {case_cnr}")
+# (min, max) questions the AI asks in each phase; within these it decides itself.
+AI_QUESTION_BOUNDS = {
+    WitnessPhase.CHIEF: (3, 5),
+    WitnessPhase.CROSS: (0, 4),
+    WitnessPhase.RE_EXAM: (0, 4),
+}
+PHASE_NAMES = {
+    WitnessPhase.CHIEF: "Examination-in-chief",
+    WitnessPhase.CROSS: "Cross-examination",
+    WitnessPhase.RE_EXAM: "Re-examination",
+}
 
-    # Needs to re-fetch case inside background task to ensure fresh state
+
+def dismissal_event(
+    witness_id: str, name: str, reason: str
+) -> CourtroomProceedingsEvent:
+    return CourtroomProceedingsEvent(
+        type=CourtroomProceedingsEventType.WITNESS_DISMISSED,
+        content=f"{name} dismissed from the stand{reason}.",
+        speaker_role="judge",
+        speaker_name="Judge",
+        witness_id=witness_id,
+        timestamp=get_current_datetime(),
+    )
+
+
+async def finish_ai_turn(case_cnr: str, witness_id: str, testimony_id: str) -> None:
+    """After the AI's turn: hand the witness to the user, or discharge them.
+
+    One atomic update guarded by "same witness, AI still examining", so it never
+    undoes a dismissal the user made meanwhile. (The background task can't take
+    case_lock: the request that started it still holds it.)
+    """
+    guard = {
+        "cnr": case_cnr,
+        "current_witness_id": witness_id,
+        "is_ai_examining": True,
+    }
+    case = await Case.find_one(Case.cnr == case_cnr)
+    found = next(
+        (
+            (i, t)
+            for i, t in enumerate(case.witness_testimonies if case else [])
+            if t.id == testimony_id
+        ),
+        None,
+    )
+    if found is None:
+        await Case.find_one(guard).update_one({"$set": {"is_ai_examining": False}})
+        return
+    index, testimony = found
+
+    done = CourtroomProceedingsEvent(
+        type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
+        timestamp=get_current_datetime(),
+        content=f"{PHASE_NAMES[testimony.phase]} completed.",
+    )
+    next_phase = testimony.phase_after_this_turn()
+    if next_phase is None:
+        dismissed = dismissal_event(
+            witness_id, testimony.witness_name, " as the examination is complete"
+        )
+        await Case.find_one(guard).update_one(
+            {
+                "$set": {
+                    "is_ai_examining": False,
+                    "current_witness_id": None,
+                    f"witness_testimonies.{index}.ended_at": get_current_datetime(),
+                },
+                "$push": {"courtroom_proceedings": {"$each": [done, dismissed]}},
+            }
+        )
+        return
+    await Case.find_one(guard).update_one(
+        {
+            "$set": {
+                "is_ai_examining": False,
+                f"witness_testimonies.{index}.phase": next_phase,
+            },
+            "$push": {"courtroom_proceedings": done},
+        }
+    )
+
+
+async def process_ai_examination(case_cnr: str):
+    """Background task: the AI examines the witness for the current phase.
+
+    The AI asks between the phase's minimum and maximum questions, deciding itself
+    when to stop, then finish_ai_turn hands over or discharges the witness.
+    """
+    logger.info(f"Starting background AI examination for case {case_cnr}")
+
     case = await Case.find_one(Case.cnr == case_cnr)
     if not case:
         logger.error(f"Case {case_cnr} not found during background task")
         return
 
-    if not case.current_witness_id:
-        logger.info("No witness on stand, stopping background examination")
-        await Case.find_one(Case.cnr == case_cnr).update_one(
-            {"$set": {"is_ai_examining": False}}
-        )
-        return
-
-    # Get the witness
     party = case.get_party(case.current_witness_id)
-    if not party:
+    testimony = get_current_testimony(case)
+    if not case.current_witness_id or not party or not testimony:
+        logger.info("No witness or testimony on the stand, stopping AI examination")
         await Case.find_one(Case.cnr == case_cnr).update_one(
             {"$set": {"is_ai_examining": False}}
         )
         return
 
-    # AI role is opposite of user role unless specified
     ai_role = case.ai_role.value if case.ai_role != Roles.NOT_STARTED else "defendant"
+    phase = testimony.phase
+    testimony_id = testimony.id
+    min_questions, max_questions = AI_QUESTION_BOUNDS[phase]
 
-    # Build arguments summary once
     arguments_summary = ""
     for arg in case.plaintiff_arguments[-3:]:
         arguments_summary += f"Plaintiff: {arg.content[:200]}...\n"
     for arg in case.defendant_arguments[-3:]:
         arguments_summary += f"Defendant: {arg.content[:200]}...\n"
 
+    initial_witness_id = case.current_witness_id
+    # Writes below are atomic appends that only apply while this witness is
+    # still on the stand and the AI flag is still set. Saving the whole
+    # (stale) case would undo anything the user did meanwhile, e.g. a
+    # dismissal would put the witness back on the stand.
+    still_examining = {
+        "cnr": case_cnr,
+        "current_witness_id": initial_witness_id,
+        "is_ai_examining": True,
+    }
+
     try:
-        # Get current testimony
-        testimony = get_current_testimony(case)
-        if not testimony:
-            # Should create one if missing? Or assume existing?
-            # It should exist if current_witness_id is set.
-            logger.error("No active testimony found")
-            return
-
-        # Determine how many questions AI has already asked in this session?
-        # Typically we just ask 5 more or up to 5 total?
-        # Requirement: "ask multiple questions sequentially... up to a maximum of 5 questions"
-        # We'll treat this as a batch of 5 questions.
-
-        # Randomize max questions to avoid predictability (e.g. 3-5)
-        # Ensure at least 1 question
-        questions_to_ask = random.randint(max(2, max_questions - 2), max_questions)
-
-        initial_witness_id = case.current_witness_id
-        # Writes below are atomic appends that only apply while this witness is
-        # still on the stand and the AI flag is still set. Saving the whole
-        # (stale) case would undo anything the user did meanwhile, e.g. a
-        # dismissal would put the witness back on the stand.
-        still_examining = {
-            "cnr": case_cnr,
-            "current_witness_id": initial_witness_id,
-            "is_ai_examining": True,
-        }
-
-        for questions_asked_count in range(questions_to_ask):
-            # Re-fetch case to check for interruptions and ensure we work on latest state
+        for asked in range(max_questions):
             case = await Case.find_one(Case.cnr == case_cnr)
             if not case or case.current_witness_id != initial_witness_id:
                 logger.info("Witness changed or dismissed, stopping AI examination")
                 break
-
             if not case.is_ai_examining:
                 logger.info("AI examination flag cleared, stopping")
                 break
-
             testimony = get_current_testimony(case)
             if not testimony:
                 logger.error("No active testimony found during AI examination")
                 break
 
-            # 1. Build history
             exam_history = [
-                {"examiner": e.examiner, "question": e.question, "answer": e.answer}
+                {
+                    "examiner": e.examiner,
+                    "question": e.question,
+                    "answer": e.answer,
+                    "phase": e.phase.value if e.phase else None,
+                }
                 for e in testimony.examination
             ]
 
-            # 2. Check if should continue
-            if questions_asked_count > 0:  # Always ask at least one if triggered
-                continue_context = await retrieve_case_context(
-                    case,
-                    f"continue cross examination of {party.name}",
-                    source_types=[
-                        "ai_party_chat",
-                        "case_details",
-                        "evidence",
-                        "argument",
-                        "witness_testimony",
-                        "proceeding",
-                    ],
-                )
-                should_continue = (
-                    await witness_service.should_continue_cross_examination(
-                        witness_name=party.name,
-                        witness_role=party.role.value,
-                        ai_lawyer_role=ai_role,
-                        case_details=case.details,
-                        testimony_so_far=exam_history,
-                        questions_asked=questions_asked_count,
-                        max_questions=max_questions,
-                        rag_context=continue_context,
-                    )
-                )
-                if not should_continue:
-                    logger.info("AI decided to stop questioning")
-                    break
-
-            # 3. Generate Question
-            try:
-                question_context = await retrieve_case_context(
-                    case,
-                    f"{ai_role} cross examination question for {party.name}",
-                    source_types=[
-                        "ai_party_chat",
-                        "case_details",
-                        "evidence",
-                        "party_bio",
-                        "argument",
-                        "witness_testimony",
-                        "proceeding",
-                    ],
-                )
-                question = await witness_service.generate_cross_examination_questions(
-                    witness_name=party.name,
-                    witness_role=party.role.value,
-                    ai_lawyer_role=ai_role,
-                    case_details=case.details,
-                    testimony_so_far=exam_history,
-                    case_arguments=arguments_summary,
-                    rag_context=question_context,
-                )
-            except Exception:
-                logger.exception("Error generating question")
+            question_context = await retrieve_case_context(
+                case,
+                f"{ai_role} {phase.value} question for {party.name}",
+                source_types=[
+                    "ai_party_chat",
+                    "case_details",
+                    "evidence",
+                    "party_bio",
+                    "argument",
+                    "witness_testimony",
+                    "proceeding",
+                ],
+            )
+            question = await witness_service.generate_witness_question(
+                witness_name=party.name,
+                witness_role=party.role.value,
+                ai_lawyer_role=ai_role,
+                case_details=case.details,
+                testimony_so_far=exam_history,
+                phase=phase.value,
+                can_stop=asked >= min_questions,
+                case_arguments=arguments_summary,
+                rag_context=question_context,
+            )
+            if not question:
+                logger.info(f"AI ended {phase.value} after {asked} question(s)")
                 break
 
-            # 4. Generate Answer (Simulate witness thinking)
-            # Add delay BEFORE answer? Or before question?
-            # User wants "delay in ai lawyer asking questions AND witness responses"
-            # "add a 3 second delay between each question and response"
-
-            # Step A: Post Question to Timeline?
-            # Ideally: AI asks (Event) -> Delay -> Witness Answers (Event) -> Delay -> Next Q
-
-            # Save Question Event
             q_event = CourtroomProceedingsEvent(
                 type=CourtroomProceedingsEventType.WITNESS_EXAMINED_Q,
                 timestamp=get_current_datetime(),
@@ -531,7 +569,7 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
             try:
                 answer_context = await retrieve_case_context(
                     case,
-                    f"witness {party.name} answer cross examination: {question}",
+                    f"witness {party.name} answer {phase.value} question: {question}",
                     source_types=[
                         "ai_party_chat",
                         "case_details",
@@ -562,14 +600,12 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                 break
 
             # The answer is generated immediately, but only becomes visible after
-            # the court-style pause requested by the user.
+            # a court-style pause.
             await asyncio.sleep(3)
 
-            # Save Answer Event and Examination Item
             exam_item = ExaminationItem(
-                examiner=ai_role, question=question, answer=answer
+                examiner=ai_role, question=question, answer=answer, phase=phase
             )
-
             a_event = CourtroomProceedingsEvent(
                 type=CourtroomProceedingsEventType.WITNESS_EXAMINED_A,
                 timestamp=get_current_datetime(),
@@ -621,21 +657,10 @@ async def process_ai_cross_examination(case_cnr: str, max_questions: int = 5):
                     "witness_id": party.id,
                 },
             )
-
     except Exception:
         logger.exception("Error in background examination")
     finally:
-        done_event = CourtroomProceedingsEvent(
-            type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
-            timestamp=get_current_datetime(),
-            content="Cross-examination completed.",
-        )
-        await Case.find_one(Case.cnr == case_cnr).update_one(
-            {
-                "$set": {"is_ai_examining": False},
-                "$push": {"courtroom_proceedings": done_event},
-            }
-        )
+        await finish_ai_turn(case_cnr, initial_witness_id, testimony_id)
         logger.info("Background examination finished")
 
 
@@ -647,8 +672,14 @@ async def ai_cross_examine_witness(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
-    """AI lawyer performs full cross-examination with multiple questions (Background Task)"""
-    logger.info(f"AI starting cross-examination for case {case_cnr}")
+    """The user has finished their turn with the witness.
+
+    Moves to the next phase (chief -> cross -> re-examination). If it is the AI's
+    turn, the AI examines in the background; if nothing is left (the user's
+    re-examination ended, or the AI's witness was not cross-examined), the
+    witness is discharged.
+    """
+    logger.info(f"User finished their turn with the witness in case {case_cnr}")
 
     case = await get_owned_case(case_cnr, current_user)
 
@@ -668,19 +699,37 @@ async def ai_cross_examine_witness(
             status_code=400, detail="AI is already examining the witness"
         )
 
-    # Set flag and start background task
-    case.is_ai_examining = True
-    await case.save()
-
-    background_tasks.add_task(process_ai_cross_examination, case_cnr, 5)
-
-    # Return immediate response
-    # We return an empty list of examinations because they will be generated in background
-    # The frontend should see 'state'="ai_cross_examining" and refresh witness state
     party = case.get_party(case.current_witness_id)
-    if not party:
+    testimony = get_current_testimony(case)
+    if not party or not testimony:
         raise HTTPException(status_code=404, detail="Current witness not found")
 
+    user_role = (
+        case.user_role.value if case.user_role != Roles.NOT_STARTED else "plaintiff"
+    )
+    if testimony.examining_side() != user_role:
+        raise HTTPException(
+            status_code=409, detail="It is not your turn to examine the witness."
+        )
+
+    next_phase = testimony.phase_after_this_turn()
+    if next_phase is None:
+        case.dismiss_current_witness(" as the examination is complete")
+        await case.save()
+        return AICrossExaminationResponse(
+            witness_id=party.id,
+            witness_name=party.name,
+            examinations=[],
+            total_questions=0,
+            state="concluded",
+        )
+
+    testimony.phase = next_phase
+    case.is_ai_examining = True
+    await case.save()
+    background_tasks.add_task(process_ai_examination, case_cnr)
+
+    # The frontend sees state="ai_cross_examining" and polls the witness state.
     return AICrossExaminationResponse(
         witness_id=party.id,
         witness_name=party.name,
@@ -787,6 +836,7 @@ async def get_current_witness(
             objection=e.objection,
             objection_ruling=e.objection_ruling,
             timestamp=e.timestamp,
+            phase=e.phase.value if e.phase else None,
         )
         for e in testimony.examination
     ]
@@ -831,6 +881,8 @@ async def get_current_witness(
         called_by=testimony.called_by,
         examination_history=examination_history,
         is_ai_examining=case.is_ai_examining,
+        phase=testimony.phase.value,
+        next_examiner=testimony.examining_side(),
     )
 
 
@@ -965,12 +1017,22 @@ async def ai_call_witness(
                 )
                 case.witness_testimonies.append(testimony)
                 case.current_witness_id = party.id
+                case.courtroom_proceedings.append(
+                    CourtroomProceedingsEvent(
+                        type=CourtroomProceedingsEventType.WITNESS_CALLED,
+                        content=f"{party.name} called to the witness stand by {ai_role}.",
+                        speaker_role=ai_role,
+                        speaker_name=party.name,
+                        witness_id=party.id,
+                        timestamp=get_current_datetime(),
+                    )
+                )
 
-                # Auto-start AI examination so it questions the witness first
+                # The AI called the witness, so it examines in chief first.
                 case.is_ai_examining = True
                 await case.save()
 
-                background_tasks.add_task(process_ai_cross_examination, case_cnr, 5)
+                background_tasks.add_task(process_ai_examination, case_cnr)
 
                 logger.info(
                     f"AI called witness: {witness_name}, auto-starting AI examination"

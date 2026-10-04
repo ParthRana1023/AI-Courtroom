@@ -107,6 +107,16 @@ def party_message_id(message: dict, index: int) -> str:
 
 
 # Witness examination models
+class WitnessPhase(str, Enum):
+    """Order of examination (BSA s.143): the side that called the witness examines
+    in chief, the other side cross-examines, then the calling side may re-examine
+    on matters raised in cross. After that the witness is discharged."""
+
+    CHIEF = "chief"
+    CROSS = "cross"
+    RE_EXAM = "re_exam"
+
+
 class ExaminationItem(BaseModel):
     """A single Q&A exchange during witness examination"""
 
@@ -114,6 +124,7 @@ class ExaminationItem(BaseModel):
     examiner: str  # 'plaintiff', 'defendant', or 'judge'
     question: str
     answer: str
+    phase: WitnessPhase | None = None  # None on questions asked before phases
     objection: str | None = None
     objection_ruling: str | None = None
     timestamp: datetime = Field(default_factory=get_current_datetime)
@@ -129,6 +140,23 @@ class WitnessTestimony(BaseModel):
     examination: list[ExaminationItem] = Field(default_factory=list)
     started_at: datetime = Field(default_factory=get_current_datetime)
     ended_at: datetime | None = None
+    phase: WitnessPhase = WitnessPhase.CHIEF
+
+    def examining_side(self) -> str:
+        """Whose turn it is: the caller in chief and re-examination, else the other side."""
+        if self.phase == WitnessPhase.CROSS:
+            return "defendant" if self.called_by == "plaintiff" else "plaintiff"
+        return self.called_by
+
+    def phase_after_this_turn(self) -> "WitnessPhase | None":
+        """The next phase once the current examiner finishes; None = discharge."""
+        if self.phase == WitnessPhase.CHIEF:
+            return WitnessPhase.CROSS
+        if self.phase == WitnessPhase.CROSS:
+            # Re-examination is only on matters raised in cross; no cross, nothing to re-examine.
+            cross_asked = any(e.phase == WitnessPhase.CROSS for e in self.examination)
+            return WitnessPhase.RE_EXAM if cross_asked else None
+        return None
 
 
 class Case(Document):

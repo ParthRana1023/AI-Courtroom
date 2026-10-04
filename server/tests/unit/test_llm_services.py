@@ -509,40 +509,74 @@ async def test_examine_witness_accepts_curly_braces(fake_llm):
 
 
 @pytest.mark.parametrize(
-    "witness_role, ai_role, stance",
+    "phase, rule",
     [
-        ("applicant", "defendant", "hostile"),
-        ("non_applicant", "plaintiff", "hostile"),
-        ("applicant", "plaintiff", "friendly"),
+        ("chief", "EXAMINATION-IN-CHIEF"),
+        ("cross", "CROSS-EXAMINATION"),
+        ("re_exam", "RE-EXAMINATION"),
     ],
 )
-async def test_cross_examination_question_stance(
-    fake_llm, witness_role, ai_role, stance
-):
+async def test_witness_question_follows_the_phase(fake_llm, phase, rule):
     fake_llm.responses.append("Question: Where were you on 5 May?")
 
-    question = await ws.generate_cross_examination_questions(
+    question = await ws.generate_witness_question(
         "W",
-        witness_role,
-        ai_role,
+        "applicant",
+        "defendant",
         "details",
-        [{"question": "Q1", "answer": "A1"}],
+        [{"examiner": "plaintiff", "question": "Q1", "answer": "A1", "phase": "chief"}],
+        phase=phase,
+        can_stop=True,
         case_arguments="args",
     )
 
     assert question == "Where were you on 5 May?"
-    assert f"{stance} witness" in fake_llm.prompts[0]
-
-
-async def test_cross_examination_question_defaults_and_failure(fake_llm):
-    await ws.generate_cross_examination_questions("W", "applicant", "defendant", "", [])
     prompt = fake_llm.prompts[0]
+    assert rule in prompt
+    assert "Opposing counsel [chief]: Q1" in prompt
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "NO_FURTHER_QUESTIONS",
+        "No further questions",
+        "<think>x</think>NO_FURTHER_QUESTIONS",
+    ],
+)
+async def test_ai_may_stop_once_the_minimum_is_met(fake_llm, reply):
+    fake_llm.responses.append(reply)
+
+    assert (
+        await ws.generate_witness_question(
+            "W", "applicant", "plaintiff", "", [], phase="cross", can_stop=True
+        )
+        is None
+    )
+    assert "NO_FURTHER_QUESTIONS instead of a question" in fake_llm.prompts[0]
+
+
+async def test_ai_must_ask_below_the_minimum(fake_llm):
+    fake_llm.responses.append("When did you reach the shop?")
+
+    await ws.generate_witness_question(
+        "W", "applicant", "plaintiff", "", [], phase="chief", can_stop=False
+    )
+
+    prompt = fake_llm.prompts[0]
+    assert "You must ask a question now." in prompt
+    assert "instead of a question" not in prompt
     assert "(Case just started)" in prompt and "(No testimony yet" in prompt
 
+
+async def test_witness_question_failure_stops_the_examination(fake_llm):
     fake_llm.error = RuntimeError("down")
+
     assert (
-        "clarify your earlier statement"
-        in await ws.generate_cross_examination_questions("W", "a", "b", "", [])
+        await ws.generate_witness_question(
+            "W", "a", "b", "", [], phase="cross", can_stop=False
+        )
+        is None
     )
 
 
@@ -585,38 +619,6 @@ async def test_should_ai_call_witness_no_candidates_and_failure(fake_llm):
     fake_llm.error = RuntimeError("down")
     assert (
         await ws.should_ai_call_witness("plaintiff", "", "args", WITNESSES, []) is None
-    )
-
-
-@pytest.mark.parametrize("response, expected", [("CONTINUE", True), ("stop", False)])
-async def test_should_continue_cross_examination(fake_llm, response, expected):
-    fake_llm.responses.append(response)
-
-    assert (
-        await ws.should_continue_cross_examination(
-            "W", "applicant", "defendant", "d", [{"question": "q", "answer": "a"}], 2
-        )
-        is expected
-    )
-    assert "a hostile witness" in fake_llm.prompts[0]
-
-
-async def test_should_continue_cross_examination_shortcuts_and_failure(fake_llm):
-    assert (
-        await ws.should_continue_cross_examination(
-            "W", "a", "b", "", [], 5, max_questions=5
-        )
-        is False
-    )
-    assert await ws.should_continue_cross_examination("W", "a", "b", "", [], 0) is True
-    assert fake_llm.calls == []
-
-    fake_llm.error = RuntimeError("down")
-    assert (
-        await ws.should_continue_cross_examination(
-            "W", "applicant", "plaintiff", "", [], 1
-        )
-        is False
     )
 
 
@@ -727,8 +729,14 @@ async def test_witness_question_never_calls_the_witness_my_lord(
 ):
     fake_llm.responses.append(reply)
 
-    question = await ws.generate_cross_examination_questions(
-        "Mr. Sharma", "applicant", "defendant", "details", []
+    question = await ws.generate_witness_question(
+        "Mr. Sharma",
+        "applicant",
+        "defendant",
+        "details",
+        [],
+        phase="cross",
+        can_stop=False,
     )
 
     assert question == expected

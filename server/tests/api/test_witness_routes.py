@@ -11,6 +11,7 @@ from app.models.case import (
     CourtroomProceedingsEvent,
     ExaminationItem,
     Roles,
+    WitnessPhase,
     WitnessTestimony,
 )
 from app.models.case import (
@@ -22,16 +23,13 @@ from tests.helpers import boom, reload
 
 @pytest.fixture(autouse=True)
 def fast_background_task(monkeypatch):
-    """Skip the 3-second courtroom pause and fix the question count at the maximum."""
+    """Skip the 3-second courtroom pause."""
 
     async def no_sleep(seconds):
         return None
 
     monkeypatch.setattr(
         witness_routes, "asyncio", types.SimpleNamespace(sleep=no_sleep)
-    )
-    monkeypatch.setattr(
-        witness_routes, "random", types.SimpleNamespace(randint=lambda low, high: high)
     )
 
 
@@ -261,6 +259,84 @@ async def test_examine_witness_rejections(
     assert response.status_code == status
 
 
+async def test_examine_witness_records_the_phase(
+    client, auth_headers, on_stand, witness_party, fake_llm
+):
+    case = await on_stand(
+        witness_testimonies=[
+            open_testimony(witness_party, called_by="defendant", phase="cross")
+        ]
+    )
+
+    await client.post(
+        f"/cases/{case.cnr}/witness/examine",
+        headers=auth_headers,
+        json={"question": "You were not there, were you?"},
+    )
+
+    item = (await reload(case)).witness_testimonies[0].examination[0]
+    assert (item.examiner, item.phase) == ("plaintiff", WitnessPhase.CROSS)
+
+
+@pytest.mark.parametrize(
+    "testimony, ai_examining",
+    [
+        # the AI called this witness and is still examining in chief
+        ({"called_by": "defendant", "phase": "chief"}, False),
+        # the user's witness is being cross-examined by the AI
+        ({"called_by": "plaintiff", "phase": "cross"}, False),
+        # the user's own turn, but the AI is mid-examination
+        ({"called_by": "plaintiff", "phase": "chief"}, True),
+    ],
+)
+async def test_user_cannot_question_out_of_turn(
+    client, auth_headers, on_stand, witness_party, testimony, ai_examining
+):
+    case = await on_stand(
+        is_ai_examining=ai_examining,
+        witness_testimonies=[open_testimony(witness_party, **testimony)],
+    )
+
+    response = await client.post(
+        f"/cases/{case.cnr}/witness/examine",
+        headers=auth_headers,
+        json={"question": "Q?"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "It is not your turn to examine the witness."
+
+
+@pytest.mark.parametrize("developer, allowance", [(False, 20), (True, 40)])
+async def test_witness_questions_are_rate_limited(
+    client, auth_headers, on_stand, user, monkeypatch, developer, allowance
+):
+    from app.config import settings
+    from app.utils.rate_limiter import witness_question_limiter_for
+
+    if developer:
+        monkeypatch.setattr(settings, "dev_mode_emails", user.email)
+    limiter = witness_question_limiter_for(user)
+    assert limiter.requests == allowance
+    for _ in range(allowance - 1):
+        await limiter.register_usage(str(user.id))
+    case = await on_stand()
+    url = f"/cases/{case.cnr}/witness/examine"
+
+    last_allowed = await client.post(url, headers=auth_headers, json={"question": "Q?"})
+    blocked = await client.post(url, headers=auth_headers, json={"question": "Q?"})
+
+    assert last_allowed.status_code == 200
+    assert blocked.status_code == 429
+    assert "enough from the witnesses" in blocked.json()["detail"]
+
+
+async def test_witness_question_limit_status(client, auth_headers):
+    body = (await client.get("/limit/witness-question", headers=auth_headers)).json()
+
+    assert (body["remaining_attempts"], body["max_attempts"]) == (20, 20)
+
+
 @pytest.mark.parametrize("target", ["examine_witness", "upsert_memory_item"])
 async def test_examine_witness_failures(
     client, auth_headers, on_stand, monkeypatch, target
@@ -285,41 +361,191 @@ async def test_examine_witness_failures(
 # ---------------------------------------------------------------------------
 
 
-def cross_exam_responder(decisions=("CONTINUE",)):
-    decisions = list(decisions)
+class ExamResponder:
+    """AI asks up to ``questions`` questions, then declines when it is allowed to;
+    every other prompt (the witness) gets an answer."""
 
-    def respond(prompt):
-        if "Generate ONE strategic question" in prompt:
-            return "Question: Where were you on 5 May?"
-        if "Evaluate whether you should ask another question" in prompt:
-            return decisions.pop(0) if decisions else "STOP"
-        return "I was at home, My Lord."
+    def __init__(self, questions: int = 99):
+        self.questions = questions
+        self.asked: list[str] = []
 
-    return respond
+    def __call__(self, prompt: str) -> str:
+        if "Respond with ONLY the question" in prompt:
+            if len(self.asked) >= self.questions and "instead of a question" in prompt:
+                return "NO_FURTHER_QUESTIONS"
+            self.asked.append(prompt)
+            return f"Question: Where were you on day {len(self.asked)}?"
+        return "I was at home."
 
 
-async def test_ai_cross_examination_runs_in_background(
-    client, auth_headers, on_stand, fake_llm
+async def finish_turn(client, headers, case):
+    return await client.post(
+        f"/cases/{case.cnr}/witness/ai-cross-examine", headers=headers
+    )
+
+
+async def test_ai_cross_examines_the_users_witness_then_user_may_re_examine(
+    client, auth_headers, on_stand, fake_llm, witness_party
 ):
-    fake_llm.responder = cross_exam_responder(["CONTINUE", "STOP"])
+    fake_llm.responder = ExamResponder(questions=2)
     case = await on_stand(
         plaintiff_arguments=[ArgumentItem(type="user", content="Plaintiff point")],
         defendant_arguments=[ArgumentItem(type="counter", content="Defence point")],
+        witness_testimonies=[
+            open_testimony(
+                witness_party,
+                examination=[
+                    ExaminationItem(
+                        examiner="plaintiff", question="Q", answer="A", phase="chief"
+                    )
+                ],
+            )
+        ],
     )
 
-    response = await client.post(
-        f"/cases/{case.cnr}/witness/ai-cross-examine", headers=auth_headers
-    )
+    response = await finish_turn(client, auth_headers, case)
 
     assert response.json()["state"] == "ai_cross_examining"
     saved = await reload(case)
+    testimony = saved.witness_testimonies[0]
     assert saved.is_ai_examining is False
-    assert len(saved.witness_testimonies[0].examination) == 2
+    assert [e.phase for e in testimony.examination] == [
+        WitnessPhase.CHIEF,
+        WitnessPhase.CROSS,
+        WitnessPhase.CROSS,
+    ]
+    # the user called the witness, so re-examination is the user's
+    assert testimony.phase == WitnessPhase.RE_EXAM
+    assert testimony.examining_side() == "plaintiff"
     assert saved.courtroom_proceedings[-1].content == "Cross-examination completed."
-    question_prompt = next(
-        p for p in fake_llm.prompts if "Generate ONE strategic question" in p
+    assert "Plaintiff point" in fake_llm.responder.asked[0]
+    assert "CROSS-EXAMINATION" in fake_llm.responder.asked[0]
+
+
+async def test_ai_may_decline_to_cross_examine_and_witness_is_discharged(
+    client, auth_headers, on_stand, fake_llm
+):
+    fake_llm.responder = ExamResponder(questions=0)
+    case = await on_stand()
+
+    await finish_turn(client, auth_headers, case)
+
+    saved = await reload(case)
+    assert saved.witness_testimonies[0].examination == []
+    assert saved.current_witness_id is None
+    assert saved.witness_testimonies[0].ended_at is not None
+    assert [e.content for e in saved.courtroom_proceedings[-2:]] == [
+        "Cross-examination completed.",
+        "Ravi Kumar dismissed from the stand as the examination is complete.",
+    ]
+
+
+@pytest.mark.parametrize("phase", [WitnessPhase.CROSS, WitnessPhase.RE_EXAM])
+async def test_ai_asks_at_most_four_in_cross_and_re_examination(
+    on_stand, witness_party, fake_llm, phase
+):
+    fake_llm.responder = ExamResponder()  # never volunteers to stop
+    case = await on_stand(
+        is_ai_examining=True,
+        witness_testimonies=[
+            open_testimony(
+                witness_party,
+                called_by="plaintiff" if phase == WitnessPhase.CROSS else "defendant",
+                phase=phase,
+            )
+        ],
     )
-    assert "Plaintiff point" in question_prompt
+
+    await witness_routes.process_ai_examination(case.cnr)
+
+    asked = [
+        e
+        for e in (await reload(case)).witness_testimonies[0].examination
+        if e.phase == phase
+    ]
+    assert len(asked) == 4
+
+
+@pytest.mark.parametrize(
+    "willing, expected",
+    [(0, 3), (4, 4), (99, 5)],  # at least 3 in chief, at most 5
+)
+async def test_ai_examination_in_chief_asks_three_to_five(
+    on_stand, witness_party, fake_llm, willing, expected
+):
+    fake_llm.responder = ExamResponder(questions=willing)
+    case = await on_stand(
+        is_ai_examining=True,
+        witness_testimonies=[open_testimony(witness_party, called_by="defendant")],
+    )
+
+    await witness_routes.process_ai_examination(case.cnr)
+
+    saved = await reload(case)
+    testimony = saved.witness_testimonies[0]
+    assert len(testimony.examination) == expected
+    # now the user cross-examines the AI's witness
+    assert testimony.phase == WitnessPhase.CROSS
+    assert testimony.examining_side() == "plaintiff"
+    assert saved.current_witness_id == witness_party.id
+
+
+async def test_user_cross_then_ai_re_examines_then_witness_is_discharged(
+    client, auth_headers, on_stand, witness_party, fake_llm
+):
+    fake_llm.responder = ExamResponder(questions=1)
+    case = await on_stand(
+        witness_testimonies=[
+            open_testimony(
+                witness_party,
+                called_by="defendant",
+                phase="cross",
+                examination=[
+                    ExaminationItem(
+                        examiner="plaintiff", question="Q", answer="A", phase="cross"
+                    )
+                ],
+            )
+        ]
+    )
+
+    response = await finish_turn(client, auth_headers, case)
+
+    assert response.json()["state"] == "ai_cross_examining"
+    saved = await reload(case)
+    assert [e.phase for e in saved.witness_testimonies[0].examination] == [
+        WitnessPhase.CROSS,
+        WitnessPhase.RE_EXAM,
+    ]
+    assert "RE-EXAMINATION" in fake_llm.responder.asked[0]
+    assert saved.current_witness_id is None
+    assert saved.courtroom_proceedings[-1].content == (
+        "Ravi Kumar dismissed from the stand as the examination is complete."
+    )
+
+
+@pytest.mark.parametrize(
+    "testimony",
+    [
+        # user did not cross-examine the AI's witness: nothing to re-examine
+        {"called_by": "defendant", "phase": "cross"},
+        # user finished re-examining their own witness
+        {"called_by": "plaintiff", "phase": "re_exam"},
+    ],
+)
+async def test_finishing_the_last_turn_discharges_the_witness(
+    client, auth_headers, on_stand, witness_party, fake_llm, testimony
+):
+    case = await on_stand(
+        witness_testimonies=[open_testimony(witness_party, **testimony)]
+    )
+
+    response = await finish_turn(client, auth_headers, case)
+
+    assert response.json()["state"] == "concluded"
+    saved = await reload(case)
+    assert saved.current_witness_id is None
+    assert fake_llm.calls == []
 
 
 @pytest.mark.parametrize(
@@ -330,68 +556,60 @@ async def test_ai_cross_examination_runs_in_background(
         ({"is_ai_examining": True}, 400),
     ],
 )
-async def test_ai_cross_examination_rejections(
+async def test_finish_turn_rejections(
     client, auth_headers, on_stand, overrides, status
 ):
     case = await on_stand(**overrides)
 
-    response = await client.post(
-        f"/cases/{case.cnr}/witness/ai-cross-examine", headers=auth_headers
+    assert (await finish_turn(client, auth_headers, case)).status_code == status
+
+
+async def test_finish_turn_out_of_turn(client, auth_headers, on_stand, witness_party):
+    case = await on_stand(
+        witness_testimonies=[open_testimony(witness_party, called_by="defendant")]
     )
 
-    assert response.status_code == status
+    assert (await finish_turn(client, auth_headers, case)).status_code == 409
 
 
-async def test_ai_cross_examination_unknown_witness(client, auth_headers, on_stand):
+async def test_finish_turn_unknown_witness(client, auth_headers, on_stand):
     case = await on_stand(current_witness_id="ghost")
 
-    response = await client.post(
-        f"/cases/{case.cnr}/witness/ai-cross-examine", headers=auth_headers
-    )
-
-    assert response.status_code == 404
+    assert (await finish_turn(client, auth_headers, case)).status_code == 404
 
 
 async def test_background_task_stops_early_in_edge_cases(on_stand, courtroom_case):
-    await witness_routes.process_ai_cross_examination(
-        "NOPE000000000000"
-    )  # missing case: no error
+    await witness_routes.process_ai_examination("NOPE000000000000")  # no error
 
     no_witness = await courtroom_case(is_ai_examining=True)
-    await witness_routes.process_ai_cross_examination(no_witness.cnr)
+    await witness_routes.process_ai_examination(no_witness.cnr)
     assert (await reload(no_witness)).is_ai_examining is False
 
     ghost = await on_stand(current_witness_id="ghost", is_ai_examining=True)
-    await witness_routes.process_ai_cross_examination(ghost.cnr)
+    await witness_routes.process_ai_examination(ghost.cnr)
     assert (await reload(ghost)).is_ai_examining is False
 
-    no_testimony = await on_stand(
-        witness_testimonies=[], is_ai_examining=True, ai_role=Roles.NOT_STARTED
-    )
-    await witness_routes.process_ai_cross_examination(no_testimony.cnr)
-    assert (await reload(no_testimony)).courtroom_proceedings[
-        -1
-    ].content == "Cross-examination completed."
+    no_testimony = await on_stand(witness_testimonies=[], is_ai_examining=True)
+    await witness_routes.process_ai_examination(no_testimony.cnr)
+    assert (await reload(no_testimony)).is_ai_examining is False
 
 
 async def test_background_task_stops_when_flag_cleared(on_stand, fake_llm):
     case = await on_stand(is_ai_examining=False)
 
-    await witness_routes.process_ai_cross_examination(case.cnr)
+    await witness_routes.process_ai_examination(case.cnr)
 
     assert fake_llm.calls == []
 
 
-@pytest.mark.parametrize(
-    "failing", ["generate_cross_examination_questions", "examine_witness"]
-)
+@pytest.mark.parametrize("failing", ["generate_witness_question", "examine_witness"])
 async def test_background_task_stops_on_generation_errors(
     on_stand, monkeypatch, failing
 ):
     monkeypatch.setattr(witness_routes.witness_service, failing, boom)
     case = await on_stand(is_ai_examining=True)
 
-    await witness_routes.process_ai_cross_examination(case.cnr)
+    await witness_routes.process_ai_examination(case.cnr)
 
     saved = await reload(case)
     assert saved.is_ai_examining is False
@@ -402,7 +620,7 @@ async def test_background_task_survives_unexpected_errors(on_stand, monkeypatch)
     monkeypatch.setattr(witness_routes, "upsert_memory_item", boom)
     case = await on_stand(is_ai_examining=True)
 
-    await witness_routes.process_ai_cross_examination(case.cnr)
+    await witness_routes.process_ai_examination(case.cnr)
 
     assert (await reload(case)).is_ai_examining is False
 
@@ -410,9 +628,9 @@ async def test_background_task_survives_unexpected_errors(on_stand, monkeypatch)
 async def test_dismissal_during_ai_examination_is_not_undone(
     on_stand, monkeypatch, fake_llm
 ):
-    fake_llm.responder = cross_exam_responder(["STOP"])
+    fake_llm.responder = ExamResponder()
     case = await on_stand(is_ai_examining=True)
-    original = witness_routes.witness_service.generate_cross_examination_questions
+    original = witness_routes.witness_service.generate_witness_question
 
     async def question_then_user_dismisses(**kwargs):
         question = await original(**kwargs)
@@ -424,13 +642,16 @@ async def test_dismissal_during_ai_examination_is_not_undone(
 
     monkeypatch.setattr(
         witness_routes.witness_service,
-        "generate_cross_examination_questions",
+        "generate_witness_question",
         question_then_user_dismisses,
     )
 
-    await witness_routes.process_ai_cross_examination(case.cnr)
+    await witness_routes.process_ai_examination(case.cnr)
 
-    assert (await reload(case)).current_witness_id is None
+    saved = await reload(case)
+    assert saved.current_witness_id is None
+    # finishing the AI's turn must not touch a witness the user dismissed
+    assert saved.witness_testimonies[0].phase == WitnessPhase.CHIEF
 
 
 # ---------------------------------------------------------------------------
@@ -537,6 +758,7 @@ async def test_current_witness_states(
     ).json()
     assert body["witness_name"] == "Ravi Kumar"
     assert [e["question"] for e in body["examination_history"]] == ["Q1"]
+    assert (body["phase"], body["next_examiner"]) == ("chief", "plaintiff")
 
 
 async def test_current_witness_shows_pending_ai_question(
@@ -611,10 +833,12 @@ async def ai_call(client, headers, case):
 async def test_ai_call_witness_calls_and_examines(
     client, auth_headers, courtroom_case, fake_llm, witness_party
 ):
+    examine = ExamResponder(questions=0)
+
     def respond(prompt):
-        if "should you call a witness now" in prompt:
+        if "Should you call a witness now?" in prompt:
             return "CALL: 1"
-        return cross_exam_responder(["STOP"])(prompt)
+        return examine(prompt)
 
     fake_llm.responder = respond
     case = await courtroom_case(
@@ -633,7 +857,14 @@ async def test_ai_call_witness_calls_and_examines(
     )
     saved = await reload(case)
     assert saved.current_witness_id == witness_party.id
-    assert saved.witness_testimonies[0].examination  # background examination ran
+    testimony = saved.witness_testimonies[0]
+    # the AI examined in chief (at least 3 questions) and handed over for cross
+    assert len(testimony.examination) == 3
+    assert testimony.phase == WitnessPhase.CROSS
+    assert any(
+        e.type == EventType.WITNESS_CALLED and e.speaker_role == "defendant"
+        for e in saved.courtroom_proceedings
+    )
 
 
 @pytest.mark.parametrize(
@@ -716,7 +947,7 @@ async def test_ai_call_witness_rejections(
 async def test_background_task_stops_when_state_changes_between_questions(
     on_stand, monkeypatch, fake_llm, interruption
 ):
-    fake_llm.responder = cross_exam_responder(["CONTINUE", "CONTINUE"])
+    fake_llm.responder = ExamResponder()
     case = await on_stand(is_ai_examining=True)
     original_upsert = witness_routes.upsert_memory_item
 
@@ -729,16 +960,15 @@ async def test_background_task_stops_when_state_changes_between_questions(
 
     monkeypatch.setattr(witness_routes, "upsert_memory_item", upsert_then_interrupt)
 
-    await witness_routes.process_ai_cross_examination(case.cnr)
+    await witness_routes.process_ai_examination(case.cnr)
 
-    questions = [p for p in fake_llm.prompts if "Generate ONE strategic question" in p]
-    assert len(questions) == 1  # stopped before a second question
+    assert len(fake_llm.responder.asked) == 1  # stopped before a second question
 
 
 async def test_answer_is_discarded_if_user_stops_examination_before_it_arrives(
     on_stand, monkeypatch, fake_llm
 ):
-    fake_llm.responder = cross_exam_responder()
+    fake_llm.responder = ExamResponder()
     case = await on_stand(is_ai_examining=True)
     original = witness_routes.witness_service.examine_witness
 
@@ -753,7 +983,7 @@ async def test_answer_is_discarded_if_user_stops_examination_before_it_arrives(
         witness_routes.witness_service, "examine_witness", answer_after_user_dismisses
     )
 
-    await witness_routes.process_ai_cross_examination(case.cnr)
+    await witness_routes.process_ai_examination(case.cnr)
 
     saved = await reload(case)
     assert saved.current_witness_id is None

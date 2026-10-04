@@ -8,6 +8,7 @@ from app.utils.rate_limiter import (
     RateLimiter,
     argument_rate_limiter,
     case_generation_rate_limiter,
+    witness_question_limiter_for,
 )
 
 logger = get_logger(__name__)
@@ -45,3 +46,10 @@ async def get_case_generation_rate_limit(
     current_user: User = Depends(get_current_user),
 ):
     return await limit_status(case_generation_rate_limiter, current_user)
+
+
+@router.get("/witness-question")
+async def get_witness_question_rate_limit(
+    current_user: User = Depends(get_current_user),
+):
+    return await limit_status(witness_question_limiter_for(current_user), current_user)
