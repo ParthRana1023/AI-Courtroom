@@ -3,7 +3,7 @@
 import type React from "react";
 
 import { useState } from "react";
-import Navigation from "@/components/navigation";
+import SiteHeader from "@/components/chrome/site-header";
 import { contactAPI, authAPI } from "@/lib/api";
 import { getErrorDetail, getErrorStatus } from "@/lib/error-utils";
 import type { ContactFormData, FeedbackCategory } from "@/types";
@@ -14,7 +14,6 @@ import {
   ChevronDown,
   FolderKanban,
 } from "lucide-react";
-import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 
 const feedbackCategories: { value: FeedbackCategory; label: string }[] = [
@@ -99,8 +98,8 @@ export default function Contact() {
   };
 
   return (
-    <HexagonBackground className="min-h-screen flex flex-col flex-1 p-0 pt-16">
-      <Navigation />
+    <div className="min-h-screen flex flex-col flex-1 p-0 pt-16">
+      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
 
       <div className="grow container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-5 sm:p-8 border border-zinc-200 dark:border-zinc-800">
@@ -234,6 +233,6 @@ export default function Contact() {
           </form>
         </div>
       </div>
-    </HexagonBackground>
+    </div>
   );
 }

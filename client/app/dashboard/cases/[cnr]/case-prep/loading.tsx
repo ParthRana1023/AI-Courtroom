@@ -1,9 +1,5 @@
-import GavelLoader from "@/components/gavel-loader";
+import RouteLoading from "@/components/court/route-loading";
 
 export default function Loading() {
-  return (
-    <div className="flex-1 flex items-center justify-center min-h-[50vh]">
-      <GavelLoader message="Loading case prep..." />
-    </div>
-  );
+  return <RouteLoading status="Gathering the parties and the evidence…" />;
 }

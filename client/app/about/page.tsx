@@ -11,16 +11,15 @@ import {
   Users,
   BookOpen,
 } from "lucide-react";
-import Navigation from "@/components/navigation";
-import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
+import SiteHeader from "@/components/chrome/site-header";
 import { useAuth } from "@/contexts/auth-context";
 
 export default function AboutPage() {
   const { isAuthenticated, isLoading } = useAuth();
 
   return (
-    <HexagonBackground className="min-h-screen flex flex-col p-0 pt-16">
-      <Navigation />
+    <div className="min-h-screen flex flex-col p-0 pt-16">
+      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
 
       {/* Hero Section */}
       <section className="relative overflow-hidden py-16 sm:py-24 lg:py-32">
@@ -226,7 +225,7 @@ export default function AboutPage() {
           </div>
         </div>
       </footer>
-    </HexagonBackground>
+    </div>
   );
 }
 

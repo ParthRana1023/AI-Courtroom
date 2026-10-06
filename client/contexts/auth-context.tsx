@@ -228,10 +228,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     logger.info("User logged out");
     Logger.setUserId(undefined);
-    void authAPI.logout();
     setUser(null);
     setIsAuthenticated(false);
-    router.replace("/login");
+    // Navigate only once the token cookie is cleared, or the proxy bounces /login back to the dashboard.
+    void authAPI.logout().finally(() => router.replace("/login?signedout=1"));
   };
 
   const loginWithGoogle = async (

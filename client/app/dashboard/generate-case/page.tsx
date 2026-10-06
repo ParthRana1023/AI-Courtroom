@@ -3,7 +3,6 @@
 import type React from "react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Navigation from "@/components/navigation";
 import { caseAPI } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CaseGenerationFormData } from "@/types";
@@ -157,7 +156,6 @@ export default function GenerateCase() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Navigation />
         <div className="grow flex items-center justify-center">
           <GavelLoader message="Generating case..." />
         </div>
@@ -167,7 +165,6 @@ export default function GenerateCase() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navigation />
 
       <div className="grow container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-6 dark:bg-zinc-900 dark:border-zinc-800 relative">

@@ -1,6 +1,6 @@
 {
   "name": "ai-courtroom",
-  "version": "4.9.4",
+  "version": "4.10.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,9 @@
     "build:android": "pnpm build:mobile && cap sync android",
     "build:ios": "pnpm build:mobile && cap sync ios",
     "cap:android": "cap sync android && cap open android",
-    "cap:ios": "cap sync ios && cap open ios"
+    "cap:ios": "cap sync ios && cap open ios",
+    "test:e2e": "playwright test -c e2e",
+    "test:e2e:update": "playwright test -c e2e --update-snapshots"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -56,9 +58,11 @@
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
     "tailwindcss-animate": "^1.0.7",
+    "three": "0.184.0",
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@capacitor/cli": "^8.5.2",
     "@eslint/js": "^10.0.1",
     "@next/eslint-plugin-next": "^16.3.6",
@@ -68,6 +72,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/three": "~0.184.1",
     "cross-env": "^10.1.0",
     "eslint": "^10.11.0",
     "eslint-plugin-react": "^7.37.5",
@@ -75,7 +80,7 @@
     "postcss": "^8.5.28",
     "serwist": "^9.5.12",
     "tailwindcss": "^4.3.3",
-    "typescript": "^6.0.3",
+    "typescript": "6.0.3",
     "typescript-eslint": "^8.70.1"
   }
 }

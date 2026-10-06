@@ -1,26 +1,276 @@
 @import "tailwindcss";
 @config "../tailwind.config.ts";
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 255, 255, 255;
-  --background-end-rgb: 245, 245, 245;
+/* ---------------------------------------------------------------------------
+   "Courtroom paper" design tokens. The desk (page) switches with
+   [data-theme]; paper (documents, dialogs, menus) stays paper in both themes.
+   --------------------------------------------------------------------------- */
+:root,
+[data-theme="dark"] {
+  --desk-bg: #070504;
+  --desk-glow: #1c130c;
+  --desk-ink: #efe6d3;
+  --desk-ink-muted: #b9ad97;
+  --desk-ink-soft: #d8ccb4;
+  --desk-rule: rgba(239, 230, 211, 0.12);
+  --desk-rule-mid: rgba(239, 230, 211, 0.22);
+  --desk-tile-rule: rgba(239, 230, 211, 0.14);
+  --desk-strip-rule: rgba(239, 230, 211, 0.3);
+  --desk-red: #e0786c;
+  --desk-hover: #ffffff;
+  --desk-strong: #ffffff;
+  --desk-amber: #c9a45c;
+  --desk-green: #9fd0a4;
+  --focus: #c9a45c;
+  --paper-hi: #f4ecdc;
+  --paper-body: #3e3326;
+  --scrim: rgba(7, 5, 4, 0.78);
+  --scrollbar-thumb: #8a7f70;
+  --scrollbar-thumb-hover: #e0453a;
+  --scrollbar-line: rgba(239, 230, 211, 0.16);
+  --shadow-menu: 0 20px 50px rgba(0, 0, 0, 0.7);
+  --shadow-sheet: 0 40px 90px -30px rgba(0, 0, 0, 0.85);
+  --shadow-toast: 0 18px 50px rgba(0, 0, 0, 0.6);
+  --shadow-dialog: 0 40px 90px -24px rgba(0, 0, 0, 0.85);
 }
 
-.dark {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 10, 10, 10;
-  --background-end-rgb: 0, 0, 0;
+[data-theme="light"] {
+  --desk-bg: #d9cfbb;
+  --desk-glow: #e6dece;
+  --desk-ink: #120d09;
+  --desk-ink-muted: #4a3e30;
+  --desk-ink-soft: #2a2018;
+  --desk-rule: rgba(18, 13, 9, 0.18);
+  --desk-rule-mid: rgba(18, 13, 9, 0.33);
+  --desk-tile-rule: rgba(18, 13, 9, 0.21);
+  --desk-strip-rule: rgba(18, 13, 9, 0.45);
+  --desk-red: #8e1f19;
+  --desk-hover: #8e1f19;
+  --desk-strong: #120d09;
+  --desk-amber: #7a4a0c;
+  --desk-green: #2f6b3a;
+  --focus: #7a4a0c;
+  --paper-hi: #f8f3e7;
+  --paper-body: #2a2018;
+  --scrim: rgba(18, 13, 9, 0.45);
+  --scrollbar-thumb: #3e3326;
+  --scrollbar-thumb-hover: #8e1f19;
+  --scrollbar-line: rgba(18, 13, 9, 0.22);
+  --shadow-menu: 0 20px 50px rgba(60, 44, 28, 0.29);
+  --shadow-sheet: 0 40px 90px -30px rgba(60, 44, 28, 0.36);
+  --shadow-toast: 0 18px 50px rgba(60, 44, 28, 0.25);
+  --shadow-dialog: 0 40px 90px -24px rgba(18, 13, 9, 0.45);
+}
+
+@theme inline {
+  --color-desk: var(--desk-bg);
+  --color-desk-glow: var(--desk-glow);
+  --color-desk-ink: var(--desk-ink);
+  --color-desk-muted: var(--desk-ink-muted);
+  --color-desk-soft: var(--desk-ink-soft);
+  --color-desk-rule: var(--desk-rule);
+  --color-desk-rule-mid: var(--desk-rule-mid);
+  --color-desk-red: var(--desk-red);
+  --color-desk-hover: var(--desk-hover);
+  --color-desk-strong: var(--desk-strong);
+  --color-desk-tile-rule: var(--desk-tile-rule);
+  --color-desk-strip-rule: var(--desk-strip-rule);
+  --color-desk-amber: var(--desk-amber);
+  --color-desk-green: var(--desk-green);
+
+  --color-paper: #efe6d3;
+  --color-paper-alt: #e3d8c0;
+  --color-paper-soft: #e9dfcb;
+  --color-paper-hi: var(--paper-hi);
+  --color-paper-body: var(--paper-body);
+  --color-ink: #120d09;
+  --color-ink-label: #3e3326;
+  --color-ink-muted: #4a3e30;
+  --color-ink-hint: #5c4f3f;
+  --color-ink-meta: #6b5d4b;
+  --color-ink-disabled: #8a7f70;
+  --color-cream: #f4ecdc;
+
+  --color-seal: #8e1f19;
+  --color-seal-hover: #a3261e;
+  --color-cursor: #e0453a;
+  --color-error: #9b1c14;
+  --color-amber: #7a4a0c;
+  --color-amber-deep: #9a5b12;
+  --color-amber-hi: #e9c77e;
+  --color-green: #2f6b3a;
+  --color-gold: #c9a45c;
+
+  --font-display: var(--font-special-elite), "Courier Prime", monospace;
+  --font-type: var(--font-courier-prime), "Courier New", monospace;
+  --font-data: var(--font-plex-mono), monospace;
+
+  /* rem, so Settings → text size scales them */
+  /* line-height normal matches the prototypes' `font:` shorthand; set leading-* where they set one */
+  --text-tag: 0.65625rem;
+  --text-tag--line-height: normal;
+  --text-label: 0.6875rem;
+  --text-label--line-height: normal;
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: normal;
+  --text-body: 0.9375rem;
+  --text-body--line-height: normal;
+  --text-h3: 1.375rem;
+  --text-h3--line-height: normal;
+  --text-h2: 1.625rem;
+  --text-h2--line-height: normal;
+
+  --shadow-menu: var(--shadow-menu);
+  --shadow-sheet: var(--shadow-sheet);
+  --shadow-toast: var(--shadow-toast);
+  --shadow-dialog: var(--shadow-dialog);
+
+  --ease-paper: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+html {
+  background: var(--desk-bg);
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-    to bottom,
-    rgb(var(--background-start-rgb)),
-    rgb(var(--background-end-rgb))
-  );
+  color: var(--desk-ink);
+  background: var(--desk-bg);
   min-height: 100vh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Paper scrollbar (ac-ui.js). Touch screens keep their native overlay bars. */
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+*::-webkit-scrollbar-track {
+  background: linear-gradient(
+    90deg,
+    transparent 5.5px,
+    var(--scrollbar-line) 5.5px,
+    var(--scrollbar-line) 6.5px,
+    transparent 6.5px
+  );
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border: 4px solid transparent;
+  background-clip: padding-box;
+  border-radius: 0;
+  min-height: 48px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+  border-width: 3px;
+}
+*::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-button {
+  display: none;
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+}
+/* Scrollers on paper always use the dark thumb on a paper inset. */
+[data-scroller]::-webkit-scrollbar-track {
+  background: linear-gradient(
+    90deg,
+    transparent 5.5px,
+    rgba(18, 13, 9, 0.22) 5.5px,
+    rgba(18, 13, 9, 0.22) 6.5px,
+    transparent 6.5px
+  );
+}
+[data-scroller]::-webkit-scrollbar-thumb {
+  background: #3e3326;
+  border: 4px solid #efe6d3;
+}
+[data-scroller]::-webkit-scrollbar-thumb:hover {
+  background: #8e1f19;
+  border-width: 3px;
+}
+@supports not selector(::-webkit-scrollbar) {
+  [data-scroller] {
+    scrollbar-color: #3e3326 transparent;
+  }
+}
+
+@keyframes ac-cursor {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes ac-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes ac-stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--stamp-rot, -5deg)) scale(1.6);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(var(--stamp-rot, -5deg)) scale(1);
+  }
+}
+@keyframes ac-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ac-slide-up {
+  from {
+    transform: translateY(110%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes ac-slide-down {
+  from {
+    transform: translateY(-110%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes ac-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @layer utilities {

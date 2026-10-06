@@ -1,7 +1,7 @@
 import type React from "react";
 import Script from "next/script";
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Courier_Prime, IBM_Plex_Mono, Special_Elite } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/auth-context";
 import DevModelPanel from "@/components/dev-model-panel";
@@ -11,21 +11,37 @@ import { CookieConsentProvider } from "@/contexts/cookie-consent-context";
 import TextSizeProvider from "@/components/text-size-provider";
 import NotificationProvider from "@/components/notification-provider";
 import ConditionalAnalytics from "@/components/conditional-analytics";
-import CookieConsentWrapper from "@/components/cookie-consent-wrapper";
+import CookieConsent from "@/components/chrome/cookie-consent";
+import InstallPrompt from "@/components/chrome/install-prompt";
+import OfflineBanner from "@/components/chrome/offline-banner";
+import { ThemeColorSync } from "@/components/chrome/theme-toggle";
 import { LoggerProvider } from "@/contexts/logger-context";
 import { LoggingErrorBoundary } from "@/components/error-boundary";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "@/components/ui/sonner";
 import { PwaInstallProvider } from "@/contexts/pwa-install-context";
 
-const inter = Inter({ subsets: ["latin"] });
+const specialElite = Special_Elite({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-special-elite",
+});
+const courierPrime = Courier_Prime({
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
+  subsets: ["latin"],
+  variable: "--font-courier-prime",
+});
+const plexMono = IBM_Plex_Mono({
+  weight: ["400", "500", "700"],
+  subsets: ["latin"],
+  variable: "--font-plex-mono",
+});
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#070504",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export const metadata: Metadata = {
@@ -76,14 +92,6 @@ export const metadata: Metadata = {
     title: "AI Courtroom - AI-Powered Legal Simulation Platform",
     description:
       "Experience the future of legal education. Argue your case, challenge the AI, and step into the courtroom where justice is decided.",
-    images: [
-      {
-        url: "/android-chrome-512x512.png",
-        width: 512,
-        height: 512,
-        alt: "AI Courtroom Logo",
-      },
-    ],
   },
 
   // Twitter Card metadata
@@ -92,7 +100,6 @@ export const metadata: Metadata = {
     title: "AI Courtroom - AI-Powered Legal Simulation",
     description:
       "Experience the future of legal education. Argue your case, challenge the AI, and step into the courtroom where justice is decided.",
-    images: ["/android-chrome-512x512.png"],
     creator: "@aicourtroom",
   },
 
@@ -101,21 +108,17 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "AI Courtroom",
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
   },
   formatDetection: {
     telephone: false,
   },
 
   icons: {
-    icon: [
-      { url: "/favicon.ico?v=2", sizes: "any" },
-      { url: "/favicon-16x16.png?v=2", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png?v=2", sizes: "32x32", type: "image/png" },
-    ],
-    apple: "/apple-touch-icon.png?v=2",
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: "/apple-touch-icon.png",
   },
-  manifest: "/site.webmanifest",
+  manifest: "/manifest.webmanifest",
 
   // Site verification
   verification: {
@@ -147,13 +150,18 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body className={inter.className} suppressHydrationWarning>
+      <body
+        className={`${specialElite.variable} ${courierPrime.variable} ${plexMono.variable} font-type`}
+        suppressHydrationWarning
+      >
+        {/* data-theme drives the design tokens; the "dark" class keeps not-yet-redesigned pages working */}
         <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
+          attribute={["data-theme", "class"]}
+          defaultTheme="dark"
           enableSystem
-          storageKey="ai-courtroom-theme"
+          storageKey="aiCourtroom-theme"
         >
+          <ThemeColorSync />
           <CookieConsentProvider>
             <SettingsProvider>
               <TextSizeProvider>
@@ -164,7 +172,11 @@ export default function RootLayout({
                     <LoggerProvider>
                       <LoggingErrorBoundary>
                         <NotificationProvider>
-                          <PwaInstallProvider>{children}</PwaInstallProvider>
+                          <PwaInstallProvider>
+                            {children}
+                            <InstallPrompt />
+                          </PwaInstallProvider>
+                          <OfflineBanner />
                           <DevModelPanel />
                         </NotificationProvider>
                       </LoggingErrorBoundary>
@@ -173,8 +185,8 @@ export default function RootLayout({
                 </GoogleOAuthProvider>
               </TextSizeProvider>
               <ConditionalAnalytics />
-              <Toaster richColors position="bottom-right" />
-              <CookieConsentWrapper />
+              <Toaster />
+              <CookieConsent />
             </SettingsProvider>
           </CookieConsentProvider>
         </ThemeProvider>

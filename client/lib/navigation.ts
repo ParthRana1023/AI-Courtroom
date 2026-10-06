@@ -1,43 +1,41 @@
-"use client";
-
-import type { LucideIcon } from "lucide-react";
-import {
-  FileText,
-  Gavel,
-  Home,
-  LogOut,
-  MessageSquare,
-  Settings,
-  User,
-} from "lucide-react";
-
 export interface NavigationItem {
-  link: string;
-  text: string;
-  icon?: LucideIcon;
+  href: string;
+  label: string;
 }
 
 export const authenticatedPrimaryNavItems: NavigationItem[] = [
-  { link: "/", text: "Home", icon: Home },
-  { link: "/dashboard/cases", text: "Cases", icon: Gavel },
-  { link: "/contact", text: "Contact Us", icon: MessageSquare },
-  { link: "/settings", text: "Settings", icon: Settings },
-  { link: "/about", text: "About", icon: FileText },
+  { href: "/", label: "Home" },
+  { href: "/dashboard/cases", label: "Cases" },
+  { href: "/contact", label: "Contact" },
+  { href: "/settings", label: "Settings" },
+  { href: "/about", label: "About" },
 ];
 
 export const publicPrimaryNavItems: NavigationItem[] = [
-  { link: "/", text: "Home", icon: Home },
-  { link: "/contact", text: "Contact Us", icon: MessageSquare },
-  { link: "/about", text: "About", icon: FileText },
-  { link: "/settings", text: "Settings", icon: Settings },
+  { href: "/", label: "Home" },
+  { href: "/contact", label: "Contact" },
+  { href: "/about", label: "About" },
+  { href: "/settings", label: "Settings" },
 ];
 
-export const authenticatedSecondaryNavItems: NavigationItem[] = [
-  { link: "/dashboard/profile", text: "Profile", icon: User },
-  { link: "/logout", text: "Logout", icon: LogOut },
+// The "More ▾" menu and the mobile menu's footer strip.
+export const moreNavItems: NavigationItem[] = [
+  { href: "/help", label: "Help & FAQ" },
+  { href: "/changelog", label: "Changelog" },
+  { href: "/privacy", label: "Privacy Policy" },
+  { href: "/cookies", label: "Cookie Policy" },
+  { href: "/terms", label: "Terms of Service" },
+  { href: "/accessibility", label: "Accessibility" },
 ];
 
-export const publicSecondaryNavItems: NavigationItem[] = [
-  { link: "/login", text: "Login", icon: User },
-  { link: "/register", text: "Get Started" },
-];
+/** Whether `href` is the page at `pathname` (a section root matches its children). */
+export function isCurrentPath(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  if (href === "/dashboard/cases") {
+    return (
+      pathname.startsWith("/dashboard/cases") ||
+      pathname.startsWith("/dashboard/generate-case")
+    );
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}

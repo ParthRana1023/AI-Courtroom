@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Navigation from "@/components/navigation";
-import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
+import SiteHeader from "@/components/chrome/site-header";
 import {
   FileText,
   Scale,
@@ -19,8 +18,8 @@ export default function TermsOfService() {
   const lastUpdated = "January 15, 2026";
 
   return (
-    <HexagonBackground className="min-h-screen flex flex-col p-0 pt-16">
-      <Navigation />
+    <div className="min-h-screen flex flex-col p-0 pt-16">
+      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
 
       {/* Hero Section */}
       <section className="relative overflow-hidden py-16 sm:py-20 lg:py-28">
@@ -233,7 +232,7 @@ export default function TermsOfService() {
           </div>
         </div>
       </footer>
-    </HexagonBackground>
+    </div>
   );
 }
 

@@ -33,17 +33,24 @@ interface PwaInstallContextValue {
   canInstall: boolean;
   /** Whether the app has been installed (either just now, or was already). */
   isInstalled: boolean;
-  /** Trigger the native browser install prompt or APK download. */
-  promptInstall: () => Promise<void>;
+  /** Trigger the native browser install prompt or APK download. Resolves true when it went ahead. */
+  promptInstall: () => Promise<boolean>;
   /** The current install mode: "pwa" for browser prompt, "apk" for APK download. */
   installMode: InstallMode;
+  /** Whether the Install Prompt dialog is open. */
+  promptOpen: boolean;
+  openPrompt: () => void;
+  closePrompt: () => void;
 }
 
 const PwaInstallContext = createContext<PwaInstallContextValue>({
   canInstall: false,
   isInstalled: false,
-  promptInstall: async () => {},
+  promptInstall: async () => false,
   installMode: "pwa",
+  promptOpen: false,
+  openPrompt: () => {},
+  closePrompt: () => {},
 });
 
 export const usePwaInstall = () => useContext(PwaInstallContext);
@@ -64,6 +71,7 @@ export function PwaInstallProvider({
   const [canInstall, setCanInstall] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [installMode, setInstallMode] = useState<InstallMode>("pwa");
+  const [promptOpen, setPromptOpen] = useState(false);
 
   useEffect(() => {
     // Never offer the PWA install prompt inside a native shell
@@ -130,12 +138,12 @@ export function PwaInstallProvider({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      return;
+      return true;
     }
 
     // PWA mode — trigger the native browser prompt
     const prompt = deferredPromptRef.current;
-    if (!prompt) return;
+    if (!prompt) return false;
 
     await prompt.prompt();
     const { outcome } = await prompt.userChoice;
@@ -145,11 +153,23 @@ export function PwaInstallProvider({
       setCanInstall(false);
     }
     deferredPromptRef.current = null;
+    return outcome === "accepted";
   }, [installMode]);
+
+  const openPrompt = useCallback(() => setPromptOpen(true), []);
+  const closePrompt = useCallback(() => setPromptOpen(false), []);
 
   return (
     <PwaInstallContext.Provider
-      value={{ canInstall, isInstalled, promptInstall, installMode }}
+      value={{
+        canInstall,
+        isInstalled,
+        promptInstall,
+        installMode,
+        promptOpen,
+        openPrompt,
+        closePrompt,
+      }}
     >
       {children}
     </PwaInstallContext.Provider>

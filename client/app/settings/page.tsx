@@ -25,11 +25,10 @@ import type {
   CaseLocationPreference,
   PartialScoring,
 } from "@/types";
-import Navigation from "@/components/navigation";
+import SiteHeader from "@/components/chrome/site-header";
 
 // Add custom styles for animations
 import "./settings.css";
-import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 import {
   SidebarProvider,
   Sidebar,
@@ -301,8 +300,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <HexagonBackground className="min-h-screen">
-      <Navigation />
+    <div className="min-h-screen">
+      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
       <SidebarProvider defaultOpen={true}>
         <Sidebar
           variant="inset"
@@ -908,6 +907,6 @@ export default function SettingsPage() {
           </div>
         </SidebarInset>
       </SidebarProvider>
-    </HexagonBackground>
+    </div>
   );
 }

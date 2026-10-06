@@ -1,9 +1,5 @@
-import ScalesLoader from "@/components/scales-loader";
+import RouteLoading from "@/components/court/route-loading";
 
 export default function Loading() {
-  return (
-    <div className="flex-1 flex items-center justify-center min-h-[50vh]">
-      <ScalesLoader message="Loading archived cases..." />
-    </div>
-  );
+  return <RouteLoading status="Opening the archive…" />;
 }

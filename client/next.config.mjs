@@ -33,6 +33,8 @@ const withSerwist = withSerwistInit({
   swSrc: "app/sw.ts",
   swDest: "public/sw.js",
   additionalPrecacheEntries: [{ url: "/~offline", revision }],
+  // A reload on reconnect would discard unsent drafts; the offline banner handles reconnecting.
+  reloadOnOnline: false,
   // Disable SW in dev mode and Capacitor native builds.
   // Test PWA features via: pnpm build && pnpm start
   disable: isDev || isCapacitorBuild,

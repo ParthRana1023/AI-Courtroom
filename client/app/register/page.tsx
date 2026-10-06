@@ -7,7 +7,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
-import Navigation from "@/components/navigation";
+import SiteHeader from "@/components/chrome/site-header";
 import OtpForm from "@/components/otp-form";
 import FloatingLabelInput from "@/components/floating-label-input";
 import DatePicker from "@/components/date-picker";
@@ -29,7 +29,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/animate-ui/components/radix/dropdown-menu";
-import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
 import { getErrorDetail, getValidationErrorDetail } from "@/lib/error-utils";
@@ -291,8 +290,8 @@ export default function Register() {
   };
 
   return (
-    <HexagonBackground className="min-h-screen flex flex-col">
-      <Navigation />
+    <div className="min-h-screen flex flex-col">
+      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
 
       <div className="grow flex items-center justify-center p-3 sm:p-4 pt-20">
         <div
@@ -692,6 +691,6 @@ export default function Register() {
           )}
         </div>
       </div>
-    </HexagonBackground>
+    </div>
   );
 }

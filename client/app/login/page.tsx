@@ -7,14 +7,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SESSION_EXPIRED } from "@/lib/messages";
 import { useAuth } from "@/contexts/auth-context";
-import Navigation from "@/components/navigation";
+import SiteHeader from "@/components/chrome/site-header";
 import OtpForm from "@/components/otp-form";
 import FloatingLabelInput from "@/components/floating-label-input";
 import type { LoginFormData } from "@/types";
 import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
 import GoogleSignInButton from "@/components/google-signin-button";
 import { Checkbox } from "@/components/animate-ui/components/radix/checkbox";
-import { HexagonBackground } from "@/components/animate-ui/components/backgrounds/hexagon";
 import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 import { getErrorDetail } from "@/lib/error-utils";
 
@@ -160,7 +159,7 @@ export default function Login() {
   if (authLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-linear-to-b from-zinc-50 to-white dark:from-black dark:to-black">
-        <Navigation />
+        <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
         <div className="grow flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="animate-spin h-12 w-12 text-zinc-500 mx-auto" />
@@ -172,8 +171,8 @@ export default function Login() {
   }
 
   return (
-    <HexagonBackground className="min-h-screen flex flex-col">
-      <Navigation />
+    <div className="min-h-screen flex flex-col">
+      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
 
       <div className="grow flex items-center justify-center p-4 sm:p-6 pt-20">
         <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-6 sm:p-8 border border-zinc-200 dark:border-gray-800">
@@ -320,6 +319,6 @@ export default function Login() {
           )}
         </div>
       </div>
-    </HexagonBackground>
+    </div>
   );
 }

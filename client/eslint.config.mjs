@@ -63,6 +63,13 @@ export default tseslint.config(
     },
   },
 
+  // three.js model builders copied from the design handoff: browser JS, kept as delivered
+  {
+    files: ["lib/three/models/**/*.js"],
+    languageOptions: { globals: { document: "readonly" } },
+    rules: { "@typescript-eslint/no-unused-expressions": "off" },
+  },
+
   // Node environment for config files
   {
     files: ["*.config.{js,mjs,ts}", "postcss.config.*"],

@@ -38,3 +38,7 @@ public/serwist-worker-*.js.map
 # capacitor (native platform projects - generated via `npx cap add`)
 /android/
 /ios/
+
+# playwright
+/e2e/.results/
+/e2e/.report/
