@@ -1,696 +1,408 @@
 "use client";
 
-import type React from "react";
-
-import { useState, useEffect } from "react";
-import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useAuth } from "@/contexts/auth-context";
-import SiteHeader from "@/components/chrome/site-header";
-import OtpForm from "@/components/otp-form";
-import FloatingLabelInput from "@/components/floating-label-input";
-import DatePicker from "@/components/date-picker";
-import type { RegisterFormData } from "@/types";
-import Gender from "@/components/gender";
+import { useRouter, useSearchParams } from "next/navigation";
+import GoogleButton, { type GoogleAuthData } from "@/components/auth/google-button";
 import {
-  User,
-  Mail,
-  Phone,
-  Lock,
-  AlertCircle,
-  ChevronDown,
-} from "lucide-react";
-import GoogleSignInButton from "@/components/google-signin-button";
-import LocationSelector from "@/components/location-selector";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/animate-ui/components/radix/dropdown-menu";
-import { useLifecycleLogger } from "@/hooks/use-performance-logger";
-import { getLogger } from "@/lib/logger";
-import { getErrorDetail, getValidationErrorDetail } from "@/lib/error-utils";
+  AuthIntro,
+  AuthShell,
+  Check,
+  Field,
+  formatPhone,
+  IntroText,
+  JourneyBar,
+  JourneyList,
+  Objection,
+  OrDivider,
+  outlineButton,
+  PhoneField,
+  phoneError,
+  primaryButton,
+  Slip,
+  SlipFoot,
+  SlipHeading,
+  slipInput,
+  textLink,
+  useAuthLayout,
+  type JourneyProps,
+} from "@/components/auth/kit";
+import OtpStep from "@/components/auth/otp-step";
+import PracticeStep from "@/components/auth/practice-step";
+import { useAuth, type GoogleSignupData } from "@/contexts/auth-context";
+import { needsSeatOfPractice, safeNext } from "@/lib/auth-redirect";
+import { PHONE_AUTH_ENABLED } from "@/lib/config";
+import { getErrorDetail } from "@/lib/error-utils";
+import { cn } from "@/lib/utils";
+import type { RegisterFormData, User } from "@/types";
 
-const logger = getLogger("auth");
+type Screen = "form" | "otp" | "practice";
 
-// Country codes for phone numbers
-const countryCodes = [
-  { code: "+91", country: "India", flag: "🇮🇳" },
-  { code: "+1", country: "USA/Canada", flag: "🇺🇸" },
-  { code: "+44", country: "UK", flag: "🇬🇧" },
-  { code: "+61", country: "Australia", flag: "🇦🇺" },
-  { code: "+971", country: "UAE", flag: "🇦🇪" },
-  { code: "+65", country: "Singapore", flag: "🇸🇬" },
-  { code: "+49", country: "Germany", flag: "🇩🇪" },
-  { code: "+33", country: "France", flag: "🇫🇷" },
-  { code: "+81", country: "Japan", flag: "🇯🇵" },
-  { code: "+86", country: "China", flag: "🇨🇳" },
+const PASSWORD_RULES: [string, (p: string) => boolean, string][] = [
+  ["8+ characters", (p) => p.length >= 8, "Password must be at least 8 characters"],
+  ["A letter", (p) => /[a-zA-Z]/.test(p), "Password must contain at least 1 letter"],
+  ["A digit", (p) => /\d/.test(p), "Password must contain at least 1 digit"],
+  ["A symbol @$!%*#?&", (p) => /[@$!%*#?&]/.test(p), "Password must contain at least 1 special character"],
 ];
 
-export default function Register() {
-  useLifecycleLogger("Register");
-
-  const { register, verifyRegistration, loginWithGoogle } = useAuth();
+export default function RegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const isGoogleSignUp = searchParams.get("google") === "true";
+  const params = useSearchParams();
+  const next = safeNext(params.get("next"));
+  const { register, verifyRegistration, loginWithGoogle, sendPhoneCode, verifyPhone } = useAuth();
 
-  const [formData, setFormData] = useState<RegisterFormData>({
-    first_name: "",
-    last_name: "",
-    date_of_birth: new Date(),
-    phone_number: "",
-    email: "",
-    password: "",
-    gender: undefined,
-    // Location fields
-    city: "",
-    state: "",
-    state_iso2: "",
-    country: "",
-    country_iso2: "",
-    phone_code: "",
-  });
-  const [countryCode, setCountryCode] = useState("+91");
-  const [googleSignupToken, setGoogleSignupToken] = useState<string | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const [otp, setOtp] = useState<string[]>(new Array(6).fill(""));
-  const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const [screen, setScreen] = useState<Screen>("form");
+  const [via, setVia] = useState<"email" | "phone">("email");
+  const [google, setGoogle] = useState<GoogleSignupData | null>(null);
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("91");
+  const [phone, setPhone] = useState("");
+  const [adult, setAdult] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [pwTip, setPwTip] = useState({ hover: false, focus: false });
+  const [tried, setTried] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [formErr, setFormErr] = useState("");
+  const [note, setNote] = useState("");
 
-  // Load Google data from sessionStorage if this is a Google sign-up
+  // Arriving from "Google" on the sign-in page: the Google account is verified, so prefill it.
   useEffect(() => {
-    if (isGoogleSignUp && typeof window !== "undefined") {
-      const googleDataStr = sessionStorage.getItem("googleUserData");
-      if (googleDataStr) {
-        try {
-          const googleData = JSON.parse(googleDataStr);
-          setFormData((prev) => ({
-            ...prev,
-            first_name: googleData.first_name || "",
-            last_name: googleData.last_name || "",
-            email: googleData.email || "",
-          }));
-          setGoogleSignupToken(googleData.google_signup_token || null);
-          setProfilePhotoUrl(googleData.profile_photo_url || null);
-          // Don't clear sessionStorage here - keep it until registration completes
-        } catch (e) {
-          logger.error("Failed to parse Google user data", e as Error);
-        }
-      }
-    }
-  }, [isGoogleSignUp]);
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.first_name) newErrors.first_name = "First name is required";
-    if (!formData.last_name) newErrors.last_name = "Last name is required";
-    if (!formData.date_of_birth || isNaN(formData.date_of_birth.getTime())) {
-      newErrors.date_of_birth = "Date of birth is required";
-    } else {
-      // Check if user is at least 18 years old
-      const today = new Date();
-      const birthDate = formData.date_of_birth;
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (
-        monthDiff < 0 ||
-        (monthDiff === 0 && today.getDate() < birthDate.getDate())
-      ) {
-        age--;
-      }
-      if (age < 18) {
-        newErrors.date_of_birth =
-          "You must be at least 18 years old to register";
-      }
-    }
-
-    if (!formData.gender) {
-      newErrors.gender = "Please select a gender";
-    }
-
-    // Location validation
-    if (!formData.city) {
-      newErrors.city = "City is required";
-    }
-    if (!formData.state) {
-      newErrors.state = "State is required";
-    }
-    if (!formData.country) {
-      newErrors.country = "Country is required";
-    }
-
-    if (!formData.phone_number)
-      newErrors.phone_number = "Phone number is required";
-    if (!/^\d{10}$/.test(formData.phone_number))
-      newErrors.phone_number = "Phone number must be 10 digits";
-
-    if (!formData.email) newErrors.email = "Email is required";
-    if (!/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Email is invalid";
-
-    if (!formData.password) newErrors.password = "Password is required";
-    if (formData.password.length < 8)
-      newErrors.password = "Password must be at least 8 characters";
-    if (!/\d/.test(formData.password))
-      newErrors.password = "Password must contain at least 1 digit";
-    if (!/[a-zA-Z]/.test(formData.password))
-      newErrors.password = "Password must contain at least 1 letter";
-    if (!/[@$!%*#?&]/.test(formData.password))
-      newErrors.password = "Password must contain at least 1 special character";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Handle location selection
-  const handleLocationSelect = (location: {
-    city: string;
-    state: string;
-    state_iso2: string;
-    country: string;
-    country_iso2: string;
-    phone_code: string;
-  }) => {
-    setFormData((prev) => ({
-      ...prev,
-      city: location.city,
-      state: location.state,
-      state_iso2: location.state_iso2,
-      country: location.country,
-      country_iso2: location.country_iso2,
-      phone_code: location.phone_code,
-    }));
-
-    // Auto-update phone code dropdown based on country
-    if (location.phone_code) {
-      const newCode = `+${location.phone_code}`;
-      // Check if this code exists in our list
-      const matchingCode = countryCodes.find((cc) => cc.code === newCode);
-      if (matchingCode) {
-        setCountryCode(newCode);
-      }
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "date_of_birth" ? new Date(value) : value,
-    }));
-  };
-
-  const handleSubmit = async (e: React.SyntheticEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) return;
-
-    setIsLoading(true);
+    if (params.get("google") !== "1") return;
     try {
-      // Format date_of_birth as YYYY-MM-DD string for the API
-      const formattedDob = formData.date_of_birth.toISOString().split("T")[0];
-
-      // A Google sign-up sends the server-signed token from /auth/google;
-      // the server takes the Google account ID from it.
-      const registrationData = googleSignupToken
-        ? { ...formData, date_of_birth: formattedDob, google_signup_token: googleSignupToken }
-        : { ...formData, date_of_birth: formattedDob };
-      const response = (await register(registrationData)) as {
-        skip_otp?: boolean;
-      };
-
-      // If Google registration, auth context handles redirect, nothing more to do here
-      if (response?.skip_otp) {
-        // Clear Google data on successful registration
-        if (typeof window !== "undefined") {
-          sessionStorage.removeItem("googleUserData");
-        }
-        return;
-      }
-
-      // Regular registration - show OTP form
-      setIsOtpSent(true);
-      setSuccessMessage("OTP sent successfully to your email.");
-    } catch (error: unknown) {
-      const detail = getValidationErrorDetail(error);
-      if (detail) {
-        setErrors({ form: detail });
-      } else {
-        setErrors({ form: "Registration failed. Please try again." });
-      }
-    } finally {
-      setIsLoading(false);
+      const data = JSON.parse(sessionStorage.getItem("googleUserData") ?? "null") as GoogleSignupData | null;
+      if (!data) return;
+      setGoogle(data);
+      setFirst((v) => v || data.first_name);
+      setLast((v) => v || data.last_name);
+      setEmail(data.email);
+    } catch {
+      /* no usable hand-off; plain enrolment */
     }
+  }, [params]);
+
+  const viaPhone = PHONE_AUTH_ENABLED && via === "phone" && !google;
+  const layout = useAuthLayout(screen === "form" ? "register" : screen, true);
+  const journey: JourneyProps = {
+    current: screen === "form" ? 0 : screen === "otp" ? 1 : 2,
+    viaPhone,
+    viaGoogle: !!google,
   };
 
-  const handleVerifyOtp = async (e: React.SyntheticEvent) => {
-    e.preventDefault();
+  const payload: RegisterFormData = {
+    first_name: first.trim(),
+    last_name: last.trim(),
+    email: email.trim(),
+    password,
+    confirm_adult: adult,
+    google_signup_token: google?.google_signup_token,
+    profile_photo_url: google?.profile_photo_url ?? undefined,
+  };
+  const phoneBody = {
+    phone_code: code,
+    phone_number: phone,
+    purpose: "register" as const,
+    first_name: first.trim(),
+    last_name: last.trim(),
+    confirm_adult: adult,
+  };
 
-    if (!otp) {
-      setErrors({ otp: "OTP is required" });
+  const badRule = PASSWORD_RULES.find(([, ok]) => !ok(password));
+  const errors: Record<string, string> = {
+    r_first_name: first.trim() ? "" : "First name is required",
+    r_last_name: last.trim() ? "" : "Last name is required",
+    ...(viaPhone
+      ? { r_phone: phoneError(code, phone) }
+      : {
+          r_email: !email ? "Email is required" : /\S+@\S+\.\S+/.test(email) ? "" : "Email is invalid",
+          r_password: !password ? "Password is required" : badRule ? badRule[2] : "",
+        }),
+    r_adult: adult ? "" : "You must be at least 18 years old to register",
+  };
+  const err = (k: string) => (tried ? errors[k] || "" : "");
+
+  const toPractice = (message: string) => {
+    setNote(message);
+    setScreen("practice");
+  };
+
+  const afterSignIn = (user: User, message: string) =>
+    needsSeatOfPractice(user) ? toPractice(message) : router.replace(next);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const firstBad = Object.entries(errors).find(([, v]) => v)?.[0];
+    if (firstBad) {
+      setTried(true);
+      document.getElementById(firstBad)?.focus();
       return;
     }
-
-    setIsLoading(true);
+    setBusy(true);
+    setFormErr("");
     try {
-      // Format date_of_birth as YYYY-MM-DD string for the API
-      const formattedDob = formData.date_of_birth.toISOString().split("T")[0];
-      const formattedData = { ...formData, date_of_birth: formattedDob };
-      await verifyRegistration(formattedData, otp.join(""));
-      // Clear Google data on successful registration
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem("googleUserData");
+      if (viaPhone) {
+        await sendPhoneCode(phoneBody);
+        setScreen("otp");
+      } else {
+        const user = await register(payload);
+        if (user) afterSignIn(user, `Welcome to the bar, ${first.trim()}.`);
+        else setScreen("otp");
       }
-      router.push("/dashboard/cases");
-    } catch {
-      setErrors({ otp: "OTP verification failed. Please try again." });
+    } catch (error) {
+      setFormErr(getErrorDetail(error) ?? "Couldn’t enrol you. Please try again.");
     } finally {
-      setIsLoading(false);
+      setBusy(false);
     }
   };
 
-  const handleRequestAgain = async () => {
-    setIsLoading(true);
+  const continueWithGoogle = async (data: GoogleAuthData) => {
+    setFormErr("");
     try {
-      // Format date_of_birth as YYYY-MM-DD string for the API
-      const formattedDob = formData.date_of_birth.toISOString().split("T")[0];
-      await register({ ...formData, date_of_birth: formattedDob });
-      setErrors({});
-    } catch (err: unknown) {
-      setErrors({ form: getErrorDetail(err) || "Failed to resend OTP." });
-    } finally {
-      setIsLoading(false);
+      const result = await loginWithGoogle(data);
+      if ("newUser" in result) {
+        setGoogle(result.newUser);
+        setFirst(result.newUser.first_name);
+        setLast(result.newUser.last_name);
+        setEmail(result.newUser.email);
+      } else router.replace(next); // already enrolled: signed in
+    } catch (error) {
+      setFormErr(getErrorDetail(error) ?? "Google sign-up failed. Please try again.");
     }
   };
+
+  const intro = (
+    <AuthIntro kicker="Enrolment" title="TAKE YOUR PLACE AT THE BAR." compact={screen !== "form"}>
+      {screen === "form" && (
+        <IntroText>Enrol in under a minute, confirm it’s you, and argue your first case before the bench.</IntroText>
+      )}
+      <JourneyList {...journey} />
+    </AuthIntro>
+  );
+  const bar = layout.wide ? undefined : journey;
+
+  if (screen === "practice") {
+    return (
+      <AuthShell layout={layout}>
+        {layout.wide && intro}
+        <PracticeStep note={note} journey={bar} onDone={() => router.replace(next)} />
+      </AuthShell>
+    );
+  }
+
+  if (screen === "otp") {
+    return (
+      <AuthShell layout={layout} switchLink={{ label: "Sign in", href: "/login" }}>
+        {layout.wide && intro}
+        <OtpStep
+          title={viaPhone ? "Check your phone" : "Check your email"}
+          destination={viaPhone ? formatPhone(code, phone) : payload.email}
+          sentMessage={viaPhone ? "Code sent by SMS." : "OTP sent successfully to your email."}
+          journey={bar}
+          backLabel="Use a different email"
+          onBack={() => setScreen("form")}
+          onResend={async () => {
+            if (viaPhone) await sendPhoneCode(phoneBody);
+            else await register(payload);
+          }}
+          onVerify={async (otp) => {
+            const user = viaPhone ? await verifyPhone(phoneBody, otp, false) : await verifyRegistration(payload, otp);
+            afterSignIn(
+              user,
+              `${viaPhone ? "Number confirmed." : "Email confirmed."} Welcome to the bar, ${first.trim() || "counsel"}.`,
+            );
+          }}
+        />
+      </AuthShell>
+    );
+  }
+
+  const tipOpen = pwTip.hover || pwTip.focus;
+  const initials = `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase() || "?";
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
-
-      <div className="grow flex items-center justify-center p-3 sm:p-4 pt-20">
-        <div
-          className={`w-full max-w-3xl rounded-xl shadow-lg p-4 sm:p-6 border transition-colors duration-500 ${
-            formData.gender === "male"
-              ? "bg-slate-50 border-slate-200 dark:bg-slate-900 dark:border-slate-700"
-              : formData.gender === "female"
-                ? "bg-rose-50 border-rose-100 dark:bg-rose-950 dark:border-rose-900"
-                : formData.gender === "others"
-                  ? "bg-violet-50 border-violet-100 dark:bg-violet-950 dark:border-violet-900"
-                  : formData.gender === "prefer-not-to-say"
-                    ? "bg-stone-50 border-stone-200 dark:bg-stone-900 dark:border-stone-700"
-                    : "bg-white border-zinc-200 dark:bg-zinc-900 dark:border-gray-800"
-          }`}
-        >
-          <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-zinc-800 dark:text-white">
-              {isOtpSent
-                ? "Verify OTP"
-                : isGoogleSignUp
-                  ? "Complete Registration"
-                  : "Create Account"}
-            </h1>
-            <p className="text-zinc-600 mt-2 dark:text-gray-300">
-              {isOtpSent
-                ? "Enter the code sent to your email"
-                : isGoogleSignUp
-                  ? "Please set a password and complete your registration"
-                  : "Join the AI Courtroom simulation"}
-            </p>
-          </div>
-
-          {errors.form && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6 flex items-center">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              <span>{errors.form}</span>
+    <AuthShell layout={layout} switchLink={{ label: "Sign in", href: "/login" }}>
+      {layout.wide && intro}
+      <Slip form={["Form E-2", "Enrolment of advocate"]} onSubmit={submit}>
+        {bar && <JourneyBar {...bar} />}
+        <SlipHeading
+          title={google ? "Complete your enrolment" : "Enrol at the bar"}
+          sub={
+            layout.showSub
+              ? google
+                ? "Check your name and choose a password."
+                : viaPhone
+                  ? "Takes under a minute. We’ll text you a code to confirm your number."
+                  : "Takes under a minute. We’ll email you a code to confirm it’s you."
+              : undefined
+          }
+        />
+        {google && (
+          <div className="flex items-center gap-3.5 bg-paper-alt px-3.5 py-2.5">
+            <span
+              aria-hidden="true"
+              className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-ink font-display text-[17px] text-paper"
+            >
+              {initials}
+            </span>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-sm font-bold">Signed in with Google</span>
+              <span className="break-all font-data text-meta text-ink-muted">{google.email}</span>
             </div>
-          )}
+          </div>
+        )}
+        {formErr && <Objection>{formErr}</Objection>}
 
-          {!isOtpSent ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Profile Photo Preview for Google Sign-up */}
-              {isGoogleSignUp && (
-                <div className="flex justify-center mb-4">
-                  <div className="text-center">
-                    <div className="relative w-20 h-20 mx-auto rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shadow-md text-zinc-600 dark:text-zinc-300 text-xl font-bold">
-                      {profilePhotoUrl ? (
-                        <Image
-                          src={profilePhotoUrl}
-                          alt="Profile"
-                          fill
-                          sizes="80px"
-                          unoptimized
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span>
-                          {(formData.first_name?.[0] || "").toUpperCase()}
-                          {(formData.last_name?.[0] || "").toUpperCase() || "?"}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
-                      {profilePhotoUrl
-                        ? "Google profile photo"
-                        : "No photo available"}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* First Name and Last Name - side by side */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FloatingLabelInput
-                  type="text"
-                  id="first_name"
-                  name="first_name"
-                  label="First Name"
-                  icon={User}
-                  value={formData.first_name}
-                  onChange={handleChange}
-                  error={errors.first_name}
-                  labelBg={
-                    formData.gender === "male"
-                      ? "bg-slate-50 dark:bg-slate-900"
-                      : formData.gender === "female"
-                        ? "bg-rose-50 dark:bg-rose-950"
-                        : formData.gender === "others"
-                          ? "bg-violet-50 dark:bg-violet-950"
-                          : formData.gender === "prefer-not-to-say"
-                            ? "bg-stone-50 dark:bg-stone-900"
-                            : "bg-white dark:bg-zinc-900"
-                  }
-                  autoComplete="given-name"
-                />
-
-                <FloatingLabelInput
-                  type="text"
-                  id="last_name"
-                  name="last_name"
-                  label="Last Name"
-                  icon={User}
-                  value={formData.last_name}
-                  onChange={handleChange}
-                  error={errors.last_name}
-                  labelBg={
-                    formData.gender === "male"
-                      ? "bg-slate-50 dark:bg-slate-900"
-                      : formData.gender === "female"
-                        ? "bg-rose-50 dark:bg-rose-950"
-                        : formData.gender === "others"
-                          ? "bg-violet-50 dark:bg-violet-950"
-                          : formData.gender === "prefer-not-to-say"
-                            ? "bg-stone-50 dark:bg-stone-900"
-                            : "bg-white dark:bg-zinc-900"
-                  }
-                  autoComplete="family-name"
-                />
-              </div>
-
-              {/* Gender on left, DOB and Phone stacked on right */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Gender
-                  value={formData.gender}
-                  onChange={(gender) =>
-                    setFormData((prev) => ({ ...prev, gender }))
-                  }
-                  error={errors.gender}
-                />
-
-                <div className="flex flex-col gap-4">
-                  <div title="Date of birth cannot be changed after registration">
-                    <DatePicker
-                      id="dob"
-                      value={formData.date_of_birth}
-                      onChange={(date) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          date_of_birth: date,
-                        }))
-                      }
-                      label="Date of Birth"
-                      error={errors.date_of_birth}
-                      labelBg={
-                        formData.gender === "male"
-                          ? "bg-slate-50 dark:bg-slate-900"
-                          : formData.gender === "female"
-                            ? "bg-rose-50 dark:bg-rose-950"
-                            : formData.gender === "others"
-                              ? "bg-violet-50 dark:bg-violet-950"
-                              : formData.gender === "prefer-not-to-say"
-                                ? "bg-stone-50 dark:bg-stone-900"
-                                : "bg-white dark:bg-zinc-900"
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex">
-                      {/* Country Code Dropdown */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="shrink-0 px-3 py-3 border-2 border-r-0 border-zinc-300 rounded-l-lg bg-white dark:bg-zinc-800 dark:border-zinc-600 dark:text-white focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 flex items-center gap-1 transition-colors">
-                          <span>
-                            {
-                              countryCodes.find((cc) => cc.code === countryCode)
-                                ?.flag
-                            }{" "}
-                            {countryCode}
-                          </span>
-                          <ChevronDown className="h-4 w-4 opacity-50" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="start"
-                          className="w-56 max-h-64 overflow-y-auto"
-                        >
-                          {countryCodes.map((cc) => (
-                            <DropdownMenuItem
-                              key={cc.code}
-                              onClick={() => setCountryCode(cc.code)}
-                              className="flex items-center gap-2 cursor-pointer"
-                            >
-                              <span className="text-lg">{cc.flag}</span>
-                              <span className="flex-1">{cc.country}</span>
-                              <span className="text-zinc-500 dark:text-zinc-400">
-                                {cc.code}
-                              </span>
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      {/* Phone Number Input */}
-                      <div className="relative grow">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 z-10" />
-                        <input
-                          type="tel"
-                          id="phone_number"
-                          name="phone_number"
-                          value={formData.phone_number}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, "");
-                            setFormData((prev) => ({
-                              ...prev,
-                              phone_number: value,
-                            }));
-                          }}
-                          maxLength={10}
-                          className="block w-full pl-10 px-3 py-3 border-2 border-zinc-300 rounded-r-lg focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:border-zinc-600 dark:bg-transparent dark:text-white transition-colors"
-                          placeholder="Enter 10 digit number"
-                          autoComplete="tel"
-                        />
-                      </div>
-                    </div>
-                    {errors.phone_number && (
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                        {errors.phone_number}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Location Selector */}
-              <LocationSelector
-                onLocationSelect={handleLocationSelect}
-                initialValue={{
-                  city: formData.city,
-                  state: formData.state,
-                  country: formData.country,
-                }}
-                errors={{
-                  city: errors.city,
-                  state: errors.state,
-                  country: errors.country,
-                }}
-                labelBg={
-                  formData.gender === "male"
-                    ? "bg-slate-50 dark:bg-slate-900"
-                    : formData.gender === "female"
-                      ? "bg-rose-50 dark:bg-rose-950"
-                      : formData.gender === "others"
-                        ? "bg-violet-50 dark:bg-violet-950"
-                        : formData.gender === "prefer-not-to-say"
-                          ? "bg-stone-50 dark:bg-stone-900"
-                          : "bg-white dark:bg-zinc-900"
-                }
-              />
-
-              {/* Email and Password - side by side */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FloatingLabelInput
-                  type="email"
-                  id="email"
-                  name="email"
-                  label="Email Address"
-                  icon={Mail}
-                  value={formData.email}
-                  onChange={handleChange}
-                  disabled={isGoogleSignUp}
-                  error={errors.email}
-                  labelBg={
-                    formData.gender === "male"
-                      ? "bg-slate-50 dark:bg-slate-900"
-                      : formData.gender === "female"
-                        ? "bg-rose-50 dark:bg-rose-950"
-                        : formData.gender === "others"
-                          ? "bg-violet-50 dark:bg-violet-950"
-                          : formData.gender === "prefer-not-to-say"
-                            ? "bg-stone-50 dark:bg-stone-900"
-                            : "bg-white dark:bg-zinc-900"
-                  }
-                  autoComplete="email"
-                />
-
-                <FloatingLabelInput
-                  type="password"
-                  id="password"
-                  name="password"
-                  label="Password"
-                  icon={Lock}
-                  value={formData.password}
-                  onChange={handleChange}
-                  error={errors.password}
-                  labelBg={
-                    formData.gender === "male"
-                      ? "bg-slate-50 dark:bg-slate-900"
-                      : formData.gender === "female"
-                        ? "bg-rose-50 dark:bg-rose-950"
-                        : formData.gender === "others"
-                          ? "bg-violet-50 dark:bg-violet-950"
-                          : formData.gender === "prefer-not-to-say"
-                            ? "bg-stone-50 dark:bg-stone-900"
-                            : "bg-white dark:bg-zinc-900"
-                  }
-                  autoComplete="new-password"
-                />
-              </div>
-
-              <div className="text-xs text-center text-zinc-500 dark:text-zinc-400 mt-4 mb-4">
-                By creating an account, you agree to our{" "}
-                <Link
-                  href="/terms"
-                  className="text-blue-600 hover:text-blue-500 underline"
-                >
-                  Terms of Service
-                </Link>
-                .
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
-              >
-                {isLoading ? "Registering..." : "Create Account"}
-              </button>
-
-              <div className="text-center">
-                <p className="text-sm text-zinc-600 dark:text-gray-300">
-                  Already have an account?{" "}
-                  <Link
-                    href="/login"
-                    className="font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-gray-300"
-                  >
-                    Sign in
-                  </Link>
-                </p>
-              </div>
-
-              {/* Only show Google sign-up option if not already signing up via Google */}
-              {!isGoogleSignUp && (
-                <>
-                  {/* Divider */}
-                  <div className="relative my-4">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-zinc-300 dark:border-zinc-700"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span
-                        className={`px-2 text-zinc-500 dark:text-zinc-400 ${
-                          formData.gender === "male"
-                            ? "bg-slate-50 dark:bg-slate-900"
-                            : formData.gender === "female"
-                              ? "bg-rose-50 dark:bg-rose-950"
-                              : formData.gender === "others"
-                                ? "bg-violet-50 dark:bg-violet-950"
-                                : formData.gender === "prefer-not-to-say"
-                                  ? "bg-stone-50 dark:bg-stone-900"
-                                  : "bg-white dark:bg-zinc-900"
-                        }`}
-                      >
-                        Or continue with
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Google Sign-Up Button */}
-                  <GoogleSignInButton
-                    onSuccess={async (authData) => {
-                      try {
-                        setIsLoading(true);
-                        await loginWithGoogle(authData, false);
-                      } catch (error: unknown) {
-                        setErrors({
-                          form:
-                            getErrorDetail(error) ||
-                            "Google sign-up failed. Please try again.",
-                        });
-                      } finally {
-                        setIsLoading(false);
-                      }
-                    }}
-                    onError={(error) => {
-                      setErrors({
-                        form:
-                          error?.message ||
-                          "Google sign-up failed. Please try again.",
-                      });
-                    }}
-                    text="signup"
-                    isLoading={isLoading}
-                  />
-                </>
-              )}
-            </form>
-          ) : (
-            <OtpForm
-              otp={otp}
-              setOtp={setOtp}
-              handleSubmit={handleVerifyOtp}
-              isLoading={isLoading}
-              error={errors.otp}
-              title="Verify OTP"
-              description="Enter the code sent to your email"
-              onRequestAgain={handleRequestAgain}
-              successMessage={successMessage}
+        <div className="grid grid-cols-2 gap-3">
+          <Field id="r_first_name" label="First name" error={err("r_first_name")}>
+            <input
+              id="r_first_name"
+              autoComplete="given-name"
+              value={first}
+              onChange={(e) => setFirst(e.target.value)}
+              aria-invalid={!!err("r_first_name") || undefined}
+              className={slipInput}
             />
-          )}
+          </Field>
+          <Field id="r_last_name" label="Last name" error={err("r_last_name")}>
+            <input
+              id="r_last_name"
+              autoComplete="family-name"
+              value={last}
+              onChange={(e) => setLast(e.target.value)}
+              aria-invalid={!!err("r_last_name") || undefined}
+              className={slipInput}
+            />
+          </Field>
         </div>
-      </div>
-    </div>
+
+        {!google &&
+          (viaPhone ? (
+            <PhoneField id="r_phone" code={code} phone={phone} onCode={setCode} onPhone={setPhone} error={err("r_phone")} />
+          ) : (
+            <Field id="r_email" label="Email address" error={err("r_email")}>
+              <input
+                id="r_email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                aria-invalid={!!err("r_email") || undefined}
+                className={slipInput}
+              />
+            </Field>
+          ))}
+
+        {!viaPhone && (
+          <Field id="r_password" label="Choose a password" error={err("r_password")}>
+            <div
+              className="relative"
+              onMouseEnter={() => setPwTip((t) => ({ ...t, hover: true }))}
+              onMouseLeave={() => setPwTip((t) => ({ ...t, hover: false }))}
+            >
+              <input
+                id="r_password"
+                type={showPw ? "text" : "password"}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setPwTip((t) => ({ ...t, focus: true }))}
+                onBlur={() => setPwTip((t) => ({ ...t, focus: false }))}
+                aria-invalid={!!err("r_password") || undefined}
+                aria-describedby="pw-rules"
+                className={`${slipInput} pr-[78px]`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((s) => !s)}
+                aria-label={showPw ? "Hide password" : "Show password"}
+                className="absolute bottom-0.5 right-0 top-0 min-w-[70px] cursor-pointer bg-transparent text-label font-bold uppercase tracking-[0.14em] text-ink-muted hover:text-seal"
+              >
+                {showPw ? "Hide" : "Show"}
+              </button>
+              <div
+                id="pw-rules"
+                role="tooltip"
+                className={cn(
+                  "absolute inset-x-0 bottom-[calc(100%+10px)] z-[5] flex flex-col gap-1.5 bg-ink px-3.5 py-3 text-paper shadow-[0_18px_40px_rgba(0,0,0,.35)] transition-[opacity,transform,visibility] duration-150",
+                  tipOpen ? "visible translate-y-0 opacity-100" : "invisible translate-y-1 opacity-0",
+                )}
+              >
+                <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-amber-hi">Your password needs</span>
+                <ul className="m-0 grid list-none grid-cols-2 gap-x-3.5 gap-y-1 p-0">
+                  {PASSWORD_RULES.map(([label, ok]) => {
+                    const met = ok(password);
+                    return (
+                      <li key={label} className={cn("flex items-baseline gap-2 text-meta leading-[1.35]", met ? "text-[#9fd0a4]" : "text-[#d8ccb4]")}>
+                        <span aria-hidden="true" className="w-3 flex-none font-data text-meta font-bold">
+                          {met ? "✓" : "○"}
+                        </span>
+                        <span>{label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <span
+                  aria-hidden="true"
+                  className="absolute left-6 top-full h-0 w-0 border-x-8 border-t-8 border-x-transparent border-t-ink"
+                />
+              </div>
+            </div>
+          </Field>
+        )}
+
+        <div className="flex flex-col gap-1">
+          <Check id="r_adult" checked={adult} onToggle={() => setAdult((a) => !a)} invalid={!!err("r_adult")}>
+            I’m 18 or older and agree to the{" "}
+            <Link
+              href="/terms"
+              onClick={(e) => e.stopPropagation()}
+              className="border-b border-seal text-seal hover:text-ink"
+            >
+              Terms of Service
+            </Link>
+          </Check>
+          {err("r_adult") && <span className="text-meta text-error">{err("r_adult")}</span>}
+        </div>
+
+        <button type="submit" disabled={busy} className={primaryButton}>
+          {busy ? "Filing…" : "Enrol →"}
+        </button>
+
+        {!google && (
+          <>
+            <OrDivider>or sign up with</OrDivider>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2">
+              <GoogleButton onSuccess={continueWithGoogle} onError={setFormErr} disabled={busy} />
+              {PHONE_AUTH_ENABLED && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVia(viaPhone ? "email" : "phone");
+                    setTried(false);
+                    setFormErr("");
+                  }}
+                  className={outlineButton}
+                >
+                  {viaPhone ? "Email" : "Phone"}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {!layout.comp && (
+          <SlipFoot>
+            <span>Already enrolled?</span>
+            <Link href="/login" className={textLink}>
+              Sign in
+            </Link>
+          </SlipFoot>
+        )}
+      </Slip>
+    </AuthShell>
   );
 }

@@ -1,4 +1,6 @@
 # app/config.py
+from typing import Literal
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -131,6 +133,13 @@ class Settings(BaseSettings):
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 587
 
+    # Phone sign-in and sign-up by SMS code. Off unless enabled (dev only for now);
+    # while off, the /auth/phone routes answer 404.
+    phone_auth_enabled: bool = False
+    # Only "log" exists: codes are written to the server log instead of texted.
+    sms_provider: Literal["log"] = "log"
+    password_reset_expire_minutes: int = 30
+
     # Rate limiting settings
     case_generation_rate_limit: int = 5  # Number of case generations allowed per window
     case_generation_rate_window: int = 86400  # Window in seconds (86400 = 24 hours)
@@ -257,6 +266,23 @@ class Settings(BaseSettings):
             for email in self.dev_mode_emails.split(",")
             if email.strip()
         }
+
+    def app_url_for(self, origin: str | None) -> str:
+        """Base URL for links in emails (password reset).
+
+        The requesting page's origin is used only when it exactly equals one of the
+        configured origins (CORS_ALLOWED_ORIGINS / FRONTEND_URL), so local testing
+        links to localhost. The LAN regex is deliberately not trusted: anyone on the
+        network could otherwise have a victim's reset link sent to their machine.
+        Anything else (and native capacitor:// origins) gets FRONTEND_URL.
+        """
+        origin = (origin or "").strip()
+        if (
+            origin.startswith(("http://", "https://"))
+            and origin in self.parsed_cors_allowed_origins
+        ):
+            return origin
+        return (self.frontend_url or "http://localhost:3000").strip().rstrip("/")
 
     @property
     def parsed_cors_allowed_origins(self) -> list[str]:

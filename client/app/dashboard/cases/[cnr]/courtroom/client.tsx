@@ -40,7 +40,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import GavelLoader from "@/components/gavel-loader";
+import CourtModelLoader from "@/components/court/court-model-loader";
 import {
   useRenderLogger,
   useLifecycleLogger,
@@ -900,7 +900,7 @@ export default function Courtroom({
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <GavelLoader message="Loading courtroom..." />
+        <CourtModelLoader status="Loading the courtroom…" />
       </div>
     );
   }

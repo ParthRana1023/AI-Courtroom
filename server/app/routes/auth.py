@@ -1,6 +1,6 @@
 # app/routes/auth.py
 import time
-from datetime import date, timedelta
+from datetime import date
 
 from argon2.exceptions import VerifyMismatchError
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -12,7 +12,14 @@ from app.logging_config import get_logger
 from app.models.case import Case
 from app.models.otp import LoginVerifyRequest, RegistrationVerifyRequest
 from app.models.user import TokenResponse, User
-from app.schemas.auth import GoogleLoginRequest, ProfileUpdateRequest
+from app.schemas.auth import (
+    ForgotPasswordRequest,
+    GoogleLoginRequest,
+    PhoneOtpRequest,
+    PhoneVerifyRequest,
+    ProfileUpdateRequest,
+    ResetPasswordRequest,
+)
 from app.schemas.stats import UserStatsOut
 from app.schemas.user import (
     CaseLocationPreferenceUpdate,
@@ -23,12 +30,17 @@ from app.schemas.user import (
 )
 from app.services import cloudinary_service
 from app.services.auth import (
-    create_access_token,
+    Device,
+    create_password_reset_token,
     create_user,
     find_user_by_email,
+    issue_token,
     ph,
+    revoke_sessions,
+    user_from_reset_token,
 )
 from app.services.cloudinary_service import extract_public_id_from_url
+from app.services.email import send_password_reset_email
 from app.services.google_auth import (
     authenticate_google_user,
     exchange_code_for_token,
@@ -42,6 +54,7 @@ from app.services.user_stats import compute_user_stats
 from app.utils.rate_limiter import (
     login_failure_email_limiter,
     login_failure_ip_limiter,
+    otp_send_rate_limiter,
 )
 
 logger = get_logger(__name__)
@@ -50,7 +63,7 @@ router = APIRouter()
 
 
 @router.post("/register/initiate")
-async def initiate_registration(user_data: UserCreate):
+async def initiate_registration(user_data: UserCreate, request: Request):
     logger.info(f"Registration initiated for email: {user_data.email}")
 
     # Add duplicate check
@@ -81,15 +94,7 @@ async def initiate_registration(user_data: UserCreate):
         try:
             user = await create_user(user_data)
             logger.info(f"User created successfully via Google: {user_data.email}")
-
-            # Create access token for the newly registered user
-            access_token_expires = timedelta(
-                minutes=settings.access_token_expire_minutes
-            )
-
-            access_token = create_access_token(
-                data={"sub": user.email}, expires_delta=access_token_expires
-            )
+            access_token = await issue_token(user, device=device_of(request))
 
             return {
                 "access_token": access_token,
@@ -124,7 +129,7 @@ async def initiate_registration(user_data: UserCreate):
     status_code=status.HTTP_201_CREATED,
     response_model=TokenResponse,
 )
-async def verify_registration(data: RegistrationVerifyRequest):
+async def verify_registration(data: RegistrationVerifyRequest, request: Request):
     logger.info(f"Registration verification attempted for: {data.user_data.email}")
 
     # Verify OTP
@@ -139,16 +144,7 @@ async def verify_registration(data: RegistrationVerifyRequest):
     try:
         user = await create_user(data.user_data)
         logger.info(f"User created successfully: {data.user_data.email}")
-
-        # Create access token for the newly registered user
-        access_token_expires = timedelta(
-            days=settings.extended_token_expire_days if data.remember_me else 0,
-            minutes=settings.access_token_expire_minutes,
-        )
-
-        access_token = create_access_token(
-            data={"sub": user.email}, expires_delta=access_token_expires
-        )
+        access_token = await issue_token(user, data.remember_me, device_of(request))
 
         return {"access_token": access_token, "token_type": "bearer"}
     except HTTPException as e:
@@ -179,6 +175,11 @@ def client_ip(request: Request) -> str:
     if hops:
         return hops[-1]
     return request.client.host if request.client else "unknown"
+
+
+def device_of(request: Request) -> Device:
+    """The device a sign-in request came from, for the signed-in devices list."""
+    return Device(ip=client_ip(request), user_agent=request.headers.get("user-agent"))
 
 
 @router.post("/login/initiate")
@@ -280,15 +281,7 @@ async def verify_login(request: Request):
         # Hearings still running belong to a session that ended (e.g. expired).
         await Case.adjourn_abandoned_cases(user.id)
 
-        # Create access token
-        access_token_expires = timedelta(
-            days=settings.extended_token_expire_days if data.remember_me else 0,
-            minutes=settings.access_token_expire_minutes,
-        )
-
-        access_token = create_access_token(
-            data={"sub": user.email}, expires_delta=access_token_expires
-        )
+        access_token = await issue_token(user, data.remember_me, device_of(request))
 
         logger.info(f"Login successful for: {data.email}")
         return {"access_token": access_token, "token_type": "bearer"}
@@ -355,7 +348,7 @@ async def update_profile(
 
 
 @router.post("/google")
-async def google_login(data: GoogleLoginRequest):
+async def google_login(data: GoogleLoginRequest, request: Request):
     """
     Authenticate user with Google OAuth.
     Supports:
@@ -380,12 +373,14 @@ async def google_login(data: GoogleLoginRequest):
             result = await authenticate_google_user(
                 credential=tokens.get("id_token"),
                 remember_me=data.remember_me,
+                device=device_of(request),
             )
             return result
 
         result = await authenticate_google_user(
             credential=data.credential,
             remember_me=data.remember_me,
+            device=device_of(request),
         )
         logger.info("Google authentication successful")
         return result
@@ -639,3 +634,101 @@ async def risc_webhook(request: Request):
     except Exception:
         logger.exception("RISC webhook error")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ---------------------------------------------------------------------------
+# Phone sign-in and sign-up (SMS code). Hidden unless PHONE_AUTH_ENABLED.
+# ---------------------------------------------------------------------------
+
+
+def require_phone_auth() -> None:
+    if not settings.phone_auth_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+
+
+async def find_phone_user(phone_code: str, phone_number: str) -> User | None:
+    """The account created with this number (email accounts may list a phone too)."""
+    return await User.find_one(
+        User.auth_method == "phone",
+        User.phone_code == phone_code,
+        User.phone_number == phone_number,
+    )
+
+
+@router.post("/phone/send-otp", dependencies=[Depends(require_phone_auth)])
+async def send_phone_otp(data: PhoneOtpRequest):
+    existing = await find_phone_user(data.phone_code, data.phone_number)
+    if data.purpose == "login" and existing is None:
+        raise HTTPException(status_code=400, detail=messages.PHONE_NOT_REGISTERED)
+    if data.purpose == "register" and existing is not None:
+        raise HTTPException(status_code=400, detail=messages.PHONE_TAKEN)
+
+    await create_otp(
+        data.e164, is_registration=data.purpose == "register", channel="sms"
+    )
+    logger.info(f"SMS code sent for {data.purpose}: {data.e164}")
+    return {"message": "Code sent by SMS."}
+
+
+@router.post("/phone/verify", dependencies=[Depends(require_phone_auth)])
+async def verify_phone_otp(data: PhoneVerifyRequest, request: Request):
+    registering = data.purpose == "register"
+    if not await verify_otp(data.e164, data.otp, is_registration=registering):
+        raise HTTPException(status_code=400, detail=messages.OTP_INVALID)
+
+    user = await find_phone_user(data.phone_code, data.phone_number)
+    if registering:
+        if user is not None:  # enrolled from another tab meanwhile
+            raise HTTPException(status_code=400, detail=messages.PHONE_TAKEN)
+        user = await User(
+            first_name=(data.first_name or "").strip(),
+            last_name=(data.last_name or "").strip(),
+            phone_code=data.phone_code,
+            phone_number=data.phone_number,
+            auth_method="phone",
+        ).insert()
+        logger.info(f"User created via phone: {user.id}")
+    elif user is None:
+        raise HTTPException(status_code=400, detail=messages.PHONE_NOT_REGISTERED)
+    else:
+        await Case.adjourn_abandoned_cases(user.id)
+
+    token = await issue_token(user, data.remember_me, device_of(request))
+    return {"access_token": token, "token_type": "bearer"}
+
+
+# ---------------------------------------------------------------------------
+# Forgot password: an emailed link (signed, 30 minutes, single use)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/password/forgot")
+async def forgot_password(data: ForgotPasswordRequest, request: Request):
+    """Email a reset link. The reply never says whether the account exists."""
+    key = f"reset:{data.email}"
+    await otp_send_rate_limiter.ensure_available(key, messages.OTP_SEND_LIMIT)
+    await otp_send_rate_limiter.register_usage(key)
+
+    user = await find_user_by_email(data.email)
+    if user is not None and user.email:
+        base = settings.app_url_for(request.headers.get("origin"))
+        link = f"{base}/forgot-password?token={create_password_reset_token(user)}"
+        await send_password_reset_email(user.email, link)
+        logger.info(f"Password reset link sent to user {user.id}")
+    else:
+        logger.info(f"Password reset asked for an unknown email: {data.email}")
+    return {"message": messages.RESET_LINK_SENT}
+
+
+@router.post("/password/reset")
+async def reset_password(data: ResetPasswordRequest):
+    """Set a new password from a reset link and sign out every device."""
+    user = await user_from_reset_token(data.token)
+    if user is None or user.id is None:
+        raise HTTPException(status_code=400, detail=messages.RESET_LINK_INVALID)
+
+    user.password_hash = ph.hash(data.password)
+    await user.save()
+    revoked = await revoke_sessions(user.id)
+    logger.info(f"Password reset for user {user.id}; {revoked} session(s) revoked")
+    return {"message": messages.PASSWORD_CHANGED}

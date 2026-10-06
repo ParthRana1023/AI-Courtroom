@@ -6,7 +6,7 @@ import { use } from "react";
 import { caseAPI } from "@/lib/api";
 import { type Case, CaseStatus, Roles } from "@/types";
 import MarkdownRenderer from "@/components/markdown-renderer";
-import ScalesLoader from "@/components/scales-loader";
+import CourtModelLoader from "@/components/court/court-model-loader";
 import {
   useRenderLogger,
   useLifecycleLogger,
@@ -83,7 +83,7 @@ export default function CaseDetails({
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <ScalesLoader message="Loading case details..." />
+        <CourtModelLoader status="Fetching the case file…" />
       </div>
     );
   }

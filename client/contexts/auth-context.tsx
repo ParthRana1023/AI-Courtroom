@@ -2,67 +2,52 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
-  useState,
   useEffect,
+  useState,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { authAPI } from "@/lib/api";
+import { authAPI, setAuthToken, type PhonePayload } from "@/lib/api";
 import { getLogger, Logger } from "@/lib/logger";
 
 import type { RegisterFormData, User } from "@/types";
 
-// Initialize logger for auth context
 const logger = getLogger("auth");
 
-// Update the AuthContextType interface to include the redirectPath parameter
+/** What /auth/google returns for a Google account that has no AI Courtroom account yet. */
+export interface GoogleSignupData {
+  first_name: string;
+  last_name: string;
+  email: string;
+  profile_photo_url?: string | null;
+  google_signup_token: string;
+}
+
+export type GoogleResult = { newUser: GoogleSignupData } | { user: User };
+
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (
-    email: string,
-    password: string,
-    rememberMe: boolean,
-  ) => Promise<unknown>;
-  verifyLogin: (
-    email: string,
-    otp: string,
-    rememberMe: boolean,
-    redirectPath?: string,
-  ) => Promise<unknown>;
-  register: (userData: RegistrationPayload) => Promise<unknown>;
-  verifyRegistration: (
-    userData: RegistrationPayload,
-    otp: string,
-  ) => Promise<void>;
-  logout: () => void;
-  redirectToDashboard: () => void;
+  /** Checks email + password and emails a sign-in code. */
+  login: (email: string, password: string, rememberMe: boolean) => Promise<void>;
+  verifyLogin: (email: string, otp: string, rememberMe: boolean) => Promise<User>;
+  /** Emails a sign-up code; Google sign-ups are signed in straight away (returns the user). */
+  register: (data: RegisterFormData) => Promise<User | null>;
+  verifyRegistration: (data: RegisterFormData, otp: string) => Promise<User>;
   loginWithGoogle: (
-    authData: {
-      credential?: string;
-      code?: string;
-      state?: string;
-    },
+    authData: { credential?: string; code?: string; state?: string },
     rememberMe?: boolean,
-  ) => Promise<unknown>;
-  refreshUser: () => Promise<void>; // Refresh user data from server
+  ) => Promise<GoogleResult>;
+  sendPhoneCode: (data: PhonePayload) => Promise<void>;
+  verifyPhone: (data: PhonePayload, otp: string, rememberMe: boolean) => Promise<User>;
+  logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-type RegistrationPayload = Omit<RegisterFormData, "date_of_birth"> & {
-  date_of_birth: string;
-  google_signup_token?: string;
-};
-
-type LoginResponse = {
-  skip_otp?: boolean;
-  access_token?: string;
-  is_new_user?: boolean;
-  google_user_data?: unknown;
-};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -70,159 +55,79 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
-  // Effect to check authentication status on mount
+  // Restore the session on load.
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Check if authenticated using the helper method
         if (authAPI.isAuthenticated()) {
           const userData = await authAPI.getProfile();
           setUser(userData);
           setIsAuthenticated(true);
-          // Set user ID for logging
           Logger.setUserId(userData.id);
           logger.info("User session restored", { userId: userData.id });
         }
       } catch {
-        // If error, clear auth state
         logger.debug("Auth check failed, clearing state");
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("token");
-          document.cookie =
-            "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-        }
+        localStorage.removeItem("token");
+        document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       } finally {
         setIsLoading(false);
       }
     };
-
     checkAuth();
   }, []);
 
-  // Function to redirect to dashboard using multiple approaches for reliability
-  const redirectToDashboard = () => {
-    if (typeof window !== "undefined") {
-      // Try multiple approaches for maximum reliability
-      try {
-        // Approach 1: Next.js router
-        router.push("/dashboard/cases");
+  /** The token is stored; load the profile and mark the user signed in. */
+  const adopt = useCallback(async (): Promise<User> => {
+    const userData: User = await authAPI.getProfile();
+    setUser(userData);
+    setIsAuthenticated(true);
+    Logger.setUserId(userData.id);
+    logger.info("Signed in", { userId: userData.id });
+    return userData;
+  }, []);
 
-        // Approach 2: Direct location change (more forceful)
-        setTimeout(() => {
-          window.location.href = "/dashboard/cases";
-        }, 100);
-      } catch {
-        // Fallback approach
-        window.location.replace("/dashboard/cases");
-      }
-    }
+  const login = async (email: string, password: string, rememberMe: boolean) => {
+    await authAPI.login({ email, password, remember_me: rememberMe });
   };
 
-  const login = async (
-    email: string,
-    password: string,
-    rememberMe: boolean,
-  ) => {
-    logger.info("Login initiated");
-    try {
-      const response = await authAPI.login({
-        email,
-        password,
-        remember_me: rememberMe,
-      });
-      logger.debug("Login credentials accepted, OTP sent");
-      return response;
-    } catch (error) {
-      logger.error("Login failed", error as Error);
-      throw error;
-    }
+  const verifyLogin = async (email: string, otp: string, rememberMe: boolean) => {
+    await authAPI.verifyLogin({ email, otp, remember_me: rememberMe });
+    return adopt();
   };
 
-  const verifyLogin = async (
-    email: string,
-    otp: string,
-    rememberMe: boolean,
-    redirectPath: string = "/dashboard/cases",
-  ) => {
-    try {
-      const dataToSend = {
-        email,
-        otp,
-        remember_me: rememberMe,
-      };
-      logger.debug("Verifying login OTP");
-      const response = await authAPI.verifyLogin(dataToSend);
-      const userData = await authAPI.getProfile();
-
-      // Set authentication state
-      setUser(userData);
-      setIsAuthenticated(true);
-
-      // Set user ID for logging
-      Logger.setUserId(userData.id);
-      logger.info("Login successful", { userId: userData.id });
-
-      router.push(redirectPath);
-      return response;
-    } catch (error) {
-      logger.error("Login verification failed", error as Error);
-      throw error;
+  const register = async (data: RegisterFormData) => {
+    const response = await authAPI.register(data);
+    if (response.skip_otp && response.access_token) {
+      setAuthToken(response.access_token);
+      return adopt();
     }
+    return null;
   };
 
-  const register = async (userData: RegistrationPayload) => {
-    setIsLoading(true);
-    try {
-      const response = (await authAPI.register(userData)) as LoginResponse;
-
-      // If Google registration (skip_otp), set auth state immediately
-      if (response.skip_otp && response.access_token) {
-        // Store token in both localStorage and cookie
-        if (typeof window !== "undefined") {
-          localStorage.setItem("token", response.access_token);
-          // Also set cookie for consistency
-          document.cookie = `token=${response.access_token}; path=/; max-age=${
-            60 * 60 * 24
-          }; samesite=Strict`;
-        }
-        setIsAuthenticated(true);
-        setIsLoading(false);
-        // Use hard redirect to avoid race conditions
-        if (typeof window !== "undefined") {
-          window.location.href = "/dashboard/cases";
-        }
-        return response;
-      }
-
-      setIsLoading(false);
-      return response;
-    } catch (error) {
-      setIsLoading(false);
-      throw error;
-    }
+  const verifyRegistration = async (data: RegisterFormData, otp: string) => {
+    await authAPI.verifyRegistration({ user_data: data, otp, remember_me: false });
+    return adopt();
   };
 
-  const verifyRegistration = async (
-    registrationData: RegistrationPayload,
-    otp: string,
-  ) => {
-    setIsLoading(true);
-    try {
-      const { access_token } = await authAPI.verifyRegistration({
-        user_data: registrationData,
-        otp,
-        remember_me: false,
-      });
-      localStorage.setItem("token", access_token);
-      const profileData = await authAPI.getProfile();
-      setUser(profileData);
-      setIsAuthenticated(true);
-      setIsLoading(false);
-      router.push("/dashboard/cases");
-    } catch (error) {
-      setIsLoading(false);
-      throw error;
+  const loginWithGoogle = async (
+    authData: { credential?: string; code?: string; state?: string },
+    rememberMe = false,
+  ): Promise<GoogleResult> => {
+    const response = await authAPI.googleLogin({ ...authData, rememberMe });
+    if (response.is_new_user && response.google_user_data) {
+      return { newUser: response.google_user_data as GoogleSignupData };
     }
+    return { user: await adopt() };
+  };
+
+  const sendPhoneCode = async (data: PhonePayload) => {
+    await authAPI.sendPhoneCode(data);
+  };
+
+  const verifyPhone = async (data: PhonePayload, otp: string, rememberMe: boolean) => {
+    await authAPI.verifyPhoneCode({ ...data, otp, remember_me: rememberMe });
+    return adopt();
   };
 
   const logout = () => {
@@ -234,59 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void authAPI.logout().finally(() => router.replace("/login?signedout=1"));
   };
 
-  const loginWithGoogle = async (
-    authData: {
-      credential?: string;
-      code?: string;
-      state?: string;
-    },
-    rememberMe: boolean = false,
-  ) => {
-    logger.info("Google login initiated");
-    try {
-      const response = (await authAPI.googleLogin({
-        ...authData,
-        rememberMe,
-      })) as LoginResponse;
-
-      // If this is a new Google user, redirect to register page with pre-filled data
-      if (response.is_new_user && response.google_user_data) {
-        // Store Google data in sessionStorage for register page
-        logger.debug("New Google user, redirecting to registration");
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem(
-            "googleUserData",
-            JSON.stringify(response.google_user_data),
-          );
-        }
-        router.push("/register?google=true");
-        return;
-      }
-
-      // Existing user - get profile and redirect to dashboard
-      const userData = await authAPI.getProfile();
-      setUser(userData);
-      setIsAuthenticated(true);
-
-      // Set user ID for logging
-      Logger.setUserId(userData.id);
-      logger.info("Google login successful", { userId: userData.id });
-
-      router.push("/dashboard/cases");
-    } catch (error) {
-      logger.error("Google login failed", error as Error);
-      throw error;
-    }
-  };
-
-  // Refresh user data from server (e.g., after profile photo update)
   const refreshUser = async () => {
     try {
-      if (authAPI.isAuthenticated()) {
-        const userData = await authAPI.getProfile();
-        setUser(userData);
-        logger.debug("User data refreshed");
-      }
+      if (authAPI.isAuthenticated()) setUser(await authAPI.getProfile());
     } catch (error) {
       logger.error("Failed to refresh user data", error as Error);
     }
@@ -302,9 +157,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verifyLogin,
         register,
         verifyRegistration,
-        logout,
-        redirectToDashboard,
         loginWithGoogle,
+        sendPhoneCode,
+        verifyPhone,
+        logout,
         refreshUser,
       }}
     >

@@ -1,324 +1,260 @@
 "use client";
 
-import type React from "react";
-
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { SESSION_EXPIRED } from "@/lib/messages";
+import { toast } from "sonner";
+import GoogleButton, { type GoogleAuthData } from "@/components/auth/google-button";
+import {
+  AuthIntro,
+  AuthShell,
+  Check,
+  Field,
+  formatPhone,
+  IntroText,
+  Notice,
+  Objection,
+  OrDivider,
+  outlineButton,
+  PhoneField,
+  phoneError,
+  primaryButton,
+  Slip,
+  SlipFoot,
+  SlipHeading,
+  slipInput,
+  textLink,
+  useAuthLayout,
+} from "@/components/auth/kit";
+import OtpStep from "@/components/auth/otp-step";
+import PracticeStep from "@/components/auth/practice-step";
 import { useAuth } from "@/contexts/auth-context";
-import SiteHeader from "@/components/chrome/site-header";
-import OtpForm from "@/components/otp-form";
-import FloatingLabelInput from "@/components/floating-label-input";
-import type { LoginFormData } from "@/types";
-import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
-import GoogleSignInButton from "@/components/google-signin-button";
-import { Checkbox } from "@/components/animate-ui/components/radix/checkbox";
-import { useLifecycleLogger } from "@/hooks/use-performance-logger";
+import { needsSeatOfPractice, safeNext } from "@/lib/auth-redirect";
+import { PHONE_AUTH_ENABLED } from "@/lib/config";
 import { getErrorDetail } from "@/lib/error-utils";
+import type { User } from "@/types";
 
-export default function Login() {
-  useLifecycleLogger("Login");
+type Screen = "form" | "otp" | "practice";
 
+export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/dashboard/cases";
+  const params = useSearchParams();
+  const next = safeNext(params.get("next"));
+  const { login, verifyLogin, loginWithGoogle, sendPhoneCode, verifyPhone } = useAuth();
 
-  const {
-    login,
-    verifyLogin,
-    isAuthenticated,
-    isLoading: authLoading,
-    loginWithGoogle,
-  } = useAuth();
-  const [formData, setFormData] = useState<LoginFormData>({
-    email: "",
-    password: "",
-  });
-  // Set by the API client when a request fails with an expired session.
-  const [errors, setErrors] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {};
-    if (searchParams.get("session") === "expired") initial.form = SESSION_EXPIRED;
-    return initial;
-  });
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
-  const [rememberMe, setRememberMe] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | undefined>(
-    undefined,
-  );
+  const [screen, setScreen] = useState<Screen>("form");
+  const [via, setVia] = useState<"email" | "phone">("email");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("91");
+  const [phone, setPhone] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [tried, setTried] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [formErr, setFormErr] = useState("");
+  const [admitted, setAdmitted] = useState(false);
+  const toasted = useRef(false);
 
-  // Redirect if already authenticated
+  const layout = useAuthLayout(screen === "practice" ? "practice" : screen === "otp" ? "otp" : "login");
+  const viaPhone = PHONE_AUTH_ENABLED && via === "phone";
+  const phoneBody = { phone_code: code, phone_number: phone, purpose: "login" as const };
+
   useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      router.push(redirectPath);
-      // Reset OTP state if authenticated while OTP form is visible
-      if (isOtpSent) {
-        setIsOtpSent(false);
-        setOtp(Array(6).fill(""));
-        setSuccessMessage(undefined);
-      }
-    }
-  }, [isAuthenticated, authLoading, router, redirectPath, isOtpSent]);
+    if (toasted.current) return;
+    toasted.current = true;
+    if (params.get("signedout") === "1") toast("You’ve been logged out.");
+    if (params.get("deleted") === "1")
+      toast("Your account has been deleted. You can recover it within 30 days by contacting us.", {
+        duration: 6500,
+      });
+  }, [params]);
 
-  // Clear success message after a few seconds
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => {
-        setSuccessMessage(undefined);
-      }, 5000); // 5 seconds
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
+  const errors: Record<string, string> = viaPhone
+    ? { l_phone: phoneError(code, phone) }
+    : { l_email: email ? "" : "Email is required", l_password: password ? "" : "Password is required" };
+  const err = (k: string) => (tried ? errors[k] || "" : "");
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.email) newErrors.email = "Email is required";
-    if (!formData.password) newErrors.password = "Password is required";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) return;
-
-    setIsLoading(true);
-    try {
-      await login(formData.email, formData.password, rememberMe);
-      setIsOtpSent(true);
-      setSuccessMessage("OTP sent successfully to your email.");
-      setErrors({}); // Clear any previous errors
-    } catch (error: unknown) {
-      const detail = getErrorDetail(error);
-      if (detail) {
-        setErrors({ form: detail });
-      } else {
-        setErrors({ form: "Login failed. Please try again." });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRequestOtpAgain = async () => {
-    setIsLoading(true);
-    setSuccessMessage(undefined); // Clear any existing success messages
-    try {
-      await login(formData.email, formData.password, rememberMe);
-      setErrors({});
-      setOtp(Array(6).fill(""));
-      setIsOtpSent(true); // Ensure OTP form is shown after requesting again
-      setSuccessMessage("New OTP sent successfully.");
-    } catch (error: unknown) {
-      const detail = getErrorDetail(error);
-      if (detail) {
-        setErrors({ form: detail });
-      } else {
-        setErrors({ form: "Failed to request OTP again. Please try again." });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (otp.some((digit) => !digit)) {
-      setErrors({ otp: "Please enter the complete OTP." });
+  const finish = (user: User) => {
+    if (needsSeatOfPractice(user)) {
+      setScreen("practice");
       return;
     }
+    setAdmitted(true);
+    window.setTimeout(() => router.replace(next), 1400);
+  };
 
-    setIsLoading(true);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const first = Object.entries(errors).find(([, v]) => v)?.[0];
+    if (first) {
+      setTried(true);
+      document.getElementById(first)?.focus();
+      return;
+    }
+    setBusy(true);
+    setFormErr("");
     try {
-      // Pass email, otp, and rememberMe as separate arguments
-      await verifyLogin(formData.email, otp.join(""), rememberMe, redirectPath);
-      // Redirect is handled in the auth context
-    } catch (error: unknown) {
-      const detail = getErrorDetail(error);
-      if (detail) {
-        setErrors({ otp: detail });
-      } else {
-        setErrors({ otp: "OTP verification failed. Please try again." });
-      }
+      if (viaPhone) await sendPhoneCode(phoneBody);
+      else await login(email.trim(), password, remember);
+      setScreen("otp");
+    } catch (error) {
+      setFormErr(getErrorDetail(error) ?? "Couldn’t sign you in. Please try again.");
     } finally {
-      setIsLoading(false);
+      setBusy(false);
     }
   };
 
-  if (authLoading) {
+  const google = async (data: GoogleAuthData) => {
+    setFormErr("");
+    try {
+      const result = await loginWithGoogle(data, remember);
+      if ("newUser" in result) {
+        sessionStorage.setItem("googleUserData", JSON.stringify(result.newUser));
+        router.push(`/register?google=1&next=${encodeURIComponent(next)}`);
+      } else finish(result.user);
+    } catch (error) {
+      setFormErr(getErrorDetail(error) ?? "Google sign-in failed. Please try again.");
+    }
+  };
+
+  const switchVia = () => {
+    setVia(viaPhone ? "email" : "phone");
+    setTried(false);
+    setFormErr("");
+  };
+
+  if (screen === "practice") {
     return (
-      <div className="min-h-screen flex flex-col bg-linear-to-b from-zinc-50 to-white dark:from-black dark:to-black">
-        <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
-        <div className="grow flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="animate-spin h-12 w-12 text-zinc-500 mx-auto" />
-            <p className="mt-4 text-zinc-600 dark:text-zinc-400">Loading...</p>
-          </div>
-        </div>
-      </div>
+      <AuthShell layout={layout}>
+        <PracticeStep onDone={() => router.replace(next)} />
+      </AuthShell>
+    );
+  }
+
+  if (screen === "otp") {
+    return (
+      <AuthShell layout={layout} switchLink={{ label: "Enrol", href: "/register" }}>
+        <OtpStep
+          title={viaPhone ? "Check your phone" : "Check your email"}
+          destination={viaPhone ? formatPhone(code, phone) : email.trim()}
+          sentMessage={viaPhone ? "Code sent by SMS." : "OTP sent successfully to your email."}
+          backLabel="Use a different email"
+          onBack={() => setScreen("form")}
+          onResend={() => (viaPhone ? sendPhoneCode(phoneBody) : login(email.trim(), password, remember))}
+          onVerify={async (otp) => {
+            const user = viaPhone
+              ? await verifyPhone(phoneBody, otp, remember)
+              : await verifyLogin(email.trim(), otp, remember);
+            finish(user);
+          }}
+          admittedLine={admitted ? "Welcome back, counsel. Taking you to your cases…" : undefined}
+        />
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
+    <AuthShell layout={layout} switchLink={{ label: "Enrol", href: "/register" }}>
+      {layout.wide && (
+        <AuthIntro kicker="Chambers · Sign in" title="THE COURT IS IN SESSION.">
+          <IntroText>
+            Sign in to pick up your cases where you left them. After your password, we email you a
+            six-digit code to confirm it’s you.
+          </IntroText>
+        </AuthIntro>
+      )}
+      <Slip form={["Form A-1", "Admission to chambers"]} onSubmit={submit}>
+        <SlipHeading title="Sign the register" sub={layout.showSub ? "Welcome back, counsel." : undefined} />
+        {params.get("session") === "expired" && !formErr && (
+          <Notice>Your session has expired. Please sign in again.</Notice>
+        )}
+        {formErr && <Objection>{formErr}</Objection>}
 
-      <div className="grow flex items-center justify-center p-4 sm:p-6 pt-20">
-        <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-6 sm:p-8 border border-zinc-200 dark:border-gray-800">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-zinc-800 dark:text-white">
-              {isOtpSent ? "Verify OTP" : "Welcome Back"}
-            </h1>
-            <p className="text-zinc-600 dark:text-gray-300 mt-2">
-              {isOtpSent
-                ? "Enter the code sent to your email"
-                : "Sign in to your account"}
-            </p>
-          </div>
-
-          {errors.form && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6 flex items-center">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              <span>{errors.form}</span>
-            </div>
-          )}
-
-          {!isOtpSent ? (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <FloatingLabelInput
+        {viaPhone ? (
+          <PhoneField id="l_phone" code={code} phone={phone} onCode={setCode} onPhone={setPhone} error={err("l_phone")} />
+        ) : (
+          <>
+            <Field id="l_email" label="Email address" error={err("l_email")}>
+              <input
+                id="l_email"
                 type="email"
-                id="email"
-                name="email"
-                label="Email Address"
-                icon={Mail}
-                value={formData.email}
-                onChange={handleChange}
-                error={errors.email}
-                labelBg="bg-white dark:bg-zinc-900"
+                inputMode="email"
                 autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                aria-invalid={!!err("l_email") || undefined}
+                className={slipInput}
               />
-
-              <FloatingLabelInput
-                type="password"
-                id="password"
-                name="password"
-                label="Password"
-                icon={Lock}
-                value={formData.password}
-                onChange={handleChange}
-                error={errors.password}
-                labelBg="bg-white dark:bg-zinc-900"
-                autoComplete="current-password"
-              />
-
-              <div className="flex items-center gap-2 pl-2">
-                <Checkbox
-                  id="remember_me"
-                  name="remember_me"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked === true)}
-                  size="sm"
-                />
-                <label
-                  htmlFor="remember_me"
-                  className="text-sm text-zinc-900 dark:text-white cursor-pointer select-none"
+            </Field>
+            <Field
+              id="l_password"
+              label="Password"
+              error={err("l_password")}
+              aside={
+                <Link
+                  href={`/forgot-password${email ? `?email=${encodeURIComponent(email.trim())}` : ""}`}
+                  className="relative border-b border-seal/50 py-1 text-meta text-seal before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:border-ink hover:text-ink"
                 >
-                  Remember me
-                </label>
+                  Forgot password?
+                </Link>
+              }
+            >
+              <div className="relative">
+                <input
+                  id="l_password"
+                  type={showPw ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  aria-invalid={!!err("l_password") || undefined}
+                  className={`${slipInput} pr-[78px]`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((s) => !s)}
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                  className="absolute bottom-0.5 right-0 top-0 min-w-[70px] cursor-pointer bg-transparent text-label font-bold uppercase tracking-[0.14em] text-ink-muted hover:text-seal"
+                >
+                  {showPw ? "Hide" : "Show"}
+                </button>
               </div>
+            </Field>
+          </>
+        )}
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                    <span>Logging in...</span>
-                  </>
-                ) : (
-                  "Sign In"
-                )}
-              </button>
+        <Check checked={remember} onToggle={() => setRemember((r) => !r)}>
+          Keep me signed in on this device
+        </Check>
 
-              <div className="text-center">
-                <p className="text-sm text-zinc-600 dark:text-gray-300">
-                  Don't have an account?{" "}
-                  <Link
-                    href="/register"
-                    className="font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-gray-300"
-                  >
-                    Register
-                  </Link>
-                </p>
-              </div>
+        <button type="submit" disabled={busy} className={primaryButton}>
+          {viaPhone
+            ? busy
+              ? "Sending code…"
+              : "Send code →"
+            : busy
+              ? "Checking the register…"
+              : "Enter the court →"}
+        </button>
 
-              {/* Divider */}
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-zinc-300 dark:border-zinc-700"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400">
-                    Or continue with
-                  </span>
-                </div>
-              </div>
-
-              {/* Google Sign-In Button */}
-              <GoogleSignInButton
-                onSuccess={async (authData) => {
-                  try {
-                    setIsLoading(true);
-                    await loginWithGoogle(authData, rememberMe);
-                  } catch (error: unknown) {
-                    setErrors({
-                      form:
-                        getErrorDetail(error) ||
-                        "Google sign-in failed. Please try again.",
-                    });
-                  } finally {
-                    setIsLoading(false);
-                  }
-                }}
-                onError={(error) => {
-                  setErrors({
-                    form:
-                      error?.message ||
-                      "Google sign-in failed. Please try again.",
-                  });
-                }}
-                text="signin"
-                isLoading={isLoading}
-              />
-            </form>
-          ) : (
-            <OtpForm
-              otp={otp}
-              setOtp={setOtp}
-              handleSubmit={handleVerifyOtp}
-              isLoading={isLoading}
-              error={errors.otp}
-              successMessage={successMessage}
-              title="Verify OTP"
-              description="Your code was sent to you via email"
-              onRequestAgain={handleRequestOtpAgain}
-            />
+        <OrDivider>or continue with</OrDivider>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2">
+          <GoogleButton onSuccess={google} onError={setFormErr} disabled={busy} />
+          {PHONE_AUTH_ENABLED && (
+            <button type="button" onClick={switchVia} className={outlineButton}>
+              {viaPhone ? "Email" : "Phone"}
+            </button>
           )}
         </div>
-      </div>
-    </div>
+
+        <SlipFoot>
+          <span>No account yet?</span>
+          <Link href="/register" className={textLink}>
+            Enrol as an advocate
+          </Link>
+        </SlipFoot>
+      </Slip>
+    </AuthShell>
   );
 }

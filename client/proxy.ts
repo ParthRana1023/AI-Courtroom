@@ -12,8 +12,9 @@ export function proxy(request: NextRequest) {
 
   // If trying to access protected route without token, redirect to login
   if (!token && request.nextUrl.pathname.startsWith("/dashboard")) {
+    // Back to the page they asked for once they have signed in.
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
+    loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
 

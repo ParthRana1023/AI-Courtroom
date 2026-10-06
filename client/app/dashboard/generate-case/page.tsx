@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CaseGenerationFormData } from "@/types";
 import { caseGenerationRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
 import { formatSecondsToHMS } from "@/lib/utils";
-import GavelLoader from "@/components/gavel-loader";
+import CourtModelLoader from "@/components/court/court-model-loader";
 import {
   useRenderLogger,
   useLifecycleLogger,
@@ -157,7 +157,7 @@ export default function GenerateCase() {
     return (
       <div className="min-h-screen flex flex-col">
         <div className="grow flex items-center justify-center">
-          <GavelLoader message="Generating case..." />
+          <CourtModelLoader status="Drafting the case…" />
         </div>
       </div>
     );

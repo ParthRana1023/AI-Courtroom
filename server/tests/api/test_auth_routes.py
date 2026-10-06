@@ -114,9 +114,10 @@ async def test_register_verify_creates_user_and_consumes_otp(client):
     assert response.status_code == 201
     token = response.json()["access_token"]
     claims = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-    assert claims["sub"] == "asha@example.com"
     user = await User.find_one(User.email == "asha@example.com")
     assert user is not None
+    assert claims["sub"] == str(user.id)
+    assert user.auth_method == "email"
     assert user.phone_number == "9876543210"
     assert user.password_hash and user.password_hash != VALID_PASSWORD
     assert await OTP.find(OTP.email == "asha@example.com").count() == 0

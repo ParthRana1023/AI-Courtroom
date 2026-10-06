@@ -63,3 +63,22 @@ async def send_otp_email(email: str, otp: str, is_registration: bool = True):
     else:
         logger.warning(f"OTP email failed for {action}: {email}")
     return result
+
+
+async def send_password_reset_email(email: str, link: str) -> bool:
+    """Send the link that lets the user set a new password."""
+    logger.info(f"Sending password reset email to: {email}")
+    subject = "Reset your password - AI Courtroom"
+    body = f"""
+    <html>
+    <body>
+        <h2>AI Courtroom - Reset your password</h2>
+        <p>Someone asked to reset the password for this account.</p>
+        <p><a href="{link}">Set a new password</a></p>
+        <p>This link expires in {settings.password_reset_expire_minutes} minutes.
+        Setting a new password signs you out on your other devices.</p>
+        <p>If you did not ask for this, you can ignore this email.</p>
+    </body>
+    </html>
+    """
+    return await send_email(email, subject, body)

@@ -19,7 +19,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useSettings } from "@/contexts/settings-context";
-import ScalesLoader from "@/components/scales-loader";
+import CourtModelLoader from "@/components/court/court-model-loader";
 import { Filter } from "lucide-react";
 import {
   DropdownMenu,
@@ -355,7 +355,7 @@ export default function CasesListing() {
   if (isLoading) {
     return (
       <div className="grow flex items-center justify-center h-full">
-        <ScalesLoader message="Loading your cases..." />
+        <CourtModelLoader status="Calling the cause list…" />
       </div>
     );
   }

@@ -17,7 +17,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import timedelta
 from typing import Any
 
 import jwt
@@ -29,7 +28,7 @@ from app.config import settings
 from app.logging_config import get_logger
 from app.models.case import Case
 from app.models.user import User
-from app.services.auth import create_access_token, find_user_by_email
+from app.services.auth import Device, find_user_by_email, issue_token
 
 logger = get_logger(__name__)
 
@@ -249,6 +248,7 @@ async def exchange_code_for_token(code: str) -> dict:
 async def authenticate_google_user(
     credential: str | None = None,
     remember_me: bool = False,
+    device: Device | None = None,
 ) -> dict:
     """
     Complete Google authentication flow: verify token, check user, generate JWT or return data.
@@ -351,15 +351,7 @@ async def authenticate_google_user(
     # Hearings still running belong to a session that ended (e.g. expired).
     await Case.adjourn_abandoned_cases(user.id)
 
-    # Create JWT token
-    access_token_expires = timedelta(
-        days=settings.extended_token_expire_days if remember_me else 0,
-        minutes=settings.access_token_expire_minutes,
-    )
-
-    jwt_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
+    jwt_token = await issue_token(user, remember_me, device)
 
     logger.info(
         "Google authentication successful, JWT issued",

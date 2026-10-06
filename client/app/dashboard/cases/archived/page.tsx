@@ -17,7 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import ScalesLoader from "@/components/scales-loader";
+import CourtModelLoader from "@/components/court/court-model-loader";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useLifecycleLogger } from "@/hooks/use-performance-logger";
 import { getLogger } from "@/lib/logger";
@@ -195,7 +195,7 @@ export default function RecycleBin() {
   if (isLoading) {
     return (
       <div className="grow flex items-center justify-center h-full">
-        <ScalesLoader message="Loading archived cases..." />
+        <CourtModelLoader status="Opening the archive…" />
       </div>
     );
   }

@@ -51,6 +51,19 @@ OTP_INVALID = (
     "Kindly check it or ask for a fresh one."
 )
 
+PHONE_NOT_REGISTERED = (
+    "No account uses this number. Enrol first, or sign in another way."
+)
+PHONE_TAKEN = "This number is already enrolled. Sign in with it instead."
+RESET_LINK_SENT = (
+    "If an account exists for this email, we have sent a link to reset the password."
+)
+RESET_LINK_INVALID = (
+    "This reset link is invalid, has expired or has already been used. "
+    "Kindly ask for a new one."
+)
+PASSWORD_CHANGED = "Your password has been changed. Sign in with your new password."
+
 # Case access
 CASE_NOT_FOUND = "This case file could not be found in the court registry."
 CASE_FORBIDDEN = "This case file belongs to another advocate."

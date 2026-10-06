@@ -6,12 +6,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     EmailStr,
+    Field,
     computed_field,
     field_validator,
     model_validator,
 )
 
-from app.models.user import PartialScoring
+from app.models.user import AuthMethod, PartialScoring
 from app.utils.datetime import get_current_datetime
 from app.utils.llm_trace import is_developer
 
@@ -22,25 +23,47 @@ Gender = Literal["male", "female", "others", "prefer-not-to-say"]
 CaseLocationPreference = Literal["user_location", "specific_state", "random"]
 
 
+def validate_password_strength(value: str) -> str:
+    """The password rules shown on the sign-up form; raises ValueError on the first miss."""
+    if len(value) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if not any(char.isdigit() for char in value):
+        raise ValueError("Password must contain at least 1 digit")
+    if not any(char.isalpha() for char in value):
+        raise ValueError("Password must contain at least 1 letter")
+    if not any(char in "@$!%*#?&" for char in value):
+        raise ValueError("Password must contain at least 1 special character")
+    return value
+
+
+def is_adult(born: date) -> bool:
+    today = get_current_datetime().date()
+    age = today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+    return age >= 18
+
+
 class UserCreate(BaseModel):
     first_name: str
     last_name: str
-    date_of_birth: date
-    phone_number: str
     email: EmailStr
     password: str
+    # The sign-up form's "I'm 18 or older" box. Older app versions send a date
+    # of birth instead, which is accepted in its place.
+    confirm_adult: bool = False
     google_id: str | None = None  # Set by the server from google_signup_token
     google_signup_token: str | None = None  # From /auth/google for new users
-    gender: Gender  # Required - user must select one of the 4 options
     profile_photo_url: str | None = None  # Optional - from Google OAuth or user upload
 
-    # Location fields - required for registration
-    city: str
-    state: str
-    state_iso2: str
-    country: str
-    country_iso2: str
-    phone_code: str | None = None  # Auto-derived from country
+    # Asked later (profile, seat of practice); still accepted from older apps.
+    date_of_birth: date | None = None
+    phone_number: str | None = None
+    gender: Gender | None = None
+    city: str | None = None
+    state: str | None = None
+    state_iso2: str | None = None
+    country: str | None = None
+    country_iso2: str | None = None
+    phone_code: str | None = None
 
     @field_validator("email")
     @classmethod
@@ -49,6 +72,8 @@ class UserCreate(BaseModel):
 
     @field_validator("phone_number")
     def validate_phone_number(cls, value):
+        if value is None:
+            return None
         # Remove any non-digit characters
         digits = "".join(filter(str.isdigit, value))
         if len(digits) != 10:
@@ -57,28 +82,19 @@ class UserCreate(BaseModel):
 
     @field_validator("date_of_birth")
     def validate_age(cls, value):
-        today = get_current_datetime().date()
-        # Calculate age
-        age = (
-            today.year
-            - value.year
-            - ((today.month, today.day) < (value.month, value.day))
-        )
-        if age < 18:
+        if value is not None and not is_adult(value):
             raise ValueError("You must be at least 18 years old to register")
         return value
 
     @field_validator("password")
     def validate_password(cls, value):
-        if len(value) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        if not any(char.isdigit() for char in value):
-            raise ValueError("Password must contain at least 1 digit")
-        if not any(char.isalpha() for char in value):
-            raise ValueError("Password must contain at least 1 letter")
-        if not any(char in "@$!%*#?&" for char in value):
-            raise ValueError("Password must contain at least 1 special character")
-        return value
+        return validate_password_strength(value)
+
+    @model_validator(mode="after")
+    def require_adult(self):
+        if not self.confirm_adult and self.date_of_birth is None:
+            raise ValueError("You must be at least 18 years old to register")
+        return self
 
 
 class UserOut(BaseModel):
@@ -86,9 +102,11 @@ class UserOut(BaseModel):
 
     first_name: str
     last_name: str
-    date_of_birth: date
-    phone_number: str
-    email: EmailStr
+    date_of_birth: date | None = None
+    phone_number: str | None = None
+    email: EmailStr | None = None  # None for accounts made with a phone number
+    # Read from User.sign_in_method, which infers it for older accounts.
+    auth_method: AuthMethod = Field(validation_alias="sign_in_method")
     gender: Gender | None = (
         None  # Optional for backwards compatibility with existing users
     )

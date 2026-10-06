@@ -1,5 +1,6 @@
 import { test as base, expect, type Page, type Route } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { addCoverageReport } from "monocart-reporter";
 import { E2E_API } from "../playwright.config";
 
 type Handler = unknown | ((route: Route) => Promise<void> | void);
@@ -7,14 +8,24 @@ type Handler = unknown | ((route: Route) => Promise<void> | void);
 /** "GET /auth/profile" → JSON body, or a function for full control (status, delay, abort). */
 export type ApiRoutes = Record<string, Handler>;
 
+const base_user = {
+  id: "u1",
+  first_name: "Aanya",
+  last_name: "Kapoor",
+  email: "aanya.kapoor@gmail.com" as string | null,
+  auth_method: "email",
+  profile_photo_url: null,
+  country: "India" as string | null,
+  country_iso2: "IN" as string | null,
+  state: "Maharashtra" as string | null,
+  state_iso2: "MH" as string | null,
+  city: "Mumbai" as string | null,
+};
+
 export const USERS = {
-  email: {
-    id: "u1",
-    first_name: "Aanya",
-    last_name: "Kapoor",
-    email: "aanya.kapoor@gmail.com",
-    profile_photo_url: null,
-  },
+  email: base_user,
+  /** Just enrolled: no seat of practice yet. */
+  fresh: { ...base_user, country: null, country_iso2: null, state: null, state_iso2: null, city: null },
 };
 
 const CONSENT = {
@@ -42,6 +53,8 @@ async function routeApi(page: Page, routes: ApiRoutes) {
 }
 
 interface Fixtures {
+  /** Records client JS coverage on Chromium for the monocart report (runs for every test). */
+  coverage: void;
   /** Mock API routes for this test; unmocked calls get a 404. */
   api: (routes?: ApiRoutes) => Promise<void>;
   /** Sign in as a mocked user (token cookie + GET /auth/profile). */
@@ -54,6 +67,16 @@ interface Fixtures {
 
 export const test = base.extend<Fixtures>({
   consented: [true, { option: true }],
+
+  coverage: [
+    async ({ page, browserName }, run, info) => {
+      const on = browserName === "chromium";
+      if (on) await page.coverage.startJSCoverage({ resetOnNavigation: false });
+      await run();
+      if (on) await addCoverageReport(await page.coverage.stopJSCoverage(), info);
+    },
+    { auto: true },
+  ],
 
   page: async ({ page, context, baseURL, consented }, run) => {
     if (consented) {

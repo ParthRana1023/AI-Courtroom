@@ -7,6 +7,8 @@ import type {
   RegisterFormData,
   UserStats,
 } from "@/types";
+
+export type { RegisterFormData };
 import {
   getCookie,
   setAuthTokenCookie,
@@ -19,10 +21,7 @@ import { LLM_TRACE_HEADER, recordLLMTrace } from "./llm-trace";
 // Initialize logger for API calls
 const logger = getLogger("api");
 
-type RegistrationPayload = Omit<RegisterFormData, "date_of_birth"> & {
-  date_of_birth: string;
-  google_signup_token?: string;
-};
+type RegistrationPayload = RegisterFormData;
 
 interface VerifyRegistrationPayload {
   user_data: RegistrationPayload;
@@ -38,6 +37,15 @@ interface VerifyLoginPayload {
   email: string;
   otp: string;
   remember_me: boolean;
+}
+
+export interface PhonePayload {
+  phone_code: string;
+  phone_number: string;
+  purpose: "login" | "register";
+  first_name?: string;
+  last_name?: string;
+  confirm_adult?: boolean;
 }
 
 /**
@@ -129,7 +137,7 @@ api.interceptors.response.use(
 );
 
 // Helper function to set token in both localStorage and cookie
-const setAuthToken = (token: string, rememberMe = false) => {
+export const setAuthToken = (token: string, rememberMe = false) => {
   if (typeof window !== "undefined") {
     localStorage.setItem("token", token);
     setAuthTokenCookie(token, rememberMe);
@@ -243,6 +251,31 @@ export const authAPI = {
       logApiError(error, "Google login failed");
       throw error;
     }
+  },
+
+  // Phone sign-in / sign-up (only when NEXT_PUBLIC_PHONE_AUTH_ENABLED)
+  sendPhoneCode: async (data: PhonePayload) => {
+    const response = await api.post("/auth/phone/send-otp", data);
+    return response.data;
+  },
+
+  verifyPhoneCode: async (
+    data: PhonePayload & { otp: string; remember_me: boolean },
+  ) => {
+    const response = await api.post("/auth/phone/verify", data);
+    setAuthToken(response.data.access_token, data.remember_me);
+    return response.data;
+  },
+
+  // Forgot password: emails a link to /forgot-password?token=…
+  forgotPassword: async (email: string) => {
+    const response = await api.post("/auth/password/forgot", { email });
+    return response.data;
+  },
+
+  resetPassword: async (token: string, password: string) => {
+    const response = await api.post("/auth/password/reset", { token, password });
+    return response.data;
   },
 
   // Get OAuth State

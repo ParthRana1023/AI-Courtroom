@@ -1,12 +1,14 @@
 # app/services/otp.py
 import secrets
 from datetime import UTC
+from typing import Literal
 
 from app import messages
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.otp import OTP
 from app.services.email import send_otp_email
+from app.services.sms import send_sms
 from app.utils.datetime import create_expiry_time, get_current_datetime
 from app.utils.rate_limiter import otp_send_rate_limiter
 
@@ -18,8 +20,16 @@ def generate_otp(length: int = 6) -> str:
     return "".join(secrets.choice("0123456789") for _ in range(length))
 
 
-async def create_otp(email: str, is_registration: bool = True) -> str:
-    """Create and store OTP for a user"""
+async def create_otp(
+    email: str,
+    is_registration: bool = True,
+    channel: Literal["email", "sms"] = "email",
+) -> str:
+    """Create, store and deliver an OTP.
+
+    ``email`` is the address the code belongs to; for ``channel="sms"`` it is the
+    E.164 phone number instead (the OTP collection keys both by this field).
+    """
     logger.info(f"Creating OTP for: {email}, is_registration={is_registration}")
 
     # Stops anyone from flooding an inbox (or our mail quota) with codes.
@@ -44,8 +54,14 @@ async def create_otp(email: str, is_registration: bool = True) -> str:
     await otp_send_rate_limiter.register_usage(email)
     logger.debug(f"OTP inserted successfully for: {email}")
 
-    # Send OTP via email
-    await send_otp_email(email, otp_code, is_registration)
+    if channel == "sms":
+        await send_sms(
+            email,
+            f"{otp_code} is your AI Courtroom code. "
+            f"It expires in {settings.otp_expire_minutes} minutes.",
+        )
+    else:
+        await send_otp_email(email, otp_code, is_registration)
 
     return otp_code
 

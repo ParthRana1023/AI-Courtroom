@@ -28,7 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
 import { formatToLocaleString } from "@/lib/datetime";
-import GavelLoader from "@/components/gavel-loader";
+import CourtModelLoader from "@/components/court/court-model-loader";
 import { getErrorDetail } from "@/lib/error-utils";
 import {
   useRenderLogger,
@@ -233,7 +233,7 @@ export default function CasePrepPage({
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <GavelLoader message="Loading case prep..." />
+        <CourtModelLoader status="Gathering the parties and the evidence…" />
       </div>
     );
   }

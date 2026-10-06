@@ -888,7 +888,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
                 Date of Birth
               </h3>
               <p className="text-base font-semibold text-zinc-900 dark:text-white mt-1">
-                {formatDate(user.date_of_birth)}
+                {formatDate(user.date_of_birth ?? undefined)}
               </p>
             </div>
           </ParticleCard>

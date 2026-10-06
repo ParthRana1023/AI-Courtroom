@@ -14,6 +14,7 @@ from app.models.location_cache import LocationCache
 from app.models.otp import OTP
 from app.models.rate_limit import RateLimitEntry
 from app.models.user import User
+from app.models.user_session import UserSession
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,7 @@ DOCUMENT_MODELS = [
     CaseMemoryChunk,
     CnrCounter,
     CaseOutcomeRecord,
+    UserSession,
 ]
 
 

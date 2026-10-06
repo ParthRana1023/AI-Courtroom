@@ -49,3 +49,10 @@ export const WITNESS_CHECK_COOLDOWN_MS = numberFrom(
 export const APK_DOWNLOAD_URL =
   process.env.NEXT_PUBLIC_APK_DOWNLOAD_URL ||
   "https://github.com/ParthRana1023/AI-Courtroom/releases/latest/download/ai-courtroom.apk";
+
+// Phone sign-in and sign-up by SMS code. Dev-only for now: shown in `pnpm dev`
+// unless NEXT_PUBLIC_PHONE_AUTH_ENABLED says otherwise; the server must also
+// have PHONE_AUTH_ENABLED=true.
+export const PHONE_AUTH_ENABLED = process.env.NEXT_PUBLIC_PHONE_AUTH_ENABLED
+  ? process.env.NEXT_PUBLIC_PHONE_AUTH_ENABLED === "true"
+  : process.env.NODE_ENV === "development";

@@ -454,34 +454,3 @@ body.text-size-large {
   display: none;
 }
 
-/* Courtroom Loader - Gavel Animation */
-@keyframes gavel {
-  0% {
-    transform: rotate(-45deg);
-  }
-  50% {
-    transform: rotate(45deg);
-  }
-  100% {
-    transform: rotate(-45deg);
-  }
-}
-
-.animate-gavel {
-  animation: gavel 1s ease-in-out infinite;
-}
-
-/* Scales of Justice Animation - Tilting beam */
-@keyframes balance-beam {
-  0%,
-  100% {
-    transform: rotate(-8deg);
-  }
-  50% {
-    transform: rotate(8deg);
-  }
-}
-
-.animate-balance-beam {
-  animation: balance-beam 2s ease-in-out infinite;
-}

@@ -28,12 +28,16 @@ export type CaseLocationPreference =
   | "specific_state"
   | "random";
 
+export type AuthMethod = "email" | "phone" | "google";
+
 export interface User {
+  id?: string;
   first_name: string;
   last_name: string;
-  email: string;
-  date_of_birth: Date;
-  phone_number: string;
+  email: string | null;
+  auth_method: AuthMethod;
+  date_of_birth?: string | null;
+  phone_number?: string | null;
   gender?: "male" | "female" | "others" | "prefer-not-to-say";
   profile_photo_url?: string;
   nickname?: string;
@@ -203,18 +207,11 @@ export type Gender = "male" | "female" | "others" | "prefer-not-to-say";
 export interface RegisterFormData {
   first_name: string;
   last_name: string;
-  date_of_birth: Date;
-  phone_number: string;
   email: string;
   password: string;
-  gender?: Gender;
-  // Location fields
-  city: string;
-  state: string;
-  state_iso2: string;
-  country: string;
-  country_iso2: string;
-  phone_code?: string;
+  confirm_adult: boolean;
+  google_signup_token?: string;
+  profile_photo_url?: string;
 }
 
 export interface LoginFormData {

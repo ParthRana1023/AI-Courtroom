@@ -14,6 +14,8 @@ export default tseslint.config(
       "ios/**",
       "public/sw.js",
       "public/swe-worker-*.js",
+      "e2e/.report/**",
+      "e2e/.results/**",
     ],
   },
 

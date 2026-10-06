@@ -1,7 +1,7 @@
 # app/dependencies.py
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from beanie import PydanticObjectId
@@ -13,12 +13,17 @@ from app.config import settings
 from app.logging_config import get_logger
 from app.models.case import Case, CaseStatus
 from app.models.user import User
+from app.models.user_session import UserSession
+from app.utils.datetime import get_current_datetime
 from app.utils.llm_trace import mark_developer_request
 from app.utils.locks import case_lock
 
 logger = get_logger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+# "Last active" on the devices list is refreshed at most this often.
+SESSION_TOUCH_INTERVAL = timedelta(minutes=5)
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
@@ -56,7 +61,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         logger.warning(f"Token validation failed - user not found: {user_id}")
         raise credentials_exception
 
-    logger.debug(f"User authenticated via token: {user.email}")
+    # A revoked session (signed out remotely, password reset) ends here. Tokens
+    # issued before sessions were recorded have no record and stay valid until expiry.
+    sid = payload.get("sid")
+    if sid:
+        session = await UserSession.find_one(UserSession.sid == sid)
+        if session is not None:
+            if session.revoked:
+                logger.info(f"Rejected revoked session for user {user.id}")
+                raise credentials_exception
+            now = get_current_datetime()
+            last = session.last_active
+            if last.tzinfo is None:  # MongoDB returns naive UTC
+                last = last.replace(tzinfo=UTC)
+            if now - last > SESSION_TOUCH_INTERVAL:
+                await UserSession.find_one(UserSession.id == session.id).update_one(
+                    {"$set": {"last_active": now}}
+                )
+
+    logger.debug(f"User authenticated via token: {user.id}")
     mark_developer_request(user.email)
     return user
 

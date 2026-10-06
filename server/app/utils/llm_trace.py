@@ -51,11 +51,12 @@ def record_llm_call(task: str, provider: str, model: str, attempt: int, ms: int)
         )
 
 
-def is_developer(email: str) -> bool:
-    return email.lower() in settings.dev_mode_email_set
+def is_developer(email: str | None) -> bool:
+    """Phone accounts have no email, so they are never developers."""
+    return bool(email) and email.lower() in settings.dev_mode_email_set
 
 
-def mark_developer_request(email: str) -> None:
+def mark_developer_request(email: str | None) -> None:
     trace = _trace.get()
     if trace is not None and is_developer(email):
         trace.developer = True

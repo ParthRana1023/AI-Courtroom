@@ -43,6 +43,8 @@ const withSerwist = withSerwistInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   turbopack: {},
+  // Only for the e2e build: lets client coverage map back to the source files.
+  productionBrowserSourceMaps: process.env.E2E_COVERAGE === "true",
   allowedDevOrigins: ["192.168.29.33", "localhost", "127.0.0.1"],
   images: {
     formats: ["image/avif", "image/webp"],
