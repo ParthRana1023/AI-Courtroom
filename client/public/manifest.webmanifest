@@ -3,7 +3,7 @@
   "short_name": "AI Courtroom",
   "description": "Practise advocacy in a simulated Indian courtroom.",
   "id": "/",
-  "start_url": "/dashboard/cases",
+  "start_url": "/cases",
   "scope": "/",
   "display": "standalone",
   "background_color": "#070504",

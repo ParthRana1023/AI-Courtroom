@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/dashboard/cases/"],
+      disallow: ["/api/", "/cases/"],
     },
     sitemap: "https://ai-courtroom.vercel.app/sitemap.xml",
   };

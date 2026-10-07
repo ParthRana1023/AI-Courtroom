@@ -624,6 +624,12 @@ export const caseAPI = {
     }
   },
 
+  // Permanently delete every archived case
+  emptyArchive: async (): Promise<{ deleted: number }> => {
+    const response = await api.delete("/cases/deleted/all");
+    return response.data;
+  },
+
   permanentDeleteCase: async (cnr: string) => {
     try {
       const response = await api.delete(`/cases/${cnr}/permanent`);

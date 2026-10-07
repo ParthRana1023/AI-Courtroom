@@ -273,7 +273,7 @@ export default function CasePrepPage({
 
                     await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
                   }
-                  router.push(`/dashboard/cases/${cnr}/courtroom`);
+                  router.push(`/cases/${cnr}/courtroom`);
                 } catch (error) {
                   logger.error(
                     "Failed to start courtroom session",
@@ -322,7 +322,7 @@ export default function CasePrepPage({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => router.push(`/dashboard/cases/${cnr}/courtroom`)}
+                onClick={() => router.push(`/cases/${cnr}/courtroom`)}
               >
                 Return to Courtroom
               </Button>

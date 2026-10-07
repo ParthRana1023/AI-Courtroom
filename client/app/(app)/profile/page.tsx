@@ -217,7 +217,7 @@ export default function ProfilePage() {
             </div>
 
             <Link
-              href="/dashboard/generate-case"
+              href="/cases/new"
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-2 px-3 sm:px-4 rounded-lg inline-flex items-center transition-colors text-sm active:scale-95"
             >
               <Plus className="h-4 w-4 sm:mr-2" />
@@ -310,7 +310,7 @@ export default function ProfilePage() {
                             </td>
                             <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-center">
                               <Link
-                                href={`/dashboard/cases/${caseItem.cnr}`}
+                                href={`/cases/${caseItem.cnr}`}
                                 className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                               >
                                 View Details
@@ -393,7 +393,7 @@ export default function ProfilePage() {
                             </td>
                             <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-center">
                               <Link
-                                href={`/dashboard/cases/${caseItem.cnr}`}
+                                href={`/cases/${caseItem.cnr}`}
                                 className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                               >
                                 View Details

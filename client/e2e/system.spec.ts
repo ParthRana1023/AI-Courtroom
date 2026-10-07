@@ -5,7 +5,7 @@ test("404 page", async ({ page, checkA11y }) => {
   expect(res?.status()).toBe(404);
   await expect(page.getByRole("heading", { name: "Page Not Found", level: 1 })).toBeVisible();
   await expect(page.getByRole("link", { name: "Back to Home" })).toHaveAttribute("href", "/");
-  await expect(page.getByRole("link", { name: "My cases" })).toHaveAttribute("href", "/dashboard/cases");
+  await expect(page.getByRole("link", { name: "My cases" })).toHaveAttribute("href", "/cases");
   await checkA11y();
 });
 

@@ -30,25 +30,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.6,
     },
     {
-      url: `${baseUrl}/dashboard`,
-      lastModified: currentDate,
-      changeFrequency: "weekly",
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/dashboard/cases`,
+      url: `${baseUrl}/cases`,
       lastModified: currentDate,
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
-      url: `${baseUrl}/dashboard/generate-case`,
+      url: `${baseUrl}/cases/new`,
       lastModified: currentDate,
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
-      url: `${baseUrl}/dashboard/profile`,
+      url: `${baseUrl}/profile`,
       lastModified: currentDate,
       changeFrequency: "monthly",
       priority: 0.5,

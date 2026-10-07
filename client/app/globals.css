@@ -201,6 +201,15 @@ body {
     scrollbar-color: #3e3326 transparent;
   }
 }
+/* Touch screens: TouchScrollbars draws the bar, so the native overlay bars are hidden. */
+html.ac-touch * {
+  scrollbar-width: none !important;
+}
+html.ac-touch *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
 
 @keyframes ac-cursor {
   0% {

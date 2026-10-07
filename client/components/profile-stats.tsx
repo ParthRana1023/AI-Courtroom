@@ -328,7 +328,7 @@ export default function ProfileStats() {
                 {stats.recent_form.map((r) => (
                   <Link
                     key={r.cnr}
-                    href={`/dashboard/cases/${r.cnr}`}
+                    href={`/cases/${r.cnr}`}
                     title={`${r.title} — ${OUTCOME_LABEL[r.outcome]} as ${r.role}`}
                     className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${CHIP_STYLE[r.outcome]} hover:opacity-80 transition-opacity`}
                   >

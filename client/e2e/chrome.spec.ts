@@ -76,7 +76,7 @@ test.describe("header, signed in", () => {
       const menu = page.getByRole("menu");
       await expect(menu).toContainText("Aanya Kapoor");
       await expect(menu).toContainText("aanya.kapoor@gmail.com");
-      await expect(menu.getByRole("menuitem", { name: "Your profile" })).toHaveAttribute("href", "/dashboard/profile");
+      await expect(menu.getByRole("menuitem", { name: "Your profile" })).toHaveAttribute("href", "/profile");
       await menu.getByRole("menuitem", { name: "Log out" }).click();
     }
     await expect(page).toHaveURL(/\/login\?signedout=1$/);

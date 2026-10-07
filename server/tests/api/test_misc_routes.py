@@ -734,7 +734,7 @@ def log_entry(**overrides):
         "message": "Loaded",
         "timestamp": "2026-09-26T10:00:00Z",
         "session_id": "s1",
-        "url": "/dashboard",
+        "url": "/cases",
         "user_agent": "pytest",
     }
     entry.update(overrides)

@@ -4,7 +4,7 @@ import { safeNext } from "../lib/auth-redirect";
 // Pure check of the ?next= guard; no page is opened.
 test("only same-site paths survive ?next=", () => {
   expect(safeNext("/settings")).toBe("/settings");
-  expect(safeNext("/dashboard/cases?status=active#top")).toBe("/dashboard/cases?status=active#top");
+  expect(safeNext("/cases?status=active#top")).toBe("/cases?status=active#top");
   for (const bad of [
     null,
     "",
@@ -20,6 +20,6 @@ test("only same-site paths survive ?next=", () => {
     "/..//evil.com",
     "/a/..//evil.com",
   ]) {
-    expect(safeNext(bad), String(bad)).toBe("/dashboard/cases");
+    expect(safeNext(bad), String(bad)).toBe("/cases");
   }
 });

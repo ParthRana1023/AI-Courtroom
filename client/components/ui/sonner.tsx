@@ -17,7 +17,7 @@ const Toaster = () => (
         title: "flex-1",
         description: "text-ink-muted",
         actionButton:
-          "ml-auto cursor-pointer border-0 bg-transparent font-type text-xs font-bold uppercase tracking-[0.14em] text-seal hover:text-ink",
+          "ml-auto h-10 flex-none cursor-pointer border-0 bg-ink px-3.5 font-type text-xs font-bold uppercase tracking-[0.14em] text-paper hover:bg-ink-label",
         error: "border-l-4 border-error",
         icon: "hidden",
       },

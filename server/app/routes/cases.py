@@ -74,6 +74,7 @@ async def list_cases(current_user: User = Depends(get_current_user)):
             "created_at": case.created_at,
             "status": case.status,
             "outcome": case.outcome,
+            "user_role": case.user_role,
         }
         for case in cases
     ]
@@ -463,9 +464,36 @@ async def list_deleted_cases(current_user: User = Depends(get_current_user)):
             "created_at": case.created_at,
             "deleted_at": case.deleted_at,
             "status": case.status,
+            "outcome": case.outcome,
+            "user_role": case.user_role,
         }
         for case in cases
     ]
+
+
+@router.delete("/deleted/all")
+async def empty_archive(current_user: User = Depends(get_current_user)):
+    """Permanently delete every archived (soft-deleted) case of the user."""
+    cases = await Case.find(
+        Case.user_id == current_user.id, {"is_deleted": True}
+    ).to_list()
+    for case in cases:
+        await purge_case(case)
+    logger.info(f"Archive emptied for user {current_user.id}: {len(cases)} case(s)")
+    return {"deleted": len(cases)}
+
+
+async def purge_case(case: Case) -> None:
+    """Remove a case and its RAG memory for good."""
+    try:
+        await delete_case_memory(case)
+        await case.delete()
+    except Exception:
+        logger.exception(f"Error permanently deleting case {case.cnr}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to permanently delete case. Please try again.",
+        )
 
 
 @router.post("/{cnr}/restore")
@@ -495,25 +523,13 @@ async def restore_case(cnr: str, current_user: User = Depends(get_current_user))
 async def permanent_delete_case(
     cnr: str, current_user: User = Depends(get_current_user)
 ):
-    """Permanently delete a case (cannot be recovered)"""
+    """Permanently delete a case, archived or not (cannot be recovered)."""
     logger.info(
-        f"Permanent deletion requested for case {cnr} by user: {current_user.email}"
+        f"Permanent deletion requested for case {cnr} by user {current_user.id}"
     )
-
-    case = await get_owned_case(cnr, current_user, {"is_deleted": True})
-
-    # Permanently delete the case
-    try:
-        await delete_case_memory(case)
-        await case.delete()
-        logger.info(f"Case {cnr} permanently deleted")
-    except Exception:
-        logger.exception(f"Error permanently deleting case {cnr}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to permanently delete case. Please try again.",
-        )
-
+    case = await get_owned_case(cnr, current_user)
+    await purge_case(case)
+    logger.info(f"Case {cnr} permanently deleted")
     return {"message": "Case permanently deleted"}
 
 

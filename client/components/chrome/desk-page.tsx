@@ -1,8 +1,13 @@
 import type { ReactNode } from "react";
+import Scroller from "@/components/court/scroller";
 import { cn } from "@/lib/utils";
 import SiteHeader from "./site-header";
 
-/** Full-height desk page: the warm top-right glow, the site header, then the page. */
+/**
+ * Viewport-high desk page: the warm top-right glow, the site header, then the page. The document
+ * itself never scrolls. Pages that fill the height (My Cases) scroll their own lists; anything
+ * taller than the viewport scrolls below the header.
+ */
 export default function DeskPage({
   children,
   className,
@@ -13,12 +18,14 @@ export default function DeskPage({
   return (
     <div
       className={cn(
-        "flex min-h-dvh flex-col bg-[radial-gradient(ellipse_80%_50%_at_80%_0%,var(--desk-glow)_0%,var(--desk-bg)_70%)] font-type text-desk-ink",
+        "flex h-dvh flex-col overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_80%_0%,var(--desk-glow)_0%,var(--desk-bg)_70%)] font-type text-desk-ink",
         className,
       )}
     >
       <SiteHeader />
-      {children}
+      <Scroller tone="desk" className="flex flex-1 flex-col">
+        {children}
+      </Scroller>
     </div>
   );
 }

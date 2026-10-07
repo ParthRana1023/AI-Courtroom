@@ -16,7 +16,7 @@ export default function NotFound() {
             <Link href="/" className={buttonClass("seal")}>
               Back to Home
             </Link>
-            <Link href="/dashboard/cases" className={buttonClass("paper")}>
+            <Link href="/cases" className={buttonClass("paper")}>
               My cases
             </Link>
           </>

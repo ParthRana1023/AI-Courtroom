@@ -185,7 +185,7 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
                       <span className="font-type text-xs text-ink-muted">{user.email}</span>
                     </div>
                     <DropdownMenu.Item asChild>
-                      <Link href="/dashboard/profile" className={menuItem}>
+                      <Link href="/profile" className={menuItem}>
                         Your profile
                       </Link>
                     </DropdownMenu.Item>

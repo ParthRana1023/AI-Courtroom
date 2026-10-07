@@ -172,7 +172,7 @@ export default function AboutPage() {
             <div className="flex flex-col sm:flex-row justify-center gap-4 mb-12">
               {isAuthenticated ? (
                 <Link
-                  href="/dashboard/cases"
+                  href="/cases"
                   className="inline-flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-full transition-all hover:shadow-lg hover:shadow-blue-500/25 w-full sm:w-auto"
                 >
                   Go to Cases

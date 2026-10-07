@@ -666,7 +666,7 @@ async def test_adjourning_starts_hidden_ai_counsel_conferences(
     assert "Where were you?" not in shown.text  # never sent to the user
 
 
-async def test_restore_and_permanent_delete_require_deleted_case(
+async def test_restore_needs_an_archived_case_and_both_need_ownership(
     client, user, auth_headers, make_case, make_user
 ):
     live = await make_case(user)
@@ -674,9 +674,6 @@ async def test_restore_and_permanent_delete_require_deleted_case(
 
     assert (
         await client.post(f"/cases/{live.cnr}/restore", headers=auth_headers)
-    ).status_code == 404
-    assert (
-        await client.delete(f"/cases/{live.cnr}/permanent", headers=auth_headers)
     ).status_code == 404
     assert (
         await client.post(f"/cases/{foreign_deleted.cnr}/restore", headers=auth_headers)
@@ -833,3 +830,41 @@ async def test_case_generation_limit_is_enforced_by_server(
     )
 
     assert response.status_code == 429
+
+
+async def test_permanent_delete_works_on_live_cases_too(
+    client, user, auth_headers, make_case
+):
+    live = await make_case(user)
+    response = await client.delete(f"/cases/{live.cnr}/permanent", headers=auth_headers)
+    assert response.status_code == 200
+    assert await Case.find_one(Case.cnr == live.cnr) is None
+
+
+async def test_lists_include_the_users_side_and_outcome(
+    client, user, auth_headers, make_case
+):
+    await make_case(user, user_role=Roles.PLAINTIFF)
+    await make_case(user, user_role=Roles.DEFENDANT, is_deleted=True, outcome="won")
+
+    live = (await client.get("/cases", headers=auth_headers)).json()
+    archived = (await client.get("/cases/deleted/list", headers=auth_headers)).json()
+    assert live[0]["user_role"] == "plaintiff"
+    assert archived[0]["user_role"] == "defendant"
+    assert archived[0]["outcome"] == "won"
+
+
+async def test_empty_archive_deletes_only_this_users_archived_cases(
+    client, user, auth_headers, make_case, make_user
+):
+    kept = await make_case(user)
+    await make_case(user, is_deleted=True)
+    await make_case(user, is_deleted=True)
+    other = await make_case(await make_user(), is_deleted=True)
+
+    response = await client.delete("/cases/deleted/all", headers=auth_headers)
+
+    assert response.json() == {"deleted": 2}
+    assert await Case.find_one(Case.cnr == kept.cnr) is not None
+    assert await Case.find_one(Case.cnr == other.cnr) is not None
+    assert await Case.find(Case.user_id == user.id).count() == 1

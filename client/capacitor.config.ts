@@ -69,7 +69,7 @@ const config: ExtendedCapacitorConfig = {
   server: {
     // The native app loads from the hosted deployment.
     // This avoids the need for static export (which is incompatible with
-    // our dynamic routes like /dashboard/cases/[cnr]).
+    // our dynamic routes like /cases/[cnr]).
     url: capacitorServerUrl,
     cleartext: isHttpDevServer,
     // Clear the server URL when building for production release,

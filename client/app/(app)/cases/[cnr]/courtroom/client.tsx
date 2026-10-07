@@ -935,7 +935,7 @@ export default function Courtroom({
               permission to view it.
             </p>
             <button
-              onClick={() => router.push("/dashboard")}
+              onClick={() => router.push("/profile")}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
             >
               Back to Dashboard
@@ -1011,7 +1011,7 @@ export default function Courtroom({
                   variant="outline"
                   size="sm"
                   onClick={() =>
-                    router.push(`/dashboard/cases/${cnr}/case-prep`)
+                    router.push(`/cases/${cnr}/case-prep`)
                   }
                 >
                   View Case Prep

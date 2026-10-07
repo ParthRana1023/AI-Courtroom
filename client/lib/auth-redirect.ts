@@ -1,6 +1,6 @@
 import type { User } from "@/types";
 
-const HOME = "/dashboard/cases";
+const HOME = "/cases";
 
 const BASE = "https://app.invalid";
 

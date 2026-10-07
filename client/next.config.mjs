@@ -54,6 +54,15 @@ const nextConfig = {
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
+  // Old /dashboard URLs (bookmarks, emails, the installed app) keep working.
+  async redirects() {
+    return [
+      { source: "/dashboard", destination: "/profile", permanent: true },
+      { source: "/dashboard/profile", destination: "/profile", permanent: true },
+      { source: "/dashboard/generate-case", destination: "/cases/new", permanent: true },
+      { source: "/dashboard/cases/:path*", destination: "/cases/:path*", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

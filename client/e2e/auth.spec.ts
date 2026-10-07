@@ -158,7 +158,7 @@ test.describe("sign in", () => {
     await pick(page, "State / province", "Maharashtra");
     await page.getByLabel("City").fill("Pune");
     await page.getByRole("button", { name: "Open my first case →" }).click();
-    await expect(page).toHaveURL(/\/dashboard\/cases$/);
+    await expect(page).toHaveURL(/\/cases$/);
     expect(save.seen.body).toEqual({
       country: "India",
       country_iso2: "IN",
@@ -168,9 +168,9 @@ test.describe("sign in", () => {
     });
   });
 
-  test("signed-out visitors to a dashboard page come back after signing in", async ({ page }) => {
-    await page.goto("/dashboard/profile");
-    await expect(page).toHaveURL(/\/login\?next=%2Fdashboard%2Fprofile$/);
+  test("signed-out visitors to a protected page come back after signing in", async ({ page }) => {
+    await page.goto("/profile");
+    await expect(page).toHaveURL(/\/login\?next=%2Fprofile$/);
   });
 });
 

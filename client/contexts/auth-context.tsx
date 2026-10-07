@@ -135,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     Logger.setUserId(undefined);
     setUser(null);
     setIsAuthenticated(false);
-    // Navigate only once the token cookie is cleared, or the proxy bounces /login back to the dashboard.
+    // Navigate only once the token cookie is cleared, or the proxy bounces /login back to /cases.
     void authAPI.logout().finally(() => router.replace("/login?signedout=1"));
   };
 

@@ -20,7 +20,7 @@ export default function Home() {
         </p>
         <div className="flex flex-wrap gap-3">
           {isAuthenticated ? (
-            <Link href="/dashboard/cases" className={buttonClass("seal", "lg", "min-h-[52px]")}>
+            <Link href="/cases" className={buttonClass("seal", "lg", "min-h-[52px]")}>
               My cases
             </Link>
           ) : (

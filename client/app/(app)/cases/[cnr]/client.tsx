@@ -67,7 +67,7 @@ export default function CaseDetails({
       }
 
       // Navigate to case prep
-      router.push(`/dashboard/cases/${cnr}/case-prep?role=${role}`);
+      router.push(`/cases/${cnr}/case-prep?role=${role}`);
     } catch (error) {
       logger.error("Failed to update case role", error as Error);
       // Optionally show an error message to the user
@@ -77,7 +77,7 @@ export default function CaseDetails({
   };
 
   const handleToCasePrep = () => {
-    router.push(`/dashboard/cases/${cnr}/case-prep`);
+    router.push(`/cases/${cnr}/case-prep`);
   };
 
   if (isLoading) {
@@ -118,7 +118,7 @@ export default function CaseDetails({
               permission to view it.
             </p>
             <button
-              onClick={() => router.push("/dashboard")}
+              onClick={() => router.push("/profile")}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
             >
               Back to Dashboard

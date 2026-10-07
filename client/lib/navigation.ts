@@ -5,7 +5,7 @@ export interface NavigationItem {
 
 export const authenticatedPrimaryNavItems: NavigationItem[] = [
   { href: "/", label: "Home" },
-  { href: "/dashboard/cases", label: "Cases" },
+  { href: "/cases", label: "Cases" },
   { href: "/contact", label: "Contact" },
   { href: "/settings", label: "Settings" },
   { href: "/about", label: "About" },
@@ -31,11 +31,5 @@ export const moreNavItems: NavigationItem[] = [
 /** Whether `href` is the page at `pathname` (a section root matches its children). */
 export function isCurrentPath(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
-  if (href === "/dashboard/cases") {
-    return (
-      pathname.startsWith("/dashboard/cases") ||
-      pathname.startsWith("/dashboard/generate-case")
-    );
-  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

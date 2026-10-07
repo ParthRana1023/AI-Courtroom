@@ -154,9 +154,9 @@ export default function MobileMenu({
       ? [
           {
             label: "Profile",
-            href: "/dashboard/profile",
+            href: "/profile",
             kind: "account" as const,
-            current: isCurrentPath(pathname, "/dashboard/profile"),
+            current: isCurrentPath(pathname, "/profile"),
           },
           { label: "Log out", href: "/login", kind: "logout" as const, onActivate: onLogout },
         ]
