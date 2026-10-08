@@ -34,7 +34,7 @@ export default function DevModelPanel() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 left-4 z-[60] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border border-zinc-300 bg-white/95 px-3 py-2 text-xs font-medium text-zinc-700 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-200"
+        className="fixed bottom-4 left-4 z-60 flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border border-zinc-300 bg-white/95 px-3 py-2 text-xs font-medium text-zinc-700 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-200"
         title="Developer mode: AI models used"
       >
         <Cpu className="h-4 w-4 shrink-0 text-blue-500" />
@@ -46,7 +46,7 @@ export default function DevModelPanel() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 z-[60] w-[min(26rem,calc(100vw-2rem))] rounded-xl border border-zinc-300 bg-white/95 text-xs text-zinc-700 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-200">
+    <div className="fixed bottom-4 left-4 z-60 w-[min(26rem,calc(100vw-2rem))] rounded-xl border border-zinc-300 bg-white/95 text-xs text-zinc-700 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-200">
       <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
         <span className="flex items-center gap-2 font-semibold">
           <Cpu className="h-4 w-4 text-blue-500" />

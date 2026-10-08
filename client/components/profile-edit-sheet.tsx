@@ -118,7 +118,7 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
           </button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="w-[320px] sm:w-[360px]">
+      <SheetContent side="right" className="w-[320px] sm:w-90">
         <ScrollArea className="h-full">
           <SheetHeader>
             <SheetTitle className="text-xl">Edit Profile</SheetTitle>
@@ -217,7 +217,7 @@ export default function ProfileEditSheet({ children }: ProfileEditSheetProps) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="start"
-                    className="w-[--radix-dropdown-menu-trigger-width] min-w-[200px]"
+                    className="w-[--radix-dropdown-menu-trigger-width] min-w-50"
                   >
                     {genderOptions.map((opt) => (
                       <DropdownMenuItem

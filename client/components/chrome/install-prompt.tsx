@@ -88,12 +88,12 @@ export default function InstallPrompt() {
   return (
     <Dialog.Root open={promptOpen} onOpenChange={(o) => !o && close()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[100] bg-[var(--scrim)] [animation:ac-fade_.25s_ease_both]" />
+        <Dialog.Overlay className="fixed inset-0 z-100 bg-(--scrim) animate-[ac-fade_.25s_ease_both]" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed inset-x-4 bottom-4 z-[101] mx-auto flex max-w-[400px] flex-col bg-paper text-ink shadow-dialog outline-none [animation:ac-rise_.32s_cubic-bezier(.2,.9,.3,1)_both] min-[560px]:bottom-auto min-[560px]:top-1/2 min-[560px]:-translate-y-1/2"
+          className="fixed inset-x-4 bottom-4 z-101 mx-auto flex max-w-100 flex-col bg-paper text-ink shadow-dialog outline-none animate-[ac-rise_.32s_cubic-bezier(.2,.9,.3,1)_both] min-[560px]:bottom-auto min-[560px]:top-1/2 min-[560px]:-translate-y-1/2"
         >
-          <div className="flex items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-[22px] pr-2.5 pt-3 font-type text-label font-bold uppercase tracking-[0.2em] text-ink-label">
+          <div className="flex items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-5.5 pr-2.5 pt-3 font-type text-label font-bold uppercase tracking-[0.2em] text-ink-label">
             <span>{copy.form}</span>
             <Dialog.Close
               aria-label="Dismiss install prompt"
@@ -104,8 +104,8 @@ export default function InstallPrompt() {
           </div>
 
           {done ? (
-            <div role="status" className="flex flex-col items-center gap-[18px] px-[22px] pb-[22px] pt-[30px] text-center">
-              <span className="inline-block border-4 border-double border-seal px-[18px] pb-1.5 pt-2 font-display text-[2.375rem] leading-none tracking-[0.08em] text-seal [animation:ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both] [transform:rotate(-5deg)]">
+            <div role="status" className="flex flex-col items-center gap-4.5 px-5.5 pb-5.5 pt-7.5 text-center">
+              <span className="inline-block border-4 border-double border-seal px-4.5 pb-1.5 pt-2 font-display text-[2.375rem] leading-none tracking-[0.08em] text-seal animate-[ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both] transform-[rotate(-5deg)]">
                 {copy.stamp}
               </span>
               <Dialog.Title className="m-0 max-w-[320px] text-balance font-type text-body font-normal leading-[1.55] text-ink-label">
@@ -116,7 +116,7 @@ export default function InstallPrompt() {
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-4 px-[22px] pb-[22px] pt-5">
+            <div className="flex flex-col gap-4 px-5.5 pb-5.5 pt-5">
               <div className="flex flex-col gap-1.5">
                 <Dialog.Title className="m-0 font-display text-h2 font-normal leading-[1.1]">
                   {copy.title}
@@ -145,11 +145,11 @@ export default function InstallPrompt() {
                   autoFocus
                   onClick={install}
                   disabled={busy}
-                  className={buttonClass("seal", "lg", "flex-[1_1_180px] px-[18px]")}
+                  className={buttonClass("seal", "lg", "flex-[1_1_180px] px-4.5")}
                 >
                   {busy ? copy.busy : copy.cta}
                 </button>
-                <button type="button" onClick={close} className={buttonClass("paper", "lg", "flex-none px-[18px] text-xs")}>
+                <button type="button" onClick={close} className={buttonClass("paper", "lg", "flex-none px-4.5 text-xs")}>
                   Not now
                 </button>
               </div>

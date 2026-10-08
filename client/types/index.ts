@@ -166,6 +166,8 @@ export interface EvidenceItem {
   image_url?: string | null;
   image_public_id?: string | null;
   media_status: EvidenceMediaStatus;
+  // "<party_id>:<message_id>" for an interview answer, a proceedings event id for testimony
+  origin_id?: string | null;
 }
 
 export interface Argument {

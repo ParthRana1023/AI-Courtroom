@@ -161,7 +161,7 @@ export default function ArchivedCasesPage() {
           };
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[1200px] flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-[18px] min-[560px]:pt-5">
+    <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-4.5 min-[560px]:pt-5">
       <PageHead kicker={`Archive · ${cases.length} ${cases.length === 1 ? "case" : "cases"}`} title="ARCHIVED" />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
@@ -169,7 +169,7 @@ export default function ArchivedCasesPage() {
           value={q}
           onChange={setQ}
           placeholder={table ? "Search by title or case number" : "Search archive"}
-          className={cn("flex-[1_1_200px]", table ? "max-w-[380px]" : "max-w-full")}
+          className={cn("flex-[1_1_200px]", table ? "max-w-95" : "max-w-full")}
         />
         {!table && (
           <div className="flex min-w-0 flex-[1_1_100%] min-[560px]:flex-none">
@@ -198,7 +198,7 @@ export default function ArchivedCasesPage() {
             <button
               type="button"
               onClick={() => ask("empty", cases.map((c) => c.cnr))}
-              className="flex h-10 flex-none cursor-pointer items-center justify-center whitespace-nowrap border-[1.5px] border-seal-hover px-3.5 text-meta font-bold uppercase tracking-[0.14em] text-desk-ink hover:bg-seal hover:text-cream min-[560px]:h-11 min-[560px]:px-[22px]"
+              className="flex h-10 flex-none cursor-pointer items-center justify-center whitespace-nowrap border-[1.5px] border-seal-hover px-3.5 text-meta font-bold uppercase tracking-[0.14em] text-desk-ink hover:bg-seal hover:text-cream min-[560px]:h-11 min-[560px]:px-5.5"
             >
               Empty archive
             </button>
@@ -244,7 +244,7 @@ export default function ArchivedCasesPage() {
         error={
           failed ? (
             <ListMessage title="Couldn’t load the archive." body="Check your connection and try again.">
-              <button type="button" onClick={load} className={buttonClass("paper", "md", "px-[18px]")}>
+              <button type="button" onClick={load} className={buttonClass("paper", "md", "px-4.5")}>
                 Try again
               </button>
             </ListMessage>
@@ -257,14 +257,14 @@ export default function ArchivedCasesPage() {
             title="The archive is empty."
             body="Cases you archive from My Cases are kept here until you restore or delete them."
           >
-            <Link href="/cases" className={buttonClass("seal", "lg", "h-[52px] px-6")}>
+            <Link href="/cases" className={buttonClass("seal", "lg", "h-13 px-6")}>
               ← Back to my cases
             </Link>
           </ListMessage>
         }
         noMatch={
           <ListMessage title="No cases match." body="Try another title or case number.">
-            <button type="button" onClick={() => setQ("")} className={buttonClass("paper", "md", "h-11 px-[18px]")}>
+            <button type="button" onClick={() => setQ("")} className={buttonClass("paper", "md", "h-11 px-4.5")}>
               Clear search
             </button>
           </ListMessage>

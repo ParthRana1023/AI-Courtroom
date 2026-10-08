@@ -13,7 +13,7 @@ import { useSettings } from "@/contexts/settings-context";
 interface SettingsAwareTextAreaProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit?: (e: React.FormEvent) => void;
+  onSubmit?: (e: React.SyntheticEvent) => void;
   placeholder?: string;
   className?: string;
   disabled?: boolean;

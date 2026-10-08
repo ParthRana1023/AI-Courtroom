@@ -250,7 +250,7 @@ export default function ProfilePage() {
               {activeCases.length > 0 ? (
                 <ScrollArea className="w-full">
                   <div className="min-w-full overflow-x-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
-                    <table className="min-w-[560px] w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                    <table className="min-w-140 w-full divide-y divide-zinc-200 dark:divide-zinc-800">
                       <thead className="bg-zinc-50 dark:bg-zinc-800">
                         <tr>
                           <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
@@ -340,7 +340,7 @@ export default function ProfilePage() {
               {resolvedCases.length > 0 ? (
                 <ScrollArea className="w-full">
                   <div className="min-w-full overflow-x-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
-                    <table className="min-w-[560px] w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                    <table className="min-w-140 w-full divide-y divide-zinc-200 dark:divide-zinc-800">
                       <thead className="bg-zinc-50 dark:bg-zinc-800">
                         <tr>
                           <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">

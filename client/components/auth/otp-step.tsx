@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type SubmitEvent } from "react";
 import { getErrorDetail } from "@/lib/error-utils";
 import { cn } from "@/lib/utils";
 import { Confirm, JourneyBar, primaryButton, Slip, SlipHeading, type JourneyProps } from "./kit";
@@ -92,7 +92,7 @@ export default function OtpStep({
     }
   };
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     void verify(digits);
   };
@@ -101,8 +101,8 @@ export default function OtpStep({
     <Slip form={["Form S-3", "Seal of the court"]} onSubmit={submit} maxWidth={480}>
       {journey && <JourneyBar {...journey} />}
       {admittedLine ? (
-        <div className="flex flex-col items-start gap-[18px] pb-2 pt-[18px]">
-          <span className="inline-block -rotate-5 border-4 border-double border-seal px-[18px] pb-1.5 pt-2 font-display text-[44px] leading-none tracking-[0.08em] text-seal">
+        <div className="flex flex-col items-start gap-4.5 pb-2 pt-4.5">
+          <span className="inline-block -rotate-5 border-4 border-double border-seal px-4.5 pb-1.5 pt-2 font-display text-[44px] leading-none tracking-[0.08em] text-seal">
             ADMITTED
           </span>
           <p role="status" className="m-0 text-base leading-[1.55] text-ink-muted">
@@ -121,7 +121,7 @@ export default function OtpStep({
             }
           />
           {message && <Confirm>{message}</Confirm>}
-          <div className="flex flex-col gap-[9px]">
+          <div className="flex flex-col gap-2.25">
             <span id="otp-label" className="text-label font-bold uppercase tracking-[0.16em] text-ink-muted">
               Verification code
             </span>
@@ -168,7 +168,7 @@ export default function OtpStep({
                     if (pasted) fillFrom(i, pasted.slice(0, 6 - i));
                   }}
                   className={cn(
-                    "h-16 min-w-0 max-w-[60px] flex-1 rounded-none border-0 border-b-[3px] bg-paper-alt p-0 text-center font-data text-[26px] font-medium text-ink outline-none focus:border-b-seal focus:bg-paper-hi",
+                    "h-16 min-w-0 max-w-15 flex-1 rounded-none border-0 border-b-[3px] bg-paper-alt p-0 text-center font-data text-[26px] font-medium text-ink outline-none focus:border-b-seal focus:bg-paper-hi",
                     error && !d ? "border-b-error" : d ? "border-b-ink" : "border-b-[rgba(18,13,9,.55)]",
                   )}
                 />
@@ -183,7 +183,7 @@ export default function OtpStep({
           <button type="submit" disabled={busy} className={primaryButton}>
             {busy ? "Verifying…" : "Verify code"}
           </button>
-          <div className="flex flex-wrap justify-between gap-x-[18px] gap-y-2.5 border-t border-ink/20 pt-3.5 text-sm text-ink-muted">
+          <div className="flex flex-wrap justify-between gap-x-4.5 gap-y-2.5 border-t border-ink/20 pt-3.5 text-sm text-ink-muted">
             <span className="flex flex-wrap items-baseline gap-1.5">
               <span>No code?</span>
               <button

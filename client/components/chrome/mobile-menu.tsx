@@ -81,7 +81,7 @@ function MenuTile({ tile, index }: { tile: Tile; index: number }) {
       onMouseLeave={(e) => play("out", edgeOf(e))}
       style={{ flex: tile.kind ? "0.7 1 0" : "1 1 0" }}
       className={cn(
-        "relative flex min-h-[52px] items-center justify-center gap-3 overflow-hidden font-display text-[clamp(24px,4.2vh,38px)] uppercase leading-none tracking-[0.06em] [-webkit-tap-highlight-color:transparent]",
+        "relative flex min-h-13 items-center justify-center gap-3 overflow-hidden font-display text-[clamp(24px,4.2vh,38px)] uppercase leading-none tracking-[0.06em] [-webkit-tap-highlight-color:transparent]",
         index === 0
           ? ""
           : tile.kind === "account"
@@ -99,8 +99,8 @@ function MenuTile({ tile, index }: { tile: Tile; index: number }) {
           logout ? "bg-seal" : "bg-desk-ink",
         )}
       >
-        <span data-in="" className="absolute inset-0 flex -translate-y-[101%] items-center">
-          <span className="flex w-max [animation:ac-marquee_14s_linear_infinite]">
+        <span data-in="" className="absolute inset-0 flex translate-y-[-101%] items-center">
+          <span className="flex w-max animate-[ac-marquee_14s_linear_infinite]">
             {REPEATS.map((k) => (
               <span
                 key={k}
@@ -181,7 +181,7 @@ export default function MobileMenu({
       {tiles.map((tile, i) => (
         <MenuTile key={tile.label} tile={tile} index={i} />
       ))}
-      <div className="flex flex-none flex-wrap gap-x-[18px] gap-y-0.5 border-t-[3px] border-double border-desk-strip-rule px-[18px] pb-3.5 pt-2.5">
+      <div className="flex flex-none flex-wrap gap-x-4.5 gap-y-0.5 border-t-[3px] border-double border-desk-strip-rule px-4.5 pb-3.5 pt-2.5">
         {moreNavItems.map((m) => {
           const current = isCurrentPath(pathname, m.href);
           return (

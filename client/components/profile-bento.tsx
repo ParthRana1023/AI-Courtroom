@@ -611,7 +611,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
           <div className="flex-1 grid grid-cols-4 gap-2">
             {/* Profile Photo Card */}
             <ParticleCard
-              className="bento-card flex items-center justify-center p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+              className="bento-card flex items-center justify-center p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
               style={
                 {
                   "--glow-x": "50%",
@@ -649,7 +649,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
             {/* Name and Nickname Card with Edit Button */}
             <ParticleCard
-              className="bento-card col-span-2 flex flex-col justify-center p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow relative"
+              className="bento-card col-span-2 flex flex-col justify-center p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow relative"
               style={
                 {
                   "--glow-x": "50%",
@@ -703,7 +703,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
         <div className="grid grid-cols-4 gap-2 mb-2">
           {/* Phone */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -735,7 +735,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
           {/* Email */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -767,7 +767,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
           {/* Location */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -802,7 +802,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
           {/* Total Cases - spans 2 columns with Case Summary label */}
           <div className="col-span-2 flex gap-2">
             <ParticleCard
-              className="bento-card flex-1 flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+              className="bento-card flex-1 flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
               style={
                 {
                   "--glow-x": "50%",
@@ -835,7 +835,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
             </ParticleCard>
 
             {/* Case Summary Label */}
-            <div className="flex items-start justify-start pt-2 min-w-[100px]">
+            <div className="flex items-start justify-start pt-2 min-w-25">
               <div className="flex flex-col items-start">
                 <span className="text-lg font-bold text-zinc-700 dark:text-zinc-200">
                   Case
@@ -861,7 +861,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
         <div className="grid grid-cols-4 gap-2">
           {/* Date of Birth */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -895,7 +895,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
           {/* Gender */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -927,7 +927,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
           {/* Active Cases */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",
@@ -961,7 +961,7 @@ const ProfileBento: React.FC<ProfileBentoProps> = ({
 
           {/* Completed Cases */}
           <ParticleCard
-            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-[100px] overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
+            className="bento-card flex flex-col justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/80 min-h-25 overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 bento-card--glow"
             style={
               {
                 "--glow-x": "50%",

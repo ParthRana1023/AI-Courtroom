@@ -26,9 +26,6 @@ import type {
   PartialScoring,
 } from "@/types";
 import SiteHeader from "@/components/chrome/site-header";
-
-// Add custom styles for animations
-import "./settings.css";
 import {
   SidebarProvider,
   Sidebar,
@@ -881,7 +878,7 @@ export default function SettingsPage() {
                   </button>
 
                   {saveMessage && (
-                    <span className="text-green-600 dark:text-green-400 ml-4 font-medium animate-fadeIn">
+                    <span className="text-green-600 dark:text-green-400 ml-4 font-medium animate-[ac-fade_.3s_ease-in-out]">
                       {saveMessage}
                     </span>
                   )}

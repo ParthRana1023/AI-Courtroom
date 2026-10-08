@@ -163,12 +163,12 @@ export default function CourtModelLoader({
         <div
           ref={stageRef}
           data-testid="loader-stage"
-          className="relative aspect-[4/3] max-h-[min(46vh,330px)] min-h-[140px] w-[min(100%,440px)] flex-[0_1_auto] cursor-grab touch-none"
+          className="relative aspect-4/3 max-h-[min(46vh,330px)] min-h-35 w-[min(100%,440px)] flex-[0_1_auto] cursor-grab touch-none"
         />
       )}
       <div className="flex flex-col items-center gap-1.5 px-4">
         <span
-          className={`font-display text-xl leading-[1.25] ${tone === "paper" ? "text-ink" : "text-desk-ink"}`}
+          className={`font-display text-xl leading-tight ${tone === "paper" ? "text-ink" : "text-desk-ink"}`}
         >
           {status}
         </span>

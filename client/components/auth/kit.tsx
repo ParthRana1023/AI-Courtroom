@@ -5,7 +5,7 @@
 // without scrolling; useAuthLayout returns them as CSS variables.
 
 import Link from "next/link";
-import { useId, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useId, type CSSProperties, type SubmitEvent, type ReactNode } from "react";
 import Select from "@/components/court/select";
 import { useViewport } from "@/hooks/use-viewport";
 import { cn } from "@/lib/utils";
@@ -59,7 +59,7 @@ export function AuthShell({
       style={layout.vars}
       className="flex min-h-dvh flex-col bg-[radial-gradient(ellipse_80%_60%_at_70%_20%,var(--desk-glow)_0%,var(--desk-bg)_70%)] font-type text-desk-ink"
     >
-      <header className="flex items-center justify-between gap-4 p-[var(--hdr-pad)]">
+      <header className="flex items-center justify-between gap-4 p-(--hdr-pad)">
         <Link
           href="/"
           translate="no"
@@ -71,7 +71,7 @@ export function AuthShell({
           </span>
           <span
             aria-hidden="true"
-            className="h-0.5 w-[9px] bg-cursor [animation:ac-cursor_1.6s_steps(1,end)_infinite]"
+            className="h-0.5 w-2.25 bg-cursor animate-[ac-cursor_1.6s_steps(1,end)_infinite]"
           />
         </Link>
         {switchLink && (
@@ -85,7 +85,7 @@ export function AuthShell({
       </header>
       <main
         style={{ gridTemplateColumns: layout.cols, gap: layout.gap }}
-        className="mx-auto grid w-full max-w-[1240px] flex-1 content-center items-center justify-center p-[var(--main-pad)]"
+        className="mx-auto grid w-full max-w-310 flex-1 content-center items-center justify-center p-(--main-pad)"
       >
         {children}
       </main>
@@ -106,8 +106,8 @@ export function AuthIntro({
   compact?: boolean;
 }) {
   return (
-    <div className={cn("flex max-w-[520px] flex-col", compact ? "gap-[26px]" : "gap-[22px] pt-12")}>
-      <div className={cn("flex flex-col", compact ? "gap-3.5" : "gap-[22px]")}>
+    <div className={cn("flex max-w-130 flex-col", compact ? "gap-6.5" : "gap-5.5 pt-12")}>
+      <div className={cn("flex flex-col", compact ? "gap-3.5" : "gap-5.5")}>
         <span className="text-label uppercase tracking-[0.3em] text-desk-red">{kicker}</span>
         <h1
           className={cn(
@@ -125,7 +125,7 @@ export function AuthIntro({
 
 export function IntroText({ children }: { children: ReactNode }) {
   return (
-    <p className="m-0 max-w-[440px] text-pretty text-[17px] leading-[1.6] text-desk-soft">{children}</p>
+    <p className="m-0 max-w-110 text-pretty text-[17px] leading-[1.6] text-desk-soft">{children}</p>
   );
 }
 
@@ -138,7 +138,7 @@ export function Slip({
   maxWidth = 460,
 }: {
   form: [string, string];
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (e: SubmitEvent<HTMLFormElement>) => void;
   children: ReactNode;
   scallop?: boolean;
   maxWidth?: number;
@@ -154,7 +154,7 @@ export function Slip({
       <form
         noValidate
         onSubmit={onSubmit}
-        className="relative flex flex-col gap-[var(--fg)] overflow-hidden bg-paper p-[var(--paper-pad)] text-ink shadow-dialog"
+        className="relative flex flex-col gap-(--fg) overflow-hidden bg-paper p-(--paper-pad) text-ink shadow-dialog"
       >
         <div className="flex flex-wrap justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 text-label font-bold uppercase tracking-[0.2em] text-ink-label">
           <span>{form[0]}</span>
@@ -169,8 +169,8 @@ export function Slip({
 export function SlipHeading({ title, sub }: { title: string; sub?: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <h2 className="m-0 font-display text-[length:var(--h2)] font-normal leading-[1.1]">{title}</h2>
-      {sub && <p className="m-0 text-pretty text-body leading-[1.5] text-ink-muted">{sub}</p>}
+      <h2 className="m-0 font-display text-(length:--h2) font-normal leading-[1.1]">{title}</h2>
+      {sub && <p className="m-0 text-pretty text-body leading-normal text-ink-muted">{sub}</p>}
     </div>
   );
 }
@@ -178,7 +178,7 @@ export function SlipHeading({ title, sub }: { title: string; sub?: ReactNode }) 
 const labelClass = "text-label font-bold uppercase tracking-[0.16em] text-ink-muted";
 
 export const slipInput =
-  "h-[var(--ih)] w-full min-w-0 rounded-none border-0 border-b-2 border-b-[rgba(18,13,9,.55)] bg-paper-alt px-3.5 font-data text-base text-ink outline-none placeholder:text-[#857661] focus:bg-paper-hi aria-[invalid=true]:border-b-error";
+  "h-(--ih) w-full min-w-0 rounded-none border-0 border-b-2 border-b-[rgba(18,13,9,.55)] bg-paper-alt px-3.5 font-data text-base text-ink outline-none placeholder:text-[#857661] focus:bg-paper-hi aria-invalid:border-b-error";
 
 export function Field({
   id,
@@ -196,7 +196,7 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-[7px]">
+    <div className="flex min-w-0 flex-col gap-1.75">
       <div className="flex items-baseline justify-between gap-3">
         <label htmlFor={id} className={labelClass}>
           {label}
@@ -234,7 +234,7 @@ export function Check({
   const autoId = useId();
   const labelId = `${id ?? autoId}-label`;
   return (
-    <div className="flex min-h-[var(--rm)] items-center gap-3 text-left text-body leading-[1.4] text-ink">
+    <div className="flex min-h-(--rm) items-center gap-3 text-left text-body leading-[1.4] text-ink">
       <button
         id={id}
         type="button"
@@ -244,7 +244,7 @@ export function Check({
         aria-labelledby={labelId}
         onClick={onToggle}
         className={cn(
-          "flex h-[22px] w-[22px] flex-none cursor-pointer items-center justify-center border-2 font-data text-sm font-bold text-paper",
+          "flex h-5.5 w-5.5 flex-none cursor-pointer items-center justify-center border-2 font-data text-sm font-bold text-paper",
           invalid ? "border-error" : "border-ink",
           checked ? "bg-ink" : "bg-transparent",
         )}
@@ -296,10 +296,10 @@ export function OrDivider({ children }: { children: ReactNode }) {
 }
 
 export const primaryButton =
-  "flex h-[var(--bh)] w-full cursor-pointer items-center justify-center gap-3 bg-seal text-sm font-bold uppercase tracking-[0.16em] text-cream hover:bg-seal-hover disabled:cursor-wait";
+  "flex h-(--bh) w-full cursor-pointer items-center justify-center gap-3 bg-seal text-sm font-bold uppercase tracking-[0.16em] text-cream hover:bg-seal-hover disabled:cursor-wait";
 
 export const outlineButton =
-  "flex h-[var(--ih)] w-full cursor-pointer items-center justify-center gap-3 whitespace-nowrap border-[1.5px] border-ink bg-transparent text-meta font-bold uppercase tracking-[0.12em] text-ink hover:bg-paper-hi disabled:cursor-wait disabled:opacity-60";
+  "flex h-(--ih) w-full cursor-pointer items-center justify-center gap-3 whitespace-nowrap border-[1.5px] border-ink bg-transparent text-meta font-bold uppercase tracking-[0.12em] text-ink hover:bg-paper-hi disabled:cursor-wait disabled:opacity-60";
 
 export const textLink =
   "relative cursor-pointer border-b border-seal bg-transparent p-0 font-bold text-seal before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:border-ink hover:text-ink";
@@ -307,7 +307,7 @@ export const textLink =
 /** "No account yet? Enrol as an advocate" footer line. */
 export function SlipFoot({ children }: { children: ReactNode }) {
   return (
-    <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-ink/20 pt-4 text-body leading-[1.5] text-ink-muted">
+    <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-ink/20 pt-4 text-body leading-normal text-ink-muted">
       {children}
     </p>
   );
@@ -340,7 +340,7 @@ export function JourneyList(props: JourneyProps) {
         <li
           key={s.n}
           aria-current={s.current ? "step" : undefined}
-          className="grid grid-cols-[34px_1fr_auto] items-baseline gap-2 border-b border-desk-rule-mid py-[13px]"
+          className="grid grid-cols-[34px_1fr_auto] items-baseline gap-2 border-b border-desk-rule-mid py-3.25"
         >
           <span className="font-display text-[17px] text-desk-amber">{s.n}</span>
           <span className={cn("text-base", s.current ? "text-desk-strong" : s.done ? "text-desk-ink" : "text-[#8f8574]")}>

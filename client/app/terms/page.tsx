@@ -39,7 +39,7 @@ export default function TermsOfService() {
             Last Updated: {lastUpdated}
           </p>
         </div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-amber-500/10 blur-[100px] -z-10 rounded-full" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-200 h-100 bg-amber-500/10 blur-[100px] -z-10 rounded-full" />
       </section>
 
       {/* Terms Content */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import PracticeStep from "@/components/auth/practice-step";
@@ -116,7 +116,7 @@ export default function NewCasePage() {
   const noLeft = !!quota && quota.left <= 0;
   const blocked = noLeft || !online;
 
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (blocked) return;
     if (input.trim() && !addFrom(input)) return;
@@ -148,7 +148,7 @@ export default function NewCasePage() {
 
   if (user && needsSeatOfPractice(user)) {
     return (
-      <div style={practiceLayout.vars} className="mx-auto flex w-full max-w-[1200px] flex-1 items-center justify-center p-[var(--main-pad)]">
+      <div style={practiceLayout.vars} className="mx-auto flex w-full max-w-300 flex-1 items-center justify-center p-(--main-pad)">
         <PracticeStep onDone={() => void refreshUser()} />
       </div>
     );
@@ -164,7 +164,7 @@ export default function NewCasePage() {
         : `${quota.left} of ${quota.max} case generations left`;
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[1200px] flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-[18px] min-[560px]:pt-5">
+    <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-4.5 min-[560px]:pt-5">
       <div className="flex flex-nowrap items-end justify-between gap-x-6 gap-y-3 min-[560px]:flex-wrap">
         <div className="flex min-w-0 flex-col gap-1.5">
           <span className="whitespace-nowrap text-[10.5px] uppercase tracking-[0.16em] text-desk-red min-[560px]:text-label min-[560px]:tracking-[0.3em]">
@@ -188,7 +188,7 @@ export default function NewCasePage() {
           noValidate
           onSubmit={submit}
           aria-label="Generate a new case"
-          className={cn("flex flex-1 flex-col bg-paper text-ink shadow-sheet", wide ? "min-h-[340px]" : "min-h-0")}
+          className={cn("flex flex-1 flex-col bg-paper text-ink shadow-sheet", wide ? "min-h-85" : "min-h-0")}
         >
           <div className="flex justify-between gap-3 border-b-[3px] border-double border-ink px-4 pb-2.5 pt-3.5 text-label font-bold uppercase tracking-[0.2em] text-ink-label min-[560px]:px-7">
             <span className="whitespace-nowrap">Form G-1</span>
@@ -199,7 +199,7 @@ export default function NewCasePage() {
             <>
               <Scroller
                 className={cn(
-                  "grid flex-1 content-start gap-y-5 px-4 pb-5 pt-4 min-[560px]:gap-y-6 min-[560px]:px-7 min-[560px]:pb-[18px] min-[560px]:pt-5",
+                  "grid flex-1 content-start gap-y-5 px-4 pb-5 pt-4 min-[560px]:gap-y-6 min-[560px]:px-7 min-[560px]:pb-4.5 min-[560px]:pt-5",
                   wide ? "grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] grid-rows-[minmax(0,1fr)] gap-x-8 overflow-hidden" : "grid-cols-1",
                 )}
               >
@@ -242,7 +242,7 @@ export default function NewCasePage() {
                           }}
                           aria-describedby="sec-hint"
                           aria-invalid={!!inErr || undefined}
-                          className="h-12 w-full rounded-none border-0 border-b-2 border-b-[rgba(18,13,9,.55)] bg-paper-alt pl-[38px] pr-3.5 font-data text-base text-ink outline-none placeholder:text-[#857661] focus:bg-paper-hi aria-[invalid=true]:border-b-error min-[560px]:h-[52px]"
+                          className="h-12 w-full rounded-none border-0 border-b-2 border-b-[rgba(18,13,9,.55)] bg-paper-alt pl-9.5 pr-3.5 font-data text-base text-ink outline-none placeholder:text-[#857661] focus:bg-paper-hi aria-invalid:border-b-error min-[560px]:h-13"
                         />
                       </div>
                       <button
@@ -251,7 +251,7 @@ export default function NewCasePage() {
                           addFrom(input);
                           inRef.current?.focus();
                         }}
-                        className={buttonClass("ink", "lg", "h-12 min-[560px]:h-[52px]")}
+                        className={buttonClass("ink", "lg", "h-12 min-[560px]:h-13")}
                       >
                         Add
                       </button>
@@ -329,7 +329,7 @@ export default function NewCasePage() {
                           title={name}
                           className={cn(
                             "flex cursor-pointer px-3 py-1.5 text-left hover:border-ink",
-                            mob ? "min-h-[60px] flex-col items-start" : "min-h-12 items-center gap-2.5",
+                            mob ? "min-h-15 flex-col items-start" : "min-h-12 items-center gap-2.5",
                             on ? "border border-ink bg-ink text-paper" : "border border-ink/28 bg-transparent text-ink",
                           )}
                         >
@@ -351,7 +351,7 @@ export default function NewCasePage() {
                 </div>
               </Scroller>
 
-              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-[3px] border-double border-ink px-4 pb-3.5 pt-3 min-[560px]:px-7 min-[560px]:pb-[18px] min-[560px]:pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-[3px] border-double border-ink px-4 pb-3.5 pt-3 min-[560px]:px-7 min-[560px]:pb-4.5 min-[560px]:pt-4">
                 <div className="flex min-w-0 flex-col gap-1.5">
                   {quota && (
                     <div aria-hidden="true" className="flex gap-1">
@@ -368,13 +368,13 @@ export default function NewCasePage() {
                   </span>
                 </div>
                 <div className={cn("flex gap-2", mob ? "flex-[1_1_100%]" : "flex-[0_1_auto]")}>
-                  <Link href="/cases" className={buttonClass("paper", "lg", "h-[52px] px-[18px] text-xs")}>
+                  <Link href="/cases" className={buttonClass("paper", "lg", "h-13 px-4.5 text-xs")}>
                     Cancel
                   </Link>
                   <button
                     type="submit"
                     disabled={blocked}
-                    className={buttonClass("seal", "lg", cn("h-[52px] flex-1", !mob && "min-w-60"))}
+                    className={buttonClass("seal", "lg", cn("h-13 flex-1", !mob && "min-w-60"))}
                   >
                     {!online ? "You’re offline" : noLeft ? "Limit reached" : "Generate case →"}
                   </button>
@@ -392,16 +392,16 @@ export default function NewCasePage() {
                     key={t}
                     className={cn("flex items-baseline gap-3 text-base", i < step ? "text-green" : i === step ? "text-ink" : "text-ink-hint")}
                   >
-                    <span aria-hidden="true" className="w-[18px] flex-none font-data text-body font-bold">
+                    <span aria-hidden="true" className="w-4.5 flex-none font-data text-body font-bold">
                       {i < step ? "✓" : i === step ? "›" : "·"}
                     </span>
                     <span>{t + (i === step ? "…" : "")}</span>
                   </li>
                 ))}
               </ol>
-              <div aria-hidden="true" className="h-[3px] w-[min(280px,100%)] bg-ink/15">
+              <div aria-hidden="true" className="h-0.75 w-[min(280px,100%)] bg-ink/15">
                 <div
-                  className="h-full bg-seal transition-[width] duration-[900ms] ease-out"
+                  className="h-full bg-seal transition-[width] duration-900 ease-out"
                   style={{ width: `${Math.round((Math.min(step + 0.5, STEPS.length) / STEPS.length) * 100)}%` }}
                 />
               </div>
@@ -413,13 +413,13 @@ export default function NewCasePage() {
 
           {phase === "filed" && (
             <div role="status" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-5 py-8 text-center">
-              <span className="inline-block -rotate-5 border-4 border-double border-seal px-5 pb-1.5 pt-2 font-display text-5xl leading-none tracking-[0.08em] text-seal [animation:ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both]">
+              <span className="inline-block -rotate-5 border-4 border-double border-seal px-5 pb-1.5 pt-2 font-display text-5xl leading-none tracking-[0.08em] text-seal animate-[ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both]">
                 FILED
               </span>
-              <span className="text-base leading-[1.5] text-ink-label">
+              <span className="text-base leading-normal text-ink-label">
                 Case <strong className="font-data text-body font-medium text-ink">{newCnr}</strong> is ready.
               </span>
-              <button type="button" onClick={() => router.push(`/cases/${newCnr}`)} className={buttonClass("seal", "lg", "h-[52px] px-6")}>
+              <button type="button" onClick={() => router.push(`/cases/${newCnr}`)} className={buttonClass("seal", "lg", "h-13 px-6")}>
                 Open the case file →
               </button>
             </div>
@@ -431,7 +431,7 @@ export default function NewCasePage() {
             {HOW.map(([num, title, body]) => (
               <li key={num} className="grid grid-cols-[30px_1fr] items-baseline gap-x-1.5 gap-y-0.5">
                 <span className="font-display text-base text-desk-amber">{num}</span>
-                <span className="font-display text-base leading-[1.25] text-desk-ink">{title}</span>
+                <span className="font-display text-base leading-tight text-desk-ink">{title}</span>
                 <span />
                 <span className="text-pretty text-meta leading-[1.45] text-desk-muted">{body}</span>
               </li>

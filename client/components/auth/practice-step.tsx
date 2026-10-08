@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type SubmitEvent } from "react";
 import Select from "@/components/court/select";
 import { authAPI, locationAPI } from "@/lib/api";
 import { getErrorDetail } from "@/lib/error-utils";
@@ -60,7 +60,7 @@ export default function PracticeStep({
   };
   const shown = (k: keyof typeof errors) => (tried ? errors[k] : "");
 
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     const first = (Object.keys(errors) as (keyof typeof errors)[]).find((k) => errors[k]);
     if (first) {

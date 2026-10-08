@@ -127,7 +127,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       children,
       ...props
     }: CodeProps) => {
-      return !inline ? (
+      return inline! ? (
         <pre className="bg-gray-100 p-4 rounded overflow-x-auto my-4">
           <code className={className} {...props}>
             {children}

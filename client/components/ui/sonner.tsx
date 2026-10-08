@@ -13,7 +13,7 @@ const Toaster = () => (
       unstyled: true,
       classNames: {
         toast:
-          "flex w-full max-w-[560px] items-center gap-4 bg-paper px-4 py-2.5 font-type text-sm leading-[1.4] text-ink shadow-toast",
+          "flex w-full max-w-140 items-center gap-4 bg-paper px-4 py-2.5 font-type text-sm leading-[1.4] text-ink shadow-toast",
         title: "flex-1",
         description: "text-ink-muted",
         actionButton:

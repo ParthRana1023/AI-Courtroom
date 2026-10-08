@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -84,7 +84,7 @@ export default function LoginPage() {
     window.setTimeout(() => router.replace(next), 1400);
   };
 
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     const first = Object.entries(errors).find(([, v]) => v)?.[0];
     if (first) {
@@ -209,13 +209,13 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   aria-invalid={!!err("l_password") || undefined}
-                  className={`${slipInput} pr-[78px]`}
+                  className={`${slipInput} pr-19.5`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw((s) => !s)}
                   aria-label={showPw ? "Hide password" : "Show password"}
-                  className="absolute bottom-0.5 right-0 top-0 min-w-[70px] cursor-pointer bg-transparent text-label font-bold uppercase tracking-[0.14em] text-ink-muted hover:text-seal"
+                  className="absolute bottom-0.5 right-0 top-0 min-w-17.5 cursor-pointer bg-transparent text-label font-bold uppercase tracking-[0.14em] text-ink-muted hover:text-seal"
                 >
                   {showPw ? "Hide" : "Show"}
                 </button>

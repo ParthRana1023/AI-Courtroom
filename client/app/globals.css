@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @config "../tailwind.config.ts";
 
+/* `light:` for the prototypes' light-dark() pairs that have no desk token. */
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
 /* ---------------------------------------------------------------------------
    "Courtroom paper" design tokens. The desk (page) switches with
    [data-theme]; paper (documents, dialogs, menus) stays paper in both themes.

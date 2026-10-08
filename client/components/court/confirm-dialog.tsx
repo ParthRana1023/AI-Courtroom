@@ -28,9 +28,9 @@ export default function ConfirmDialog({
   return (
     <AlertDialog.Root open={!!copy} onOpenChange={(open) => !open && onClose()}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 z-[60] bg-[var(--scrim)] [animation:ac-fade_.2s_ease_both]" />
+        <AlertDialog.Overlay className="fixed inset-0 z-60 bg-(--scrim) animate-[ac-fade_.2s_ease_both]" />
         {copy && (
-          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-[61] flex w-[calc(100%-32px)] max-w-[460px] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 bg-paper px-[26px] pb-[22px] pt-[26px] font-type text-ink shadow-dialog outline-none">
+          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-61 flex w-[calc(100%-32px)] max-w-115 -translate-x-1/2 -translate-y-1/2 flex-col gap-4 bg-paper px-6.5 pb-5.5 pt-6.5 font-type text-ink shadow-dialog outline-none">
             <div className="flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 text-label font-bold uppercase tracking-[0.2em] text-ink-label">
               <span>{copy.kicker}</span>
               <span>{copy.count}</span>
@@ -43,7 +43,7 @@ export default function ConfirmDialog({
               {copy.body}
             </AlertDialog.Description>
             <div className="flex flex-wrap justify-end gap-2.5 pt-1">
-              <AlertDialog.Cancel className={buttonClass("paper", "md", "px-[18px]")}>Cancel</AlertDialog.Cancel>
+              <AlertDialog.Cancel className={buttonClass("paper", "md", "px-4.5")}>Cancel</AlertDialog.Cancel>
               <AlertDialog.Action
                 onClick={onConfirm}
                 className={cn(

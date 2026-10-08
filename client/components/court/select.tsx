@@ -45,7 +45,7 @@ export default function Select({
         aria-label={aria["aria-label"]}
         aria-invalid={invalid || undefined}
         className={cn(
-          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 text-left outline-none disabled:cursor-not-allowed data-[placeholder]:text-[#857661]",
+          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 text-left outline-none disabled:cursor-not-allowed data-placeholder:text-[#857661]",
           className,
         )}
       >
@@ -60,7 +60,7 @@ export default function Select({
         <RadixSelect.Content
           position="popper"
           sideOffset={6}
-          className="z-[200] max-h-[min(360px,var(--radix-select-content-available-height))] min-w-[max(var(--radix-select-trigger-width),230px)] overflow-hidden bg-paper py-1.5 text-ink shadow-[0_20px_50px_rgba(0,0,0,.45)]"
+          className="z-200 max-h-[min(360px,var(--radix-select-content-available-height))] min-w-[max(var(--radix-select-trigger-width),230px)] overflow-hidden bg-paper py-1.5 text-ink shadow-[0_20px_50px_rgba(0,0,0,.45)]"
         >
           <RadixSelect.Viewport data-scroller="">
             {options.map((o, i) => (
@@ -69,7 +69,7 @@ export default function Select({
                 value={o.value}
                 disabled={o.disabled}
                 className={cn(
-                  "flex min-h-[46px] cursor-pointer items-center gap-3 px-4 font-type text-body leading-[1.3] outline-none data-[disabled]:cursor-default data-[disabled]:text-ink-disabled data-[highlighted]:bg-paper-hi data-[highlighted]:shadow-[inset_3px_0_0_#e0453a] data-[state=checked]:bg-paper-alt data-[state=checked]:text-seal",
+                  "flex min-h-11.5 cursor-pointer items-center gap-3 px-4 font-type text-body leading-[1.3] outline-none data-disabled:cursor-default data-disabled:text-ink-disabled data-highlighted:bg-paper-hi data-highlighted:shadow-[inset_3px_0_0_#e0453a] data-[state=checked]:bg-paper-alt data-[state=checked]:text-seal",
                   i > 0 && "border-t border-ink/12",
                 )}
               >

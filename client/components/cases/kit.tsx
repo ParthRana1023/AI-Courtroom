@@ -123,14 +123,14 @@ export function SearchBox({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-[42px] w-full rounded-none border border-desk-rule-mid bg-desk-ink/[.06] pl-[42px] pr-10 font-data text-[15px] text-desk-ink outline-none placeholder:text-desk-muted focus:border-desk-amber focus:bg-desk-ink/10 [&::-webkit-search-cancel-button]:hidden"
+        className="h-10.5 w-full rounded-none border border-desk-rule-mid bg-desk-ink/6 pl-10.5 pr-10 font-data text-[15px] text-desk-ink outline-none placeholder:text-desk-muted focus:border-desk-amber focus:bg-desk-ink/10 [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange("")}
           aria-label="Clear search"
-          className="absolute right-0 top-0 h-[42px] w-11 cursor-pointer font-data text-xl text-desk-muted hover:text-desk-hover"
+          className="absolute right-0 top-0 h-10.5 w-11 cursor-pointer font-data text-xl text-desk-muted hover:text-desk-hover"
         >
           ×
         </button>
@@ -157,7 +157,7 @@ export function SortSelect({
         onChange({ field: field as SortField, dir: dir as "asc" | "desc" });
       }}
       options={options.map(([value, label]) => ({ value, label }))}
-      className="h-[38px] flex-auto border border-desk-rule-mid bg-desk px-2.5 text-meta text-desk-ink"
+      className="h-9.5 flex-auto border border-desk-rule-mid bg-desk px-2.5 text-meta text-desk-ink"
     />
   );
 }
@@ -169,7 +169,7 @@ export function SelectToggle({ selecting, onToggle, className }: { selecting: bo
       aria-pressed={selecting}
       onClick={onToggle}
       className={cn(
-        "h-[39px] w-[97px] flex-none cursor-pointer whitespace-nowrap border border-desk-ink/40 px-3.5 text-meta",
+        "h-9.75 w-24.25 flex-none cursor-pointer whitespace-nowrap border border-desk-ink/40 px-3.5 text-meta",
         selecting ? "bg-paper text-ink" : "bg-transparent text-desk-soft",
         className,
       )}
@@ -183,7 +183,7 @@ export function OfflineStrip({ children }: { children: ReactNode }) {
   return (
     <div
       role="status"
-      className="-mt-1 flex flex-wrap items-baseline gap-2.5 border border-[rgba(233,163,58,.5)] bg-[rgba(233,163,58,.08)] px-3.5 py-[9px] text-[13.5px] leading-[1.45] text-desk-amber"
+      className="-mt-1 flex flex-wrap items-baseline gap-2.5 border border-[rgba(233,163,58,.5)] bg-[rgba(233,163,58,.08)] px-3.5 py-2.25 text-[13.5px] leading-[1.45] text-desk-amber"
     >
       <strong className="text-label font-bold uppercase tracking-[0.16em]">Offline</strong>
       <span>{children}</span>
@@ -205,7 +205,7 @@ export function BulkBar({
       <div
         role="toolbar"
         aria-label="Selected cases"
-        className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 border border-paper/25 bg-ink py-2 pl-[18px] pr-2 text-sm text-paper shadow-menu"
+        className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 border border-paper/25 bg-ink py-2 pl-4.5 pr-2 text-sm text-paper shadow-menu"
       >
         <span className="whitespace-nowrap pr-2">{count} selected</span>
         {actions.map((a) => (
@@ -215,7 +215,7 @@ export function BulkBar({
             onClick={a.onClick}
             disabled={!count}
             className={cn(
-              "h-[42px] cursor-pointer px-4 text-xs font-bold uppercase tracking-[0.12em] disabled:cursor-not-allowed",
+              "h-10.5 cursor-pointer px-4 text-xs font-bold uppercase tracking-[0.12em] disabled:cursor-not-allowed",
               a.danger
                 ? "bg-seal text-cream disabled:bg-[#3a2b22]"
                 : "border border-paper/35 bg-transparent text-paper disabled:text-[#6f6556]",
@@ -224,7 +224,7 @@ export function BulkBar({
             {a.label}
           </button>
         ))}
-        <button type="button" onClick={onDone} className="h-[42px] cursor-pointer px-3 text-meta text-desk-muted hover:text-white">
+        <button type="button" onClick={onDone} className="h-10.5 cursor-pointer px-3 text-meta text-desk-muted hover:text-white">
           Done
         </button>
       </div>
@@ -270,7 +270,7 @@ function StatusTag({ status, compact }: { status: string; compact?: boolean }) {
       style={{ color, borderColor: color }}
       className={cn(
         "flex-none whitespace-nowrap border-[1.5px] font-bold uppercase",
-        compact ? "px-[7px] pb-0.5 pt-[3px] text-[10.5px] tracking-[0.12em]" : "px-2 pb-0.5 pt-[3px] text-label tracking-[0.14em]",
+        compact ? "px-1.75 pb-0.5 pt-0.75 text-[10.5px] tracking-[0.12em]" : "px-2 pb-0.5 pt-0.75 text-label tracking-[0.14em]",
       )}
     >
       {label}
@@ -336,7 +336,7 @@ export function CaseList({
       {table && rows.length > 0 && !loading && (
         <div
           style={{ gridTemplateColumns: grid }}
-          className="grid items-center gap-x-[18px] border-b-[3px] border-double border-ink px-[22px] text-label font-bold uppercase tracking-[0.16em] text-ink-label"
+          className="grid items-center gap-x-4.5 border-b-[3px] border-double border-ink px-5.5 text-label font-bold uppercase tracking-[0.16em] text-ink-label"
         >
           {selecting && (
             <button
@@ -345,7 +345,7 @@ export function CaseList({
               aria-checked={allOn ? true : someOn ? "mixed" : false}
               aria-label="Select all"
               onClick={onToggleAll}
-              className="-ml-[11px] flex h-10 w-11 cursor-pointer items-center justify-center"
+              className="-ml-2.75 flex h-10 w-11 cursor-pointer items-center justify-center"
             >
               <Tick on={allOn} mixed={someOn} />
             </button>
@@ -374,7 +374,7 @@ export function CaseList({
 
       <Scroller className={cn("flex-1", loading && "overflow-hidden", selecting && "pb-20")}>
         {loading ? (
-          <div className="flex h-full min-h-[340px] items-center justify-center px-3 py-6">
+          <div className="flex h-full min-h-85 items-center justify-center px-3 py-6">
             <CourtModelLoader status={loadingStatus} tone="paper" />
           </div>
         ) : error ? (
@@ -403,8 +403,8 @@ export function CaseList({
                 }}
                 style={table ? { gridTemplateColumns: grid } : undefined}
                 className={cn(
-                  "relative cursor-pointer items-center gap-x-[18px] gap-y-1.5 border-b border-ink/16 hover:bg-paper-hi",
-                  table ? "grid px-[22px] py-2" : "flex pb-2.5 pl-[18px] pr-3 pt-[11px]",
+                  "relative cursor-pointer items-center gap-x-4.5 gap-y-1.5 border-b border-ink/16 hover:bg-paper-hi",
+                  table ? "grid px-5.5 py-2" : "flex pb-2.5 pl-4.5 pr-3 pt-2.75",
                   on && "bg-paper-hi",
                 )}
               >
@@ -418,7 +418,7 @@ export function CaseList({
                       e.stopPropagation();
                       onToggle(row.cnr);
                     }}
-                    className="-ml-[11px] flex h-11 w-11 flex-none cursor-pointer items-center justify-center"
+                    className="-ml-2.75 flex h-11 w-11 flex-none cursor-pointer items-center justify-center"
                   >
                     <Tick on={on} />
                   </button>
@@ -555,12 +555,12 @@ export function ListMessage({
     <div
       className={cn(
         "flex min-h-full flex-col items-center justify-center text-center",
-        big ? "gap-4 px-[22px] py-9 min-[560px]:px-12 min-[560px]:py-16" : "gap-3 px-[22px] py-12",
+        big ? "gap-4 px-5.5 py-9 min-[560px]:px-12 min-[560px]:py-16" : "gap-3 px-5.5 py-12",
       )}
     >
       {kicker && <span className="text-label font-bold uppercase tracking-[0.2em] text-seal">{kicker}</span>}
       <span className={cn("font-display", big ? "text-[30px] leading-[1.1] min-[560px]:text-[40px]" : "text-2xl")}>{title}</span>
-      <span className={cn("max-w-[460px] text-balance text-ink-muted", big ? "text-base leading-[1.55]" : "text-body")}>{body}</span>
+      <span className={cn("max-w-115 text-balance text-ink-muted", big ? "text-base leading-[1.55]" : "text-body")}>{body}</span>
       {children}
     </div>
   );

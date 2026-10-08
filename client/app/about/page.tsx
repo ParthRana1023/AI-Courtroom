@@ -37,7 +37,7 @@ export default function AboutPage() {
           </p>
         </div>
         {/* Background Decorative Element */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-blue-500/10 blur-[100px] -z-10 rounded-full" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-200 h-100 bg-blue-500/10 blur-[100px] -z-10 rounded-full" />
       </section>
 
       {/* How It Works Section */}

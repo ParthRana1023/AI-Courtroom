@@ -27,16 +27,16 @@ export default function NoticeSheet({
       : "text-[3.625rem] min-[560px]:text-[6.5rem]";
 
   return (
-    <main className="mx-auto flex w-full max-w-[1200px] flex-1 items-center justify-center px-3 py-4 min-[560px]:px-[4vw] min-[560px]:py-6">
+    <main className="mx-auto flex w-full max-w-300 flex-1 items-center justify-center px-3 py-4 min-[560px]:px-[4vw] min-[560px]:py-6">
       <section
         aria-labelledby="notice-title"
-        className="flex w-full max-w-[620px] flex-col bg-paper text-ink shadow-sheet"
+        className="flex w-full max-w-155 flex-col bg-paper text-ink shadow-sheet"
       >
         <div className="flex justify-between gap-3 border-b-[3px] border-double border-ink px-4 pb-2.5 pt-3.5 font-type text-label font-bold uppercase tracking-[0.2em] text-ink-label min-[560px]:px-7">
           <span className="whitespace-nowrap">{form[0]}</span>
           <span className="whitespace-nowrap">{form[1]}</span>
         </div>
-        <div className="relative flex flex-col items-center gap-4 px-[18px] pb-[30px] pt-7 text-center min-[560px]:px-10 min-[560px]:pb-[42px] min-[560px]:pt-11">
+        <div className="relative flex flex-col items-center gap-4 px-4.5 pb-7.5 pt-7 text-center min-[560px]:px-10 min-[560px]:pb-10.5 min-[560px]:pt-11">
           <span
             aria-hidden="true"
             className={`font-display leading-[0.9] tracking-[0.04em] text-ink ${wordSize}`}
@@ -45,7 +45,7 @@ export default function NoticeSheet({
           </span>
           <span
             aria-hidden="true"
-            className="absolute right-3 top-11 border-4 border-double border-seal bg-[rgba(239,230,211,.75)] px-3.5 pb-1 pt-1.5 font-display text-xl leading-none tracking-[0.08em] text-seal [--stamp-rot:-8deg] [animation:ac-stamp_.35s_.2s_cubic-bezier(.2,.9,.3,1.2)_both] min-[560px]:right-16 min-[560px]:top-[70px] min-[560px]:text-[1.75rem]"
+            className="absolute right-3 top-11 border-4 border-double border-seal bg-[rgba(239,230,211,.75)] px-3.5 pb-1 pt-1.5 font-display text-xl leading-none tracking-[0.08em] text-seal [--stamp-rot:-8deg] animate-[ac-stamp_.35s_.2s_cubic-bezier(.2,.9,.3,1.2)_both] min-[560px]:right-16 min-[560px]:top-17.5 min-[560px]:text-[1.75rem]"
           >
             {stamp}
           </span>
@@ -55,7 +55,7 @@ export default function NoticeSheet({
           >
             {title}
           </h1>
-          <p className="m-0 max-w-[420px] text-balance font-type text-base leading-[1.6] text-ink-label">
+          <p className="m-0 max-w-105 text-balance font-type text-base leading-[1.6] text-ink-label">
             {children}
           </p>
           <div className="flex flex-wrap justify-center gap-2 pt-2">

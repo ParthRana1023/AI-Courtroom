@@ -214,17 +214,17 @@ export default function MyCasesPage() {
       : `Status (${filters.length})`;
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[1200px] flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-[18px] min-[560px]:pt-5">
+    <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-4.5 min-[560px]:pt-5">
       <PageHead kicker={`Cause list · ${formatDate(new Date().toISOString())}`} title="MY CASES">
         <div className="flex flex-col items-stretch gap-0.5 min-[560px]:flex-row min-[560px]:flex-wrap min-[560px]:items-center min-[560px]:gap-x-5 min-[560px]:gap-y-2.5">
           <Link
             href="/cases/archived"
-            className="flex min-h-[34px] items-center gap-2 border-b border-desk-ink/30 text-xs uppercase tracking-[0.16em] text-desk-soft hover:text-desk-hover min-[560px]:min-h-11"
+            className="flex min-h-8.5 items-center gap-2 border-b border-desk-ink/30 text-xs uppercase tracking-[0.16em] text-desk-soft hover:text-desk-hover min-[560px]:min-h-11"
           >
             <ArchiveIcon />
             <span>Archived{archived ? ` (${archived})` : ""}</span>
           </Link>
-          <Link href="/cases/new" className={buttonClass("seal", "md", "h-10 px-3.5 min-[560px]:h-11 min-[560px]:px-[22px]")}>
+          <Link href="/cases/new" className={buttonClass("seal", "md", "h-10 px-3.5 min-[560px]:h-11 min-[560px]:px-5.5")}>
             + New case
           </Link>
         </div>
@@ -235,13 +235,13 @@ export default function MyCasesPage() {
           value={q}
           onChange={setQ}
           placeholder={mob ? "Search cases" : "Search by title or case number"}
-          className={cn(mob ? "flex-[1_1_100%]" : "flex-[1_1_200px]", table ? "max-w-[380px]" : "max-w-full")}
+          className={cn(mob ? "flex-[1_1_100%]" : "flex-[1_1_200px]", table ? "max-w-95" : "max-w-full")}
         />
         {!mob && (
           <div
             role="group"
             aria-label="Filter by status"
-            className={cn("flex min-w-0 gap-1.5", table ? "order-none ml-auto flex-[0_1_auto]" : "order-3 flex-[1_1_100%]")}
+            className={cn("flex min-w-0 gap-1.5", table ? "order-0 ml-auto flex-[0_1_auto]" : "order-3 flex-[1_1_100%]")}
           >
             {chips.map((c) => {
               const on = c.k ? filters.includes(c.k) : !filters.length;
@@ -252,7 +252,7 @@ export default function MyCasesPage() {
                   aria-pressed={on}
                   onClick={() => (c.k ? toggleFilter(c.k) : setFilters([]))}
                   className={cn(
-                    "flex h-[38px] min-w-0 cursor-pointer items-center justify-center whitespace-nowrap border text-meta leading-none",
+                    "flex h-9.5 min-w-0 cursor-pointer items-center justify-center whitespace-nowrap border text-meta leading-none",
                     table ? "flex-none px-3" : "flex-auto px-2.5",
                     on ? "border-paper bg-paper text-ink" : "border-desk-rule-mid bg-transparent text-desk-soft",
                   )}
@@ -266,12 +266,12 @@ export default function MyCasesPage() {
             })}
           </div>
         )}
-        <div className={cn("flex min-w-0 items-center gap-2", !table && "ml-auto", mob ? "flex-[1_1_100%]" : "flex-none")}>
+        <div className={cn("flex min-w-0 items-center gap-2", table! && "ml-auto", mob ? "flex-[1_1_100%]" : "flex-none")}>
           {mob && (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger
                 className={cn(
-                  "flex h-[38px] flex-none cursor-pointer items-center gap-2 whitespace-nowrap border px-2.5 text-meta",
+                  "flex h-9.5 flex-none cursor-pointer items-center gap-2 whitespace-nowrap border px-2.5 text-meta",
                   filters.length ? "border-paper bg-paper text-ink" : "border-desk-ink/35 bg-transparent text-desk-ink",
                 )}
               >
@@ -283,7 +283,7 @@ export default function MyCasesPage() {
                   align="start"
                   sideOffset={6}
                   aria-label="Filter by status"
-                  className="z-[36] flex min-w-[230px] flex-col bg-paper py-1.5 text-ink shadow-menu"
+                  className="z-36 flex min-w-57.5 flex-col bg-paper py-1.5 text-ink shadow-menu"
                 >
                   {chips.map((c, i) => {
                     const on = c.k ? filters.includes(c.k) : !filters.length;
@@ -297,14 +297,14 @@ export default function MyCasesPage() {
                           else setFilters([]);
                         }}
                         className={cn(
-                          "flex min-h-[46px] cursor-pointer items-center gap-3 px-4 text-body outline-none data-[highlighted]:bg-paper-hi",
+                          "flex min-h-11.5 cursor-pointer items-center gap-3 px-4 text-body outline-none data-highlighted:bg-paper-hi",
                           i === 1 && "border-t border-ink/18",
                         )}
                       >
                         <span
                           aria-hidden="true"
                           className={cn(
-                            "flex h-[18px] w-[18px] flex-none items-center justify-center border-2 border-ink font-data text-xs font-bold text-paper",
+                            "flex h-4.5 w-4.5 flex-none items-center justify-center border-2 border-ink font-data text-xs font-bold text-paper",
                             on ? "bg-ink" : "bg-transparent",
                           )}
                         >
@@ -385,7 +385,7 @@ export default function MyCasesPage() {
         error={
           failed ? (
             <ListMessage title="Couldn’t load your cases." body="Check your connection and try again.">
-              <button type="button" onClick={load} className={buttonClass("paper", "md", "px-[18px]")}>
+              <button type="button" onClick={load} className={buttonClass("paper", "md", "px-4.5")}>
                 Try again
               </button>
             </ListMessage>
@@ -398,14 +398,14 @@ export default function MyCasesPage() {
             title="Your cause list is empty."
             body="Generate a case, pick a side, and prepare your arguments before you go into court."
           >
-            <Link href="/cases/new" className={buttonClass("seal", "lg", "h-[52px] px-6")}>
+            <Link href="/cases/new" className={buttonClass("seal", "lg", "h-13 px-6")}>
               Create your first case →
             </Link>
           </ListMessage>
         }
         noMatch={
           <ListMessage title="No cases match." body="Try another search or clear the filters.">
-            <button type="button" onClick={clearAll} className={buttonClass("paper", "md", "h-11 px-[18px]")}>
+            <button type="button" onClick={clearAll} className={buttonClass("paper", "md", "h-11 px-4.5")}>
               Clear filters
             </button>
           </ListMessage>

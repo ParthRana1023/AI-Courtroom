@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (busy) return;
     if (step === "email") {
@@ -136,14 +136,14 @@ export default function ForgotPasswordPage() {
         {step === "sent" && (
           <>
             <div role="status" className="flex flex-col gap-1.5">
-              <h2 className="m-0 font-display text-[length:var(--h2)] font-normal leading-[1.1]">Check your email</h2>
-              <p className="m-0 text-pretty text-body leading-[1.5] text-ink-muted">
+              <h2 className="m-0 font-display text-(length:--h2) font-normal leading-[1.1]">Check your email</h2>
+              <p className="m-0 text-pretty text-body leading-normal text-ink-muted">
                 If an account exists for{" "}
                 <strong className="break-all font-data text-sm font-medium text-ink">{trimmed}</strong>, we’ve sent a
                 link to reset your password. It expires in 30 minutes.
               </p>
             </div>
-            <div className="flex flex-wrap justify-between gap-x-[18px] gap-y-2.5 border-t border-ink/20 pt-3.5 text-sm text-ink-muted">
+            <div className="flex flex-wrap justify-between gap-x-4.5 gap-y-2.5 border-t border-ink/20 pt-3.5 text-sm text-ink-muted">
               <span className="flex flex-wrap items-baseline gap-1.5">
                 <span>No email? Check spam, or</span>
                 <button
@@ -206,8 +206,8 @@ export default function ForgotPasswordPage() {
 
         {step === "done" && (
           <>
-            <div role="status" className="flex flex-col items-start gap-[18px] pb-1 pt-3">
-              <span className="inline-block -rotate-5 border-4 border-double border-green px-[18px] pb-1.5 pt-2 font-display text-[40px] leading-none tracking-[0.08em] text-green">
+            <div role="status" className="flex flex-col items-start gap-4.5 pb-1 pt-3">
+              <span className="inline-block -rotate-5 border-4 border-double border-green px-4.5 pb-1.5 pt-2 font-display text-[40px] leading-none tracking-[0.08em] text-green">
                 RESET
               </span>
               <p className="m-0 text-pretty text-base leading-[1.55] text-ink-muted">

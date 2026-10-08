@@ -39,13 +39,13 @@ export default function OfflineBanner() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 z-[45] overflow-hidden pb-[30px]"
+      className="pointer-events-none fixed inset-x-0 z-45 overflow-hidden pb-7.5"
       style={{ top }}
     >
-      <div role="status" aria-live="polite" className="flex justify-center [animation:ac-slide-down_.3s_ease_both]">
+      <div role="status" aria-live="polite" className="flex justify-center animate-[ac-slide-down_.3s_ease_both]">
         <div
           className={cn(
-            "pointer-events-auto flex w-full flex-wrap items-center justify-center gap-3 border-y px-[18px] py-[9px] text-center font-type text-[0.84375rem] leading-[1.4] shadow-[0_10px_30px_rgba(0,0,0,.45)]",
+            "pointer-events-auto flex w-full flex-wrap items-center justify-center gap-3 border-y px-4.5 py-2.25 text-center font-type text-[0.84375rem] leading-[1.4] shadow-[0_10px_30px_rgba(0,0,0,.45)]",
             isBack
               ? "border-green bg-[#1f4a28] text-[#e6f0e2]"
               : "border-amber-hi bg-ink text-paper",

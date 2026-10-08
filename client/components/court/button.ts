@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 // Square paper-style buttons. Use with <button>, <Link> or <a>.
 const base =
-  "inline-flex items-center justify-center gap-2 px-[22px] font-type font-bold uppercase whitespace-nowrap cursor-pointer transition-colors disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 px-5.5 font-type font-bold uppercase whitespace-nowrap cursor-pointer transition-colors disabled:cursor-not-allowed";
 
 const variants = {
   // solid red: the one primary action
@@ -17,8 +17,8 @@ const variants = {
 } as const;
 
 const sizes = {
-  md: "h-[46px] text-xs tracking-[0.12em]",
-  lg: "h-[50px] text-meta tracking-[0.14em]",
+  md: "h-11.5 text-xs tracking-[0.12em]",
+  lg: "h-12.5 text-meta tracking-[0.14em]",
 } as const;
 
 export function buttonClass(

@@ -34,7 +34,7 @@ const CATEGORIES: { id: CookieCategory; name: string; desc: string }[] = [
 ];
 
 const strip =
-  "flex justify-between gap-3 px-[22px] font-type text-label font-bold uppercase tracking-[0.2em] text-ink-label";
+  "flex justify-between gap-3 px-5.5 font-type text-label font-bold uppercase tracking-[0.2em] text-ink-label";
 
 export default function CookieConsent() {
   const {
@@ -52,9 +52,9 @@ export default function CookieConsent() {
         <div
           role="region"
           aria-label="Cookie consent"
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-[70] min-[560px]:px-4 min-[560px]:pb-4"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-70 min-[560px]:px-4 min-[560px]:pb-4"
         >
-          <div className="pointer-events-auto mx-auto flex max-w-[920px] flex-wrap items-center gap-x-7 gap-y-4 border-t-[3px] border-double border-ink bg-paper px-[22px] py-[18px] text-ink shadow-[0_-10px_60px_rgba(0,0,0,.7)] [animation:ac-slide-up_.3s_ease_both]">
+          <div className="pointer-events-auto mx-auto flex max-w-230 flex-wrap items-center gap-x-7 gap-y-4 border-t-[3px] border-double border-ink bg-paper px-5.5 py-4.5 text-ink shadow-[0_-10px_60px_rgba(0,0,0,.7)] animate-[ac-slide-up_.3s_ease_both]">
             <div className="flex min-w-0 flex-[1_1_340px] flex-col gap-1.5">
               <span className="font-type text-label font-bold uppercase tracking-[0.2em] text-seal">
                 Notice · Cookies
@@ -87,10 +87,10 @@ export default function CookieConsent() {
 
       <Dialog.Root open={showSettings} onOpenChange={(o) => !o && closeSettings()}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-[80] bg-[rgba(7,5,4,.78)] [animation:ac-fade_.2s_ease_both]" />
+          <Dialog.Overlay className="fixed inset-0 z-80 bg-[rgba(7,5,4,.78)] animate-[ac-fade_.2s_ease_both]" />
           <Dialog.Content
             aria-describedby={undefined}
-            className="fixed left-1/2 top-1/2 z-[81] flex max-h-[calc(100dvh-28px)] w-[calc(100%-28px)] max-w-[540px] -translate-x-1/2 -translate-y-1/2 flex-col bg-paper text-ink shadow-[0_40px_90px_rgba(0,0,0,.8)] outline-none"
+            className="fixed left-1/2 top-1/2 z-81 flex max-h-[calc(100dvh-28px)] w-[calc(100%-28px)] max-w-135 -translate-x-1/2 -translate-y-1/2 flex-col bg-paper text-ink shadow-[0_40px_90px_rgba(0,0,0,.8)] outline-none"
           >
             <PreferencesForm />
           </Dialog.Content>
@@ -115,7 +115,7 @@ function PreferencesForm() {
                 <span>Form K-2</span>
                 <span>Cookie preferences</span>
               </div>
-              <div data-scroller="" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-[22px] pb-2 pt-[18px]">
+              <div data-scroller="" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5.5 pb-2 pt-4.5">
                 <Dialog.Title className="m-0 font-display text-h2 font-normal leading-[1.15]">
                   Cookie Preferences
                 </Dialog.Title>
@@ -134,12 +134,12 @@ function PreferencesForm() {
                           <span className="flex flex-wrap items-center gap-2.5">
                             <span className="font-type text-body font-bold">{c.name}</span>
                             {required && (
-                              <span className="border-[1.5px] border-ink-label px-[7px] pb-px pt-0.5 font-type text-[0.625rem] font-bold uppercase tracking-[0.14em] text-ink-label">
+                              <span className="border-[1.5px] border-ink-label px-1.75 pb-px pt-0.5 font-type text-[0.625rem] font-bold uppercase tracking-[0.14em] text-ink-label">
                                 Required
                               </span>
                             )}
                           </span>
-                          <span className="text-pretty font-type text-[0.84375rem] leading-[1.5] text-ink-muted">
+                          <span className="text-pretty font-type text-[0.84375rem] leading-normal text-ink-muted">
                             {c.desc}
                           </span>
                         </div>
@@ -153,7 +153,7 @@ function PreferencesForm() {
                             setPending((p) => ({ ...p, [c.id]: !p[c.id as Optional] }))
                           }
                           className={cn(
-                            "relative mt-0.5 h-7 w-[50px] flex-none cursor-pointer border-2 p-0 disabled:cursor-not-allowed",
+                            "relative mt-0.5 h-7 w-12.5 flex-none cursor-pointer border-2 p-0 disabled:cursor-not-allowed",
                             required ? "border-ink-hint" : "border-ink",
                             on ? (required ? "bg-ink-hint" : "bg-ink") : "bg-transparent",
                           )}
@@ -161,8 +161,8 @@ function PreferencesForm() {
                           <span
                             aria-hidden="true"
                             className={cn(
-                              "absolute top-[3px] h-[18px] w-[18px] transition-[left] duration-200",
-                              on ? "left-[25px] bg-paper" : "left-[3px] bg-ink",
+                              "absolute top-0.75 h-4.5 w-4.5 transition-[left] duration-200",
+                              on ? "left-6.25 bg-paper" : "left-0.75 bg-ink",
                             )}
                           />
                         </button>
@@ -171,7 +171,7 @@ function PreferencesForm() {
                   })}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2 border-t-[3px] border-double border-ink px-[22px] pb-[18px] pt-3.5">
+              <div className="flex flex-wrap gap-2 border-t-[3px] border-double border-ink px-5.5 pb-4.5 pt-3.5">
                 <button type="button" onClick={rejectAll} className={buttonClass("paper", "md", "flex-auto px-3.5")}>
                   Reject All
                 </button>

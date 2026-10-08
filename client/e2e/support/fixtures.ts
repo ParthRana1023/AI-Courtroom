@@ -79,6 +79,8 @@ export const test = base.extend<Fixtures>({
   ],
 
   page: async ({ page, context, baseURL, consented }, run) => {
+    // Tests never reach a third party (e.g. Google's sign-in script): only the app and the mocked API.
+    await context.route(/^https?:\/\/(?!localhost[:/]|127\.0\.0\.1[:/])/, (route) => route.abort("blockedbyclient"));
     if (consented) {
       await context.addCookies([
         { name: "ai_courtroom_consent", value: encodeURIComponent(JSON.stringify(CONSENT)), url: baseURL! },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import GoogleButton, { type GoogleAuthData } from "@/components/auth/google-button";
@@ -131,7 +131,7 @@ export default function RegisterPage() {
   const afterSignIn = (user: User, message: string) =>
     needsSeatOfPractice(user) ? toPractice(message) : router.replace(next);
 
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     const firstBad = Object.entries(errors).find(([, v]) => v)?.[0];
     if (firstBad) {
@@ -313,13 +313,13 @@ export default function RegisterPage() {
                 onBlur={() => setPwTip((t) => ({ ...t, focus: false }))}
                 aria-invalid={!!err("r_password") || undefined}
                 aria-describedby="pw-rules"
-                className={`${slipInput} pr-[78px]`}
+                className={`${slipInput} pr-19.5`}
               />
               <button
                 type="button"
                 onClick={() => setShowPw((s) => !s)}
                 aria-label={showPw ? "Hide password" : "Show password"}
-                className="absolute bottom-0.5 right-0 top-0 min-w-[70px] cursor-pointer bg-transparent text-label font-bold uppercase tracking-[0.14em] text-ink-muted hover:text-seal"
+                className="absolute bottom-0.5 right-0 top-0 min-w-17.5 cursor-pointer bg-transparent text-label font-bold uppercase tracking-[0.14em] text-ink-muted hover:text-seal"
               >
                 {showPw ? "Hide" : "Show"}
               </button>
@@ -327,7 +327,7 @@ export default function RegisterPage() {
                 id="pw-rules"
                 role="tooltip"
                 className={cn(
-                  "absolute inset-x-0 bottom-[calc(100%+10px)] z-[5] flex flex-col gap-1.5 bg-ink px-3.5 py-3 text-paper shadow-[0_18px_40px_rgba(0,0,0,.35)] transition-[opacity,transform,visibility] duration-150",
+                  "absolute inset-x-0 bottom-[calc(100%+10px)] z-5 flex flex-col gap-1.5 bg-ink px-3.5 py-3 text-paper shadow-[0_18px_40px_rgba(0,0,0,.35)] transition-[opacity,transform,visibility] duration-150",
                   tipOpen ? "visible translate-y-0 opacity-100" : "invisible translate-y-1 opacity-0",
                 )}
               >

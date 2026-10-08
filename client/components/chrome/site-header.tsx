@@ -19,9 +19,9 @@ import { ThemeGlyph, useThemeToggle } from "./theme-toggle";
 const navText =
   "font-type text-label uppercase tracking-[0.2em] transition-colors";
 const menuPanel =
-  "z-[56] flex min-w-[220px] flex-col bg-paper py-1.5 text-ink shadow-menu outline-none";
+  "z-56 flex min-w-55 flex-col bg-paper py-1.5 text-ink shadow-menu outline-none";
 const menuItem =
-  "block px-[18px] py-3 font-type text-sm text-ink outline-none data-[highlighted]:bg-paper-hi data-[highlighted]:text-seal";
+  "block px-4.5 py-3 font-type text-sm text-ink outline-none data-highlighted:bg-paper-hi data-highlighted:text-seal";
 
 export function initialsOf(first?: string, last?: string) {
   return `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
@@ -64,7 +64,7 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
       <header
         ref={headerRef}
         className={cn(
-          "relative flex items-center justify-between gap-4 border-b border-desk-rule px-[18px] py-4 text-desk-ink min-[560px]:px-[4vw]",
+          "relative flex items-center justify-between gap-4 border-b border-desk-rule px-4.5 py-4 text-desk-ink min-[560px]:px-[4vw]",
           className,
         )}
       >
@@ -79,13 +79,13 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
           </span>
           <span
             aria-hidden="true"
-            className="h-0.5 w-[9px] bg-cursor [animation:ac-cursor_1.6s_steps(1,end)_infinite]"
+            className="h-0.5 w-2.25 bg-cursor animate-[ac-cursor_1.6s_steps(1,end)_infinite]"
           />
         </Link>
 
         <nav
           aria-label="Main"
-          className={cn("hidden items-center gap-[26px] min-[860px]:flex", navText)}
+          className={cn("hidden items-center gap-6.5 min-[860px]:flex", navText)}
         >
           {navItems.map((item) => {
             const current = isCurrentPath(pathname, item.href);
@@ -176,9 +176,9 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
                   <DropdownMenu.Content
                     align="end"
                     sideOffset={10}
-                    className={cn(menuPanel, "min-w-[230px]")}
+                    className={cn(menuPanel, "min-w-57.5")}
                   >
-                    <div className="flex flex-col gap-0.5 border-b-[3px] border-double border-ink px-[18px] pb-3 pt-2.5">
+                    <div className="flex flex-col gap-0.5 border-b-[3px] border-double border-ink px-4.5 pb-3 pt-2.5">
                       <span className="font-display text-[1.0625rem] leading-[1.2]">
                         {user.first_name} {user.last_name}
                       </span>
@@ -191,7 +191,7 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
                     </DropdownMenu.Item>
                     <DropdownMenu.Item
                       onSelect={logout}
-                      className="cursor-pointer border-t border-ink/20 px-[18px] py-3 font-type text-meta font-bold uppercase tracking-[0.12em] text-seal outline-none data-[highlighted]:bg-paper-hi"
+                      className="cursor-pointer border-t border-ink/20 px-4.5 py-3 font-type text-meta font-bold uppercase tracking-[0.12em] text-seal outline-none data-highlighted:bg-paper-hi"
                     >
                       Log out
                     </DropdownMenu.Item>

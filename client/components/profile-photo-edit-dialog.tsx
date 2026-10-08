@@ -170,7 +170,7 @@ export default function ProfilePhotoEditDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !isPending && onOpenChange(open)}>
-      <DialogContent className="sm:max-w-[460px] p-4 sm:p-6 overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl">
+      <DialogContent className="sm:max-w-115 p-4 sm:p-6 overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
             Edit Profile Photo
@@ -191,7 +191,7 @@ export default function ProfilePhotoEditDialog({
         {selectedImage ? (
           <div className="space-y-5">
             {/* Cropper Viewport */}
-            <div className="relative w-full h-[280px] sm:h-[320px] bg-zinc-950 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800">
+            <div className="relative w-full h-70 sm:h-80 bg-zinc-950 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800">
               <Cropper
                 image={selectedImage}
                 crop={crop}
