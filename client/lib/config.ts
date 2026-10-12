@@ -7,23 +7,16 @@ function numberFrom(value: string | undefined, fallback: number): number {
   return value && Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-// Pause after the AI's reply to the last argument allowed today, before the
-// court adjourns, so the user can read it.
-export const COURT_ADJOURN_DELAY_MS = numberFrom(
-  process.env.NEXT_PUBLIC_COURT_ADJOURN_DELAY_MS,
-  8000,
-);
-
 // How often an open courtroom checks for changes made on other devices.
 export const COURTROOM_POLL_MS = numberFrom(
   process.env.NEXT_PUBLIC_COURTROOM_POLL_MS,
   4000,
 );
 
-// How often the open witness panel refreshes the testimony.
-export const WITNESS_PANEL_POLL_MS = numberFrom(
-  process.env.NEXT_PUBLIC_WITNESS_PANEL_POLL_MS,
-  4000,
+// How often Case Prep checks for exhibit images being made in the background.
+export const EVIDENCE_IMAGE_POLL_MS = numberFrom(
+  process.env.NEXT_PUBLIC_EVIDENCE_IMAGE_POLL_MS,
+  5000,
 );
 
 // Faster refresh while the AI is examining a witness.
@@ -36,12 +29,6 @@ export const AI_EXAMINATION_POLL_MS = numberFrom(
 export const MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = numberFrom(
   process.env.NEXT_PUBLIC_MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS,
   2,
-);
-
-// …and at most once in this long.
-export const WITNESS_CHECK_COOLDOWN_MS = numberFrom(
-  process.env.NEXT_PUBLIC_WITNESS_CHECK_COOLDOWN_MS,
-  30000,
 );
 
 // Android APK, published as an asset on the latest GitHub release rather than

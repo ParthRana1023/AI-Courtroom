@@ -8,6 +8,7 @@ from app.models.case import (
     Case,
     CaseStatus,
     CourtroomProceedingsEvent,
+    EvidenceItem,
     Roles,
 )
 from app.models.case import (
@@ -148,6 +149,39 @@ async def test_first_argument_as_defendant_generates_ai_opening_and_counter(
     ]
     assert saved.status == CaseStatus.ACTIVE
     assert await usage_count(user) == 1
+
+
+async def test_defendants_first_argument_is_their_opening_after_case_prep(
+    client, auth_headers, courtroom_case, user, fake_llm
+):
+    # Case Prep already put the AI plaintiff's opening on the record.
+    fake_llm.responses.append("AI plaintiff counter")
+    case = await courtroom_case(
+        "defendant",
+        plaintiff_arguments=[arg("AI plaintiff opening", "plaintiff", type_="opening")],
+        courtroom_proceedings=[
+            event(EventType.OPENING_STATEMENT, "AI plaintiff opening", "plaintiff")
+        ],
+    )
+
+    response = await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "defendant", "argument": "We deny it"},
+    )
+
+    assert response.json() == {
+        "ai_counter_argument": "AI plaintiff counter",
+        "ai_counter_role": "plaintiff",
+    }
+    saved = await reload(case)
+    assert [(e.type, e.content) for e in saved.courtroom_proceedings] == [
+        (EventType.OPENING_STATEMENT, "AI plaintiff opening"),
+        (EventType.OPENING_STATEMENT, "We deny it"),
+        (EventType.AI_ARGUMENT, "AI plaintiff counter"),
+    ]
+    assert saved.defendant_arguments[0].type == "opening"
+    assert len(fake_llm.prompts) == 1  # no second AI opening
 
 
 async def test_first_argument_as_plaintiff_generates_defence_opening(
@@ -565,3 +599,265 @@ async def test_verdict_failure_does_not_resolve_case(
 
     assert response.status_code >= 500
     assert (await reload(case)).status != CaseStatus.RESOLVED
+
+
+# ---------------------------------------------------------------------------
+# pinned exhibits, the floor, and the closing on the record
+# ---------------------------------------------------------------------------
+
+
+def exhibits():
+    return [
+        EvidenceItem(
+            exhibit_ref="EX-01",
+            title="Booking receipts",
+            evidence_type="document",
+            description="Receipts.",
+        ),
+        EvidenceItem(
+            exhibit_ref="EX-02",
+            title="Sanction letter",
+            evidence_type="document",
+            description="Letter.",
+        ),
+    ]
+
+
+async def test_argument_cites_exhibits(client, auth_headers, in_progress, fake_llm):
+    fake_llm.responses.append("AI counter")
+    case = await in_progress(evidence=exhibits())
+
+    response = await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={
+            "role": "plaintiff",
+            "argument": "The receipts prove it",
+            "exhibit_refs": ["EX-01", "EX-01"],
+        },
+    )
+
+    assert response.status_code == 200
+    saved = await reload(case)
+    mine = next(e for e in saved.courtroom_proceedings if e.type == EventType.ARGUMENT)
+    assert mine.exhibit_refs == ["EX-01"]
+    assert mine.content == "The receipts prove it"  # the record keeps the words only
+    assert "Counsel relies on EX-01 (Booking receipts)" in fake_llm.prompts[0]
+
+
+def brief():
+    """EX-01 is before the court; PN-01 is a privileged note in the user's brief."""
+    public, private = exhibits()
+    return [
+        public,
+        private.model_copy(update={"private": True, "exhibit_ref": "PN-01"}),
+    ]
+
+
+async def test_privileged_exhibit_is_hidden_until_cited(
+    client, auth_headers, in_progress, fake_llm
+):
+    fake_llm.responses.append("My Lord, EX-02 proves nothing.")
+    case = await in_progress(evidence=brief())
+
+    await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={
+            "role": "plaintiff",
+            "argument": "The receipts",
+            "exhibit_refs": ["EX-01"],
+        },
+    )
+
+    saved = await reload(case)
+    assert saved.evidence[1].private
+    assert not any("Sanction letter" in prompt for prompt in fake_llm.prompts)
+    # the other side can't cite what it has never seen
+    assert saved.courtroom_proceedings[-1].exhibit_refs == []
+
+
+async def test_citing_a_privileged_exhibit_tenders_it(
+    client, auth_headers, in_progress, fake_llm
+):
+    fake_llm.responses.append("AI counter")
+    case = await in_progress(evidence=brief())
+
+    await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "plaintiff", "argument": "The letter", "exhibit_refs": ["PN-01"]},
+    )
+
+    saved = await reload(case)
+    assert (saved.evidence[1].private, saved.evidence[1].exhibit_ref) == (
+        False,
+        "EX-02",
+    )
+    note, mine = saved.courtroom_proceedings[-3:-1]
+    assert note.content == (
+        "Counsel for the Plaintiff tenders Sanction letter in evidence as EX-02"
+    )
+    # the argument cites the exhibit by its new number
+    assert (mine.type, mine.exhibit_refs) == (EventType.ARGUMENT, ["EX-02"])
+    assert "Counsel relies on EX-02 (Sanction letter)" in fake_llm.prompts[0]
+    assert "EX-02: Sanction letter" in fake_llm.prompts[0]
+
+
+async def test_ai_counter_cites_the_exhibits_it_names(
+    client, auth_headers, in_progress, fake_llm
+):
+    fake_llm.responses.append("My Lord, EX-02 and EX-02 again; EX-09 is not real.")
+    case = await in_progress(evidence=exhibits())
+
+    await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "plaintiff", "argument": "The letter is forged"},
+    )
+
+    saved = await reload(case)
+    theirs = saved.courtroom_proceedings[-1]
+    assert theirs.type == EventType.AI_ARGUMENT
+    assert theirs.exhibit_refs == ["EX-02"]  # only real exhibits, once each
+    assert saved.defendant_arguments[-1].exhibit_refs == ["EX-02"]
+
+
+async def test_argument_rejects_unknown_exhibits(client, auth_headers, in_progress):
+    case = await in_progress(evidence=exhibits())
+
+    response = await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "plaintiff", "argument": "x", "exhibit_refs": ["EX-09"]},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Not an exhibit in this case: EX-09"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"current_witness_id": "someone"},
+        {"is_ai_examining": True},
+        {
+            "pending_leave": {
+                "event_id": "e",
+                "witness_id": "w",
+                "witness_name": "W",
+                "called_by": "defendant",
+            }
+        },
+    ],
+)
+@pytest.mark.parametrize("closing", [False, True])
+async def test_no_arguments_while_witness_business_is_pending(
+    client, auth_headers, in_progress, overrides, closing
+):
+    case = await in_progress(**overrides)
+
+    if closing:
+        response = await close(client, auth_headers, case)
+    else:
+        response = await client.post(
+            f"/cases/{case.cnr}/arguments",
+            headers=auth_headers,
+            json={"role": "plaintiff", "argument": "x"},
+        )
+
+    assert response.status_code == 409
+
+
+async def test_closing_statements_go_on_the_record(
+    client, auth_headers, in_progress, user, fake_llm
+):
+    fake_llm.responses.extend(["AI closing statement text", "**FACTS**\n1. Done."])
+    cited = ArgumentItem(
+        type="user",
+        content="The letter proves it",
+        role=Roles.PLAINTIFF,
+        user_id=user.id,
+        exhibit_refs=["EX-02"],
+    )
+    case = await in_progress(
+        evidence=exhibits(),
+        plaintiff_arguments=[
+            arg("user opening", "plaintiff", user_id=user.id, type_="opening"),
+            cited,
+        ],
+    )
+
+    response = await client.post(
+        f"/cases/{case.cnr}/closing-statement",
+        headers=auth_headers,
+        json={"role": "plaintiff", "statement": "I rest"},
+    )
+
+    assert response.status_code == 200
+    saved = await reload(case)
+    mine, theirs, note = saved.courtroom_proceedings[-3:]
+    assert (mine.type, mine.content, mine.exhibit_refs) == (
+        EventType.CLOSING_STATEMENT,
+        "I rest",
+        [],
+    )
+    assert (theirs.type, theirs.speaker_role, theirs.content) == (
+        EventType.CLOSING_STATEMENT,
+        "defendant",
+        "AI closing statement text",
+    )
+    assert (
+        note.type == EventType.SYSTEM_MESSAGE and note.content == "Judgment delivered"
+    )
+    # The judge weighs each argument with the exhibits it cited.
+    assert (
+        "The letter proves it\n\n[Counsel relies on EX-02 (Sanction letter).]"
+        in fake_llm.prompts[1]
+    )
+
+
+async def test_closing_statement_cannot_cite_exhibits(
+    client, auth_headers, in_progress, fake_llm
+):
+    case = await in_progress(evidence=exhibits())
+
+    response = await client.post(
+        f"/cases/{case.cnr}/closing-statement",
+        headers=auth_headers,
+        json={"role": "plaintiff", "statement": "I rest", "exhibit_refs": ["EX-02"]},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == messages.NO_EXHIBITS_IN_STATEMENTS
+    assert fake_llm.prompts == []
+    assert (await reload(case)).status == CaseStatus.ACTIVE
+
+
+async def test_opening_statement_cannot_cite_exhibits(
+    client, auth_headers, in_progress, fake_llm
+):
+    case = await in_progress(
+        evidence=exhibits(), plaintiff_arguments=[], defendant_arguments=[]
+    )
+
+    response = await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "plaintiff", "argument": "Opening", "exhibit_refs": ["EX-01"]},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == messages.NO_EXHIBITS_IN_STATEMENTS
+    assert fake_llm.prompts == []
+
+
+def test_struck_arguments_leave_the_ai_history():
+    case = Case.model_construct(
+        courtroom_proceedings=[
+            event(EventType.ARGUMENT, "kept", "plaintiff"),
+            event(EventType.AI_ARGUMENT, "gone", "defendant", struck="struck"),
+        ]
+    )
+
+    assert arguments.recent_history(case) == "Plaintiff: kept"

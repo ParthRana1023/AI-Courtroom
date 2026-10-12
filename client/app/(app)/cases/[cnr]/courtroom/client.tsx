@@ -1,1609 +1,1149 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { use } from "react";
-import { caseAPI, argumentAPI, witnessAPI } from "@/lib/api";
-import WitnessPanel from "@/components/witness-panel";
-import { argumentRateLimitAPI, RateLimitInfo } from "@/lib/rateLimitAPI";
-import {
-  type Case,
-  type CaseOutcome,
-  CaseStatus,
-  Roles,
-  CourtroomProceedingsEventType,
-  type CourtroomProceedingsEvent,
-} from "@/types";
-import { formatToLocaleDateString, formatToLocaleString } from "@/lib/datetime";
-import SettingsAwareTextArea, {
-  SettingsAwareTextAreaRef,
-} from "@/components/settings-aware-textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { ChevronDown, FilePlus, Loader2 } from "lucide-react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { isAxiosError } from "axios";
+import Composer, { type ComposerNote } from "@/components/courtroom/composer";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import MarkdownRenderer from "@/components/markdown-renderer";
-import ChatMarkdownRenderer from "@/components/chat-markdown-renderer";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+  AnalysisDialog,
+  CallAlert,
+  CaseFilePanel,
+  ObjectionDialog,
+  ReportDialog,
+  Stamp,
+  VerdictDialog,
+  type StampKind,
+} from "@/components/courtroom/dialogs";
+import { MOVES_ON, Proceedings, SIDE, THE, aiMade, buildRows, type Ev, type RecordCtx, type Side } from "@/components/courtroom/record";
+import WitnessStand, { type Candidate, type Foot, type QA } from "@/components/courtroom/witness-stand";
+import { formatDate } from "@/components/cases/kit";
 import CourtModelLoader from "@/components/court/court-model-loader";
-import {
-  useRenderLogger,
-  useLifecycleLogger,
-} from "@/hooks/use-performance-logger";
-import { getLogger } from "@/lib/logger";
-import {
-  AI_EXAMINATION_POLL_MS,
-  COURT_ADJOURN_DELAY_MS,
-  COURTROOM_POLL_MS,
-  MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS,
-  WITNESS_CHECK_COOLDOWN_MS,
-} from "@/lib/config";
+import { ExhibitViewer } from "@/components/prep/exhibits";
+import { firstName, initials, onSide } from "@/components/prep/people";
+import { useSettings } from "@/contexts/settings-context";
+import { useOnline } from "@/hooks/use-online";
+import { useViewport } from "@/hooks/use-viewport";
+import { argumentAPI, caseAPI, courtroomAPI, partiesAPI, witnessAPI } from "@/lib/api";
+import { readCaseFile } from "@/lib/case-file";
+import { AI_EXAMINATION_POLL_MS, COURTROOM_POLL_MS, MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS } from "@/lib/config";
 import { getErrorDetail } from "@/lib/error-utils";
-import OutcomeBadge from "@/components/outcome-badge";
-import {
-  countQuestions,
-  groupWitnessSessions,
-  type WitnessSession,
-} from "@/lib/witness-sessions";
-import { COURT_ADJOURNED_BY_USER } from "@/lib/messages";
+import { argumentRateLimitAPI, type RateLimitInfo } from "@/lib/rateLimitAPI";
+import { cn } from "@/lib/utils";
+import { CaseStatus, CourtroomProceedingsEventType as T, type Case, type CurrentWitnessResponse, type PersonInvolved } from "@/types";
 
-const logger = getLogger("courtroom");
+type Load = "loading" | "loaded" | "error" | "notfound";
 
-type OptimisticCourtroomEvent = CourtroomProceedingsEvent & {
-  optimistic?: boolean;
-};
+const LEAVE_FIRST = "Respond to the request to call a witness first.";
+const reduce = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
 
-function countUserArguments(proceedings?: CourtroomProceedingsEvent[]): number {
-  return (
-    proceedings?.filter(
-      (event) => event.type === CourtroomProceedingsEventType.ARGUMENT,
-    ).length ?? 0
-  );
+interface SpeechRec {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: ((ev: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+type SpeechCtor = new () => SpeechRec;
+function speechCtor(): SpeechCtor | undefined {
+  if (typeof window === "undefined") return undefined;
+  const w = window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
-function countUserArgumentsSinceLastWitnessActivity(
-  proceedings?: CourtroomProceedingsEvent[],
-  userRole?: Roles,
-): number {
-  let count = 0;
-
-  for (let index = (proceedings?.length ?? 0) - 1; index >= 0; index -= 1) {
-    const event = proceedings?.[index];
-    if (!event) continue;
-
-    if (
-      event.type === CourtroomProceedingsEventType.WITNESS_CALLED ||
-      event.type === CourtroomProceedingsEventType.WITNESS_DISMISSED
-    ) {
-      break;
-    }
-
-    if (
-      event.type === CourtroomProceedingsEventType.ARGUMENT ||
-      (event.type === CourtroomProceedingsEventType.OPENING_STATEMENT &&
-        event.speaker_role === userRole)
-    ) {
-      count += 1;
-    }
+/** User statements since the last witness came or went (the AI considers calling one after two). */
+function argsSinceWitness(events: Ev[], me: Side) {
+  let n = 0;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.type === T.WITNESS_CALLED || e.type === T.WITNESS_DISMISSED) break;
+    if (e.type === T.ARGUMENT || (e.type === T.OPENING_STATEMENT && e.speaker_role === me)) n++;
   }
-
-  return count;
+  return n;
 }
 
-export default function Courtroom({
-  params,
-}: {
-  params: Promise<{ cnr: string }>;
-}) {
-  // IMPORTANT: use() must be called first to maintain consistent hook order
+/** Height for the exhibit list that opens above `row`, kept below the top of `panel`. */
+function roomAbove(panel: HTMLElement | null, row: HTMLElement | null) {
+  const top = panel?.getBoundingClientRect().top ?? 0;
+  const bottom = row?.getBoundingClientRect().top ?? window.innerHeight;
+  return Math.max(100, Math.min(340, Math.round(bottom - top - 16)));
+}
+
+export default function Courtroom({ params }: { params: Promise<{ cnr: string }> }) {
   const { cnr } = use(params);
-
-  // Performance monitoring
-  useRenderLogger("Courtroom", 50); // Warn if render takes > 50ms (complex component)
-  useLifecycleLogger("Courtroom");
-
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const urlRole = searchParams.get("role") || "";
+  const online = useOnline();
+  const { w } = useViewport();
+  const { enterKeySubmits, autoExpandTextAreas } = useSettings();
+  const two = w >= 760;
+  const mob = !two;
+  const small = w < 560;
 
-  const [caseData, setCaseData] = useState<Case | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [argument, setArgument] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isAiResponding, setIsAiResponding] = useState(false);
-  const [optimisticEvents, setOptimisticEvents] = useState<
-    OptimisticCourtroomEvent[]
-  >([]);
-  const [isWitnessDecisionPending, setIsWitnessDecisionPending] =
-    useState(false);
-  const [currentRole, setCurrentRole] = useState<Roles>(
-    (urlRole as Roles) || Roles.PLAINTIFF,
-  );
-  const [showClosingButton, setShowClosingButton] = useState(false);
-  const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-  const [showVerdict, setShowVerdict] = useState(false);
-  const [showCaseDetails, setShowCaseDetails] = useState(false);
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [caseAnalysis, setCaseAnalysis] = useState<string | null>(null);
-  const [caseOutcome, setCaseOutcome] = useState<CaseOutcome | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [refreshWitnessPanel, setRefreshWitnessPanel] = useState(0);
-  const [extractingEventId, setExtractingEventId] = useState<string | null>(
-    null,
-  );
+  const [data, setData] = useState<Case | null>(null);
+  const [load, setLoad] = useState<Load>("loading");
+  const [cw, setCw] = useState<CurrentWitnessResponse | null>(null);
+  const [parties, setParties] = useState<PersonInvolved[]>([]);
+  const [limit, setLimit] = useState<RateLimitInfo | null>(null);
 
-  const [aiWitnessAlert, setAiWitnessAlert] = useState<{
-    isOpen: boolean;
-    witnessName: string;
-    message: string;
-  }>({
-    isOpen: false,
-    witnessName: "",
-    message: "",
-  });
+  const [draft, setDraft] = useState("");
+  const [mode, setMode] = useState<"arg" | "close">("arg");
+  const [att, setAtt] = useState<string[]>([]);
+  const [sending, setSending] = useState<Ev | null>(null);
+  const [typing, setTyping] = useState<{ id: string; n: number } | null>(null);
+  const [popup, setPopup] = useState<StampKind | null>(null);
+  const [alert, setAlert] = useState<{ by: string; name: string } | null>(null);
+  const [witOpen, setWitOpen] = useState(false);
+  const [witClosing, setWitClosing] = useState(false);
+  const [qDraft, setQDraft] = useState("");
+  const [asking, setAsking] = useState<string | null>(null);
+  const [chose, setChose] = useState<string | null>(null);
+  const [witBusy, setWitBusy] = useState(false);
+  const [obj, setObj] = useState<Ev | null>(null);
+  const [objBusy, setObjBusy] = useState(false);
+  const [rep, setRep] = useState<{ id: string; no: string; who: string; text: string } | null>(null);
+  const [reportedLocal, setReportedLocal] = useState<string[]>([]);
+  const [xv, setXv] = useState<string | null>(null);
+  const [regen, setRegen] = useState<string | null>(null);
+  const [caseOpen, setCaseOpen] = useState(false);
+  const [verdictOpen, setVerdictOpen] = useState(false);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [analysis, setAnalysis] = useState<{ text: string } | "loading" | "error">("loading");
+  const [extracting, setExtracting] = useState<string | null>(null);
+  const [og, setOg] = useState<Record<string, boolean>>({});
+  const [qAtt, setQAtt] = useState<string[]>([]);
+  const [listening, setListening] = useState(false);
+  const [micOk, setMicOk] = useState(false);
 
-  // Controlled state for witness drawer (used when AI calls a witness)
-  const [witnessDrawerOpen, setWitnessDrawerOpen] = useState(false);
-
-  // Guards to prevent repeated/concurrent AI witness calls
-  const isCheckingWitnessRef = useRef(false);
-  const lastWitnessCheckRef = useRef(0);
-
-  // Session popup states
-  const [showSessionPopup, setShowSessionPopup] = useState(false);
-  const [showAdjournedPopup, setShowAdjournedPopup] = useState(false);
-  const [isTakingOver, setIsTakingOver] = useState(false);
-  const [adjournmentMessage, setAdjournmentMessage] = useState<string | null>(
-    null,
-  );
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const argumentTextareaRef = useRef<SettingsAwareTextAreaRef>(null);
-  const previousCaseStatusRef = useRef<CaseStatus | null>(null);
-  const rateLimitRequestRef = useRef<Promise<RateLimitInfo> | null>(null);
-
-  const timelineEvents = useMemo<CourtroomProceedingsEvent[]>(
-    () => caseData?.courtroom_proceedings ?? [],
-    [caseData?.courtroom_proceedings],
-  );
-  const displayEvents = useMemo<OptimisticCourtroomEvent[]>(
-    () => [...timelineEvents, ...optimisticEvents],
-    [timelineEvents, optimisticEvents],
-  );
-  // Witness examinations show as one collapsible card per witness, and only
-  // once the witness has left the stand (the drawer holds the live exchange).
-  const transcriptItems = useMemo(
-    () => groupWitnessSessions(displayEvents),
-    [displayEvents],
-  );
-  const [expandedWitnessSessions, setExpandedWitnessSessions] = useState<
-    Set<string>
-  >(new Set());
-  const toggleWitnessSession = (key: string) =>
-    setExpandedWitnessSessions((previous) => {
-      const next = new Set(previous);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  const isWitnessActive = Boolean(
-    caseData?.current_witness_id || caseData?.is_ai_examining,
-  );
-
-  // Auto-scroll to bottom when timeline events change (e.g., AI responds)
+  const recRef = useRef<HTMLDivElement>(null);
+  const witScRef = useRef<HTMLDivElement>(null);
+  const argRef = useRef<HTMLTextAreaElement>(null);
+  const qRef = useRef<HTMLTextAreaElement>(null);
+  const paperRef = useRef<HTMLDivElement>(null);
+  const seen = useRef<Set<string> | null>(null);
+  const firstIds = useRef<Set<string>>(new Set());
+  const typingRef = useRef(typing);
+  const recog = useRef<SpeechRec | null>(null);
+  const timers = useRef<number[]>([]);
+  const idle = useRef(false);
+  const hadWitness = useRef<string | null>(null);
+  const aiWasExamining = useRef(false);
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [displayEvents, isAiResponding]);
+    typingRef.current = typing;
+  }, [typing]);
 
-  // Fetch rate limit information and update countdown timer
-  const fetchRateLimitInfo = useCallback(async () => {
-    if (rateLimitRequestRef.current) {
-      try {
-        await rateLimitRequestRef.current;
-      } catch {
-        // The owner request logs failures; duplicate callers should only dedupe.
-      }
-      return;
-    }
-
-    try {
-      const request = argumentRateLimitAPI.getArgumentRateLimit();
-      rateLimitRequestRef.current = request;
-      const limitInfo = await request;
-
-      setRateLimit(limitInfo);
-
-      if (limitInfo.seconds_until_next) {
-        setTimeRemaining(Math.ceil(limitInfo.seconds_until_next));
-      } else {
-        setTimeRemaining(null);
-      }
-    } catch (error) {
-      logger.error("Error fetching rate limit info", error as Error);
-    } finally {
-      rateLimitRequestRef.current = null;
-    }
+  const later = useCallback((fn: () => void, ms: number) => {
+    timers.current.push(window.setTimeout(fn, ms));
+  }, []);
+  useEffect(() => {
+    const list = timers.current;
+    return () => list.forEach(clearTimeout);
   }, []);
 
-  const fetchCaseDetails = useCallback(async () => {
-    try {
-      // DEV DELAY - Remove in production
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+  const showPopup = useCallback(
+    (kind: StampKind, ms?: number, after?: () => void) => {
+      setPopup(kind);
+      if (ms)
+        later(() => {
+          setPopup(null);
+          after?.();
+        }, ms);
+    },
+    [later],
+  );
 
-      const data = await caseAPI.getCase(cnr);
-      setCaseData(data);
-
-      setShowClosingButton(countUserArguments(data.courtroom_proceedings) >= 3);
-
-      if (
-        data.user_role &&
-        data.user_role !== Roles.NOT_STARTED &&
-        data.user_role !== "not_started"
-      ) {
-        setCurrentRole(data.user_role as Roles);
-      } else if (urlRole && urlRole !== Roles.NOT_STARTED) {
-        setCurrentRole(urlRole as Roles);
-      } else {
-        setCurrentRole(Roles.PLAINTIFF);
-      }
-
-      if (data.status === CaseStatus.NOT_STARTED && urlRole) {
-        setCurrentRole(urlRole as Roles);
-      }
-
-      await fetchRateLimitInfo();
-    } catch (error) {
-      setError("Failed to load case details. Please try again later.");
-      logger.error("Error fetching case details", error as Error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [cnr, urlRole, fetchRateLimitInfo]);
-
-  useEffect(() => {
-    fetchCaseDetails();
-  }, [fetchCaseDetails]);
-
-  const refreshCourtroomSnapshot = useCallback(async () => {
-    const updatedCase = await caseAPI.getCase(cnr);
-    setCaseData(updatedCase);
-    setShowClosingButton(
-      countUserArguments(updatedCase.courtroom_proceedings) >= 3,
-    );
-    return updatedCase;
+  const refresh = useCallback(async () => {
+    const [c, wit] = await Promise.all([caseAPI.getCase(cnr) as Promise<Case>, witnessAPI.getCurrentWitness(cnr).catch(() => null)]);
+    setData(c);
+    setCw(wit);
+    return c;
   }, [cnr]);
 
-  // Witness examinations happen in the drawer, so bring it up whenever the AI
-  // starts a turn (chief, cross or re-examination).
-  const [lastAiExamining, setLastAiExamining] = useState(false);
-  const aiExamining = Boolean(caseData?.is_ai_examining);
-  if (aiExamining !== lastAiExamining) {
-    setLastAiExamining(aiExamining);
-    if (aiExamining) setWitnessDrawerOpen(true);
-  }
+  const fetchLimit = useCallback(() => {
+    argumentRateLimitAPI
+      .getArgumentRateLimit()
+      .then(setLimit)
+      .catch(() => undefined);
+  }, []);
 
-  useEffect(() => {
-    if (!caseData?.is_ai_examining) return;
-
-    const interval = setInterval(async () => {
-      try {
-        await refreshCourtroomSnapshot();
-      } catch (err) {
-        logger.error("Failed to poll courtroom updates", err as Error);
-      }
-    }, AI_EXAMINATION_POLL_MS);
-
-    return () => clearInterval(interval);
-  }, [caseData?.is_ai_examining, refreshCourtroomSnapshot]);
-
-  // Keep every open device in sync: poll while the court is in session and
-  // this tab is visible (paused while this device is submitting).
-  useEffect(() => {
-    if (caseData?.status !== CaseStatus.ACTIVE || isSubmitting) return;
-
-    const interval = setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        await refreshCourtroomSnapshot();
-      } catch (err) {
-        logger.error("Failed to poll courtroom updates", err as Error);
-      }
-    }, COURTROOM_POLL_MS);
-
-    return () => clearInterval(interval);
-  }, [caseData?.status, isSubmitting, refreshCourtroomSnapshot]);
-
-  const isViewingOnly =
-    caseData?.status === CaseStatus.ACTIVE &&
-    caseData?.hearing_controlled_here === false;
-
-  const handleTakeOver = async () => {
-    setIsTakingOver(true);
+  const boot = useCallback(async () => {
+    setLoad("loading");
     try {
-      await caseAPI.takeOverHearing(cnr);
-      await refreshCourtroomSnapshot();
-      setTimeout(() => argumentTextareaRef.current?.focus(), 100);
-    } catch (err) {
-      logger.error("Failed to take over hearing", err as Error);
-      setError(getErrorDetail(err) || "Failed to take over the case.");
-    } finally {
-      setIsTakingOver(false);
-    }
-  };
-
-  const handleWitnessUpdate = useCallback(async () => {
-    try {
-      const updatedCase = await refreshCourtroomSnapshot();
-
-      const hasActiveWitness = Boolean(
-        updatedCase.current_witness_id || updatedCase.is_ai_examining,
-      );
-
-      if (!hasActiveWitness) {
-        setWitnessDrawerOpen(false);
-        setTimeout(() => argumentTextareaRef.current?.focus(), 100);
+      const c = await refresh();
+      if (c.user_role !== "plaintiff" && c.user_role !== "defendant") {
+        router.replace(`/cases/${cnr}`);
+        return;
       }
-    } catch (err) {
-      logger.error("Failed to refresh case after witness update", err as Error);
+      if (c.status === CaseStatus.NOT_STARTED) {
+        router.replace(`/cases/${cnr}/case-prep`);
+        return;
+      }
+      setLoad("loaded");
+      partiesAPI
+        .getParties(cnr)
+        .then((r: { parties?: PersonInvolved[] }) => setParties(r.parties ?? []))
+        .catch(() => undefined);
+      fetchLimit();
+      if (c.status === CaseStatus.ACTIVE) showPopup("session", 2600);
+    } catch (e) {
+      const code = isAxiosError(e) ? e.response?.status : undefined;
+      setLoad(code === 404 || code === 403 ? "notfound" : "error");
     }
-  }, [refreshCourtroomSnapshot]);
+  }, [refresh, fetchLimit, showPopup, cnr, router]);
 
-  // Update countdown timer every second
   useEffect(() => {
-    if (timeRemaining === null || timeRemaining <= 0) return;
+    void boot();
+  }, [boot]);
 
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev === null || prev <= 1) {
-          // Refresh rate limit info when timer reaches zero
-          fetchRateLimitInfo();
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  useEffect(() => setMicOk(!!speechCtor()), []);
 
-    return () => clearInterval(timer);
-  }, [timeRemaining, fetchRateLimitInfo]);
+  const events = useMemo<Ev[]>(() => {
+    const list = (data?.courtroom_proceedings ?? []).map((e, i) => ({ ...e, id: e.id ?? `ev-${i}` }));
+    return sending ? [...list, sending] : list;
+  }, [data, sending]);
 
-  // Show "Court in Session" popup only when entering or resuming an active session.
+  const me: Side = data?.user_role === "defendant" ? "defendant" : "plaintiff";
+  const ai: Side = me === "plaintiff" ? "defendant" : "plaintiff";
+  const status = data?.status;
+  const active = status === CaseStatus.ACTIVE;
+  const view = active && data?.hearing_controlled_here === false;
+  const live = active && !view && online;
+  const evidence = useMemo(() => data?.evidence ?? [], [data]);
+  const names = useMemo(() => Object.fromEntries(parties.map((p) => [p.id, p.name])), [parties]);
+
+  // A new AI entry types itself out; what was in the record when the page opened just sits there.
   useEffect(() => {
-    const currentStatus = caseData?.status ?? null;
-
-    if (!currentStatus || isLoading) {
+    if (!data) return;
+    const list = data.courtroom_proceedings ?? [];
+    if (!seen.current) {
+      seen.current = new Set(list.map((e) => e.id ?? ""));
+      firstIds.current = new Set(seen.current);
       return;
     }
+    const known = seen.current;
+    const fresh = list.filter((e): e is Ev => !!e.id && !known.has(e.id));
+    fresh.forEach((e) => known.add(e.id));
+    const type = [...fresh].reverse().find((e) => aiMade(e, ai));
+    if (type && !reduce()) setTyping({ id: type.id, n: 0 });
+  }, [data, ai]);
 
-    const previousStatus = previousCaseStatusRef.current;
+  useEffect(() => {
+    if (!typing) return;
+    const typed = events.find((e) => e.id === typing.id);
+    const text = typed?.content ?? "";
+    // The AI's questions to a witness type out slower, to be read (and objected to) as they come.
+    const [step, ms] = typed?.type === T.WITNESS_EXAMINED_Q ? [2, 32] : [3, 22];
+    const t = window.setTimeout(() => setTyping(typing.n + step >= text.length ? null : { id: typing.id, n: typing.n + step }), ms);
+    return () => clearTimeout(t);
+  }, [typing, events]);
 
-    if (
-      currentStatus === CaseStatus.ACTIVE &&
-      previousStatus !== CaseStatus.ACTIVE
-    ) {
-      setShowSessionPopup(true);
-      const timer = setTimeout(() => {
-        setShowSessionPopup(false);
-      }, 3000);
-      previousCaseStatusRef.current = currentStatus;
-      return () => clearTimeout(timer);
-    }
+  /** Resolves once nothing is typing out. */
+  const settle = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        const tick = () => (typingRef.current ? window.setTimeout(tick, 120) : resolve());
+        window.setTimeout(tick, 160);
+      }),
+    [],
+  );
 
-    previousCaseStatusRef.current = currentStatus;
-  }, [caseData?.status, isLoading]);
+  // Keep the newest entry in view.
+  const count = events.length;
+  useEffect(() => {
+    const c = recRef.current;
+    if (!c) return;
+    requestAnimationFrame(() => c.scrollTo({ top: c.scrollHeight, behavior: reduce() ? "auto" : "smooth" }));
+  }, [count, load]);
+  // Follow the text as it types, unless the reader has scrolled up to read.
+  useEffect(() => {
+    const c = recRef.current;
+    if (c && typing && c.scrollHeight - c.scrollTop - c.clientHeight < 120) c.scrollTop = c.scrollHeight;
+  }, [typing]);
 
-  // Calculate user arguments submitted THIS SESSION (not total)
-  // session_args_at_start is set when status becomes ACTIVE
-  const sessionUserArguments = useMemo(() => {
-    if (!caseData) return 0;
-    const totalUserArgs = countUserArguments(caseData.courtroom_proceedings);
-    // Subtract the count when session started to get session-specific count
-    const sessionStart = caseData.session_args_at_start || 0;
-    return Math.max(0, totalUserArgs - sessionStart);
-  }, [caseData]);
-
-  // Handle ending the court session
-  const handleEndSession = async () => {
-    if (sessionUserArguments < 2) {
-      return; // Can't end session with less than 2 arguments
-    }
-
-    try {
-      // Update case status to adjourned (paused) - can resume later
-      await caseAPI.updateCaseStatus(cnr, CaseStatus.ADJOURNED);
-
-      // Show adjourned popup (no wait time: the user chose to adjourn)
-      setAdjournmentMessage(null);
-      setShowAdjournedPopup(true);
-      setTimeout(() => {
-        setShowAdjournedPopup(false);
-        // Refresh case data
-        window.location.reload();
-      }, 3000);
-    } catch (error) {
-      logger.error("Error ending session", error as Error);
-    }
-  };
-
-  const renderEvent = (event: OptimisticCourtroomEvent, index: number) => {
-    const eventKey = event.id || `${event.timestamp}-${event.type}-${index}`;
-    const isOptimistic = Boolean(event.optimistic);
-
-    // System Messages (Witness Called/Dismissed)
-    if (
-      event.type === CourtroomProceedingsEventType.WITNESS_CALLED ||
-      event.type === CourtroomProceedingsEventType.WITNESS_DISMISSED ||
-      event.type === CourtroomProceedingsEventType.SYSTEM_MESSAGE
-    ) {
-      return (
-        <div key={eventKey} className="flex justify-center my-4">
-          <div className="bg-gray-100 dark:bg-zinc-700 px-4 py-2 rounded-full text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-600 shadow-sm">
-            <span className="font-semibold mr-1">
-              {event.type === CourtroomProceedingsEventType.WITNESS_CALLED
-                ? "🏛️ Witness Stand:"
-                : event.type === CourtroomProceedingsEventType.WITNESS_DISMISSED
-                  ? "⚖️ Court Order:"
-                  : "ℹ️ Info:"}
-            </span>
-            {event.content}
-          </div>
-        </div>
-      );
-    }
-
-    // Witness Question (Examiner)
-    if (event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_Q) {
-      // Examiner is usually on the side of their role
-      const isExaminerUserSide = event.speaker_role === currentRole;
-      return (
-        <div
-          key={eventKey}
-          className={`flex ${
-            isExaminerUserSide ? "justify-end" : "justify-start"
-          } mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300`}
-        >
-          <div
-            className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
-              isExaminerUserSide
-                ? "bg-blue-50 dark:bg-blue-900/10 border-blue-600"
-                : "bg-purple-50 dark:bg-purple-900/10 border-purple-600"
-            }`}
-          >
-            <div
-              className={`text-xs font-bold mb-1 ${
-                isExaminerUserSide ? "text-blue-600" : "text-purple-600"
-              }`}
-            >
-              {event.speaker_name} (Examiner)
-            </div>
-            <div className="text-sm font-medium italic text-gray-800 dark:text-gray-200">
-              "{event.content}"
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Witness Answer
-    if (event.type === CourtroomProceedingsEventType.WITNESS_EXAMINED_A) {
-      return (
-        <div
-          key={eventKey}
-          className="flex justify-center mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
-        >
-          <div className="max-w-[95%] sm:max-w-[85%] rounded-lg p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 shadow-sm relative">
-            <div className="absolute -top-3 left-4 bg-amber-100 dark:bg-amber-900/80 px-2 py-0.5 rounded text-[10px] font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
-              Witness Testimony
-            </div>
-            <div className="text-xs font-bold mb-1 text-amber-700 dark:text-amber-400 mt-1">
-              {event.speaker_name}
-            </div>
-            <div className="text-gray-900 dark:text-gray-100">
-              <ChatMarkdownRenderer markdown={event.content} />
-            </div>
-            {event.id && event.content && (
-              <div className="mt-3 flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1 px-2 text-xs"
-                  disabled={extractingEventId === event.id}
-                  onClick={() => handleExtractEvidence(event)}
-                >
-                  {extractingEventId === event.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <FilePlus className="h-3.5 w-3.5" />
-                  )}
-                  Extract Evidence
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    // Regular Arguments / Opening / Closing
-    const isUserArg = event.speaker_role === currentRole;
-
-    return (
-      <div
-        key={eventKey}
-        className={`flex ${
-          isUserArg ? "justify-end" : "justify-start"
-        } animate-in fade-in slide-in-from-bottom-2 duration-300`}
-      >
-        <div
-          className={`max-w-[90%] sm:max-w-[75%] rounded-lg p-2.5 sm:p-3 border-l-4 shadow-sm ${
-            isUserArg
-              ? "bg-blue-100 dark:bg-blue-900/20 border-blue-600"
-              : "bg-purple-100 dark:bg-purple-900/20 border-purple-600"
-          } ${isOptimistic ? "opacity-80" : ""}`}
-        >
-          <div
-            className={`text-xs font-medium mb-1 flex justify-between ${
-              isUserArg
-                ? "text-blue-600 dark:text-blue-400"
-                : "text-purple-600 dark:text-purple-400"
-            }`}
-          >
-            <span>
-              {event.speaker_name}
-              {event.type ===
-                CourtroomProceedingsEventType.OPENING_STATEMENT && (
-                <span className="ml-1 font-bold">(Opening)</span>
-              )}
-              {event.type === CourtroomProceedingsEventType.AI_ARGUMENT && (
-                <span className="ml-1 opacity-75">(AI)</span>
-              )}
-            </span>
-            {event.timestamp && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                {formatToLocaleString(event.timestamp)}
-              </span>
-            )}
-          </div>
-          <div className="text-gray-900 dark:text-gray-100">
-            <ChatMarkdownRenderer markdown={event.content} />
-          </div>
-        </div>
-      </div>
+  // Every open device follows the hearing; faster while the AI examines a witness.
+  const aiTurn = !!data?.is_ai_examining;
+  useEffect(() => {
+    if (!active || sending) return;
+    const id = window.setInterval(
+      () => {
+        if (document.visibilityState === "visible") void refresh().catch(() => undefined);
+      },
+      aiTurn ? AI_EXAMINATION_POLL_MS : COURTROOM_POLL_MS,
     );
+    return () => clearInterval(id);
+  }, [active, aiTurn, sending, refresh]);
+
+  // ---- witness stand state ----
+  const onStand = cw?.has_witness ? cw : null;
+  const standKey = onStand ? `${onStand.witness_id}:${onStand.phase}` : null;
+  const myTurn = !!onStand && !aiTurn && onStand.next_examiner === me;
+  const myQs = (phase: string) => onStand?.examination_history.filter((x) => x.examiner === me && x.phase === phase).length ?? 0;
+  const stage: "none" | "ai" | "ask" | "re" | "cross" | "choice" = !onStand
+    ? "none"
+    : !myTurn
+      ? "ai"
+      : onStand.phase === "chief"
+        ? "ask"
+        : onStand.phase === "cross"
+          ? myQs("cross") || chose === standKey
+            ? "ask"
+            : "cross"
+          : myQs("re_exam") || chose === standKey
+            ? "re"
+            : "choice";
+
+  const setWit = useCallback(
+    (open: boolean) => {
+      setWitOpen((was) => {
+        if (was === open) return was;
+        if (!open) {
+          setWitClosing(true);
+          later(() => setWitClosing(false), reduce() ? 0 : 640);
+        }
+        return open;
+      });
+    },
+    [later],
+  );
+
+  // The stand opens when the AI starts examining, and closes once the witness steps down.
+  useEffect(() => {
+    if (aiTurn && !aiWasExamining.current) setWit(true);
+    aiWasExamining.current = aiTurn;
+  }, [aiTurn, setWit]);
+  const standId = onStand?.witness_id ?? null;
+  useEffect(() => {
+    if (hadWitness.current && !standId) {
+      later(() => {
+        setWit(false);
+        argRef.current?.focus({ preventScroll: true });
+      }, 500);
+    }
+    hadWitness.current = standId;
+  }, [standId, later, setWit]);
+
+  // ---- derived record state ----
+  const objected = useMemo(() => new Set(events.flatMap((e) => (e.objection ? [e.objection.target_id] : []))), [events]);
+  const lastMove = useMemo(() => [...events].reverse().find((e) => MOVES_ON.has(e.type)), [events]);
+  const busy = !!sending || !!typing || aiTurn || witBusy || !!asking || objBusy;
+  const objectable = lastMove && lastMove.speaker_role === ai && !objected.has(lastMove.id) && active && !view && !sending && !popup && !objBusy ? lastMove.id : null;
+  const leave = data?.pending_leave ?? null;
+  const reported = useMemo(() => new Set([...(data?.reported ?? []), ...reportedLocal]), [data, reportedLocal]);
+  const userArgs = events.filter((e) => e.type === T.ARGUMENT).length;
+  const spoken = events.filter((e) => e.type === T.ARGUMENT || (e.type === T.OPENING_STATEMENT && e.speaker_role === me)).length;
+  const sess = Math.max(0, spoken - (data?.session_args_at_start ?? 0));
+  const closingAvail = userArgs >= 3 && active;
+  const closingMode = closingAvail && mode === "close";
+  // Evidence goes in arguments only: never in the opening or the closing.
+  const opened = events.some((e) => e.type === T.OPENING_STATEMENT && e.speaker_role === me);
+  const cite = !closingMode && opened;
+
+  const note = useCallback((msg: string) => void toast(msg, { duration: 2800 }), []);
+
+  // ---- arguing ----
+  const whenIdle = useCallback(
+    (fn: () => void, ms: number) => {
+      if (idle.current) return;
+      idle.current = true;
+      const go = () => {
+        const open = document.querySelector("[role=dialog][data-state=open], [role=alertdialog]");
+        if (argRef.current?.value.trim() || typingRef.current || open) return later(go, 700);
+        idle.current = false;
+        fn();
+      };
+      later(go, ms);
+    },
+    [later],
+  );
+
+  const aiConsidersWitness = useCallback(async () => {
+    try {
+      const res = await witnessAPI.aiCallWitness(cnr);
+      if (res?.should_call) await refresh();
+    } catch {
+      /* the hearing simply carries on */
+    }
+  }, [cnr, refresh]);
+
+  const stopMic = () => {
+    try {
+      recog.current?.stop();
+    } catch {
+      /* already stopped */
+    }
+    recog.current = null;
+    setListening(false);
   };
 
-  const renderWitnessSession = (
-    session: WitnessSession<OptimisticCourtroomEvent>,
-  ) => {
-    const name = session.witnessName || "Witness";
-    const calledBy = session.calledEvent?.speaker_role;
-    const calledAt =
-      session.calledEvent?.timestamp ?? session.events[0]?.timestamp;
-
-    // Still on the stand: the exchange lives in the witness panel for now.
-    if (!session.dismissedEvent) {
-      return (
-        <div key={session.key} className="flex justify-center my-4">
-          <div className="flex flex-wrap items-center justify-center gap-2 bg-gray-100 dark:bg-zinc-700 px-4 py-2 rounded-full text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-600 shadow-sm">
-            <span>
-              <span className="font-semibold mr-1">🏛️ Witness Stand:</span>
-              {name} is being examined
-              {calledBy ? ` (called by the ${calledBy})` : ""}.
-            </span>
-            <button
-              type="button"
-              onClick={() => setWitnessDrawerOpen(true)}
-              className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
-            >
-              Open witness panel
-            </button>
-          </div>
-        </div>
-      );
+  const submit = async () => {
+    const text = draft.trim();
+    if (!text || busy || !data) return;
+    if (leave) return note(LEAVE_FIRST);
+    if (!online) return note("You’re offline. Your argument is kept, so you can submit it when you’re back online.");
+    if (onStand) {
+      setWit(true);
+      return note("Finish with the witness before you address the court.");
     }
+    const closing = closingMode;
+    const pinned = cite ? att : [];
+    const refs = pinned.map((id) => evidence.find((x) => x.id === id)?.exhibit_ref).filter((r): r is string => !!r);
+    stopMic();
+    setSending({
+      id: "pending",
+      type: closing ? T.CLOSING_STATEMENT : opened ? T.ARGUMENT : T.OPENING_STATEMENT,
+      content: text,
+      speaker_role: me,
+      timestamp: new Date().toISOString(),
+      exhibit_refs: refs,
+    });
+    setDraft("");
+    setAtt([]);
+    if (argRef.current) argRef.current.style.height = "46px";
+    try {
+      if (closing) {
+        await argumentAPI.submitClosingStatement(cnr, me, text);
+        await refresh();
+        setSending(null);
+        setMode("arg");
+        await settle();
+        await wait(700);
+        showPopup("deliberating", 3000, () => {
+          void refresh().then(() => setVerdictOpen(true));
+        });
+        return;
+      }
+      const res = await argumentAPI.submitArgument(cnr, me, text, refs);
+      const c = await refresh();
+      setSending(null);
+      fetchLimit();
+      if (res?.court_adjourns) {
+        await settle();
+        await wait(900);
+        showPopup("limit", 3200, () => {
+          void caseAPI
+            .updateCaseStatus(cnr, CaseStatus.ADJOURNED, "limit")
+            .catch(() => undefined)
+            .then(refresh);
+        });
+        return;
+      }
+      const list = (c.courtroom_proceedings ?? []) as Ev[];
+      if (!c.current_witness_id && argsSinceWitness(list, me) >= MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS) {
+        await settle();
+        whenIdle(() => void aiConsidersWitness(), 1400);
+      } else {
+        later(() => argRef.current?.focus({ preventScroll: true }), 40);
+      }
+    } catch (err) {
+      setSending(null);
+      setDraft(text);
+      setAtt(pinned);
+      toast.error(getErrorDetail(err) || "Couldn’t submit your argument. Please try again.");
+    }
+  };
 
-    const expanded = expandedWitnessSessions.has(session.key);
-    const questions = countQuestions(session);
+  // ---- objections ----
+  const openObj = (e: Ev) => {
+    if (!online) return note("You’re offline. Raise the objection when you’re back online.");
+    setObj(e);
+    // The AI's examination pauses while you choose grounds (a leave request already holds the hearing).
+    if (e.type !== T.LEAVE_REQUEST) void courtroomAPI.holdObjection(cnr, true).catch(() => undefined);
+  };
+  const withdrawObj = () => {
+    if (obj && obj.type !== T.LEAVE_REQUEST) void courtroomAPI.holdObjection(cnr, false).catch(() => undefined);
+    setObj(null);
+  };
+  const objKind = (e: Ev) => (e.type === T.LEAVE_REQUEST ? "leave" : e.type === T.WITNESS_EXAMINED_Q ? "question" : "argument");
+
+  const seat = useCallback(
+    (name: string) => {
+      setAlert({ by: THE[ai], name });
+      later(() => {
+        setAlert(null);
+        setWit(true);
+      }, 1900);
+    },
+    [ai, later, setWit],
+  );
+
+  const raise = async (grounds: string, details: string) => {
+    const target = obj;
+    if (!target) return;
+    if (!grounds) return note("Choose the grounds for your objection.");
+    if (!online) return note("You’re offline. Raise the objection when you’re back online.");
+    const isLeave = target.type === T.LEAVE_REQUEST;
+    setObj(null);
+    setObjBusy(true);
+    setPopup("considering");
+    const t0 = Date.now();
+    try {
+      const r: { sustained?: boolean; granted?: boolean; witness_name?: string } = isLeave
+        ? await witnessAPI.respondToLeave(cnr, { grounds, details })
+        : await courtroomAPI.raiseObjection(cnr, target.id, grounds, details);
+      await wait(1800 - (Date.now() - t0));
+      setPopup(r.sustained ? "sustained" : "overruled");
+      await wait(1500);
+      setPopup(null);
+      await refresh();
+      if (isLeave && r.granted) {
+        await settle();
+        seat(r.witness_name ?? leave?.witness_name ?? "The witness");
+      }
+    } catch (err) {
+      setPopup(null);
+      toast.error(getErrorDetail(err) || "The court couldn’t rule on the objection. Please try again.");
+    } finally {
+      setObjBusy(false);
+    }
+  };
+
+  const noObjection = async () => {
+    if (!leave) return;
+    if (!online) return note("You’re offline. Answer the request when you’re back online.");
+    setObjBusy(true);
+    try {
+      const r = await witnessAPI.respondToLeave(cnr, null);
+      await refresh();
+      seat(r.witness_name ?? leave.witness_name);
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t answer the request. Please try again.");
+    } finally {
+      setObjBusy(false);
+    }
+  };
+
+  // ---- witnesses ----
+  const callWitness = async (p: PersonInvolved) => {
+    if (leave) return note(LEAVE_FIRST);
+    if (!online) return note("You’re offline. Call a witness when you’re back online.");
+    setWitBusy(true);
+    try {
+      await witnessAPI.callWitness(cnr, p.id);
+      await refresh();
+      later(() => qRef.current?.focus({ preventScroll: true }), 120);
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t call the witness. Please try again.");
+    } finally {
+      setWitBusy(false);
+    }
+  };
+
+  const ask = async () => {
+    const q = qDraft.trim();
+    if (!q || asking || typing) return;
+    if (!online) return note("You’re offline. Your question is kept.");
+    const pinned = qAtt;
+    const refs = pinned.map((id) => evidence.find((x) => x.id === id)?.exhibit_ref).filter((r): r is string => !!r);
+    setAsking(q);
+    setQDraft("");
+    setQAtt([]);
+    if (qRef.current) qRef.current.style.height = "46px";
+    try {
+      await witnessAPI.examineWitness(cnr, q, refs);
+      await refresh();
+      later(() => qRef.current?.focus({ preventScroll: true }), 30);
+    } catch (err) {
+      setQDraft(q);
+      setQAtt(pinned);
+      toast.error(getErrorDetail(err) || "The witness couldn’t answer. Please try again.");
+    } finally {
+      setAsking(null);
+    }
+  };
+
+  /** Done with my turn: the other side examines next, or the witness is discharged. */
+  const finishTurn = async () => {
+    if (asking || typing || !onStand) return;
+    if (!online) return note("You’re offline.");
+    setWitBusy(true);
+    try {
+      await witnessAPI.aiCrossExamine(cnr);
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t hand the witness over. Please try again.");
+    } finally {
+      setWitBusy(false);
+    }
+  };
+
+  const dismiss = async () => {
+    if (!online) return note("You’re offline.");
+    setWitBusy(true);
+    try {
+      await witnessAPI.concludeWitness(cnr);
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t dismiss the witness. Please try again.");
+    } finally {
+      setWitBusy(false);
+    }
+  };
+
+  const extract = async (e: Ev) => {
+    if (extracting) return;
+    if (!online) return note("You’re offline. Extract this testimony when you’re back online.");
+    setExtracting(e.id);
+    try {
+      await caseAPI.extractEvidence(cnr, { event_id: e.id });
+      const c = await refresh();
+      const ref = c.evidence?.find((x) => x.origin_id === e.id)?.exhibit_ref;
+      note(ref ? `Evidence extracted. ${ref} added to the exhibits.` : "Evidence extracted.");
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t extract the evidence. Please try again.");
+    } finally {
+      setExtracting(null);
+    }
+  };
+
+  const regenerate = async (id: string) => {
+    setRegen(id);
+    try {
+      await caseAPI.regenerateEvidenceImage(cnr, id);
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t regenerate the image. Please try again.");
+    } finally {
+      setRegen(null);
+    }
+  };
+
+  // ---- the session ----
+  const adjourn = async () => {
+    if (sess < 2) return note(`Submit at least ${2 - sess} more argument${2 - sess === 1 ? "" : "s"} this session before adjourning.`);
+    if (busy) return;
+    if (!online) return note("You’re offline. Adjourn when you’re back online.");
+    try {
+      await caseAPI.updateCaseStatus(cnr, CaseStatus.ADJOURNED);
+      setWit(false);
+      showPopup("adjourned", 2600, () => void refresh());
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t adjourn the court. Please try again.");
+    }
+  };
+
+  const resume = async () => {
+    if (!online) return note("You’re offline. The hearing resumes when you’re back online.");
+    try {
+      await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
+      await refresh();
+      fetchLimit();
+      showPopup("session", 2600);
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t resume the hearing. Please try again.");
+    }
+  };
+
+  const takeOver = async () => {
+    try {
+      await caseAPI.takeOverHearing(cnr);
+      await refresh();
+      note("You’re now running the hearing from this device.");
+      later(() => argRef.current?.focus({ preventScroll: true }), 80);
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t take over the hearing. Please try again.");
+    }
+  };
+
+  const fetchAnalysis = useCallback(async () => {
+    setAnalysis("loading");
+    try {
+      const r = await caseAPI.analyzeCase(cnr);
+      setAnalysis({ text: r?.analysis ?? "" });
+      if (r?.outcome) setData((d) => (d && !d.outcome ? { ...d, outcome: r.outcome } : d));
+    } catch {
+      setAnalysis("error");
+    }
+  }, [cnr]);
+
+  const openAnalysis = () => {
+    setVerdictOpen(false);
+    setAnalysisOpen(true);
+    if (typeof analysis !== "object") void fetchAnalysis();
+  };
+
+  const sendReport = async (reason: string, details: string) => {
+    if (!rep) return false;
+    if (!reason) {
+      note("Choose a reason for your report.");
+      return false;
+    }
+    if (reason === "other" && !details) {
+      note("Add a few words about what went wrong.");
+      return false;
+    }
+    if (!online) {
+      note("You’re offline. Send the report when you’re back online.");
+      return false;
+    }
+    try {
+      await courtroomAPI.report(cnr, rep.id, reason, details);
+      setReportedLocal((r) => [...r, rep.id]);
+      note("Report sent. Thanks — it helps us improve the AI.");
+      return true;
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t send the report. Please try again.");
+      return false;
+    }
+  };
+
+
+  const toggleMic = () => {
+    if (listening) return stopMic();
+    if (!online) return note("You’re offline. Voice input needs a connection.");
+    const Rec = speechCtor();
+    if (!Rec) return;
+    const base = draft ? draft.replace(/\s*$/, " ") : "";
+    try {
+      const rec = new Rec();
+      rec.lang = "en-IN";
+      rec.interimResults = true;
+      rec.continuous = true;
+      rec.onresult = (ev) => {
+        let t = "";
+        for (let i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript;
+        setDraft(base + t.trim());
+      };
+      rec.onerror = (ev) => {
+        stopMic();
+        if (ev.error === "not-allowed") note("Microphone access was blocked. Allow it in your browser to dictate.");
+      };
+      rec.onend = () => setListening(false);
+      rec.start();
+      recog.current = rec;
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
+  };
+  useEffect(() => () => recog.current?.stop(), []);
+
+  // Escape: the picker and the dialogs handle their own; after them, the witness stand.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || popup || alert) return;
+      if (document.querySelector("[role=dialog][data-state=open]")) return;
+      if (witOpen) setWit(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [popup, alert, witOpen, setWit]);
+
+  const file = useMemo(() => readCaseFile(data?.case_text ?? "", data?.evidence ?? []), [data]);
+
+  // ---- render ----
+  if (load !== "loaded" || !data) {
     return (
-      <div
-        key={session.key}
-        className="my-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 shadow-sm"
-      >
-        <button
-          type="button"
-          onClick={() => toggleWitnessSession(session.key)}
-          aria-expanded={expanded}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-        >
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-amber-800 dark:text-amber-300">
-              🏛️ Testimony of {name}
+      <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 py-6">
+        {load === "loading" ? (
+          <CourtModelLoader status="Loading the courtroom…" />
+        ) : (
+          <div role="alert" className="flex max-w-115 flex-col items-center gap-4 text-center">
+            <span className="font-display text-[30px] leading-[1.15] text-desk-ink">{load === "notfound" ? "Case Not Found" : "Couldn’t open the courtroom"}</span>
+            <span className="text-balance text-[15px] leading-[1.55] text-desk-muted">
+              {load === "notfound"
+                ? "The case you’re looking for doesn’t exist or you don’t have permission to view it."
+                : "Failed to load case details. Please try again later."}
             </span>
-            <span className="block text-xs text-gray-600 dark:text-gray-400">
-              {calledBy ? `Called by the ${calledBy}` : "Witness examination"}
-              {calledAt ? ` · ${formatToLocaleString(calledAt)}` : ""}
-              {` · ${questions} question${questions === 1 ? "" : "s"}`}
-            </span>
-          </span>
-          <ChevronDown
-            className={`h-5 w-5 shrink-0 text-amber-700 transition-transform dark:text-amber-400 ${
-              expanded ? "rotate-180" : ""
-            }`}
-          />
-        </button>
-        {expanded && (
-          <div className="space-y-2 border-t border-amber-200 px-3 pb-3 pt-4 dark:border-amber-800">
-            {session.events.map((event, index) => renderEvent(event, index))}
-            {renderEvent(session.dismissedEvent, session.events.length)}
+            <div className="flex flex-wrap justify-center gap-2">
+              <Link
+                href={load === "notfound" ? "/cases" : `/cases/${cnr}/case-prep`}
+                className="flex h-11.5 items-center border border-desk-rule-mid px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-desk-ink hover:border-desk-ink"
+              >
+                {load === "notfound" ? "Back to my cases" : "Go back"}
+              </Link>
+              {load === "error" && (
+                <button type="button" onClick={boot} className="h-11.5 cursor-pointer bg-seal px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-cream hover:bg-seal-hover">
+                  Try again
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
     );
-  };
+  }
 
-  const handleExtractEvidence = async (event: CourtroomProceedingsEvent) => {
-    if (!event.id || extractingEventId || !event.content?.trim()) return;
-    setExtractingEventId(event.id);
-    try {
-      // Only witness answers offer this button; the server rejects anything else.
-      await caseAPI.extractEvidence(cnr, { event_id: event.id });
-      await refreshCourtroomSnapshot();
-      toast.success("Evidence extracted");
-    } catch (err) {
-      logger.error("Failed to extract evidence", err as Error);
-      toast.error(getErrorDetail(err) || "Failed to extract evidence");
-    } finally {
-      setExtractingEventId(null);
-    }
-  };
+  const resolved = status === CaseStatus.RESOLVED;
+  const adjourned = status === CaseStatus.ADJOURNED;
+  const court = file.court;
+  const judgment = [...events].reverse().find((e) => e.type === T.SYSTEM_MESSAGE && e.content === "Judgment delivered");
+  const stLabel = view ? "In session · watching" : active ? "in session" : adjourned ? "adjourned" : "resolved";
+  const stC = active ? "border-desk-green text-desk-green" : adjourned ? "border-amber-hi text-amber-hi light:border-amber light:text-amber" : "border-desk-soft text-desk-soft";
 
-  const handleSubmitArgument = async () => {
-    const submittedArgument = argument.trim();
-    if (!submittedArgument) return;
-
-    setIsSubmitting(true);
-    setIsAiResponding(true);
-    setArgument("");
-    setOptimisticEvents([
-      {
-        id: `optimistic-${Date.now()}`,
-        type: CourtroomProceedingsEventType.ARGUMENT,
-        content: submittedArgument,
-        speaker_role: currentRole,
-        speaker_name: "You",
-        timestamp: new Date().toISOString(),
-        optimistic: true,
-      },
-    ]);
-
-    try {
-      const result = await argumentAPI.submitArgument(
-        cnr,
-        currentRole.toLowerCase() as "plaintiff" | "defendant",
-        submittedArgument,
-      );
-
-      const updatedCase = await refreshCourtroomSnapshot();
-
-      setIsSubmitting(false);
-      setOptimisticEvents([]);
-      setIsAiResponding(false);
-
-      // Refresh rate limit info after successful submission
-      fetchRateLimitInfo();
-
-      // That was the last argument allowed today: adjourn once the reply is read.
-      if (result?.court_adjourns) {
-        setTimeout(async () => {
-          try {
-            await caseAPI.updateCaseStatus(cnr, CaseStatus.ADJOURNED);
-          } catch (error) {
-            logger.error("Error adjourning court", error as Error);
-          }
-          setAdjournmentMessage(result.adjournment_message ?? null);
-          setShowAdjournedPopup(true);
-          setTimeout(() => {
-            setShowAdjournedPopup(false);
-            window.location.reload();
-          }, 6000);
-        }, COURT_ADJOURN_DELAY_MS);
-        return;
-      }
-
-      // Check if AI wants to call a witness (only if no witness is currently on stand)
-      // Guarded: skip if already checking or if checked recently (30s cooldown)
-      const now = Date.now();
-      const shouldCheckWitness =
-        countUserArgumentsSinceLastWitnessActivity(
-          updatedCase.courtroom_proceedings,
-          currentRole,
-        ) >= MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS;
-      const canCheckWitness =
-        shouldCheckWitness &&
-        !isCheckingWitnessRef.current &&
-        now - lastWitnessCheckRef.current > WITNESS_CHECK_COOLDOWN_MS;
-
-      if (canCheckWitness) {
-        setIsWitnessDecisionPending(true);
-        setTimeout(async () => {
-          if (isCheckingWitnessRef.current) {
-            setIsWitnessDecisionPending(false);
-            return;
-          }
-
-          isCheckingWitnessRef.current = true;
-          lastWitnessCheckRef.current = Date.now();
-          let didCallWitness = false;
-          try {
-            const currentWitness = await witnessAPI.getCurrentWitness(cnr);
-            if (!currentWitness.has_witness) {
-              const witnessCall = await witnessAPI.aiCallWitness(cnr);
-              if (witnessCall.should_call) {
-                didCallWitness = true;
-                const caseWithWitness = await caseAPI.getCase(cnr);
-                setCaseData(caseWithWitness);
-                setWitnessDrawerOpen(true);
-                setRefreshWitnessPanel((p) => p + 1);
-                // Show popup alert to user
-                setAiWitnessAlert({
-                  isOpen: true,
-                  witnessName: witnessCall.witness_name,
-                  message: witnessCall.message,
-                });
-                // Auto-dismiss popup after a short handoff; drawer opens immediately.
-                setTimeout(() => {
-                  setAiWitnessAlert((prev) => ({ ...prev, isOpen: false }));
-                }, 1500);
-              }
-            }
-          } catch (err) {
-            logger.error("Failed to check for AI witness call", err as Error);
-          } finally {
-            isCheckingWitnessRef.current = false;
-            setIsWitnessDecisionPending(false);
-            if (!didCallWitness) {
-              setTimeout(() => argumentTextareaRef.current?.focus(), 100);
-            }
-          }
-        }, 2000); // Small delay to let the user read the argument first
-      } else {
-        // Auto-focus the textarea for next input
-        setTimeout(() => argumentTextareaRef.current?.focus(), 100);
-      }
-    } catch (error) {
-      logger.error("Error submitting argument", error as Error);
-      setOptimisticEvents([]);
-      setIsAiResponding(false);
-      setArgument(submittedArgument);
-      setError(
-        getErrorDetail(error) || "Failed to submit argument. Please try again.",
-      );
-      void refreshCourtroomSnapshot().catch(() => undefined);
-    } finally {
-      setIsSubmitting(false);
-      setIsAiResponding(false);
-    }
-  };
-
-  const handleAnalyzeCase = async () => {
-    logger.debug("Analyze case requested", {
-      hasCaseAnalysis: Boolean(caseAnalysis),
-      showAnalysis,
+  const witnessName = onStand?.witness_name ?? "";
+  const standCall = onStand ? [...events].reverse().find((e) => e.type === T.WITNESS_CALLED && e.witness_id === onStand.witness_id) : undefined;
+  const hist: QA[] = [];
+  // The stand types out in step with the record.
+  const shown = (x: Ev) => (typing?.id === x.id ? x.content.slice(0, typing.n) : x.content);
+  if (standCall) {
+    const after = events.slice(events.indexOf(standCall));
+    after.forEach((e, k) => {
+      if (e.type !== T.WITNESS_EXAMINED_Q) return;
+      const next = after.slice(k + 1).find((x) => x.type === T.WITNESS_EXAMINED_A || x.type === T.WITNESS_EXAMINED_Q);
+      const mine = e.speaker_role === me;
+      hist.push({
+        id: e.id,
+        by: mine ? "You asked" : `${SIDE[ai]} · AI`,
+        mine,
+        q: shown(e),
+        refs: e.exhibit_refs ?? [],
+        a: next?.type === T.WITNESS_EXAMINED_A ? shown(next) : null,
+        objectable: e.id === objectable,
+      });
     });
+  }
+  if (asking) hist.push({ id: "asking", by: "You asked", mine: true, q: asking, refs: [], a: null, objectable: false });
 
-    if (caseAnalysis) {
-      logger.debug("Case analysis already exists, showing dialog");
-      setShowAnalysis(true);
-      return;
-    }
+  const cands: Candidate[] = parties.map((p) => {
+    const ours = onSide(me, p);
+    const testified = events.some((e) => e.type === T.WITNESS_CALLED && e.witness_id === p.id);
+    const off = !live || busy || closingMode;
+    return {
+      id: p.id,
+      name: p.name,
+      ini: initials(p.name),
+      sub: `${p.role === "applicant" ? "Applicant" : "Non-applicant"}${ours ? " · your side" : " · other side"}${testified ? " · testified" : ""}`,
+      ours,
+      off,
+      onCall: () => {
+        if (!off) return void callWitness(p);
+        note(
+          closingMode
+            ? "Evidence is closed. In closing you argue from the record and can’t call a witness."
+            : !online
+              ? "You’re offline."
+              : !active
+                ? "The court is not in session."
+                : view
+                  ? "The hearing is being run from another device."
+                  : "Wait for the current exchange to finish.",
+        );
+      },
+    };
+  });
 
-    setIsLoading(true);
-    try {
-      const analysis = await caseAPI.analyzeCase(cnr);
+  const choice = (text: string, a: string, b: string): Foot => ({
+    kind: "choice",
+    text,
+    a,
+    b,
+    onA: () => {
+      setChose(standKey);
+      later(() => qRef.current?.focus({ preventScroll: true }), 60);
+    },
+    onB: () => void dismiss(),
+  });
+  const foot: Foot = !onStand
+    ? null
+    : view
+      ? { kind: "view" }
+      : stage === "ask"
+        ? { kind: "ask", re: false }
+        : stage === "re"
+          ? { kind: "ask", re: true }
+          : stage === "cross"
+            ? choice(`${SIDE[ai]} has finished examining the witness. Would you like to cross-examine?`, "Cross-examine", "No questions · dismiss")
+            : stage === "choice"
+              ? choice(`${SIDE[ai]} has finished their cross-examination. You may re-examine the witness once, on matters raised in cross.`, "Re-examine", "No re-examination · dismiss")
+              : null;
+  const busyNote =
+    onStand && aiTurn
+      ? `${SIDE[ai]} ${onStand.phase === "chief" ? "is examining the witness" : onStand.phase === "re_exam" ? "is re-examining the witness" : "is cross-examining the witness"}`
+      : null;
 
-      if (analysis) {
-        // The analysis field contains the formatted markdown
-        setCaseAnalysis(analysis.analysis || "");
-        setCaseOutcome(analysis.outcome ?? null);
-      } else {
-        logger.debug("No analysis in response");
-      }
-
-      setShowAnalysis(true);
-    } catch (error: unknown) {
-      logger.error("Error fetching case analysis", error as Error);
-      setAnalysisError(
-        getErrorDetail(error) ||
-          "Failed to load case analysis. Please try again.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
+  const ctx: RecordCtx = {
+    me,
+    ai,
+    mob,
+    typing,
+    fresh: (id) => !firstIds.current.has(id),
+    names,
+    evidence,
+    objectable,
+    onObject: openObj,
+    reported,
+    onReport: (e, no) =>
+      setRep({
+        id: e.id,
+        no,
+        who: e.type === T.RULING ? "The Court" : e.type === T.WITNESS_EXAMINED_A ? `${names[e.witness_id ?? ""] ?? "Witness"} · AI` : `${SIDE[ai]} · AI`,
+        text: e.content,
+      }),
+    leaveOpen: leave && active && !view && !objBusy ? leave.event_id : null,
+    onNoObjection: () => void noObjection(),
+    canExtract: !view && !closingMode && !resolved,
+    extracting,
+    onExtract: (e) => void extract(e),
+    onExhibit: setXv,
   };
 
-  const handleSubmitClosingStatement = async () => {
-    if (!argument.trim()) return;
+  const composerNote: ComposerNote | null = adjourned
+    ? { k: "Court adjourned", t: "The hearing is paused. Resume when you’re ready to continue.", c: "#7a4a0c", btn: "Resume hearing →", go: () => void resume() }
+    : resolved
+      ? { k: "Case resolved", t: "The court has delivered its verdict. The record is now closed.", c: "#3e3326", btn: "View verdict", go: () => setVerdictOpen(true) }
+      : view
+        ? { k: "Watching from this device", t: "Arguments are being submitted from another device.", c: "#3e3326" }
+        : null;
 
-    setIsSubmitting(true);
-    try {
-      const response = await argumentAPI.submitClosingStatement(
-        cnr,
-        currentRole,
-        argument,
-      );
-
-      if (response.verdict) {
-        setTimeout(() => {
-          setShowVerdict(true);
-        }, 3000);
-
-        // Call the case analysis endpoint
-        try {
-          const analysis = await caseAPI.analyzeCase(cnr);
-          setCaseOutcome(analysis?.outcome ?? null);
-          logger.debug("Case analysis initiated successfully");
-        } catch (analysisErr: unknown) {
-          logger.error(
-            "Failed to initiate case analysis",
-            analysisErr as Error,
-          );
-          setAnalysisError(
-            getErrorDetail(analysisErr) || "Failed to generate case analysis.",
-          );
-        }
-      }
-
-      setArgument("");
-      setIsSubmitting(false);
-
-      // Auto-focus the textarea for next input
-      setTimeout(() => argumentTextareaRef.current?.focus(), 100);
-
-      // Refresh case data to get updated status
-      const updatedCase = await caseAPI.getCase(cnr);
-      setCaseData(updatedCase);
-
-      // Refresh rate limit information
-      await fetchRateLimitInfo();
-    } catch (error: unknown) {
-      logger.error("Error submitting closing statement", error as Error);
-      const detail = getErrorDetail(error);
-      if (detail) {
-        setError(detail);
-      } else {
-        setError("Failed to submit closing statement. Please try again.");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <CourtModelLoader status="Loading the courtroom…" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Error</h1>
-            <p className="mb-6">{error}</p>
-            <button
-              onClick={() => router.back()}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-            >
-              Go Back
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!caseData) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Case Not Found</h1>
-            <p className="mb-6">
-              The case you're looking for doesn't exist or you don't have
-              permission to view it.
-            </p>
-            <button
-              onClick={() => router.push("/profile")}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-            >
-              Back to Dashboard
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const btn = cn(
+    "h-10.5 min-w-0 cursor-pointer whitespace-nowrap font-bold uppercase",
+    mob ? "flex-[1_1_auto] px-1.5 text-[11px] tracking-[0.06em]" : "flex-none px-4 text-xs tracking-[0.14em]",
+  );
+  const outline = cn(btn, "border border-desk-rule-mid bg-transparent text-desk-ink hover:border-desk-ink hover:bg-desk-ink/6");
+  const solid = cn(btn, "border-0 bg-seal text-cream hover:bg-seal-hover");
+  const adjTip = sess >= 2 ? "End this court session. You can resume later." : `Submit at least ${2 - sess} more argument${2 - sess === 1 ? "" : "s"} this session before adjourning`;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden pb-0">
-      <header className="shrink-0 mt-2 sm:mt-4 max-w-7xl mx-auto w-full px-2 sm:px-0">
-        <div className="bg-white dark:bg-zinc-900 shadow-sm py-4 rounded-lg border border-gray-200 dark:border-zinc-700">
-          <div className="px-3 sm:px-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              {/* Left side - Case info */}
-              <div className="flex flex-col gap-2">
-                <h1 className="text-base sm:text-xl md:text-2xl font-bold leading-tight text-gray-900 dark:text-white line-clamp-2">
-                  {caseData.title}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2">
-                  {currentRole && (
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        currentRole === "plaintiff"
-                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300"
-                          : "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300"
-                      }`}
-                    >
-                      {currentRole === "plaintiff"
-                        ? "Plaintiff Lawyer"
-                        : "Defendant Lawyer"}
-                    </span>
-                  )}
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      caseData.status === CaseStatus.ACTIVE
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"
-                        : caseData.status === CaseStatus.RESOLVED
-                          ? "bg-gray-100 text-gray-800 dark:bg-zinc-700 dark:text-gray-300"
-                          : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300"
-                    }`}
-                  >
-                    {caseData.status}
-                  </span>
-                  <span className="hidden sm:inline text-sm text-gray-500 dark:text-gray-400">
-                    Case #{caseData.cnr} • Filed{" "}
-                    {formatToLocaleDateString(caseData.created_at)}
-                  </span>
-                  <span className="sm:hidden text-xs text-gray-500 dark:text-gray-400">
-                    #{caseData.cnr}
-                  </span>
-                </div>
-              </div>
-
-              {/* Right side - Action buttons */}
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                {/* Witness Panel */}
-                <WitnessPanel
-                  key={refreshWitnessPanel}
-                  cnr={cnr}
-                  isActive={caseData?.status === CaseStatus.ACTIVE}
-                  userRole={currentRole}
-                  externalOpen={witnessDrawerOpen}
-                  onExternalOpenChange={setWitnessDrawerOpen}
-                  onWitnessUpdate={handleWitnessUpdate}
-                  viewOnly={isViewingOnly}
-                  onTakeOver={handleTakeOver}
-                  isTakingOver={isTakingOver}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    router.push(`/cases/${cnr}/case-prep`)
-                  }
-                >
-                  View Case Prep
-                </Button>
-
-                <Drawer
-                  open={showCaseDetails}
-                  onOpenChange={setShowCaseDetails}
-                >
-                  <DrawerTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      View Case Details
-                    </Button>
-                  </DrawerTrigger>
-                  <DrawerContent className="h-[80vh]">
-                    <DrawerHeader className="pb-4 border-b">
-                      <DrawerTitle>Case Details</DrawerTitle>
-                      <DrawerDescription className="sr-only">
-                        Review the full case details, parties, evidence, and
-                        courtroom context.
-                      </DrawerDescription>
-                    </DrawerHeader>
-                    <ScrollArea className="h-[calc(100vh-10rem)]">
-                      <div className="p-6">
-                        <div className="mb-8">
-                          <h2 className="text-xl font-semibold mb-4">
-                            {caseData.title}
-                          </h2>
-                          <div className="flex flex-wrap gap-4 mb-4">
-                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                              Case #{caseData.cnr}
-                            </span>
-                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-                              Filed{" "}
-                              {formatToLocaleDateString(caseData.created_at)}
-                            </span>
-                            {caseData.court && (
-                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                                {caseData.court}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="rounded-md shadow-md border border-gray-300">
-                            {caseData.case_text ? (
-                              <div className="p-6">
-                                <MarkdownRenderer
-                                  markdown={caseData.case_text}
-                                  className="prose prose-lg max-w-none font-serif dark:prose-invert"
-                                />
-                              </div>
-                            ) : (
-                              <p className="text-gray-500 italic p-6">
-                                No case details available.
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </ScrollArea>
-                  </DrawerContent>
-                </Drawer>
-                {caseData?.status === CaseStatus.ACTIVE && !isViewingOnly && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleEndSession}
-                    disabled={sessionUserArguments < 2}
-                    title={
-                      sessionUserArguments < 2
-                        ? `Submit at least ${
-                            2 - sessionUserArguments
-                          } more argument(s) this session before ending`
-                        : "End court session"
-                    }
-                  >
-                    End Session
-                  </Button>
-                )}
-                {caseData?.status === CaseStatus.RESOLVED && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setShowVerdict(true)}
-                  >
-                    View Verdict
-                  </Button>
-                )}
-                {caseData?.status === CaseStatus.RESOLVED && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleAnalyzeCase}
-                  >
-                    Analyze Case
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Analysis Error Alert */}
-      {analysisError && (
-        <div className="max-w-7xl mx-auto w-full px-4 py-4 mt-4">
-          <Alert
-            variant="destructive"
-            className="relative bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800"
+    <div className={cn("relative mx-auto flex min-h-0 w-full max-w-360 flex-1 flex-col", mob ? "gap-2.5 px-3 pb-3 pt-2.5" : "gap-3 px-[3vw] pb-4.5 pt-4")}>
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <Link
+            href={`/cases/${cnr}/case-prep`}
+            className="relative flex min-h-7 items-center gap-2 self-start text-xs uppercase tracking-[0.16em] text-desk-soft before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:text-desk-hover"
           >
-            <button
-              onClick={() => setAnalysisError(null)}
-              className="absolute top-3 right-3 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
-              aria-label="Dismiss"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-            <div className="flex items-start gap-3 pr-8">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <div>
-                <AlertTitle className="text-red-800 dark:text-red-300 font-semibold">
-                  Analysis Failed
-                </AlertTitle>
-                <AlertDescription className="text-red-700 dark:text-red-400 text-sm mt-1">
-                  Unable to generate case analysis. Please try again later.
-                </AlertDescription>
-              </div>
-            </div>
-          </Alert>
-        </div>
-      )}
-
-      {/* Arguments display area - scrollable */}
-      <div
-        className={`flex-1 min-h-0 mt-2 sm:mt-4 ${
-          caseData.status === CaseStatus.RESOLVED ? "mb-6" : "mb-1 sm:mb-2"
-        } bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 max-w-7xl w-full mx-2 sm:mx-auto`}
-      >
-        {/* Chat messages */}
-        <ScrollArea className="h-full">
-          <div className="p-4 space-y-4">
-            {transcriptItems.map((item, index) =>
-              item.kind === "witness"
-                ? renderWitnessSession(item.session)
-                : renderEvent(item.event, index),
-            )}
-            {isAiResponding && (
-              <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="max-w-[75%] rounded-lg p-3 border-l-4 shadow-sm bg-purple-100 dark:bg-purple-900/20 border-purple-600">
-                  <div className="text-xs font-medium mb-2 text-purple-600 dark:text-purple-400">
-                    Opposition lawyer
-                  </div>
-                  <div
-                    className="flex items-center gap-1.5"
-                    aria-label="AI is thinking"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.2s]" />
-                    <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.1s]" />
-                    <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce" />
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-            {caseData.verdict && caseData?.status === CaseStatus.RESOLVED && (
-              <div>
-                <Dialog
-                  open={showVerdict && !!caseData.verdict}
-                  onOpenChange={setShowVerdict}
-                >
-                  <DialogContent className="max-w-3xl max-h-[90vh] p-0">
-                    <DialogHeader className="px-6 py-4 border-b">
-                      <DialogTitle className="flex items-center justify-between">
-                        Case Verdict
-                      </DialogTitle>
-                      <DialogDescription className="sr-only">
-                        Final verdict for case {caseData.cnr}.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <ScrollArea className="h-[calc(90vh-6rem)] p-6">
-                      <MarkdownRenderer
-                        markdown={caseData.verdict}
-                        className="prose prose-lg max-w-none font-serif dark:prose-invert"
-                      />
-                    </ScrollArea>
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog
-                  open={showAnalysis && !!caseAnalysis}
-                  onOpenChange={setShowAnalysis}
-                >
-                  <DialogContent className="max-w-3xl max-h-[90vh] p-0">
-                    <DialogHeader className="px-6 py-4 border-b">
-                      <DialogTitle className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-1 h-8 bg-blue-500 rounded"></div>
-                          <div className="max-w-md">
-                            <h2 className="text-xl font-bold truncate">
-                              Case Analysis
-                            </h2>
-                            <p className="text-sm text-gray-500 mt-1 truncate">
-                              Case #{caseData.cnr} • {caseData.title}
-                            </p>
-                          </div>
-                        </div>
-                        {caseOutcome ? (
-                          <OutcomeBadge
-                            outcome={caseOutcome}
-                            className="shrink-0 px-3 text-sm"
-                          />
-                        ) : (
-                          <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            Analysis Complete
-                          </span>
-                        )}
-                      </DialogTitle>
-                      <DialogDescription className="sr-only">
-                        Detailed analysis for case {caseData.cnr}.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <ScrollArea className="max-h-[calc(90vh-12rem)]">
-                      <div className="px-6 py-4">
-                        <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-inner overflow-hidden">
-                          <div className="p-6">
-                            <MarkdownRenderer
-                              markdown={caseAnalysis || ""}
-                              className="prose prose-lg max-w-none font-serif prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </ScrollArea>
-                    <div className="px-6 py-4 border-t bg-gray-50 dark:bg-zinc-900">
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <div className="flex items-center">
-                          <span className="inline-block w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                          Analysis generated on{" "}
-                          {formatToLocaleDateString(caseData.created_at)}
-                        </div>
-                        {caseData.court && (
-                          <div className="flex items-center text-gray-500">
-                            <span>{caseData.court}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            )}
-            {caseData.verdict && caseData?.status === CaseStatus.RESOLVED && (
-              <div>
-                <Dialog
-                  open={showVerdict && !!caseData.verdict}
-                  onOpenChange={setShowVerdict}
-                >
-                  <DialogContent className="max-w-3xl max-h-[90vh] p-0">
-                    <DialogHeader className="px-6 py-4 border-b">
-                      <DialogTitle className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-1 h-8 bg-green-500 rounded"></div>
-                          <div className="max-w-md">
-                            <h2 className="text-xl font-bold truncate">
-                              Final Verdict
-                            </h2>
-                            <p className="text-sm text-gray-500 mt-1 truncate">
-                              Case #{caseData.cnr} • {caseData.title}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="shrink-0 px-3 py-1 rounded-full text-sm bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                          Verdict Passed
-                        </span>
-                      </DialogTitle>
-                      <DialogDescription className="sr-only">
-                        Final verdict details for case {caseData.cnr}.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <ScrollArea className="max-h-[calc(90vh-12rem)]">
-                      <div className="px-6 py-4">
-                        <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 shadow-inner overflow-hidden">
-                          <div className="p-6">
-                            <MarkdownRenderer
-                              markdown={caseData.verdict || ""}
-                              className="prose prose-lg max-w-none font-serif prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </ScrollArea>
-                    <div className="px-6 py-4 border-t bg-gray-50 dark:bg-zinc-900">
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <div className="flex items-center">
-                          <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                          Verdict passed on{" "}
-                          {formatToLocaleDateString(caseData.created_at)}
-                        </div>
-                        {caseData.court && (
-                          <div className="flex items-center text-gray-500">
-                            <span>{caseData.court}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-
-                <div ref={messagesEndRef} />
-              </div>
-            )}
+            <span aria-hidden="true">←</span>
+            <span>Case Prep</span>
+          </Link>
+          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+            <h1 className={cn("m-0 font-display font-normal leading-[1.05] text-desk-ink", mob ? "text-[26px]" : "text-[32px]")}>{data.title}</h1>
+            <span className={cn("whitespace-nowrap border-[1.5px] px-2.25 pb-0.75 pt-1 text-[10.5px] font-bold uppercase tracking-[0.18em]", stC)}>{stLabel}</span>
           </div>
-        </ScrollArea>
+          <span className="text-[13.5px] leading-[1.4] text-desk-muted">
+            You are <strong className="text-desk-ink">{SIDE[me]}</strong> · <span className="font-data text-xs font-medium">{cnr}</span>
+          </span>
+        </div>
+        <div className={cn("flex min-w-0", mob ? "flex-nowrap gap-1.5" : "flex-wrap gap-2", small ? "flex-[1_1_100%]" : "flex-none")}>
+          <button type="button" onClick={() => setCaseOpen(true)} className={outline}>
+            Case file
+          </button>
+          {mob && (
+            <button type="button" onClick={() => setWit(!witOpen)} className={outline}>
+              {onStand ? "On the stand" : "Witness stand"}
+            </button>
+          )}
+          {active && !view && (
+            <button
+              type="button"
+              onClick={() => void adjourn()}
+              aria-disabled={sess < 2}
+              title={adjTip}
+              className={cn(
+                btn,
+                "border bg-transparent hover:bg-[rgba(224,120,108,.08)]",
+                sess >= 2 ? "border-amber-hi text-amber-hi light:border-amber light:text-amber" : "border-ink-disabled text-ink-disabled",
+              )}
+            >
+              Adjourn
+            </button>
+          )}
+          {adjourned && (
+            <button type="button" onClick={() => void resume()} className={solid}>
+              Resume hearing →
+            </button>
+          )}
+          {resolved && (
+            <>
+              {!mob && (
+                <button type="button" onClick={() => setVerdictOpen(true)} className={solid}>
+                  View verdict
+                </button>
+              )}
+              <button type="button" onClick={openAnalysis} className={outline}>
+                Case analysis
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Fixed input area at bottom */}
-      {caseData.status !== CaseStatus.RESOLVED && (
-        <div className="shrink-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-700 p-2.5 sm:p-4 shadow-lg w-full">
-          <div className="max-w-7xl mx-auto">
-            {/* Rate limit information */}
-            {rateLimit && (
-              <div className="p-2 sm:p-3 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg">
-                <div className="w-full flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
-                  <div>
-                    <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-                      Daily argument limit:
-                    </span>{" "}
-                    <span
-                      className={`${
-                        rateLimit.remaining_attempts === 0
-                          ? "text-red-600 font-medium"
-                          : "text-gray-900 dark:text-gray-100"
-                      }`}
-                    >
-                      {rateLimit.remaining_attempts} of {rateLimit.max_attempts}{" "}
-                      remaining
-                    </span>
-                  </div>
-
-                  {timeRemaining !== null && timeRemaining > 0 ? (
-                    <div className="flex items-center justify-end">
-                      <div className="text-orange-600 font-medium flex items-center">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 mr-1"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <span className="hidden sm:inline">
-                          Next submission in:{" "}
-                        </span>
-                        <span className="sm:hidden">Next in: </span>
-                        <span className="ml-1 bg-orange-100 text-orange-800 px-2 py-1 rounded font-mono">
-                          {/* Format timeRemaining in HH:MM:SS */}
-                          {`${Math.floor(timeRemaining / 3600)
-                            .toString()
-                            .padStart(2, "0")}:${Math.floor(
-                            (timeRemaining % 3600) / 60,
-                          )
-                            .toString()
-                            .padStart(2, "0")}:${(timeRemaining % 60)
-                            .toString()
-                            .padStart(2, "0")}`}
-                        </span>
-                      </div>
-                    </div>
-                  ) : rateLimit.remaining_attempts === 0 ? (
-                    <div className="flex justify-end">
-                      <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm">
-                        Daily limit reached
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            )}
-            {isWitnessDecisionPending && (
-              <div className="mt-2 p-2 sm:p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg text-sm text-purple-800 dark:text-purple-200">
-                The opposition lawyer is considering whether to call a witness.
-                Please wait before submitting another statement.
-              </div>
-            )}
-            {isWitnessActive && !isWitnessDecisionPending && (
-              <div className="mt-2 p-2 sm:p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg text-sm text-purple-800 dark:text-purple-200">
-                A witness is currently on the stand. Continue from the witness
-                panel before submitting another statement.
-              </div>
-            )}
-            {isViewingOnly ? (
-              <div className="mt-2 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                <span>
-                  This hearing is being conducted from another device. You can
-                  follow the proceedings here.
-                </span>
-                <button
-                  type="button"
-                  onClick={handleTakeOver}
-                  disabled={isTakingOver}
-                  className="shrink-0 rounded-md bg-amber-600 px-3 py-2 font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isTakingOver ? "Taking over..." : "Take over the case"}
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 pt-2 sm:pt-3 gap-2 sm:gap-0">
-                <div className="flex-1">
-                  <SettingsAwareTextArea
-                    ref={argumentTextareaRef}
-                    value={argument}
-                    onChange={setArgument}
-                    onSubmit={handleSubmitArgument}
-                    placeholder="Type your argument here... (Press Enter to submit, Shift+Enter for new line)"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-zinc-800 dark:text-white resize-none"
-                    minHeight={80}
-                    maxHeight={120}
-                    disabled={
-                      isSubmitting ||
-                      isWitnessDecisionPending ||
-                      isWitnessActive ||
-                      !caseData ||
-                      caseData.status !== CaseStatus.ACTIVE
-                    }
-                  />
-                </div>
-
-                {/* Vertically stacked buttons */}
-                <div className="flex flex-row sm:flex-col gap-2 sm:space-y-2 sm:gap-0 sm:min-w-35">
-                  <button
-                    onClick={handleSubmitArgument}
-                    disabled={
-                      isSubmitting ||
-                      isWitnessDecisionPending ||
-                      isWitnessActive ||
-                      !argument.trim() ||
-                      (timeRemaining !== null && timeRemaining > 0)
-                    }
-                    className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                  >
-                    {isSubmitting
-                      ? "Submitting..."
-                      : isWitnessDecisionPending
-                        ? "Witness check..."
-                        : isWitnessActive
-                          ? "Witness active"
-                          : "Submit Argument"}
-                  </button>
-
-                  {showClosingButton && (
-                    <button
-                      onClick={handleSubmitClosingStatement}
-                      disabled={
-                        isSubmitting ||
-                        isWitnessDecisionPending ||
-                        isWitnessActive ||
-                        !argument.trim() ||
-                        (timeRemaining !== null && timeRemaining > 0)
-                      }
-                      className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                    >
-                      {isSubmitting
-                        ? "Submitting..."
-                        : isWitnessDecisionPending
-                          ? "Witness check..."
-                          : isWitnessActive
-                            ? "Witness active"
-                            : "Submit Closing"}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* AI Witness Call Popup */}
-      {aiWitnessAlert.isOpen && (
+      {view && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => {
-            setAiWitnessAlert((prev) => ({ ...prev, isOpen: false }));
-            setWitnessDrawerOpen(true);
-            setRefreshWitnessPanel((p) => p + 1);
-          }}
+          role="status"
+          className="flex flex-wrap items-center gap-x-4 gap-y-2 border border-[rgba(233,163,58,.5)] bg-[rgba(233,163,58,.08)] py-2.25 pl-3.5 pr-2.25 text-[13.5px] leading-[1.45] text-amber-hi light:text-amber"
         >
-          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl p-8 max-w-md mx-4 text-center animate-in fade-in zoom-in duration-300">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
-              <span className="text-3xl">⚖️</span>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Witness Called
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-1">
-              {aiWitnessAlert.message}
-            </p>
-            <p className="text-sm text-purple-600 dark:text-purple-400 font-medium mt-3">
-              The opposition lawyer will now question the witness.
-            </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">
-              Click to continue or wait...
-            </p>
-          </div>
+          <strong className="text-[10.5px] font-bold uppercase tracking-[0.18em]">Watching</strong>
+          <span className="flex-[1_1_280px]">This hearing is being run from another device. You can follow the proceedings here.</span>
+          <button
+            type="button"
+            onClick={() => void takeOver()}
+            className="h-9 cursor-pointer whitespace-nowrap border-0 bg-amber-hi px-3.5 text-[11px] font-bold uppercase tracking-[0.14em] text-ink hover:bg-[#f2d89a]"
+          >
+            Take over the hearing
+          </button>
         </div>
       )}
 
-      {/* Court in Session Popup */}
-      {showSessionPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl p-8 max-w-md mx-4 text-center animate-in fade-in zoom-in duration-300">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-green-600 dark:text-green-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Court is in Session
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              The proceedings have begun. Present your arguments wisely.
-            </p>
-          </div>
-        </div>
-      )}
+      <div
+        ref={paperRef}
+        className="relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden bg-paper text-ink shadow-sheet motion-safe:transition-[grid-template-columns] motion-safe:duration-620 motion-safe:ease-[cubic-bezier(.65,0,.35,1)]"
+        style={{ gridTemplateColumns: !two ? "minmax(0,1fr)" : witOpen ? `minmax(0,1fr) ${w >= 1320 ? 460 : 400}px` : "minmax(0,1fr) 56px" }}
+      >
+        <section aria-label="Proceedings" className="flex min-h-0 min-w-0 flex-col">
+          <Proceedings
+            rows={buildRows(events)}
+            ctx={ctx}
+            open={og}
+            onToggle={(id, open) => setOg((o) => ({ ...o, [id]: open }))}
+            thinking={sending ? SIDE[ai] : null}
+            scRef={recRef}
+            count={events.length}
+          />
+          <Composer
+            mob={mob}
+            canArgue={active && !view}
+            closingAvail={closingAvail}
+            mode={closingAvail ? mode : "arg"}
+            onMode={setMode}
+            meta={`${sess} argument${sess === 1 ? "" : "s"} this session · ${limit ? limit.remaining_attempts : "—"} left today`}
+            evidence={evidence}
+            cite={cite}
+            att={att}
+            onAtt={setAtt}
+            onExhibit={setXv}
+            draft={draft}
+            onDraft={setDraft}
+            onSubmit={() => void submit()}
+            placeholder={
+              onStand
+                ? mob
+                  ? "Witness on the stand"
+                  : "A witness is on the stand"
+                : leave
+                  ? mob
+                    ? "Answer the witness request"
+                    : "Respond to the request to call a witness above"
+                  : closingMode
+                    ? mob
+                      ? "Sum up your case…"
+                      : "Sum up your case for the court…"
+                    : "Address the court…"
+            }
+            sendLabel={!online ? "Offline" : sending ? "Submitting…" : closingMode ? "Deliver closing" : "Submit"}
+            sendOff={busy || !!onStand}
+            sendGrey={!online || busy || !!onStand}
+            sendTip={onStand ? "A witness is on the stand. Finish with the witness before you address the court." : undefined}
+            enterSubmits={enterKeySubmits}
+            autoExpand={autoExpandTextAreas}
+            mic={{ supported: micOk, listening, onToggle: toggleMic, onSoon: () => note("Voice input is coming in a future update.") }}
+            note={composerNote}
+            argRef={argRef}
+            pickMax={() => roomAbove(paperRef.current, argRef.current)}
+          />
+        </section>
 
-      {/* Court Adjourned Popup */}
-      {showAdjournedPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl p-8 max-w-md mx-4 text-center animate-in fade-in zoom-in duration-300">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-amber-600 dark:text-amber-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Court is Adjourned
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              {adjournmentMessage ?? COURT_ADJOURNED_BY_USER}
-            </p>
-          </div>
-        </div>
-      )}
+        {(two || witOpen || witClosing) && (
+          <WitnessStand
+            two={two}
+            open={witOpen}
+            closing={witClosing}
+            wide={w >= 1320}
+            onToggle={() => setWit(!witOpen)}
+            witness={
+              onStand
+                ? {
+                    name: witnessName,
+                    ini: initials(witnessName),
+                    first: /^(Insp\.?|Inspector)\s/.test(witnessName) ? "The inspector" : firstName(witnessName),
+                    sub: `${onStand.witness_role === "applicant" ? "Applicant" : "Non-applicant"} · Called by ${onStand.called_by === me ? "you" : SIDE[ai].replace("Counsel for the ", "the ")}`,
+                  }
+                : null
+            }
+            hist={hist}
+            onObject={(id) => {
+              const e = events.find((x) => x.id === id);
+              if (e) openObj(e);
+            }}
+            held={!!obj}
+            cands={cands}
+            busyNote={busyNote}
+            foot={foot}
+            qDraft={qDraft}
+            onQ={setQDraft}
+            onAsk={() => void ask()}
+            onNoMore={() => void finishTurn()}
+            asking={!!asking}
+            askOff={!!asking || !!typing || witBusy || !online}
+            enterSubmits={enterKeySubmits}
+            qRef={qRef}
+            scRef={witScRef}
+            pickMax={() => roomAbove(qRef.current?.closest("aside") ?? null, qRef.current)}
+            evidence={evidence}
+            qAtt={qAtt}
+            onQAtt={setQAtt}
+            onExhibit={setXv}
+          />
+        )}
+      </div>
+
+      <CaseFilePanel
+        open={caseOpen}
+        onClose={() => setCaseOpen(false)}
+        cnr={cnr}
+        title={data.title}
+        file={file}
+        meta={[court, `Filed ${formatDate(data.created_at)}`, ...file.charges].filter(Boolean).join(" · ")}
+        small={small}
+      />
+      <ObjectionDialog
+        target={
+          obj
+            ? {
+                kind: objKind(obj),
+                who:
+                  obj.type === T.LEAVE_REQUEST
+                    ? `${SIDE[ai]} · request to call a witness`
+                    : obj.type === T.WITNESS_EXAMINED_Q
+                      ? `${SIDE[ai]} · question to the witness`
+                      : `${SIDE[ai]} · AI`,
+                text: obj.content,
+              }
+            : null
+        }
+        onClose={withdrawObj}
+        onRaise={(g, d) => void raise(g, d)}
+        small={small}
+      />
+      <ReportDialog target={rep} onClose={() => setRep(null)} onSend={sendReport} small={small} />
+      <VerdictDialog
+        open={verdictOpen && !!data.verdict}
+        onClose={() => setVerdictOpen(false)}
+        cnr={cnr}
+        verdict={data.verdict ?? ""}
+        outcome={data.outcome}
+        meta={[court, judgment ? formatDate(judgment.timestamp) : ""].filter(Boolean).join(" · ")}
+        reported={reported.has("verdict")}
+        onReport={() => setRep({ id: "verdict", no: "Judgment", who: "The Court · Judgment", text: "The judgment of the court." })}
+        onAnalyse={openAnalysis}
+        small={small}
+      />
+      <AnalysisDialog
+        open={analysisOpen}
+        onClose={() => setAnalysisOpen(false)}
+        state={analysis}
+        onRetry={() => void fetchAnalysis()}
+        outcome={data.outcome}
+        sub={`${SIDE[me]} · ${data.title}`}
+        foot={[`Analysis generated on ${formatDate(judgment?.timestamp ?? data.created_at)}`, court]}
+        small={small}
+      />
+      <ExhibitViewer
+        evidence={evidence}
+        openId={xv}
+        onOpen={setXv}
+        onClose={() => setXv(null)}
+        parties={parties}
+        mine={(p) => onSide(me, p)}
+        onParty={() => setXv(null)}
+        regen={regen}
+        onRegen={(id) => void regenerate(id)}
+        w={w}
+      />
+      <CallAlert alert={alert} small={small} />
+      <Stamp kind={popup} small={small} />
     </div>
   );
 }

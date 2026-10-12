@@ -126,6 +126,10 @@ export enum CourtroomProceedingsEventType {
   WITNESS_EXAMINED_Q = "witness_examined_q",
   WITNESS_EXAMINED_A = "witness_examined_a",
   SYSTEM_MESSAGE = "system_message",
+  CLOSING_STATEMENT = "closing_statement",
+  LEAVE_REQUEST = "leave_request",
+  OBJECTION = "objection",
+  RULING = "ruling",
 }
 
 export interface CourtroomProceedingsEvent {
@@ -138,6 +142,19 @@ export interface CourtroomProceedingsEvent {
   witness_id?: string;
   question?: string;
   answer?: string;
+  // Exhibits the speaker relied on (EvidenceItem.exhibit_ref)
+  exhibit_refs?: string[];
+  objection?: { target_id: string; grounds: string; details: string } | null;
+  sustained?: boolean | null; // on rulings
+  // A sustained objection struck it from the record, or withdrew the question
+  struck?: "struck" | "withdrawn" | null;
+}
+
+export interface PendingLeave {
+  event_id: string;
+  witness_id: string;
+  witness_name: string;
+  called_by: string;
 }
 
 export interface CaseListItem {
@@ -168,6 +185,10 @@ export interface EvidenceItem {
   media_status: EvidenceMediaStatus;
   // "<party_id>:<message_id>" for an interview answer, a proceedings event id for testimony
   origin_id?: string | null;
+  /** the side whose AI counsel logged it in court; null when the user did */
+  extracted_by?: string | null;
+  /** from the user's own interviews: privileged, hidden from the court until cited there */
+  private?: boolean;
 }
 
 export interface Argument {
@@ -201,6 +222,9 @@ export interface Case {
   is_ai_examining?: boolean;
   current_witness_id?: string;
   evidence?: EvidenceItem[];
+  // The other side asked leave to call a witness; the hearing waits for the user
+  pending_leave?: PendingLeave | null;
+  reported?: string[]; // AI responses this user already reported
 }
 
 // Form types
@@ -265,6 +289,8 @@ export interface ChatMessage {
   sender: "user" | "person";
   content: string;
   timestamp: string;
+  /** exhibits pinned to the question */
+  exhibit_refs?: string[];
 }
 
 export interface PartiesListResponse {
@@ -284,6 +310,7 @@ export interface ExaminationItem {
   objection?: string;
   objection_ruling?: string;
   timestamp: string;
+  phase?: "chief" | "cross" | "re_exam" | null;
 }
 
 export interface WitnessInfo {
@@ -301,6 +328,8 @@ export interface CurrentWitnessResponse {
   called_by?: string;
   examination_history: ExaminationItem[];
   is_ai_examining?: boolean;
+  phase?: "chief" | "cross" | "re_exam";
+  next_examiner?: string; // whose turn it is: plaintiff or defendant
 }
 
 export interface WitnessExaminationResponse {

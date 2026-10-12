@@ -542,9 +542,10 @@ export const caseAPI = {
     }
   },
 
-  updateCaseStatus: async (cnr: string, status: string) => {
+  // reason "limit": adjourned because the day's last argument was used
+  updateCaseStatus: async (cnr: string, status: string, reason?: "limit") => {
     try {
-      const response = await api.put(`/cases/${cnr}/status`, { status });
+      const response = await api.put(`/cases/${cnr}/status`, { status, reason });
       logger.info("Case status updated", { cnr, status });
       return response.data;
     } catch (error) {
@@ -648,6 +649,7 @@ export const argumentAPI = {
     caseCnr: string,
     role: "plaintiff" | "defendant",
     argument: string,
+    exhibitRefs: string[] = [],
   ) => {
     try {
       logger.debug("Submitting argument", {
@@ -658,6 +660,7 @@ export const argumentAPI = {
       const response = await api.post(`/cases/${caseCnr}/arguments`, {
         role,
         argument,
+        exhibit_refs: exhibitRefs,
       });
       logger.info("Argument submitted", { caseCnr, role });
       return response.data;
@@ -684,6 +687,38 @@ export const argumentAPI = {
       logApiError(error, "Failed to submit closing statement");
       throw error;
     }
+  },
+};
+
+// Objections and reports in the courtroom
+export const courtroomAPI = {
+  raiseObjection: async (
+    cnr: string,
+    targetId: string,
+    grounds: string,
+    details: string,
+  ): Promise<{ sustained: boolean; ruling: string }> => {
+    const response = await api.post(`/cases/${cnr}/objections`, {
+      target_id: targetId,
+      grounds,
+      details,
+    });
+    return response.data;
+  },
+
+  /** The user opened (on) or withdrew (off) an objection: the AI's examination waits. */
+  holdObjection: async (cnr: string, on: boolean) => {
+    const response = await api.post(`/cases/${cnr}/objections/hold`, { on });
+    return response.data;
+  },
+
+  report: async (cnr: string, entryId: string, reason: string, details: string) => {
+    const response = await api.post(`/cases/${cnr}/reports`, {
+      entry_id: entryId,
+      reason,
+      details,
+    });
+    return response.data;
   },
 };
 
@@ -716,11 +751,12 @@ export const partiesAPI = {
     }
   },
 
-  chatWithParty: async (cnr: string, partyId: string, message: string) => {
+  chatWithParty: async (cnr: string, partyId: string, message: string, exhibitRefs: string[] = []) => {
     try {
       logger.debug("Chatting with party", { cnr, partyId });
       const response = await api.post(`/cases/${cnr}/parties/${partyId}/chat`, {
         message,
+        exhibit_refs: exhibitRefs,
       });
       return response.data;
     } catch (error) {
@@ -744,15 +780,6 @@ export const partiesAPI = {
 
 // Witness API calls
 export const witnessAPI = {
-  getAvailableWitnesses: async (cnr: string) => {
-    try {
-      const response = await api.get(`/cases/${cnr}/witness/available`);
-      return response.data;
-    } catch (error) {
-      logApiError(error, "Failed to get available witnesses");
-      throw error;
-    }
-  },
 
   callWitness: async (cnr: string, witnessId: string) => {
     try {
@@ -768,11 +795,12 @@ export const witnessAPI = {
     }
   },
 
-  examineWitness: async (cnr: string, question: string) => {
+  examineWitness: async (cnr: string, question: string, exhibitRefs: string[] = []) => {
     try {
       logger.debug("Examining witness", { cnr });
       const response = await api.post(`/cases/${cnr}/witness/examine`, {
         question,
+        exhibit_refs: exhibitRefs,
       });
       return response.data;
     } catch (error) {
@@ -781,16 +809,6 @@ export const witnessAPI = {
     }
   },
 
-  aiExamineWitness: async (cnr: string) => {
-    try {
-      logger.debug("AI examining witness", { cnr });
-      const response = await api.post(`/cases/${cnr}/witness/ai-examine`);
-      return response.data;
-    } catch (error) {
-      logApiError(error, "Failed to get AI examination");
-      throw error;
-    }
-  },
 
   aiCrossExamine: async (cnr: string) => {
     try {
@@ -815,17 +833,6 @@ export const witnessAPI = {
     }
   },
 
-  dismissWitness: async (cnr: string) => {
-    try {
-      logger.debug("Dismissing witness", { cnr });
-      const response = await api.post(`/cases/${cnr}/witness/dismiss`);
-      logger.info("Witness dismissed", { cnr });
-      return response.data;
-    } catch (error) {
-      logApiError(error, "Failed to dismiss witness");
-      throw error;
-    }
-  },
 
   getCurrentWitness: async (cnr: string) => {
     try {
@@ -837,14 +844,16 @@ export const witnessAPI = {
     }
   },
 
-  getTestimonies: async (cnr: string) => {
-    try {
-      const response = await api.get(`/cases/${cnr}/witness/testimonies`);
-      return response.data;
-    } catch (error) {
-      logApiError(error, "Failed to get testimonies");
-      throw error;
-    }
+
+  // No objection (null), or object to the other side calling a witness
+  respondToLeave: async (
+    cnr: string,
+    objection: { grounds: string; details: string } | null,
+  ): Promise<{ granted: boolean; sustained?: boolean; ruling?: string; witness_name?: string }> => {
+    const response = await api.post(`/cases/${cnr}/witness/leave/respond`, {
+      objection,
+    });
+    return response.data;
   },
 
   aiCallWitness: async (cnr: string) => {

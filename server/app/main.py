@@ -25,6 +25,7 @@ from app.routes import (
     case_analysis,
     cases,
     client_logs,
+    courtroom,
     evidence,
     feedback,
     location,
@@ -198,6 +199,7 @@ app.include_router(evidence.router, prefix="/cases", tags=["Evidence"])
 app.include_router(arguments.router, prefix="/cases", tags=["Arguments"])
 app.include_router(parties.router, prefix="/cases", tags=["Parties"])
 app.include_router(witness.router, prefix="/cases", tags=["Witness"])
+app.include_router(courtroom.router, prefix="/cases", tags=["Courtroom"])
 app.include_router(rate_limit.router, prefix="/limit", tags=["Rate Limit"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])

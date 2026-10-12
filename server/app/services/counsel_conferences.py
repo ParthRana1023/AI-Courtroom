@@ -10,6 +10,7 @@ import uuid
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.case import Case, CaseStatus, Roles
+from app.services.evidence_service import format_evidence_context
 from app.services.llm.parties_service import (
     can_lawyer_confer_with_party,
     chat_with_party,
@@ -98,6 +99,7 @@ async def _confer(case: Case, party) -> None:
                 source_types=["case_details", "evidence", "party_bio", "ai_party_chat"],
                 party_id=party.id,
             ),
+            evidence_context=format_evidence_context(case.evidence),
         )
         for sender, content in (("counsel", question), ("party", answer)):
             message = {

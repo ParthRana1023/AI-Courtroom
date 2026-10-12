@@ -78,3 +78,7 @@ COURT_NOT_IN_SESSION = (
 PARTY_CHAT_SESSION_ADJOURNED = (
     "You are unable to reach the parties for now. " "Kindly resume the proceedings."
 )
+LEAVE_PENDING = "Respond to the request to call a witness first."
+NO_EXHIBITS_IN_STATEMENTS = (
+    "Exhibits can be cited only in arguments, not in opening or closing statements."
+)

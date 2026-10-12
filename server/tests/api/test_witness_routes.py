@@ -1,5 +1,6 @@
 """Tests for witness routes and the AI cross-examination background task."""
 
+import asyncio
 import types
 
 import pytest
@@ -9,7 +10,9 @@ from app.models.case import (
     Case,
     CaseStatus,
     CourtroomProceedingsEvent,
+    EvidenceItem,
     ExaminationItem,
+    PendingLeave,
     Roles,
     WitnessPhase,
     WitnessTestimony,
@@ -18,6 +21,7 @@ from app.models.case import (
     CourtroomProceedingsEventType as EventType,
 )
 from app.routes import witness as witness_routes
+from app.utils.datetime import get_current_datetime
 from tests.helpers import boom, reload
 
 
@@ -226,6 +230,66 @@ async def test_examine_witness_records_question_and_answer(
     ]
 
 
+RECEIPT = EvidenceItem(
+    exhibit_ref="EX-01",
+    title="Cash receipt",
+    evidence_type="document",
+    description="Receipt.",
+)
+
+
+async def test_examine_witness_puts_exhibits_to_the_witness(
+    client, auth_headers, on_stand, fake_llm
+):
+    fake_llm.responses.append("Yes, that is my receipt.")
+    case = await on_stand(evidence=[RECEIPT])
+
+    response = await client.post(
+        f"/cases/{case.cnr}/witness/examine",
+        headers=auth_headers,
+        json={"question": "Is this yours?", "exhibit_refs": ["EX-01"]},
+    )
+
+    assert response.status_code == 200
+    question = (await reload(case)).courtroom_proceedings[-2]
+    assert (question.content, question.exhibit_refs) == ("Is this yours?", ["EX-01"])
+    assert "Counsel relies on EX-01 (Cash receipt)" in fake_llm.prompts[0]
+    # the witness knows the exhibits before the court
+    assert "EX-01: Cash receipt" in fake_llm.prompts[0]
+
+    unknown = await client.post(
+        f"/cases/{case.cnr}/witness/examine",
+        headers=auth_headers,
+        json={"question": "And this?", "exhibit_refs": ["EX-09"]},
+    )
+    assert unknown.status_code == 400
+
+
+async def test_putting_a_privileged_exhibit_to_the_witness_tenders_it(
+    client, auth_headers, on_stand, fake_llm
+):
+    fake_llm.responses.append("Yes, that is my receipt.")
+    note = RECEIPT.model_copy(update={"private": True, "exhibit_ref": "PN-01"})
+    case = await on_stand(evidence=[note])
+
+    await client.post(
+        f"/cases/{case.cnr}/witness/examine",
+        headers=auth_headers,
+        json={"question": "Is this yours?", "exhibit_refs": ["PN-01"]},
+    )
+
+    saved = await reload(case)
+    assert (saved.evidence[0].private, saved.evidence[0].exhibit_ref) == (
+        False,
+        "EX-01",
+    )
+    assert saved.courtroom_proceedings[-3].content == (
+        "Counsel for the Plaintiff tenders Cash receipt in evidence as EX-01"
+    )
+    assert saved.courtroom_proceedings[-2].exhibit_refs == ["EX-01"]
+    assert "EX-01: Cash receipt" in fake_llm.prompts[0]
+
+
 @pytest.mark.parametrize(
     "overrides, status",
     [
@@ -382,6 +446,56 @@ async def finish_turn(client, headers, case):
     return await client.post(
         f"/cases/{case.cnr}/witness/ai-cross-examine", headers=headers
     )
+
+
+@pytest.mark.parametrize(
+    "question, seconds",
+    [("Where?", 5.4), ("x" * 150, 15.0), ("x" * 600, 20.0)],
+)
+def test_objection_window_gives_time_to_read_the_question(question, seconds):
+    assert witness_routes.objection_window(question) == pytest.approx(seconds)
+
+
+async def test_object_reaches_the_court_while_the_ai_examines(
+    client, auth_headers, on_stand, witness_party, monkeypatch
+):
+    # The examination runs after the response; the hearing lock must not cover
+    # it, or the hold (and the objection) would wait until the AI had finished.
+    examining, finish = asyncio.Event(), asyncio.Event()
+
+    async def examination(case_cnr):
+        examining.set()
+        await finish.wait()
+
+    monkeypatch.setattr(witness_routes, "process_ai_examination", examination)
+    case = await on_stand(
+        witness_testimonies=[
+            open_testimony(
+                witness_party,
+                examination=[
+                    ExaminationItem(
+                        examiner="plaintiff", question="Q", answer="A", phase="chief"
+                    )
+                ],
+            )
+        ],
+    )
+
+    turn = asyncio.create_task(finish_turn(client, auth_headers, case))
+    await asyncio.wait_for(examining.wait(), 5)
+    hold = await asyncio.wait_for(
+        client.post(
+            f"/cases/{case.cnr}/objections/hold",
+            headers=auth_headers,
+            json={"on": True},
+        ),
+        5,
+    )
+    finish.set()
+    await turn
+
+    assert hold.status_code == 200
+    assert (await reload(case)).objection_pending
 
 
 async def test_ai_cross_examines_the_users_witness_then_user_may_re_examine(
@@ -654,6 +768,184 @@ async def test_dismissal_during_ai_examination_is_not_undone(
     assert saved.witness_testimonies[0].phase == WitnessPhase.CHIEF
 
 
+async def test_ai_puts_the_exhibits_it_names_to_the_witness(
+    on_stand, witness_party, monkeypatch, fake_llm
+):
+    fake_llm.responder = ExamResponder()
+    case = await on_stand(
+        is_ai_examining=True,
+        evidence=[RECEIPT],
+        witness_testimonies=[open_testimony(witness_party, phase="cross")],
+    )
+    questions = iter(["Mr. Kumar, look at EX-01. Is it yours?", None])
+
+    async def one_question(**kwargs):
+        return next(questions)
+
+    monkeypatch.setattr(
+        witness_routes.witness_service, "generate_witness_question", one_question
+    )
+
+    await witness_routes.process_ai_examination(case.cnr)
+
+    saved = await reload(case)
+    question = next(
+        e for e in saved.courtroom_proceedings if e.type == EventType.WITNESS_EXAMINED_Q
+    )
+    assert question.exhibit_refs == ["EX-01"]
+    assert any("Counsel relies on EX-01 (Cash receipt)" in p for p in fake_llm.prompts)
+
+
+def answer_event(witness_party, id_, text):
+    return CourtroomProceedingsEvent(
+        id=id_,
+        type=EventType.WITNESS_EXAMINED_A,
+        content=text,
+        speaker_name=witness_party.name,
+        witness_id=witness_party.id,
+    )
+
+
+async def test_ai_may_log_an_answer_as_an_exhibit(on_stand, witness_party, fake_llm):
+    fake_llm.responses.extend(
+        [
+            '{"log": 2}',
+            '{"title": "Gate sighting", "evidence_type": "Testimony", "description": "Saw him."}',
+        ]
+    )
+    case = await on_stand(
+        courtroom_proceedings=[
+            answer_event(witness_party, "a1", "I was at home."),
+            answer_event(witness_party, "a2", "I saw him at the gate at 9 pm."),
+        ]
+    )
+
+    await witness_routes.ai_logs_testimony(case.cnr, witness_party.id, "defendant")
+
+    saved = await reload(case)
+    item = saved.evidence[-1]
+    assert (item.title, item.origin_id, item.extracted_by) == (
+        "Gate sighting",
+        "a2",
+        "defendant",
+    )
+    assert saved.courtroom_proceedings[-1].content == (
+        f"Counsel for the Defence logs Ravi Kumar's answer as {item.exhibit_ref}"
+    )
+    assert "I saw him at the gate at 9 pm." in fake_llm.prompts[1]
+
+
+@pytest.mark.parametrize("reply", ['{"log": null}', '{"log": 7}', "Not JSON"])
+async def test_ai_logs_nothing_unless_it_picks_a_real_answer(
+    on_stand, witness_party, fake_llm, reply
+):
+    fake_llm.responses.append(reply)
+    case = await on_stand(
+        courtroom_proceedings=[answer_event(witness_party, "a1", "I was at home.")]
+    )
+    before = len(case.evidence)
+
+    await witness_routes.ai_logs_testimony(case.cnr, witness_party.id, "defendant")
+
+    assert len((await reload(case)).evidence) == before
+    assert len(fake_llm.prompts) == 1
+
+
+async def test_objection_while_a_question_is_drafted_holds_it_back(
+    on_stand, witness_party, monkeypatch, fake_llm
+):
+    fake_llm.responder = ExamResponder()
+    case = await on_stand(
+        is_ai_examining=True,
+        witness_testimonies=[open_testimony(witness_party, phase="cross")],
+    )
+    drafts = iter(["Drafted before the objection?", "Drafted after the ruling?", None])
+    held_during: list[bool] = []
+
+    async def draft(**kwargs):
+        question = next(drafts)
+        if question == "Drafted before the objection?":
+            # The user clicks Object while this question is being drafted.
+            await Case.find_one(Case.cnr == case.cnr).update_one(
+                {"$set": {"objection_pending_at": get_current_datetime()}}
+            )
+        return question
+
+    async def court_rules(seconds):
+        if seconds == 1:  # the examiner waiting on the objection
+            held_during.append((await reload(case)).objection_pending)
+            await Case.find_one(Case.cnr == case.cnr).update_one(
+                {"$set": {"objection_pending_at": None}}
+            )
+
+    monkeypatch.setattr(
+        witness_routes.witness_service, "generate_witness_question", draft
+    )
+    monkeypatch.setattr(
+        witness_routes, "asyncio", types.SimpleNamespace(sleep=court_rules)
+    )
+
+    await witness_routes.process_ai_examination(case.cnr)
+
+    asked = [
+        e.content
+        for e in (await reload(case)).courtroom_proceedings
+        if e.type == EventType.WITNESS_EXAMINED_Q
+    ]
+    assert held_during == [True]
+    assert asked == [
+        "Drafted after the ruling?"
+    ]  # the first draft never reached the record
+
+
+async def test_ai_examination_waits_for_the_ruling_and_drops_a_withdrawn_question(
+    on_stand, witness_party, monkeypatch, fake_llm
+):
+    fake_llm.responder = ExamResponder(questions=1)
+    case = await on_stand(
+        is_ai_examining=True,
+        witness_testimonies=[open_testimony(witness_party, phase="cross")],
+    )
+    original = witness_routes.witness_service.examine_witness
+    rulings: list[dict] = []
+    waits: list[bool] = []
+
+    async def answer_while_user_objects(**kwargs):
+        answer = await original(**kwargs)
+        # Meanwhile the user objects to the question and the court is ruling.
+        saved = await reload(case)
+        await Case.find_one(Case.cnr == case.cnr).update_one(
+            {"$set": {"objection_pending_at": get_current_datetime()}}
+        )
+        last = len(saved.courtroom_proceedings) - 1
+        rulings.append({f"courtroom_proceedings.{last}.struck": "withdrawn"})
+        return answer
+
+    async def court_rules(seconds):
+        if seconds == 1:  # the examiner waiting for the ruling
+            waits.append((await reload(case)).objection_pending)
+            await Case.find_one(Case.cnr == case.cnr).update_one(
+                {"$set": {"objection_pending_at": None, **rulings.pop()}}
+            )
+
+    monkeypatch.setattr(
+        witness_routes.witness_service, "examine_witness", answer_while_user_objects
+    )
+    monkeypatch.setattr(
+        witness_routes, "asyncio", types.SimpleNamespace(sleep=court_rules)
+    )
+
+    await witness_routes.process_ai_examination(case.cnr)
+
+    saved = await reload(case)
+    assert waits == [True]
+    # the withdrawn question goes unanswered
+    assert saved.witness_testimonies[0].examination == []
+    assert not any(
+        e.type == EventType.WITNESS_EXAMINED_A for e in saved.courtroom_proceedings
+    )
+
+
 # ---------------------------------------------------------------------------
 # conclude, dismiss, current state and testimonies
 # ---------------------------------------------------------------------------
@@ -830,17 +1122,10 @@ async def ai_call(client, headers, case):
     ).json()
 
 
-async def test_ai_call_witness_calls_and_examines(
+async def test_ai_call_witness_asks_leave_first(
     client, auth_headers, courtroom_case, fake_llm, witness_party
 ):
-    examine = ExamResponder(questions=0)
-
-    def respond(prompt):
-        if "Should you call a witness now?" in prompt:
-            return "CALL: 1"
-        return examine(prompt)
-
-    fake_llm.responder = respond
+    fake_llm.responses.append("CALL: 1")
     case = await courtroom_case(
         ai_role=Roles.NOT_STARTED,
         courtroom_proceedings=argued(2),
@@ -850,21 +1135,157 @@ async def test_ai_call_witness_calls_and_examines(
 
     body = await ai_call(client, auth_headers, case)
 
-    assert (
-        body["should_call"] is True
-        and body["witness_name"] == "Ravi Kumar"
-        and body["called_by"] == "defendant"
-    )
+    assert body["should_call"] is True and body["pending_leave"] is True
+    assert body["witness_name"] == "Ravi Kumar" and body["called_by"] == "defendant"
     saved = await reload(case)
+    # nobody takes the stand until the court grants leave
+    assert saved.current_witness_id is None and not saved.is_ai_examining
+    assert saved.pending_leave and saved.pending_leave.witness_id == witness_party.id
+    request = saved.courtroom_proceedings[-1]
+    assert request.type == EventType.LEAVE_REQUEST
+    assert request.content == (
+        "Your Honour, the Defence seeks leave to call Ravi Kumar to the stand."
+    )
+    # and the AI doesn't ask again while it waits
+    assert (await ai_call(client, auth_headers, saved))["reason"] == (
+        "Waiting for the court's leave"
+    )
+
+
+@pytest.fixture
+def leave_pending(courtroom_case, witness_party):
+    async def _make(**overrides):
+        request = CourtroomProceedingsEvent(
+            type=EventType.LEAVE_REQUEST,
+            content="Your Honour, the Defence seeks leave to call Ravi Kumar.",
+            speaker_role="defendant",
+            witness_id=witness_party.id,
+        )
+        data = {
+            "courtroom_proceedings": [*argued(2), request],
+            "pending_leave": PendingLeave(
+                event_id=request.id,
+                witness_id=witness_party.id,
+                witness_name=witness_party.name,
+                called_by="defendant",
+            ),
+        }
+        data.update(overrides)
+        return await courtroom_case(**data)
+
+    return _make
+
+
+async def respond(client, headers, case, objection=None):
+    return await client.post(
+        f"/cases/{case.cnr}/witness/leave/respond",
+        headers=headers,
+        json={"objection": objection},
+    )
+
+
+async def test_no_objection_seats_the_witness_and_ai_examines(
+    client, auth_headers, leave_pending, fake_llm, witness_party
+):
+    fake_llm.responder = ExamResponder(questions=0)
+    case = await leave_pending()
+
+    body = (await respond(client, auth_headers, case)).json()
+
+    assert body == {"granted": True, "witness_name": "Ravi Kumar"}
+    saved = await reload(case)
+    assert saved.pending_leave is None
     assert saved.current_witness_id == witness_party.id
     testimony = saved.witness_testimonies[0]
+    assert testimony.called_by == "defendant"
     # the AI examined in chief (at least 3 questions) and handed over for cross
-    assert len(testimony.examination) == 3
-    assert testimony.phase == WitnessPhase.CROSS
-    assert any(
-        e.type == EventType.WITNESS_CALLED and e.speaker_role == "defendant"
-        for e in saved.courtroom_proceedings
+    assert len(testimony.examination) == 3 and testimony.phase == WitnessPhase.CROSS
+    notes = [e.content for e in saved.courtroom_proceedings]
+    assert "No objection · Leave granted" in notes
+
+
+async def test_sustained_objection_refuses_leave_for_good(
+    client, auth_headers, leave_pending, fake_llm, witness_party
+):
+    fake_llm.responses.append(
+        '{"sustained": true, "ruling": "Sustained. The witness cannot speak to the charge. Leave is refused."}'
     )
+    case = await leave_pending()
+
+    body = (
+        await respond(
+            client,
+            auth_headers,
+            case,
+            {"grounds": "Irrelevant to the charge", "details": "He was never there."},
+        )
+    ).json()
+
+    assert body["granted"] is False and body["sustained"] is True
+    saved = await reload(case)
+    assert saved.pending_leave is None and saved.current_witness_id is None
+    assert saved.refused_witness_ids == [witness_party.id]
+    objection, ruling = saved.courtroom_proceedings[-2:]
+    assert objection.type == EventType.OBJECTION
+    assert (
+        objection.content == "Objection. Irrelevant to the charge. He was never there."
+    )
+    assert objection.objection.target_id == case.pending_leave.event_id
+    assert ruling.type == EventType.RULING and ruling.sustained is True
+    # a refused witness is never offered again: the AI's first choice is the next party
+    saved.courtroom_proceedings += argued(2)
+    await saved.save()
+    fake_llm.responses.append("CALL: 1")
+    assert (await ai_call(client, auth_headers, saved))["witness_name"] == "Asha Rao"
+
+
+async def test_overruled_objection_grants_leave(
+    client, auth_headers, leave_pending, fake_llm, witness_party
+):
+    examine = ExamResponder(questions=0)
+    ruled = '{"sustained": false, "ruling": "The witness may assist the court. Leave is granted."}'
+    fake_llm.responder = lambda prompt: (
+        ruled if "Rule on the objection" in prompt else examine(prompt)
+    )
+    case = await leave_pending()
+
+    body = (
+        await respond(
+            client, auth_headers, case, {"grounds": "Unfair surprise", "details": ""}
+        )
+    ).json()
+
+    assert body["granted"] is True and body["sustained"] is False
+    assert body["ruling"].startswith("Overruled. The witness may assist")
+    assert (await reload(case)).current_witness_id == witness_party.id
+
+
+async def test_leave_response_rejections(
+    client, auth_headers, leave_pending, courtroom_case
+):
+    case = await leave_pending()
+    bad = await respond(client, auth_headers, case, {"grounds": "Hearsay"})
+    assert bad.status_code == 400
+
+    nothing = await courtroom_case()
+    assert (await respond(client, auth_headers, nothing)).status_code == 409
+
+    adjourned = await leave_pending(status=CaseStatus.ADJOURNED)
+    assert (await respond(client, auth_headers, adjourned)).status_code == 409
+
+
+async def test_pending_leave_blocks_calling_a_witness(
+    client, auth_headers, leave_pending, other_party
+):
+    case = await leave_pending()
+
+    response = await client.post(
+        f"/cases/{case.cnr}/witness/call",
+        headers=auth_headers,
+        json={"witness_id": other_party.id},
+    )
+
+    assert response.status_code == 409
 
 
 @pytest.mark.parametrize(

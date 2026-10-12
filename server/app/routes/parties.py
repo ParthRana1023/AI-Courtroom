@@ -10,6 +10,7 @@ from app.logging_config import get_logger
 from app.models.case import Case, CaseStatus, Roles, party_message_id
 from app.models.party import PartyInvolved
 from app.models.user import User
+from app.routes.arguments import cited_exhibits
 from app.schemas.party import (
     ChatHistoryOut,
     ChatMessageOut,
@@ -18,6 +19,7 @@ from app.schemas.party import (
     PartiesListOut,
     PartyOut,
 )
+from app.services.evidence_service import format_evidence_context
 from app.services.llm.parties_service import (
     can_lawyer_confer_with_party,
     chat_with_party,
@@ -65,7 +67,11 @@ async def ensure_party_bio(case: Case, party: PartyInvolved):
             detail="Failed to generate party details. Please try again.",
         )
     try:
-        await case.save()
+        # Only this party's bio: the rest of the case may have moved on meanwhile.
+        index = case.parties_involved.index(party)
+        await Case.find_one(
+            {"cnr": case.cnr, f"parties_involved.{index}.id": party.id}
+        ).update_one({"$set": {f"parties_involved.{index}.bio": party.bio}})
         await upsert_memory_item(
             case,
             "party_bio",
@@ -206,6 +212,8 @@ async def chat_with_case_party(
         messages.PARTY_CHAT_LIMIT,
     )
 
+    exhibit_refs, cites = cited_exhibits(case, chat_request.exhibit_refs)
+
     await ensure_party_bio(case, party)
 
     # Get existing chat history for this party
@@ -219,6 +227,7 @@ async def chat_with_case_party(
         "sender": "user",
         "content": chat_request.message,
         "timestamp": user_timestamp.isoformat(),
+        "exhibit_refs": exhibit_refs,
     }
 
     # Generate party's response
@@ -243,8 +252,9 @@ async def chat_with_case_party(
             party.bio or "",
             case.details,
             chat_history,
-            chat_request.message,
+            chat_request.message + cites,
             rag_context=rag_context,
+            evidence_context=format_evidence_context(case.evidence),
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
@@ -279,7 +289,15 @@ async def chat_with_case_party(
     case.party_chats[party_id].append(party_message)
 
     try:
-        await case.save()
+        # Appended on their own: a whole-case save would undo exhibit images
+        # the background task finished while the party was answering.
+        await Case.find_one(Case.cnr == case.cnr).update_one(
+            {
+                "$push": {
+                    f"party_chats.{party_id}": {"$each": [user_message, party_message]}
+                }
+            }
+        )
         await upsert_memory_item(
             case,
             "party_chat",
@@ -309,6 +327,7 @@ async def chat_with_case_party(
             sender="user",
             content=chat_request.message,
             timestamp=user_timestamp,
+            exhibit_refs=exhibit_refs,
         ),
         party_response=ChatMessageOut(
             id=party_message_id,
@@ -345,6 +364,7 @@ async def get_party_chat_history(
             sender=msg.get("sender", "party"),
             content=msg.get("content", ""),
             timestamp=msg.get("timestamp", get_current_datetime().isoformat()),
+            exhibit_refs=msg.get("exhibit_refs", []),
         )
         for index, msg in enumerate(chat_history)
     ]

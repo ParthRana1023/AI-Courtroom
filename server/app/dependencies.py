@@ -157,3 +157,9 @@ async def courtroom_control(
                     status_code=409, detail=messages.HEARING_ON_OTHER_DEVICE
                 )
         yield
+
+
+# Function scope: the lock is released when the route returns. In request scope
+# FastAPI keeps it until the route's background tasks finish, so while the AI
+# examined a witness, Object (and every other hearing action) queued behind it.
+controls_hearing = Depends(courtroom_control, scope="function")

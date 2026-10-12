@@ -1,7 +1,7 @@
 # app/schemas/party.py
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.party import PartyRole
 
@@ -28,6 +28,7 @@ class ChatMessageOut(BaseModel):
     sender: str  # 'user' or 'party'
     content: str
     timestamp: datetime
+    exhibit_refs: list[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,6 +37,7 @@ class ChatRequest(BaseModel):
     """Request schema for sending a chat message"""
 
     message: str
+    exhibit_refs: list[str] = Field(default_factory=list, max_length=10)
 
 
 class ChatResponse(BaseModel):

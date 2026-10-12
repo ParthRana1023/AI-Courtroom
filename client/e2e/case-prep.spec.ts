@@ -40,7 +40,7 @@ test.describe("case prep", () => {
           await route.fulfill({
             status: 201,
             json: {
-              evidence: { id: "e3", exhibit_ref: "EX-03", title: "Statement of Raghav Menon", evidence_type: "Witness Testimony", description: "Our funding partner pulled out in May.", source: "Raghav Menon chat", media_status: "pending", origin_id: "p1:a1" },
+              evidence: { id: "e3", exhibit_ref: "PN-01", title: "Statement of Raghav Menon", evidence_type: "Witness Testimony", description: "Our funding partner pulled out in May.", source: "Raghav Menon chat", media_status: "pending", origin_id: "p1:a1", private: true },
             },
           });
         },
@@ -61,19 +61,61 @@ test.describe("case prep", () => {
     await expect(log.getByText("Our funding partner pulled out in May.")).toBeVisible();
     await checkA11y();
 
-    await log.getByRole("button", { name: "Extract as exhibit" }).click();
-    await expect(page.getByText("Evidence extracted. EX-03 added to the exhibits.")).toBeVisible();
+    await log.getByRole("button", { name: "Save to Privileged" }).click();
+    await expect(page.getByText("Saved to Privileged as PN-01. Only you can see it until you cite it in court.")).toBeVisible();
     expect(extracted).toBe(true);
 
-    await log.getByRole("button", { name: "Logged as EX-03 · view" }).click();
+    await log.getByRole("button", { name: "In Privileged as PN-01 · view" }).click();
     const viewer = page.getByRole("dialog");
-    await expect(viewer.getByText("Exhibit 3 of 3")).toBeVisible();
-    await expect(viewer.getByText("Extracted by you in Case Prep")).toBeVisible();
+    await expect(viewer.getByText("Privileged note 1 of 1")).toBeVisible();
+    await expect(viewer.getByText("Saved by you from an interview. Privileged: only you can see it until you cite it in court")).toBeVisible();
     await expect(viewer.getByRole("button", { name: "Close" })).toBeFocused();
+    // notes are paged apart from the exhibits
     await page.keyboard.press("ArrowLeft");
-    await expect(viewer.getByText("Exhibit 2 of 3")).toBeVisible();
+    await expect(viewer.getByText("Privileged note 1 of 1")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(viewer).toBeHidden();
+
+    // the note lives in its own tab, not with the exhibits
+    await page.getByRole("tab", { name: /Evidence/ }).click();
+    await expect(page.getByText("Exhibits · 2")).toBeVisible();
+    await page.getByRole("tab", { name: /Privileged/ }).click();
+    await expect(page.getByText("Privileged · 1")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open PN-01, Statement of Raghav Menon" })).toBeVisible();
+  });
+
+  test("an exhibit can be pinned to a question", async ({ page, signIn }, info) => {
+    let posted: unknown;
+    await signIn(
+      USERS.email,
+      routes({
+        [`POST ${base}/parties/p1/chat`]: async (route: Route) => {
+          posted = route.request().postDataJSON();
+          await route.fulfill({
+            json: {
+              user_message: { id: "q1", sender: "user", content: "Is this yours?", timestamp: "2026-10-07T10:00:00Z", exhibit_refs: ["EX-01"] },
+              party_response: { id: "a1", sender: "person", content: "Yes, those are my receipts.", timestamp: "2026-10-07T10:00:05Z" },
+            },
+          });
+        },
+      }),
+    );
+    await page.goto(`${base}/case-prep`);
+    await openInterview(page, info.project.name !== "desktop");
+    await page.getByRole("button", { name: "Pin an exhibit" }).click();
+    await page.getByRole("dialog", { name: "Refer to an exhibit" }).getByRole("button", { name: /EX-01/ }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Refer to an exhibit" })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Remove EX-01" })).toBeVisible();
+    await page.getByLabel("Question for Raghav Menon").fill("Is this yours?");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+
+    const log = page.getByRole("log", { name: "Interview transcript" });
+    await expect(log.getByText("Yes, those are my receipts.")).toBeVisible();
+    expect(posted).toEqual({ message: "Is this yours?", exhibit_refs: ["EX-01"] });
+    await expect(page.getByRole("button", { name: "Remove EX-01" })).toHaveCount(0);
+    await log.getByRole("button", { name: /EX-01/ }).click();
+    await expect(page.getByRole("dialog").getByText("Exhibit 1 of 2")).toBeVisible();
   });
 
   test("the other side can be read but not interviewed", async ({ page, signIn }, info) => {
@@ -103,14 +145,19 @@ test.describe("case prep", () => {
     await expect(page.getByLabel("Question for Raghav Menon")).toHaveValue("Where did the money go?");
   });
 
-  test("exhibits: a failed image can be regenerated", async ({ page, signIn }) => {
+  test("exhibits: a failed image is remade in the background", async ({ page, signIn }) => {
+    // The server queues the image and makes it after replying; the page checks back.
+    let made = false;
+    const second = (media_status: string) => ({ ...EVIDENCE[1], media_status });
     await signIn(
       USERS.email,
       routes({
-        [`POST ${base}/evidence/e2/image/regenerate`]: {
-          evidence: [EVIDENCE[0], { ...EVIDENCE[1], media_status: "generated" }],
-          image_generation: { generated: 1 },
+        [`POST ${base}/evidence/e2/image/regenerate`]: async (route: Route) => {
+          await route.fulfill({ json: { evidence: [EVIDENCE[0], second("pending")] } });
+          made = true;
         },
+        [`GET ${base}/evidence`]: async (route: Route) =>
+          route.fulfill({ json: { evidence: [EVIDENCE[0], second(made ? "generated" : "failed")] } }),
       }),
     );
     await page.goto(`${base}/case-prep`);
@@ -118,8 +165,9 @@ test.describe("case prep", () => {
     await expect(page.getByText("Exhibits · 2")).toBeVisible();
     await expect(page.getByText("Image generation failed")).toBeVisible();
     await page.getByRole("button", { name: "↻ Regenerate" }).click();
-    await expect(page.getByText("Evidence image regenerated")).toBeVisible();
+    await expect(page.getByText("Making the image. It appears here when it’s ready.")).toBeVisible();
     await expect(page.getByText("Image generation failed")).toHaveCount(0);
+    await expect(page.getByText("Image ready")).toHaveCount(2, { timeout: 12000 });
 
     await page.getByRole("button", { name: "Open EX-01, Booking receipts" }).click();
     await expect(page.getByRole("dialog").getByText("With the case file")).toBeVisible();

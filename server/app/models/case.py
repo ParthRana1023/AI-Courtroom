@@ -1,7 +1,7 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from beanie import Document
 from pydantic import BaseModel, Field, field_validator
@@ -50,6 +50,7 @@ class ArgumentItem(BaseModel):
     )
     role: Roles = Field(default=Roles.NOT_STARTED)
     timestamp: datetime = Field(default_factory=get_current_datetime)
+    exhibit_refs: list[str] = Field(default_factory=list)
 
 
 class CourtroomProceedingsEventType(str, Enum):
@@ -61,6 +62,18 @@ class CourtroomProceedingsEventType(str, Enum):
     WITNESS_EXAMINED_A = "witness_examined_a"  # Answer
     WITNESS_DISMISSED = "witness_dismissed"
     SYSTEM_MESSAGE = "system_message"
+    CLOSING_STATEMENT = "closing_statement"
+    LEAVE_REQUEST = "leave_request"  # a side asks the court's leave to call a witness
+    OBJECTION = "objection"
+    RULING = "ruling"  # the judge rules on an objection
+
+
+class Objection(BaseModel):
+    """What an objection was raised against, and why."""
+
+    target_id: str  # the courtroom event objected to
+    grounds: str
+    details: str = ""
 
 
 class CourtroomProceedingsEvent(BaseModel):
@@ -82,6 +95,22 @@ class CourtroomProceedingsEvent(BaseModel):
     question: str | None = None
     answer: str | None = None
 
+    # Exhibits the speaker relied on (EvidenceItem.exhibit_ref values)
+    exhibit_refs: list[str] = Field(default_factory=list)
+    objection: Objection | None = None  # on OBJECTION events
+    sustained: bool | None = None  # on RULING events
+    # Set by a sustained objection: "struck" from the record, or question "withdrawn"
+    struck: Literal["struck", "withdrawn"] | None = None
+
+
+class PendingLeave(BaseModel):
+    """The AI has asked leave to call a witness; the hearing waits for the user."""
+
+    event_id: str  # the LEAVE_REQUEST event
+    witness_id: str
+    witness_name: str
+    called_by: str
+
 
 class EvidenceItem(BaseModel):
     """Structured textual evidence for a case, with future image metadata."""
@@ -96,9 +125,16 @@ class EvidenceItem(BaseModel):
     image_url: str | None = None
     image_public_id: str | None = None
     media_status: EvidenceMediaStatus = Field(default=EvidenceMediaStatus.NOT_REQUESTED)
+    # When the image was queued: one pending far longer was lost to a restart.
+    image_requested_at: datetime | None = None
     # The party message or courtroom event this was extracted from, so the same
     # one can't be extracted twice.
     origin_id: str | None = None
+    # The side whose AI counsel logged it in court; None when the user did.
+    extracted_by: str | None = None
+    # Drawn from the user's own interviews in Case Prep: privileged (BSA s.132),
+    # so only the user sees it until they rely on it in court.
+    private: bool = False
 
 
 def party_message_id(message: dict, index: int) -> str:
@@ -224,6 +260,12 @@ class Case(Document):
         default=None,
         description="ID of the witness currently on the stand (None if no active examination)",
     )
+    pending_leave: PendingLeave | None = None
+    # Witnesses the court refused the AI leave to call; it won't ask again.
+    refused_witness_ids: list[str] = Field(default_factory=list)
+    # Set from the moment the user starts an objection until the court rules;
+    # the AI's examination waits meanwhile (see objection_pending).
+    objection_pending_at: datetime | None = None
     # Set when the court was adjourned because the user's session ended (logout
     # or expiry). Party chat stays closed until the user resumes the hearing.
     adjourned_by_session_end: bool = False
@@ -265,15 +307,39 @@ class Case(Document):
                 return message
         return None
 
-    def adjourn(self, by_session_end: bool = False) -> None:
+    def adjourn(
+        self, by_session_end: bool = False, note: str = "Court adjourned"
+    ) -> None:
         """Stop the hearing: end any AI examination and send the witness home."""
         self.is_ai_examining = False
+        self.pending_leave = None
         if self.current_witness_id:
             self.dismiss_current_witness(" because the court was adjourned")
+        self.log(note)
         self.status = CaseStatus.ADJOURNED
         self.adjourned_by_session_end = by_session_end
         self.active_session_id = None
         self.active_session_expires_at = None
+
+    def log(self, note: str) -> None:
+        """A line from the court in the record (session opened, adjourned...)."""
+        self.courtroom_proceedings.append(
+            CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
+                content=note,
+                timestamp=get_current_datetime(),
+            )
+        )
+
+    def open_court(self) -> None:
+        """The court sits for the first time. An opening the AI prepared during
+        case prep is delivered once the court is in session, not before it."""
+        prepared = self.courtroom_proceedings
+        self.courtroom_proceedings = []
+        self.log("Court is in session")
+        for event in prepared:
+            event.timestamp = get_current_datetime()
+            self.courtroom_proceedings.append(event)
 
     def claim_session(self, session_id: str | None, expires_at: datetime) -> None:
         """Record the login session now running this hearing."""
@@ -287,6 +353,20 @@ class Case(Document):
         if expires_at.tzinfo is None:  # MongoDB returns naive UTC datetimes
             expires_at = expires_at.replace(tzinfo=UTC)
         return expires_at <= datetime.now(UTC)
+
+    # An objection left open (the user walked away from the dialog) stops
+    # holding up the AI's examination after this long.
+    OBJECTION_HOLD: ClassVar[timedelta] = timedelta(minutes=5)
+
+    @property
+    def objection_pending(self) -> bool:
+        """The user is objecting or the court is ruling: the AI examiner waits."""
+        at = self.objection_pending_at
+        if at is None:
+            return False
+        if at.tzinfo is None:  # MongoDB returns naive UTC datetimes
+            at = at.replace(tzinfo=UTC)
+        return datetime.now(UTC) - at < self.OBJECTION_HOLD
 
     # The AI lawyer's private conferences live in the case document under this
     # key, but are deliberately NOT a model field: normal loads never read them,

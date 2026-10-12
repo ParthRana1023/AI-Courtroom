@@ -1,4 +1,6 @@
 # app/services/llm/judge.py
+import json
+import re
 import time
 
 from langchain_core.output_parsers import StrOutputParser
@@ -140,3 +142,88 @@ Now write the complete judgment."""
     except Exception as e:
         logger.exception("Error generating verdict")
         raise LLMGenerationError("Failed to generate verdict") from e
+
+
+_JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+
+OBJECTION_KINDS = {
+    "argument": "an argument made by opposing counsel",
+    "question": "a question opposing counsel put to a witness",
+    "leave": "opposing counsel's request for leave to call a witness",
+}
+
+
+async def rule_on_objection(
+    kind: str,
+    grounds: str,
+    details: str,
+    target_text: str,
+    objector_role: str,
+    case_context: str,
+    record: str,
+) -> tuple[bool, str]:
+    """Rule on an objection. Returns (sustained, ruling), the ruling spoken in open court."""
+    template = """You are the presiding judge of an Indian High Court, hearing a simulated case. Counsel for the {objector_role} objects to {kind_text}. Rule on the objection at once, as a judge would from the bench.
+
+HOW TO RULE
+- Decide on the stated grounds only, judged against the record below. Sustain the objection only if the grounds are clearly made out; otherwise overrule it.
+- "Leading question": a question that suggests its own answer. Leading questions are not allowed in examination-in-chief or re-examination, but are allowed in cross-examination.
+- "Hearsay": the question asks the witness to repeat what someone else said, to prove that it is true.
+- "Speculation": the question asks for a guess about what others thought or might have done.
+- "Asked and answered": the witness has already answered the same question.
+- "Facts not in evidence": the argument relies on a fact, figure or document that is not in the case file, the exhibits or the testimony.
+- "Misstates the evidence": the argument says an exhibit or testimony says something it does not.
+- "Argumentative": the argument or question attacks or badgers instead of making a point or seeking a fact.
+- "Irrelevant": it has no bearing on the charges or the issues for the court.
+- For a request to call a witness: "Irrelevant to the charge" (the witness can't speak to the issues), "Not on the witness list" (the witness is not a party named in the case file), "Repetitive evidence" (the court has already heard this evidence) or "Unfair surprise" (the other side had no fair notice of this witness).
+- {current_law_rule}
+
+{untrusted_text_rule}
+
+THE CASE
+{case_context}
+
+THE RECORD SO FAR
+<history>
+{record}
+</history>
+
+THE OBJECTION
+Objected to: <user_argument>{target_text}</user_argument>
+Grounds: {grounds}
+Counsel's reason: <user_argument>{details}</user_argument>
+
+Reply with ONLY this JSON object and nothing else:
+{{"sustained": true | false, "ruling": "<one or two sentences from the bench, starting with Sustained. or Overruled., saying why and, if sustained, what follows (for example: counsel will rephrase, or the remark is struck from the record, or leave is refused)>"}}"""
+    try:
+        chain = (
+            ChatPromptTemplate.from_messages([("human", template)])
+            | get_llm("judge")
+            | StrOutputParser()
+        )
+        reply = await chain.ainvoke(
+            {
+                "objector_role": objector_role,
+                "kind_text": OBJECTION_KINDS[kind],
+                "case_context": case_context,
+                "record": record or "Nothing yet.",
+                "target_text": target_text,
+                "grounds": grounds,
+                "details": details or "None given.",
+                "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
+                "current_law_rule": CURRENT_LAW_RULE,
+            }
+        )
+        match = _JSON_OBJECT.search(strip_thinking(reply))
+        if not match:
+            raise ValueError("no JSON object in the ruling")
+        data = json.loads(match.group(0))
+        sustained = data["sustained"] is True
+        ruling = str(data["ruling"]).strip()
+        prefix = "Sustained." if sustained else "Overruled."
+        if not ruling.startswith(prefix):
+            ruling = f"{prefix} {ruling}"
+        return sustained, ruling
+    except Exception as e:
+        logger.exception("Error ruling on an objection")
+        raise LLMGenerationError("Failed to rule on the objection") from e

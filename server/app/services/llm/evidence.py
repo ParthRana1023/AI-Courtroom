@@ -19,27 +19,24 @@ from app.utils.llm import get_llm, strip_thinking
 
 logger = get_logger(__name__)
 
-# Evidence mentioning none of these is treated as non-visual (no image).
+# Only exhibits the court would look at get an image. Text (documents, letters,
+# records, statements, emails, bank statements) is read, so it gets none.
 VISUAL_TERMS = (
-    "photograph",
+    "photo",
     "cctv",
     "video",
+    "footage",
     "scene",
     "weapon",
-    "injury",
-    "document",
-    "report",
-    "medical",
-    "physical",
-    "digital",
-    "location",
+    "x-ray",
+    "xray",
     "map",
     "diagram",
+    "sketch",
 )
 
-
-# Evidence types that are always worth an exhibit image, whatever their text says
-VISUAL_EVIDENCE_TYPES = ("digital", "physical", "medical", "document")
+# Evidence types that are things, not text: always worth an exhibit image
+VISUAL_EVIDENCE_TYPES = ("physical",)
 
 
 def looks_visual(

@@ -3,8 +3,6 @@
  * Provides GDPR/CCPA-compliant cookie management
  */
 
-import { createOffsetDate } from "./datetime";
-
 // Cookie category types
 export type CookieCategory =
   | "essential"
@@ -70,7 +68,7 @@ export function setCookie(
     const expiresDate =
       opts.expires instanceof Date
         ? opts.expires
-        : createOffsetDate(opts.expires * 24 * 60 * 60 * 1000);
+        : new Date(Date.now() + opts.expires * 24 * 60 * 60 * 1000);
     cookieString += `; expires=${expiresDate.toUTCString()}`;
   }
 

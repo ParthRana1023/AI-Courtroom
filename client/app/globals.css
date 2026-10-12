@@ -274,6 +274,45 @@ html.ac-touch *::-webkit-scrollbar {
     transform: none;
   }
 }
+/* courtroom: a new record entry, a stamp, the case file panel, the witness stand */
+@keyframes ac-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ac-pop {
+  from {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ac-panel {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes ac-stand {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

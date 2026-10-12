@@ -10,7 +10,7 @@ from app import messages
 from app.config import settings
 from app.dependencies import (
     Session,
-    courtroom_control,
+    controls_hearing,
     get_current_user,
     get_owned_case,
     get_session,
@@ -24,13 +24,15 @@ from app.models.case import (
     CourtroomProceedingsEventType,
     Roles,
 )
+from app.models.report import Report
 from app.models.user import User
 from app.schemas.case import CaseCreate, CaseOut
 from app.services.counsel_conferences import run_counsel_conferences
 from app.services.evidence_service import (
     extract_evidence_items,
     format_evidence_context,
-    generate_missing_evidence_images_for_case,
+    generate_queued_images,
+    queue_missing_images,
 )
 from app.services.llm import lawyer
 from app.services.llm.case_generation import generate_case_shell
@@ -119,10 +121,18 @@ async def get_case(
         or case.active_session_id in (None, session.id),
         "current_witness_id": case_dict.get("current_witness_id"),
         "evidence": case_dict.get("evidence", []),
+        "pending_leave": case_dict.get("pending_leave"),
+        # AI responses this user has already reported
+        "reported": [
+            r.entry_id
+            for r in await Report.find(
+                Report.user_id == current_user.id, Report.cnr == cnr
+            ).to_list()
+        ],
     }
 
 
-@router.put("/{cnr}/status", dependencies=[Depends(courtroom_control)])
+@router.put("/{cnr}/status", dependencies=[controls_hearing])
 async def update_case_status(
     cnr: str,
     status_update: dict,
@@ -189,12 +199,25 @@ async def update_case_status(
     old_status = case.status
 
     if new_status == CaseStatus.ADJOURNED.value:
-        case.adjourn()
+        if old_status == CaseStatus.ACTIVE:
+            case.adjourn(
+                note=(
+                    "Court adjourned for the day"
+                    if status_update.get("reason") == "limit"
+                    else "Court adjourned by counsel"
+                )
+            )
+        else:
+            case.adjourn()
     else:
         case.status = CaseStatus(new_status)
         case.adjourned_by_session_end = False
         if case.status == CaseStatus.ACTIVE:
             case.claim_session(session.id, session.expires_at)
+            if old_status == CaseStatus.NOT_STARTED:
+                case.open_court()
+            elif old_status != CaseStatus.ACTIVE:
+                case.log("Court is in session")
     try:
         await case.save()
         logger.info(f"Case {cnr} status updated: {old_status} → {new_status}")
@@ -296,21 +319,16 @@ async def update_case_roles(
         # Sides are set, so case prep begins: the AI lawyer meets its parties too.
         background_tasks.add_task(run_counsel_conferences, cnr)
 
-    image_generation_summary = None
-    try:
-        image_generation_summary = await generate_missing_evidence_images_for_case(case)
-    except Exception:
-        logger.exception(
-            f"Evidence image generation failed after role selection for {cnr}"
-        )
+    # Exhibit images are made in the background while the user prepares.
+    queued = await queue_missing_images(case)
+    if queued:
+        background_tasks.add_task(generate_queued_images, cnr)
 
     return {
         "message": "Case roles updated successfully",
         "user_role": case.user_role,
         "ai_role": case.ai_role,
-        "image_generation": (
-            image_generation_summary.model_dump() if image_generation_summary else None
-        ),
+        "images_queued": queued,
     }
 
 

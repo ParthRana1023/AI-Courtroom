@@ -1,6 +1,7 @@
 import json
 import re
 import time
+from datetime import UTC, timedelta
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -8,7 +9,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.case import Case, EvidenceItem, EvidenceMediaStatus
-from app.schemas.evidence import EvidenceGenerationSummary
 from app.services.cloudinary_service import upload_evidence_image
 from app.services.image_generation import (
     ImageGenerationError,
@@ -16,6 +16,7 @@ from app.services.image_generation import (
 )
 from app.services.llm.evidence import generate_evidence_prompt, looks_visual
 from app.services.rag import upsert_memory_item
+from app.utils.datetime import get_current_datetime
 from app.utils.llm import get_llm, strip_thinking
 
 logger = get_logger(__name__)
@@ -153,9 +154,13 @@ JSON object only:
     description = str(data.get("description") or text.strip())
     given_type = data.get("evidence_type")
     evidence_type = str(given_type or "Other")
-    prompt_text = data.get("image_prompt") or _build_image_prompt(
-        title, description, given_type
+    # Text evidence gets no image, whatever the model suggested.
+    suggested = (
+        data.get("image_prompt")
+        if looks_visual(title, description, given_type)
+        else None
     )
+    prompt_text = suggested or _build_image_prompt(title, description, given_type)
 
     return EvidenceItem(
         exhibit_ref=exhibit_ref or "EX-01",
@@ -168,9 +173,12 @@ JSON object only:
 
 
 def next_exhibit_ref(case: Case) -> str:
-    """Return the next sequential exhibit reference for a case."""
+    """Return the next sequential exhibit reference for a case. Privileged notes
+    aren't exhibits, so they take no number until they are tendered."""
     max_index = 0
     for item in case.evidence:
+        if item.private:
+            continue
         match = re.search(r"(\d+)$", item.exhibit_ref or "")
         if match:
             max_index = max(max_index, int(match.group(1)))
@@ -178,7 +186,10 @@ def next_exhibit_ref(case: Case) -> str:
 
 
 async def index_evidence_item(case: Case, item: EvidenceItem) -> None:
-    """Index a single evidence item into RAG memory."""
+    """Index a single evidence item into RAG memory. A privileged one waits until
+    it is tendered: RAG memory feeds the other side and the court."""
+    if item.private:
+        return
     await upsert_memory_item(
         case,
         "evidence",
@@ -193,7 +204,9 @@ async def index_evidence_item(case: Case, item: EvidenceItem) -> None:
 
 
 def format_evidence_context(evidence: list[EvidenceItem] | None) -> str:
-    """Format structured evidence for LLM prompts."""
+    """Format the exhibits before the court for LLM prompts. Privileged items in
+    the user's brief are left out until tendered."""
+    evidence = [item for item in evidence or [] if not item.private]
     if not evidence:
         return "No structured evidence has been submitted."
 
@@ -210,146 +223,148 @@ def format_evidence_context(evidence: list[EvidenceItem] | None) -> str:
     return "\n".join(lines)
 
 
-async def generate_missing_evidence_images_for_case(
-    case: Case,
-) -> EvidenceGenerationSummary:
-    """Generate missing evidence images up to the configured per-case limit."""
-    limit = max(0, settings.evidence_image_generation_limit_per_case)
-    already_generated = sum(
-        1
-        for item in case.evidence
-        if item.image_url and item.media_status == EvidenceMediaStatus.GENERATED
-    )
-    remaining = max(0, limit - already_generated)
-    summary = EvidenceGenerationSummary(
-        limit=limit,
-        already_generated=already_generated,
-        skipped=max(0, len(case.evidence) - already_generated),
-    )
+def next_note_ref(case: Case) -> str:
+    """PN-01, PN-02...: privileged notes from the user's interviews, numbered
+    apart from the exhibits. Tendered notes keep their place in the count."""
+    notes = sum(1 for item in case.evidence if ":" in (item.origin_id or ""))
+    return f"PN-{notes + 1:02d}"
 
-    if limit == 0:
-        summary.message = "Evidence image generation is disabled."
-        return summary
 
-    if remaining == 0:
-        summary.message = "Evidence image generation limit already reached."
-        return summary
-
-    for index, item in enumerate(case.evidence):
-        if summary.generated >= remaining:
-            break
-        if item.image_url:
-            continue
-        if item.media_status not in {
-            EvidenceMediaStatus.NOT_REQUESTED,
-            EvidenceMediaStatus.FAILED,
-        }:
-            continue
-
-        if not item.image_prompt:
-            item.image_prompt = await generate_evidence_prompt(
-                item.title,
-                item.description,
-                item.evidence_type,
+def tender_exhibits(
+    case: Case, refs: list[str], side: str
+) -> tuple[list[str], list[EvidenceItem]]:
+    """Privileged notes counsel now relies on in court go before the court as
+    exhibits: using them waives the privilege. Each takes the next exhibit number
+    and is logged on the record (the caller saves the case). Returns the refs as
+    cited, renumbered, and the tendered items to index after the save."""
+    counsel = "the Plaintiff" if side == "plaintiff" else "the Defence"
+    renamed: dict[str, str] = {}
+    tendered = []
+    for item in case.evidence:
+        if item.private and item.exhibit_ref in refs:
+            note_ref, item.exhibit_ref = item.exhibit_ref, next_exhibit_ref(case)
+            item.private = False
+            renamed[note_ref] = item.exhibit_ref
+            tendered.append(item)
+            case.log(
+                f"Counsel for {counsel} tenders {item.title} in evidence"
+                f" as {item.exhibit_ref}"
             )
+    return [renamed.get(ref, ref) for ref in refs], tendered
 
-        if not item.image_prompt:
-            continue
 
-        await _attempt_evidence_image_generation(case, index, item, summary)
-
-    summary.already_generated = sum(
-        1
-        for item in case.evidence
-        if item.image_url and item.media_status == EvidenceMediaStatus.GENERATED
+def wants_image(item: EvidenceItem) -> bool:
+    """A visual exhibit with no image yet. Text (documents, records, testimony)
+    is read, not looked at, so it gets none."""
+    return (
+        not item.image_url
+        and item.media_status
+        in {EvidenceMediaStatus.NOT_REQUESTED, EvidenceMediaStatus.FAILED}
+        and looks_visual(item.title, item.description, item.evidence_type)
     )
-    summary.skipped = max(
-        0, len(case.evidence) - summary.already_generated - summary.failed
-    )
-    summary.message = _format_generation_summary_message(summary)
-    return summary
 
 
-async def regenerate_evidence_image_for_case_item(
-    case: Case,
-    evidence_id: str,
-) -> EvidenceGenerationSummary:
-    """Retry image generation for one failed or missing evidence item."""
+def image_slots(case: Case) -> int:
+    """Images the case may still have: the per-case limit less those made or
+    being made."""
     limit = max(0, settings.evidence_image_generation_limit_per_case)
-    already_generated = sum(
+    used = sum(
         1
         for item in case.evidence
-        if item.image_url and item.media_status == EvidenceMediaStatus.GENERATED
+        if item.media_status
+        in {EvidenceMediaStatus.GENERATED, EvidenceMediaStatus.PENDING}
     )
-    summary = EvidenceGenerationSummary(
-        limit=limit,
-        already_generated=already_generated,
-        skipped=max(0, len(case.evidence) - already_generated),
-    )
+    return max(0, limit - used)
 
-    if limit == 0:
-        summary.message = "Evidence image generation is disabled."
-        return summary
 
-    index_to_retry = next(
-        (index for index, item in enumerate(case.evidence) if item.id == evidence_id),
-        None,
-    )
-    if index_to_retry is None:
-        summary.message = "Evidence not found."
-        return summary
+async def queue_image(case: Case, index: int) -> None:
+    """Mark one exhibit's image as pending; generate_queued_images makes it."""
+    item = case.evidence[index]
+    item.media_status = EvidenceMediaStatus.PENDING
+    item.image_requested_at = get_current_datetime()
+    await _save_item(case, index, item)
 
-    item = case.evidence[index_to_retry]
-    if item.image_url and item.media_status == EvidenceMediaStatus.GENERATED:
-        summary.message = "Evidence image has already been generated."
-        return summary
 
-    if already_generated >= limit:
-        summary.message = "Evidence image generation limit already reached."
-        return summary
+# Longer than a queue of images takes to make, so only lost ones pass it.
+IMAGE_TIMEOUT = timedelta(minutes=10)
 
-    if not item.image_prompt:
-        item.image_prompt = await generate_evidence_prompt(
-            item.title,
-            item.description,
-            item.evidence_type,
+
+async def release_stuck_images(case: Case) -> None:
+    """An image still pending after IMAGE_TIMEOUT was lost (the server restarted
+    while making it): mark it failed, so the page stops waiting, it frees its
+    slot and Regenerate can make it again."""
+    cutoff = get_current_datetime() - IMAGE_TIMEOUT
+    for index, item in enumerate(case.evidence):
+        at = item.image_requested_at
+        if at is not None and at.tzinfo is None:
+            at = at.replace(tzinfo=UTC)  # MongoDB returns naive UTC
+        if item.media_status != EvidenceMediaStatus.PENDING or (at and at > cutoff):
+            continue
+        item.media_status = EvidenceMediaStatus.FAILED
+        # Only while still pending: the image may have just been made after all.
+        await Case.find_one(
+            {
+                "cnr": case.cnr,
+                f"evidence.{index}.id": item.id,
+                f"evidence.{index}.media_status": EvidenceMediaStatus.PENDING.value,
+            }
+        ).update_one(
+            {"$set": {f"evidence.{index}.media_status": item.media_status.value}}
         )
 
-    if not item.image_prompt:
-        summary.message = "No image prompt is available for this evidence."
-        return summary
 
-    await _attempt_evidence_image_generation(case, index_to_retry, item, summary)
-    summary.already_generated = sum(
-        1
-        for evidence_item in case.evidence
-        if evidence_item.image_url
-        and evidence_item.media_status == EvidenceMediaStatus.GENERATED
-    )
-    summary.skipped = max(
-        0, len(case.evidence) - summary.already_generated - summary.failed
-    )
-    summary.message = _format_generation_summary_message(summary)
-    return summary
+async def queue_missing_images(case: Case) -> int:
+    """Queue images for visual exhibits that have none, up to the per-case limit."""
+    slots = image_slots(case)
+    queued = 0
+    for index, item in enumerate(case.evidence):
+        if queued >= slots:
+            break
+        if wants_image(item):
+            await queue_image(case, index)
+            queued += 1
+    return queued
 
 
-async def _attempt_evidence_image_generation(
-    case: Case,
-    index: int,
-    item: EvidenceItem,
-    summary: EvidenceGenerationSummary,
-) -> None:
-    summary.attempted += 1
-    item.media_status = EvidenceMediaStatus.PENDING
+async def generate_queued_images(cnr: str) -> None:
+    """Background task: make each pending exhibit image while the user prepares.
+
+    Each result is written to its own exhibit only, so party chats and anything
+    else saved meanwhile are kept. One lost to a restart is released by
+    release_stuck_images.
+    """
+    case = await Case.find_one(Case.cnr == cnr)
+    if not case:
+        return
+    for index, item in enumerate(case.evidence):
+        if item.media_status != EvidenceMediaStatus.PENDING or item.image_url:
+            continue
+        try:
+            if not item.image_prompt:
+                item.image_prompt = await generate_evidence_prompt(
+                    item.title, item.description, item.evidence_type
+                )
+            if not item.image_prompt:
+                item.media_status = EvidenceMediaStatus.NOT_REQUESTED
+                await _save_item(case, index, item)
+                continue
+            await _make_image(case, index, item)
+        except Exception:
+            logger.exception(f"Background image failed for {item.exhibit_ref} in {cnr}")
+
+
+async def _save_item(case: Case, index: int, item: EvidenceItem) -> None:
+    """Write one exhibit, guarded by its id, without touching the rest of the case."""
     case.evidence[index] = item
-    await case.save()
+    await Case.find_one({"cnr": case.cnr, f"evidence.{index}.id": item.id}).update_one(
+        {"$set": {f"evidence.{index}": item.model_dump(mode="json")}}
+    )
 
+
+async def _make_image(case: Case, index: int, item: EvidenceItem) -> None:
+    """Generate and upload one exhibit image; it ends up generated or failed."""
     try:
-        image_prompt = item.image_prompt
-        if not image_prompt:
-            raise ImageGenerationError("Image prompt is empty")
-
-        image_bytes = await generate_image_from_prompt(image_prompt)
+        image_bytes = await generate_image_from_prompt(item.image_prompt or "")
         image_url, public_id = await upload_evidence_image(
             image_bytes,
             case.cnr,
@@ -359,7 +374,6 @@ async def _attempt_evidence_image_generation(
         item.image_url = image_url
         item.image_public_id = public_id
         item.media_status = EvidenceMediaStatus.GENERATED
-        summary.generated += 1
     except ImageGenerationError as e:
         logger.warning(
             "Evidence image provider failed: "
@@ -375,19 +389,14 @@ async def _attempt_evidence_image_generation(
             },
         )
         item.media_status = EvidenceMediaStatus.FAILED
-        summary.failed += 1
-        summary.message = e.user_message
     except Exception as e:
         logger.exception(
             "Evidence image generation failed",
             extra={"cnr": case.cnr, "evidence_id": item.id, "error": str(e)},
         )
         item.media_status = EvidenceMediaStatus.FAILED
-        summary.failed += 1
-        summary.message = "Image generation failed unexpectedly. Please retry."
     finally:
-        case.evidence[index] = item
-        await case.save()
+        await _save_item(case, index, item)
 
 
 def _build_image_prompt(
@@ -401,28 +410,3 @@ def _build_image_prompt(
         "Create a neutral, non-graphic legal exhibit illustration for "
         f"{title}: {clean_description[:240]}"
     )
-
-
-def _format_generation_summary_message(
-    summary: EvidenceGenerationSummary,
-) -> str:
-    remaining_successes = max(0, summary.limit - summary.already_generated)
-    failure_reason = summary.message.strip()
-    message = (
-        f"Generated {summary.generated} evidence image(s), {summary.failed} failed."
-    )
-
-    if summary.failed:
-        if failure_reason:
-            message += f" {failure_reason}"
-        message += (
-            f" Failed attempts do not count toward the {summary.limit} image "
-            f"limit; {remaining_successes} successful image slot(s) remain."
-        )
-    else:
-        message += (
-            f" {remaining_successes} of {summary.limit} successful image slot(s) "
-            "remain."
-        )
-
-    return message

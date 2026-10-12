@@ -21,6 +21,7 @@ export const statusText = (e: EvidenceItem) => STATUS[e.media_status]?.[0] ?? "N
 
 function added(e: EvidenceItem) {
   if (!e.origin_id) return "With the case file";
+  if (e.private) return "Saved by you from an interview. Privileged: only you can see it until you cite it in court";
   return e.origin_id.includes(":") ? "Extracted by you in Case Prep" : "Extracted from the courtroom record";
 }
 
@@ -99,8 +100,14 @@ export function ExhibitGrid({
   onRegen,
   onOpen,
   focusId,
+  title = "Exhibits",
+  note = "You may extract more evidence from witness examination in the courtroom.",
+  empty = "No exhibits yet. Exhibits come with the case file and from witness examination in the courtroom.",
 }: {
   evidence: EvidenceItem[];
+  title?: string;
+  note?: string;
+  empty?: string;
   small: boolean;
   mob: boolean;
   regen: string | null;
@@ -141,11 +148,13 @@ export function ExhibitGrid({
       )}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2.5 border-b-[3px] border-double border-ink pb-2.5">
-        <span className="text-label font-bold uppercase tracking-[0.2em] text-ink-label">Exhibits · {evidence.length}</span>
-        <span className="text-[13px] text-ink-muted">You may extract more evidence from interviews and witness examination in the courtroom.</span>
+        <span className="text-label font-bold uppercase tracking-[0.2em] text-ink-label">
+          {title} · {evidence.length}
+        </span>
+        <span className="text-[13px] text-ink-muted">{note}</span>
       </div>
       {evidence.length === 0 ? (
-        <p className="m-0 py-6 text-body italic text-ink-hint">No exhibits yet. Extract an answer from an interview to add one.</p>
+        <p className="m-0 py-6 text-body italic text-ink-hint">{empty}</p>
       ) : (
         <div className={cn("grid gap-3.5", small ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[repeat(auto-fill,minmax(270px,1fr))]")}>
           {evidence.map((e) => (
@@ -185,7 +194,7 @@ export function ExhibitGrid({
 }
 
 export function ExhibitViewer({
-  evidence,
+  evidence: all,
   openId,
   onOpen,
   onClose,
@@ -210,6 +219,9 @@ export function ExhibitViewer({
   const bodyRef = useRef<HTMLDivElement>(null);
   const dir = useRef(1);
   const shown = useRef<string | null>(null);
+  // Exhibits and privileged notes are paged through separately.
+  const opened = all.find((x) => x.id === openId);
+  const evidence = all.filter((x) => !!x.private === !!opened?.private);
   const i = evidence.findIndex((e) => e.id === openId);
   const e = i >= 0 ? evidence[i] : null;
   const wide = w >= 820;
@@ -266,7 +278,7 @@ export function ExhibitViewer({
           >
             <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-5 pr-3.5 pt-3">
               <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-label">
-                Exhibit {i + 1} of {evidence.length}
+                {e.private ? "Privileged note" : "Exhibit"} {i + 1} of {evidence.length}
               </span>
               <div className="flex gap-1.5">
                 <button

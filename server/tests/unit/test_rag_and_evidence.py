@@ -1,5 +1,6 @@
 """Tests for RAG memory (chunking, embedding, indexing, retrieval) and evidence services."""
 
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +9,7 @@ from beanie import PydanticObjectId
 from app.config import settings
 from app.models.case import (
     ArgumentItem,
+    Case,
     CourtroomProceedingsEvent,
     CourtroomProceedingsEventType,
     EvidenceItem,
@@ -24,6 +26,7 @@ from app.services.image_generation import ImageGenerationError
 from app.services.llm.evidence import generate_evidence_prompt, looks_visual
 from app.services.rag import chunking, embedding
 from app.services.rag import service as rag
+from app.utils.datetime import get_current_datetime
 from tests.helpers import boom, reload
 
 # ---------------------------------------------------------------------------
@@ -680,12 +683,13 @@ async def test_extract_evidence_from_text(fake_llm):
         "I paid 5000", source="Ravi", exhibit_ref="EX-07"
     )
 
-    assert (item.exhibit_ref, item.title, item.source, item.image_prompt) == (
+    assert (item.exhibit_ref, item.title, item.source) == (
         "EX-07",
         "Bank receipt",
         "Ravi",
-        "A receipt",
     )
+    # a receipt is read, not looked at: no image, whatever the model suggested
+    assert item.image_prompt is None
 
 
 async def test_extract_evidence_from_text_falls_back_on_bad_json(fake_llm):
@@ -724,6 +728,11 @@ def test_next_exhibit_ref_and_format_context():
 
     assert es.next_exhibit_ref(case) == "EX-04"
     assert es.next_exhibit_ref(SimpleNamespace(evidence=[])) == "EX-01"
+    # the user's privileged brief stays out of every prompt until tendered
+    brief = case.evidence[0].model_copy(update={"private": True})
+    assert es.format_evidence_context([brief]) == (
+        "No structured evidence has been submitted."
+    )
     assert (
         es.format_evidence_context([]) == "No structured evidence has been submitted."
     )
@@ -760,11 +769,10 @@ def evidence(title="CCTV clip", **overrides):
     return EvidenceItem(**data)
 
 
-async def test_generate_missing_images_respects_limit(
-    user, make_case, image_pipeline, fake_llm, monkeypatch
+async def test_queue_missing_images_respects_limit_and_skips_text(
+    user, make_case, monkeypatch
 ):
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 2)
-    fake_llm.responses.append("generated prompt")
+    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 3)
     case = await make_case(
         user,
         evidence=[
@@ -772,133 +780,127 @@ async def test_generate_missing_images_respects_limit(
                 "Already", image_url="u", media_status=EvidenceMediaStatus.GENERATED
             ),
             evidence("Pending", media_status=EvidenceMediaStatus.PENDING),
-            evidence(
-                "Needs prompt", image_prompt=None, description="CCTV of the scene"
-            ),
-            evidence("Not visual", image_prompt=None, description="An oral promise"),
-            evidence("Over limit"),
+            evidence("Bank statement", evidence_type="Document", description="Debits"),
+            evidence("CCTV of the gate"),
+            evidence("Video over the limit"),
         ],
     )
 
-    summary = await es.generate_missing_evidence_images_for_case(case)
+    assert await es.queue_missing_images(case) == 1
 
-    assert (summary.generated, summary.attempted, summary.already_generated) == (
-        1,
-        1,
-        2,
-    )
-    assert case.evidence[2].image_prompt == "generated prompt"
-    assert case.evidence[2].media_status == EvidenceMediaStatus.GENERATED
-    assert case.evidence[4].media_status == EvidenceMediaStatus.NOT_REQUESTED
-    assert "0 of 2 successful image slot(s) remain" in summary.message
+    saved = [e.media_status for e in (await reload(case)).evidence]
+    assert saved == [
+        EvidenceMediaStatus.GENERATED,
+        EvidenceMediaStatus.PENDING,
+        EvidenceMediaStatus.NOT_REQUESTED,  # text is read, not looked at
+        EvidenceMediaStatus.PENDING,
+        EvidenceMediaStatus.NOT_REQUESTED,  # over the per-case limit
+    ]
+    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 0)
+    assert await es.queue_missing_images(case) == 0
 
 
-async def test_generate_missing_images_disabled_or_full(user, make_case, monkeypatch):
+async def test_lost_images_are_released(user, make_case):
+    now = get_current_datetime()
     case = await make_case(
         user,
-        evidence=[evidence(image_url="u", media_status=EvidenceMediaStatus.GENERATED)],
+        evidence=[
+            evidence("Being made", media_status=EvidenceMediaStatus.PENDING),
+            evidence("Lost", media_status=EvidenceMediaStatus.PENDING),
+            evidence("Lost long ago", media_status=EvidenceMediaStatus.PENDING),
+            evidence("Made", image_url="u", media_status=EvidenceMediaStatus.GENERATED),
+        ],
+    )
+    case.evidence[0].image_requested_at = now - timedelta(minutes=2)
+    case.evidence[1].image_requested_at = now - timedelta(minutes=11)
+    await case.save()  # the third was queued before times were kept
+
+    await es.release_stuck_images(await reload(case))
+
+    assert [e.media_status for e in (await reload(case)).evidence] == [
+        EvidenceMediaStatus.PENDING,
+        EvidenceMediaStatus.FAILED,
+        EvidenceMediaStatus.FAILED,
+        EvidenceMediaStatus.GENERATED,
+    ]
+
+
+async def test_queue_image_records_when(user, make_case):
+    case = await make_case(user, evidence=[evidence("CCTV of the gate")])
+
+    await es.queue_image(case, 0)
+
+    assert (await reload(case)).evidence[0].image_requested_at is not None
+
+
+async def test_generate_queued_images_makes_each_pending_image(
+    user, make_case, image_pipeline, fake_llm
+):
+    fake_llm.responses.append("generated prompt")
+    case = await make_case(
+        user,
+        evidence=[
+            evidence("Has a prompt", media_status=EvidenceMediaStatus.PENDING),
+            evidence(
+                "Needs a prompt",
+                image_prompt=None,
+                description="CCTV of the scene",
+                media_status=EvidenceMediaStatus.PENDING,
+            ),
+            evidence("Not asked for"),
+        ],
     )
 
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 1)
-    assert (
-        await es.generate_missing_evidence_images_for_case(case)
-    ).message == "Evidence image generation limit already reached."
+    await es.generate_queued_images(case.cnr)
 
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 0)
-    assert (
-        await es.generate_missing_evidence_images_for_case(case)
-    ).message == "Evidence image generation is disabled."
+    saved = (await reload(case)).evidence
+    assert [e.media_status for e in saved] == [
+        EvidenceMediaStatus.GENERATED,
+        EvidenceMediaStatus.GENERATED,
+        EvidenceMediaStatus.NOT_REQUESTED,
+    ]
+    assert saved[1].image_prompt == "generated prompt"
+    assert image_pipeline["uploads"] == [saved[0].id, saved[1].id]
+    await es.generate_queued_images("NOPE000000000000")  # a missing case is a no-op
 
 
 @pytest.mark.parametrize(
-    "error, expected_message",
+    "error",
     [
-        (
-            ImageGenerationError(
-                "x", user_message="Provider busy", model="m", status_code=503
-            ),
-            "Provider busy",
+        ImageGenerationError(
+            "x", user_message="Provider busy", model="m", status_code=503
         ),
-        (RuntimeError("boom"), "Image generation failed unexpectedly"),
+        RuntimeError("boom"),
     ],
 )
 async def test_generation_failures_mark_item_failed(
-    user, make_case, image_pipeline, monkeypatch, error, expected_message
+    user, make_case, image_pipeline, error
 ):
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 2)
     image_pipeline["fail"] = error
-    case = await make_case(user, evidence=[evidence()])
-
-    summary = await es.generate_missing_evidence_images_for_case(case)
-
-    assert summary.failed == 1
-    assert case.evidence[0].media_status == EvidenceMediaStatus.FAILED
-    assert expected_message in summary.message
-    assert "Failed attempts do not count" in summary.message
-
-
-async def test_empty_prompt_is_reported_as_failure(
-    user, make_case, image_pipeline, monkeypatch
-):
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 1)
-    case = await make_case(user, evidence=[evidence()])
-    item = case.evidence[0]
-    item.image_prompt = ""
-    summary = es.EvidenceGenerationSummary(limit=1, already_generated=0)
-
-    await es._attempt_evidence_image_generation(case, 0, item, summary)
-
-    assert summary.failed == 1 and "Image prompt is empty" in summary.message
-
-
-async def test_regenerate_single_item(
-    user, make_case, image_pipeline, fake_llm, monkeypatch
-):
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 2)
-    fake_llm.responses.append("fresh prompt")
     case = await make_case(
-        user,
-        evidence=[evidence(image_prompt=None, media_status=EvidenceMediaStatus.FAILED)],
+        user, evidence=[evidence(media_status=EvidenceMediaStatus.PENDING)]
     )
 
-    summary = await es.regenerate_evidence_image_for_case_item(
-        case, case.evidence[0].id
+    await es.generate_queued_images(case.cnr)
+
+    saved = (await reload(case)).evidence[0]
+    assert saved.media_status == EvidenceMediaStatus.FAILED
+
+
+async def test_saving_an_image_keeps_what_changed_meanwhile(user, make_case):
+    case = await make_case(user, evidence=[evidence()])
+    # The user chats with a party while the image is being made.
+    await Case.find_one(Case.cnr == case.cnr).update_one(
+        {"$set": {"party_chats": {"p1": [{"sender": "user", "content": "Hi"}]}}}
     )
+    item = case.evidence[0]
+    item.media_status = EvidenceMediaStatus.GENERATED
 
-    assert summary.generated == 1
-    assert image_pipeline["uploads"] == [case.evidence[0].id]
+    await es._save_item(case, 0, item)  # `case` is stale: it predates the chat
 
-
-async def test_regenerate_guard_rails(user, make_case, fake_llm, monkeypatch):
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 1)
-    done = evidence("Done", image_url="u", media_status=EvidenceMediaStatus.GENERATED)
-    silent = evidence(
-        "Oral",
-        evidence_type="Other",
-        image_prompt=None,
-        description="He promised verbally",
-    )
-    case = await make_case(user, evidence=[done, silent])
-
-    assert (
-        await es.regenerate_evidence_image_for_case_item(case, "missing")
-    ).message == "Evidence not found."
-    assert (
-        await es.regenerate_evidence_image_for_case_item(case, done.id)
-    ).message == "Evidence image has already been generated."
-    assert (
-        await es.regenerate_evidence_image_for_case_item(case, silent.id)
-    ).message == "Evidence image generation limit already reached."
-
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 3)
-    assert (
-        await es.regenerate_evidence_image_for_case_item(case, silent.id)
-    ).message == "No image prompt is available for this evidence."
-
-    monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 0)
-    assert (
-        await es.regenerate_evidence_image_for_case_item(case, silent.id)
-    ).message == "Evidence image generation is disabled."
+    saved = await reload(case)
+    assert saved.evidence[0].media_status == EvidenceMediaStatus.GENERATED
+    assert saved.party_chats == {"p1": [{"sender": "user", "content": "Hi"}]}
 
 
 async def test_index_includes_verdict_analysis_and_party_chats(rich_case):
@@ -970,11 +972,15 @@ async def test_retrieve_falls_back_when_indexing_produces_nothing(
 @pytest.mark.parametrize(
     ("title", "evidence_type", "expected"),
     [
-        # typed as digital/physical/medical/document: always visual
-        ("Escrow Transfer Email", "Digital Evidence", True),
-        ("Bank Statements", "Digital Evidence", True),
+        # physical things always get an image
         ("Knife", "Physical Evidence", True),
-        ("Board Resolution", "Document", True),
+        # text is read, not looked at: no image
+        ("Escrow Transfer Email", "Digital Evidence", False),
+        ("Bank Statements", "Digital Evidence", False),
+        ("Board Resolution", "Document", False),
+        ("Discharge summary", "Medical Record", False),
+        # unless the item itself is something to look at
+        ("Site photographs", "Document", True),
         # testimony never gets an image, even if its text mentions a scene
         ("Testimony of Ramesh at the scene", "Witness Testimony", False),
         # untyped items still fall back to the keyword check

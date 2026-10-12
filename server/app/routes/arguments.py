@@ -1,9 +1,11 @@
 # app/routes/arguments.py
+import re
+
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
 
 from app import messages
 from app.config import settings
-from app.dependencies import courtroom_control, get_owned_case
+from app.dependencies import controls_hearing, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
     ArgumentItem,
@@ -15,7 +17,11 @@ from app.models.case import (
 )
 from app.models.user import User
 from app.services.case_outcomes import ensure_outcome
-from app.services.evidence_service import format_evidence_context
+from app.services.evidence_service import (
+    format_evidence_context,
+    index_evidence_item,
+    tender_exhibits,
+)
 from app.services.llm import judge, lawyer
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
@@ -31,6 +37,7 @@ ARGUMENT_EVENTS = {
     CourtroomProceedingsEventType.ARGUMENT,
     CourtroomProceedingsEventType.AI_ARGUMENT,
     CourtroomProceedingsEventType.OPENING_STATEMENT,
+    CourtroomProceedingsEventType.CLOSING_STATEMENT,
 }
 VERDICT_ARGUMENT_TYPES = {"user", "opening", "counter", "closing"}
 
@@ -55,7 +62,8 @@ def record_argument(
     event_type: CourtroomProceedingsEventType,
     speaker_name: str,
     user_id=None,
-):
+    exhibit_refs: list[str] | None = None,
+) -> CourtroomProceedingsEvent:
     """Add a statement to the side's argument list and to the courtroom timeline."""
     side_arguments(case, role).append(
         ArgumentItem(
@@ -64,17 +72,19 @@ def record_argument(
             user_id=user_id,
             role=Roles(role),
             timestamp=get_current_datetime(),
+            exhibit_refs=exhibit_refs or [],
         )
     )
-    case.courtroom_proceedings.append(
-        CourtroomProceedingsEvent(
-            type=event_type,
-            content=content,
-            speaker_role=role,
-            speaker_name=speaker_name,
-            timestamp=get_current_datetime(),
-        )
+    event = CourtroomProceedingsEvent(
+        type=event_type,
+        content=content,
+        speaker_role=role,
+        speaker_name=speaker_name,
+        timestamp=get_current_datetime(),
+        exhibit_refs=exhibit_refs or [],
     )
+    case.courtroom_proceedings.append(event)
+    return event
 
 
 def recent_history(case: Case, limit: int | None = None) -> str:
@@ -83,7 +93,7 @@ def recent_history(case: Case, limit: int | None = None) -> str:
     lines = [
         f"{(event.speaker_role or 'Unknown').capitalize()}: {event.content}"
         for event in case.courtroom_proceedings
-        if event.type in ARGUMENT_EVENTS and event.content
+        if event.type in ARGUMENT_EVENTS and event.content and not event.struck
     ]
     return "\n".join(lines[-(limit or settings.recent_history_limit) :])
 
@@ -113,6 +123,52 @@ def check_can_argue_as(case: Case, role: str, user: User):
             status_code=403,
             detail=f"Cannot switch roles. Previously participated as {', '.join(sorted(previous_sides))}",
         )
+
+
+def check_floor_is_open(case: Case) -> None:
+    """Counsel addresses the court only when no witness business is pending."""
+    if case.pending_leave:
+        raise HTTPException(status_code=409, detail=messages.LEAVE_PENDING)
+    if case.current_witness_id or case.is_ai_examining:
+        raise HTTPException(
+            status_code=409,
+            detail="A witness is on the stand. Finish with the witness before you address the court.",
+        )
+
+
+def cited_exhibits(case: Case, refs: list[str]) -> tuple[list[str], str]:
+    """Validate exhibit refs against the case evidence.
+
+    Returns (refs, note): the note tells the AI which exhibits the argument relies on.
+    """
+    known = {e.exhibit_ref: e for e in case.evidence}
+    unknown = [r for r in refs if r not in known]
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not an exhibit in this case: {', '.join(unknown)}",
+        )
+    refs = list(dict.fromkeys(refs))
+    return refs, exhibit_note(case, refs)
+
+
+EXHIBIT_REF = re.compile(r"\bEX-\d+\b")
+
+
+def refs_in(case: Case, text: str) -> list[str]:
+    """The case's exhibits the AI names in its text, in order: it cites them as
+    the user does by pinning."""
+    known = {e.exhibit_ref for e in case.evidence if not e.private}
+    return list(dict.fromkeys(r for r in EXHIBIT_REF.findall(text) if r in known))
+
+
+def exhibit_note(case: Case, refs: list[str]) -> str:
+    """'[Counsel relies on EX-01 (title).]' for the LLM, or '' when nothing is cited."""
+    if not refs:
+        return ""
+    titles = {e.exhibit_ref: e.title for e in case.evidence}
+    cited = "; ".join(f"{r} ({titles.get(r, r)})" for r in refs)
+    return f"\n\n[Counsel relies on {cited}.]"
 
 
 async def save_with_memory(case: Case, memories: list[tuple], error_detail: str):
@@ -156,12 +212,13 @@ async def adjournment_notice(user: User) -> dict:
     }
 
 
-@router.post("/{case_cnr}/arguments", dependencies=[Depends(courtroom_control)])
+@router.post("/{case_cnr}/arguments", dependencies=[controls_hearing])
 async def submit_argument(
     case_cnr: str,
     role: str = Body(...),
     argument: str = Body(...),
     is_closing: bool = Body(False),
+    exhibit_refs: list[str] = Body([]),
     current_user: User = Depends(argument_rate_limiter.check_only),
 ):
     logger.info(
@@ -175,6 +232,16 @@ async def submit_argument(
         raise HTTPException(
             status_code=400, detail="Cannot submit arguments to a resolved case"
         )
+    check_floor_is_open(case)
+    # The user's first word is their opening (the AI plaintiff's opening may
+    # already be on record from Case Prep). Evidence is presented in arguments
+    # only, never in an opening or closing.
+    opening = not side_arguments(case, role)
+    if opening and exhibit_refs:
+        raise HTTPException(status_code=400, detail=messages.NO_EXHIBITS_IN_STATEMENTS)
+    exhibit_refs, _ = cited_exhibits(case, exhibit_refs)
+    exhibit_refs, tendered = tender_exhibits(case, exhibit_refs, role)
+    cites = exhibit_note(case, exhibit_refs)
 
     ai_role = other_side(role)
     speaker = user_display_name(current_user)
@@ -182,29 +249,47 @@ async def submit_argument(
 
     # First submission: both opening statements. LLMGenerationError from any AI
     # call below becomes a 503 (see main.py) before anything is saved.
-    if not case.plaintiff_arguments and not case.defendant_arguments:
+    if opening:
         if role == "defendant":
-            # The plaintiff always opens, so the AI opens for the plaintiff first.
-            opening_context = await retrieve_case_context(
-                case,
-                "plaintiff opening statement key case facts evidence parties",
-                source_types=["ai_party_chat", "case_details", "evidence", "party_bio"],
-            )
-            ai_opening = await lawyer.opening_statement(
-                "plaintiff",
-                case.details,
-                "defendant",
-                rag_context=opening_context,
-                evidence_context=evidence_context,
-            )
-            record_argument(
-                case,
-                "plaintiff",
-                "opening",
-                ai_opening,
-                CourtroomProceedingsEventType.OPENING_STATEMENT,
-                AI_SPEAKER["plaintiff"],
-            )
+            memories: list[tuple] = []
+            response: dict = {}
+            # The plaintiff always opens: the AI opens for the plaintiff first,
+            # unless Case Prep already did.
+            if not case.plaintiff_arguments:
+                opening_context = await retrieve_case_context(
+                    case,
+                    "plaintiff opening statement key case facts evidence parties",
+                    source_types=[
+                        "ai_party_chat",
+                        "case_details",
+                        "evidence",
+                        "party_bio",
+                    ],
+                )
+                ai_opening = await lawyer.opening_statement(
+                    "plaintiff",
+                    case.details,
+                    "defendant",
+                    rag_context=opening_context,
+                    evidence_context=evidence_context,
+                )
+                record_argument(
+                    case,
+                    "plaintiff",
+                    "opening",
+                    ai_opening,
+                    CourtroomProceedingsEventType.OPENING_STATEMENT,
+                    AI_SPEAKER["plaintiff"],
+                )
+                memories.append(
+                    argument_memory(
+                        "plaintiff_opening_auto", ai_opening, "plaintiff", "opening"
+                    )
+                )
+                response = {
+                    "ai_opening_statement": ai_opening,
+                    "ai_opening_role": "plaintiff",
+                }
             record_argument(
                 case,
                 "defendant",
@@ -213,6 +298,7 @@ async def submit_argument(
                 CourtroomProceedingsEventType.OPENING_STATEMENT,
                 speaker,
                 current_user.id,
+                exhibit_refs,
             )
             counter_context = await retrieve_case_context(
                 case,
@@ -227,7 +313,7 @@ async def submit_argument(
                 ],
             )
             ai_counter = await lawyer.generate_counter_argument(
-                argument,
+                argument + cites,
                 "plaintiff",
                 "defendant",
                 case.details,
@@ -242,11 +328,9 @@ async def submit_argument(
                 ai_counter,
                 CourtroomProceedingsEventType.AI_ARGUMENT,
                 AI_SPEAKER["plaintiff"],
+                exhibit_refs=refs_in(case, ai_counter),
             )
-            memories = [
-                argument_memory(
-                    "plaintiff_opening_auto", ai_opening, "plaintiff", "opening"
-                ),
+            memories += [
                 argument_memory(
                     "defendant_opening_user", argument, "defendant", "opening"
                 ),
@@ -254,9 +338,7 @@ async def submit_argument(
                     "plaintiff_counter_auto_1", ai_counter, "plaintiff", "counter"
                 ),
             ]
-            response = {
-                "ai_opening_statement": ai_opening,
-                "ai_opening_role": "plaintiff",
+            response |= {
                 "ai_counter_argument": ai_counter,
                 "ai_counter_role": "plaintiff",
             }
@@ -269,6 +351,7 @@ async def submit_argument(
                 CourtroomProceedingsEventType.OPENING_STATEMENT,
                 speaker,
                 current_user.id,
+                exhibit_refs,
             )
             opening_context = await retrieve_case_context(
                 case,
@@ -323,6 +406,7 @@ async def submit_argument(
         CourtroomProceedingsEventType.ARGUMENT,
         speaker,
         current_user.id,
+        exhibit_refs,
     )
     history = recent_history(case)
 
@@ -363,7 +447,7 @@ async def submit_argument(
             ],
         )
         ai_reply = await lawyer.generate_counter_argument(
-            argument,
+            argument + cites,
             ai_role,
             role,
             case.details,
@@ -381,6 +465,7 @@ async def submit_argument(
         ai_reply,
         CourtroomProceedingsEventType.AI_ARGUMENT,
         AI_SPEAKER[ai_role],
+        exhibit_refs=[] if is_closing else refs_in(case, ai_reply),
     )
     total = len(case.plaintiff_arguments) + len(case.defendant_arguments)
     await save_with_memory(
@@ -391,6 +476,8 @@ async def submit_argument(
         ],
         "Failed to save case. Please try again.",
     )
+    for item in tendered:
+        await index_evidence_item(case, item)
     await argument_rate_limiter.register_usage(str(current_user.id))
     return {
         "ai_counter_argument": ai_reply,
@@ -398,12 +485,13 @@ async def submit_argument(
     } | await adjournment_notice(current_user)
 
 
-@router.post("/{case_cnr}/closing-statement", dependencies=[Depends(courtroom_control)])
+@router.post("/{case_cnr}/closing-statement", dependencies=[controls_hearing])
 async def submit_closing_statement(
     case_cnr: str,
     background_tasks: BackgroundTasks,
     role: str = Body(...),
     statement: str = Body(...),
+    exhibit_refs: list[str] = Body([]),
     current_user: User = Depends(argument_rate_limiter.check_only),
 ):
     logger.info(f"Closing statement submission for case {case_cnr}, role={role}")
@@ -411,15 +499,18 @@ async def submit_closing_statement(
     if case.status != CaseStatus.ACTIVE:
         raise HTTPException(status_code=409, detail=messages.COURT_NOT_IN_SESSION)
     check_can_argue_as(case, role, current_user)
+    check_floor_is_open(case)
+    if exhibit_refs:
+        raise HTTPException(status_code=400, detail=messages.NO_EXHIBITS_IN_STATEMENTS)
 
-    side_arguments(case, role).append(
-        ArgumentItem(
-            type="closing",
-            content=statement,
-            user_id=current_user.id,
-            role=Roles(role),
-            timestamp=get_current_datetime(),
-        )
+    record_argument(
+        case,
+        role,
+        "closing",
+        statement,
+        CourtroomProceedingsEventType.CLOSING_STATEMENT,
+        user_display_name(current_user),
+        current_user.id,
     )
     total = len(case.plaintiff_arguments) + len(case.defendant_arguments)
     await save_with_memory(
@@ -457,20 +548,19 @@ async def submit_closing_statement(
             detail="Failed to generate AI closing statement. Please try again.",
         )
 
-    side_arguments(case, ai_role).append(
-        ArgumentItem(
-            type="closing",
-            content=ai_closing,
-            user_id=None,
-            role=Roles(ai_role),
-            timestamp=get_current_datetime(),
-        )
+    record_argument(
+        case,
+        ai_role,
+        "closing",
+        ai_closing,
+        CourtroomProceedingsEventType.CLOSING_STATEMENT,
+        AI_SPEAKER[ai_role],
     )
 
     all_arguments = case.plaintiff_arguments + case.defendant_arguments
     arguments_for = {
         side: [
-            arg.content
+            arg.content + exhibit_note(case, arg.exhibit_refs)
             for arg in all_arguments
             if arg.type in VERDICT_ARGUMENT_TYPES and arg.role == Roles(side)
         ]
@@ -503,6 +593,13 @@ async def submit_closing_statement(
         )
 
     case.status = CaseStatus.RESOLVED
+    case.courtroom_proceedings.append(
+        CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
+            content="Judgment delivered",
+            timestamp=get_current_datetime(),
+        )
+    )
     await save_with_memory(
         case,
         [

@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import CourtModelLoader from "@/components/court/court-model-loader";
 import Scroller from "@/components/court/scroller";
+import { PinButton, PinnedChips, RefChips } from "@/components/courtroom/exhibit-pin";
 import { ExhibitGrid, ExhibitViewer } from "@/components/prep/exhibits";
 import { firstName, initials, onSide } from "@/components/prep/people";
 import { useOnline } from "@/hooks/use-online";
 import { useViewport } from "@/hooks/use-viewport";
 import { caseAPI, partiesAPI } from "@/lib/api";
 import { plain } from "@/lib/case-file";
+import { EVIDENCE_IMAGE_POLL_MS } from "@/lib/config";
 import { getErrorDetail } from "@/lib/error-utils";
 import { cn } from "@/lib/utils";
 import { CaseStatus, PersonRole, type Case, type ChatMessage, type EvidenceItem, type PersonInvolved } from "@/types";
@@ -62,12 +64,14 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
   const [bios, setBios] = useState<Record<string, string | null>>({});
   const [msgs, setMsgs] = useState<Record<string, ChatMessage[]>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // exhibit ids pinned to the next question, per party
+  const [atts, setAtts] = useState<Record<string, string[]>>({});
   const [sending, setSending] = useState<string | null>(null);
   const [typing, setTyping] = useState<{ id: string; n: number; len: number } | null>(null);
   const [extracting, setExtracting] = useState<string | null>(null);
   const [regen, setRegen] = useState<string | null>(null);
   const [chatErr, setChatErr] = useState("");
-  const [tab, setTab] = useState<"parties" | "evidence">("parties");
+  const [tab, setTab] = useState<"parties" | "evidence" | "privileged">("parties");
   const [sel, setSel] = useState<string | null>(null);
   const [focus, setFocusState] = useState<Focus>("list");
   const [closing, setClosing] = useState<Focus | null>(null);
@@ -126,6 +130,19 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
       clearTimeout(closeTimer.current);
     };
   }, [fetchAll]);
+
+  // Exhibit images are made in the background while you prepare: check back until each is done.
+  const imaging = evidence.some((e) => e.media_status === "pending");
+  useEffect(() => {
+    if (!imaging) return;
+    const id = setInterval(() => {
+      caseAPI
+        .getEvidence(cnr)
+        .then((r: { evidence?: EvidenceItem[] }) => setEvidence(r.evidence ?? []))
+        .catch(() => undefined);
+    }, EVIDENCE_IMAGE_POLL_MS);
+    return () => clearInterval(id);
+  }, [imaging, cnr]);
 
   const selId = sel ?? parties.find(mine)?.id ?? parties[0]?.id ?? null;
   const P = parties.find((p) => p.id === selId) ?? null;
@@ -289,18 +306,22 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
       return;
     }
     setChatErr("");
-    const temp: ChatMessage = { id: `tmp-${Date.now()}`, sender: "user", content: txt, timestamp: new Date().toISOString() };
+    const pinned = atts[pid] ?? [];
+    const refs = pinned.map((id) => evidence.find((x) => x.id === id)?.exhibit_ref).filter((r): r is string => !!r);
+    const temp: ChatMessage = { id: `tmp-${Date.now()}`, sender: "user", content: txt, timestamp: new Date().toISOString(), exhibit_refs: refs };
     setMsgs((m) => ({ ...m, [pid]: [...(m[pid] ?? []), temp] }));
     setDrafts((d) => ({ ...d, [pid]: "" }));
-    if (inputRef.current) inputRef.current.style.height = "52px";
+    setAtts((a) => ({ ...a, [pid]: [] }));
+    if (inputRef.current) inputRef.current.style.height = "46px";
     setSending(pid);
     try {
-      const r: { user_message: ChatMessage; party_response: ChatMessage } = await partiesAPI.chatWithParty(cnr, pid, txt);
+      const r: { user_message: ChatMessage; party_response: ChatMessage } = await partiesAPI.chatWithParty(cnr, pid, txt, refs);
       setMsgs((m) => ({ ...m, [pid]: [...(m[pid] ?? []).filter((x) => x.id !== temp.id), r.user_message, r.party_response] }));
       setTyping({ id: r.party_response.id, n: 0, len: unbold(r.party_response.content).length });
     } catch (e) {
       setMsgs((m) => ({ ...m, [pid]: (m[pid] ?? []).filter((x) => x.id !== temp.id) }));
       setDrafts((d) => ({ ...d, [pid]: txt }));
+      setAtts((a) => ({ ...a, [pid]: pinned }));
       setChatErr(getErrorDetail(e) || "Couldn’t send your question. Please try again.");
     } finally {
       setSending(null);
@@ -317,7 +338,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
     try {
       const r: { evidence: EvidenceItem } = await caseAPI.extractEvidence(cnr, { party_id: pid, message_id: m.id });
       setEvidence((ev) => [...ev, r.evidence]);
-      toast(`Evidence extracted. ${r.evidence.exhibit_ref} added to the exhibits.`, { duration: 2800 });
+      toast(`Saved to Privileged as ${r.evidence.exhibit_ref}. Only you can see it until you cite it in court.`, { duration: 3400 });
     } catch (e) {
       toast.error(getErrorDetail(e) || "Couldn’t extract this answer. Please try again.");
     } finally {
@@ -334,10 +355,9 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
     try {
       const r = await caseAPI.regenerateEvidenceImage(cnr, id);
       if (r?.evidence) setEvidence(r.evidence);
-      if (typeof r?.image_generation?.generated === "number" && r.image_generation.generated > 0) toast("Evidence image regenerated", { duration: 2800 });
-      else toast.error(r?.image_generation?.message || "Evidence image could not be regenerated");
-    } catch {
-      toast.error("Couldn’t regenerate the image. Please try again.");
+      toast("Making the image. It appears here when it’s ready.", { duration: 2800 });
+    } catch (e) {
+      toast.error(getErrorDetail(e) || "Couldn’t regenerate the image. Please try again.");
     } finally {
       setRegen(null);
     }
@@ -387,7 +407,10 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
       : { k: "Read-only · courtroom in session", t: "Return to the courtroom, or wait for the session to end, to ask new questions.", c: "text-[#7a3a06]" };
   const lockText = `As the ${RN} Lawyer you can only interview ${role === "plaintiff" ? "applicants" : "non-applicants"}. You’ll question ${first} in court.`;
 
-  // Interview answers already logged as exhibits, by message id.
+  // Privileged notes from the user's interviews stay apart from the exhibits.
+  const exhibits = evidence.filter((e) => !e.private);
+  const notes = evidence.filter((e) => e.private);
+  // Interview answers already saved, by message id.
   const logged = Object.fromEntries(evidence.filter((e) => e.origin_id?.includes(":")).map((e) => [e.origin_id!.split(":")[1], e]));
   const sur = P ? (plain(P.name).split(" ").pop() ?? "") : "";
   const related = sur.length > 2 ? evidence.filter((e) => `${e.title} ${e.source ?? ""} ${e.description}`.includes(sur)) : [];
@@ -461,7 +484,8 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
           {(
             [
               ["parties", "Parties", parties.length],
-              ["evidence", "Evidence", evidence.length],
+              ["evidence", "Evidence", exhibits.length],
+              ["privileged", "Privileged", notes.length],
             ] as const
           ).map(([k, t, n]) => {
             const on = tab === k;
@@ -821,6 +845,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                       <span aria-hidden="true" className="ml-0.5 inline-block h-0.5 w-2 bg-seal align-baseline animate-[ac-cursor_1s_steps(1)_infinite]" />
                                     )}
                                   </p>
+                                  {u && <RefChips refs={m.exhibit_refs ?? []} evidence={evidence} onExhibit={setExId} />}
                                   {!u && !isTyping && !ex && !m.id.startsWith("tmp-") && (
                                     <button
                                       type="button"
@@ -829,7 +854,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                       className="flex h-7.5 cursor-pointer items-center gap-1.5 self-start border border-ink/40 bg-transparent px-2.5 text-[10.5px] font-bold uppercase tracking-[0.14em] text-ink hover:border-ink hover:bg-[#f8f3e7] disabled:cursor-wait"
                                     >
                                       <span aria-hidden="true">+</span>
-                                      <span>{extracting === m.id ? "Extracting…" : "Extract as exhibit"}</span>
+                                      <span>{extracting === m.id ? "Saving…" : "Save to Privileged"}</span>
                                     </button>
                                   )}
                                   {ex && (
@@ -838,7 +863,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                       onClick={() => setExId(ex.id)}
                                       className="rotate-[-1.5deg] cursor-pointer self-start border-[1.5px] border-seal bg-transparent px-2.25 pb-0.75 pt-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-seal hover:bg-seal/8"
                                     >
-                                      Logged as {ex.exhibit_ref} · view
+                                      {ex.private ? `In Privileged as ${ex.exhibit_ref}` : `Logged as ${ex.exhibit_ref}`} · view
                                     </button>
                                   )}
                                 </div>
@@ -866,14 +891,21 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                   {chatErr}
                                 </span>
                               )}
-                              <div className="flex items-end gap-2">
+                              <PinnedChips evidence={evidence} att={atts[P.id] ?? []} onAtt={(ids) => setAtts((a) => ({ ...a, [P.id]: ids }))} onExhibit={setExId} />
+                              <div className="relative flex items-end gap-2">
+                                <PinButton
+                                  evidence={evidence}
+                                  att={atts[P.id] ?? []}
+                                  onAtt={(ids) => setAtts((a) => ({ ...a, [P.id]: ids }))}
+                                  title={`Show ${first} an exhibit`}
+                                />
                                 <textarea
                                   ref={inputRef}
                                   value={drafts[P.id] ?? ""}
                                   onChange={(e) => {
                                     const el = e.target;
                                     el.style.height = "auto";
-                                    el.style.height = `${Math.min(140, Math.max(52, el.scrollHeight + 3))}px`;
+                                    el.style.height = `${Math.min(140, Math.max(46, el.scrollHeight + 3))}px`;
                                     setDrafts((d) => ({ ...d, [P.id]: el.value }));
                                   }}
                                   onKeyDown={(e) => {
@@ -882,17 +914,17 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                       void send(P.id);
                                     }
                                   }}
-                                  rows={2}
+                                  rows={1}
                                   aria-label={`Question for ${plain(P.name)}`}
                                   placeholder={`Ask ${first} about the case…`}
-                                  className="h-13 max-h-35 min-w-0 flex-1 resize-none rounded-none border-[1.5px] border-ink bg-[#f8f3e7] px-3 py-2.25 text-[15px] leading-[1.45] text-ink outline-none placeholder:text-[#8f8574] focus:border-seal focus:shadow-[0_0_0_3px_rgba(142,31,25,.18)]"
+                                  className="h-11.5 max-h-35 min-w-0 flex-1 resize-none rounded-none border-[1.5px] border-ink bg-[#f8f3e7] px-3 py-[10.5px] text-[15px] leading-[1.45] text-ink outline-none placeholder:text-[#8f8574] focus:border-seal focus:shadow-[0_0_0_3px_rgba(142,31,25,.18)]"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => void send(P.id)}
                                   disabled={busy}
                                   className={cn(
-                                    "h-13 flex-none cursor-pointer whitespace-nowrap px-5 text-xs font-bold uppercase tracking-[0.14em] text-cream transition-colors duration-150 disabled:cursor-wait",
+                                    "h-11.5 flex-none cursor-pointer whitespace-nowrap px-5 text-xs font-bold uppercase tracking-[0.14em] text-cream transition-colors duration-150 disabled:cursor-wait",
                                     !online || busy ? "bg-ink-disabled" : "bg-seal hover:bg-seal-hover",
                                   )}
                                 >
@@ -917,7 +949,21 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
           </div>
         )}
 
-        {load === "loaded" && tab === "evidence" && <ExhibitGrid evidence={evidence} small={small} mob={mob} regen={regen} onRegen={regenerate} onOpen={setExId} />}
+        {load === "loaded" && tab === "evidence" && <ExhibitGrid evidence={exhibits} small={small} mob={mob} regen={regen} onRegen={regenerate} onOpen={setExId} />}
+        {load === "loaded" && tab === "privileged" && (
+          <ExhibitGrid
+            key="privileged"
+            evidence={notes}
+            title="Privileged"
+            note="What your clients told you in interview. Only you can see these. Cite one in court and it is tendered as an exhibit."
+            empty="Nothing saved yet. Save an answer from an interview to keep it here."
+            small={small}
+            mob={mob}
+            regen={regen}
+            onRegen={regenerate}
+            onOpen={setExId}
+          />
+        )}
       </div>
 
       <ExhibitViewer

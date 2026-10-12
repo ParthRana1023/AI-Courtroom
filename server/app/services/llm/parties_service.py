@@ -298,6 +298,7 @@ async def chat_with_party(
     chat_history: list,
     user_message: str,
     rag_context: str | None = None,
+    evidence_context: str = "",
 ) -> str:
     """
     Generate a response from a party involved in the case to a chat message.
@@ -338,6 +339,9 @@ Your Background:
 
 Case Context (for reference only, do not quote directly):
 {case_context}
+
+Exhibits in the case (speak only to those you would know about):
+{evidence_context or "(None yet)"}
 
 Important Guidelines:
 - Stay in character as {party_name} at all times

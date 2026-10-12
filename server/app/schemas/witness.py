@@ -20,6 +20,19 @@ class ExamineWitnessRequest(BaseModel):
     question: str = Field(
         ..., min_length=1, max_length=2000, description="Question to ask the witness"
     )
+    # Exhibits put to the witness with the question.
+    exhibit_refs: list[str] = Field(default_factory=list, max_length=10)
+
+
+class LeaveObjection(BaseModel):
+    grounds: str
+    details: str = Field("", max_length=500)
+
+
+class LeaveResponseRequest(BaseModel):
+    """No objection (None), or an objection to the other side calling a witness."""
+
+    objection: LeaveObjection | None = None
 
 
 class ExaminationItemResponse(BaseModel):

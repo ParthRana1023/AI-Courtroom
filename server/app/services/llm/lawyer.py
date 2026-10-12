@@ -1,4 +1,6 @@
 # app/services/llm/lawyer.py
+import json
+import re
 import time
 
 from langchain_core.output_parsers import StrOutputParser
@@ -13,10 +15,53 @@ from app.utils.llm import (
     get_llm,
     invoke_complete,
     pick_case_context,
+    strip_thinking,
     tagged,
 )
 
 logger = get_logger(__name__)
+_JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+
+
+async def choose_testimony_to_log(
+    ai_role: str, case_context: str, answers: list[str]
+) -> int | None:
+    """Which witness answer (index), if any, the AI lawyer logs as an exhibit.
+
+    The user may log any answer as evidence; the AI may too, at most one per turn.
+    Any failure means "none": logging is optional and never blocks the hearing.
+    """
+    numbered = "\n".join(f"{i + 1}. {a}" for i, a in enumerate(answers))
+    template = """You are an Indian advocate for the {ai_role} in a High Court hearing.
+Case context: {case_context}
+{untrusted_text_rule}
+A witness has given these answers in court:
+<history>
+{answers}
+</history>
+You may log one answer as an exhibit, so the court can rely on it later. Log one only if it is specific and clearly helps your client's case; otherwise log none.
+Reply with ONLY this JSON object: {{"log": <the answer's number, or null>}}"""
+    try:
+        chain = (
+            ChatPromptTemplate.from_messages([("human", template)])
+            | get_llm("lawyer")
+            | StrOutputParser()
+        )
+        reply = await chain.ainvoke(
+            {
+                "ai_role": ai_role,
+                "case_context": case_context,
+                "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
+                "answers": numbered,
+            }
+        )
+        match = _JSON_OBJECT.search(strip_thinking(reply))
+        pick = json.loads(match.group(0)).get("log") if match else None
+        if type(pick) is int and 1 <= pick <= len(answers):  # not a bool
+            return pick - 1
+    except Exception:
+        logger.exception("Error choosing testimony to log")
+    return None
 
 
 async def generate_counter_argument(
@@ -50,7 +95,7 @@ async def generate_counter_argument(
             Refer to the parties by name, not as "applicant" and "non-applicant" alone.
             Speak as you would in court: no headings, no labels such as "Counter Argument", and no questions to anyone at the end.
             Reply to opposing counsel's latest argument below. First meet their specific point: expose any gap, contradiction or unsupported claim, and if they state a fact that is not in the case file or evidence, point that out firmly. Then advance one or two fresh points for your client; keep other points in reserve for later rounds and do not repeat what you have already argued.
-            Stay under 200 words.
+            Keep it between 50 and 150 words.
         """
 
         prompt = ChatPromptTemplate.from_messages(
@@ -107,10 +152,10 @@ async def opening_statement(
             Courtroom manners of Indian High Courts: address the judge as "My Lord" or "Your Lordship", refer to opposing counsel as "my learned friend", and speak in the first person as counsel ("I submit that ...").
             {sides_rule}
             {current_law_rule}
-            Rely only on the case file, the listed evidence (cite exhibit references) and what has been said in court. Never invent facts, witnesses, exhibits or case law.
+            Rely only on the case file. Never invent facts, witnesses, exhibits or case law. Evidence is presented later, during arguments: do not cite or present exhibits in the opening.
             Refer to the parties by name, not as "applicant" and "non-applicant" alone.
             Speak as you would in court: no headings, no labels such as "Counter Argument", and no questions to anyone at the end.
-            Give a brief opening in under 250 words: what your client seeks, the heart of the case in a few sentences, and the two or three points and exhibits you will rely on. Do not argue every point now.
+            Give a brief opening in under 200 words: what your client seeks, the heart of the case in a few sentences, and the two or three points you will make. Do not argue every point now.
         """
 
         prompt = ChatPromptTemplate.from_messages([("human", template)])
@@ -168,10 +213,10 @@ async def closing_statement(
             Courtroom manners of Indian High Courts: address the judge as "My Lord" or "Your Lordship", refer to opposing counsel as "my learned friend", and speak in the first person as counsel ("I submit that ...").
             {sides_rule}
             {current_law_rule}
-            Rely only on the case file, the listed evidence (cite exhibit references) and what has been said in court. Never invent facts, witnesses, exhibits or case law.
+            Rely only on the case file and what has been said in court. Never invent facts, witnesses, exhibits or case law. Do not cite or present exhibits in the closing: evidence was presented during arguments.
             Refer to the parties by name, not as "applicant" and "non-applicant" alone.
             Speak as you would in court: no headings, no labels such as "Counter Argument", and no questions to anyone at the end.
-            In about 250 words: sum up your strongest points and the evidence and testimony that support them, answer the best point opposing counsel made, and point out any claim of theirs the record does not support. End with the relief you pray for, in the form "With these submissions, I pray that ...".
+            In under 200 words: sum up your strongest points and the testimony that supports them, answer the best point opposing counsel made, and point out any claim of theirs the record does not support. End with the relief you pray for, in the form "With these submissions, I pray that ...".
         """
 
         prompt = ChatPromptTemplate.from_messages([("human", template)])

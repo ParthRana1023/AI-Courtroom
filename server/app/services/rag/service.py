@@ -324,6 +324,8 @@ async def index_case_memory(case: Case) -> int:
         )
 
         for evidence in case.evidence:
+            if evidence.private:  # privileged until tendered
+                continue
             total += await upsert_memory_item(
                 case,
                 CaseMemorySourceType.EVIDENCE,

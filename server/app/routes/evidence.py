@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
+from app.config import settings
 from app.dependencies import get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
     Case,
     CourtroomProceedingsEventType,
+    EvidenceMediaStatus,
     Roles,
 )
 from app.models.user import User
@@ -12,10 +14,15 @@ from app.schemas.evidence import EvidenceExtractRequest
 from app.services.evidence_service import (
     extract_evidence_from_text,
     extract_evidence_items,
-    generate_missing_evidence_images_for_case,
+    generate_queued_images,
+    image_slots,
     index_evidence_item,
     next_exhibit_ref,
-    regenerate_evidence_image_for_case_item,
+    next_note_ref,
+    queue_image,
+    queue_missing_images,
+    release_stuck_images,
+    wants_image,
 )
 
 logger = get_logger(__name__)
@@ -23,17 +30,12 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["evidence"])
 
 
-async def generate_if_role_selected(case: Case):
-    if case.user_role and case.user_role != Roles.NOT_STARTED:
-        return await generate_missing_evidence_images_for_case(case)
-    return None
-
-
 @router.get("/{cnr}/evidence")
 async def get_case_evidence(cnr: str, current_user: User = Depends(get_current_user)):
     """Get structured evidence for a case, backfilling legacy cases when needed."""
     logger.debug(f"Fetching evidence for case {cnr}")
     case = await get_owned_case(cnr, current_user)
+    await release_stuck_images(case)
 
     if not case.evidence:
         logger.info(f"Backfilling evidence for legacy case {cnr}")
@@ -96,10 +98,12 @@ def extraction_source(
 async def extract_case_evidence(
     cnr: str,
     request: EvidenceExtractRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     """Extract a structured evidence item from a party reply or witness answer."""
     case = await get_owned_case(cnr, current_user)
+    await release_stuck_images(case)
     text, source, origin_id = extraction_source(case, request)
     if not text.strip():
         raise HTTPException(status_code=400, detail="There is nothing to extract.")
@@ -108,39 +112,58 @@ async def extract_case_evidence(
             status_code=409, detail="This has already been extracted as evidence."
         )
 
+    # What a client tells counsel in an interview is privileged (BSA s.132): it
+    # is kept as a privileged note until the user relies on it in court.
+    # Testimony given in court is already on the record, so it is an exhibit.
+    private = request.event_id is None
     item = await extract_evidence_from_text(
-        text, source=source, exhibit_ref=next_exhibit_ref(case)
+        text,
+        source=source,
+        exhibit_ref=next_note_ref(case) if private else next_exhibit_ref(case),
     )
     item.origin_id = origin_id
-    case.evidence.append(item)
+    item.private = private
 
     try:
-        await case.save()
+        # Appended on its own: a whole-case save would undo exhibit images the
+        # background task finished while the text was being extracted.
+        await Case.find_one(Case.cnr == cnr).update_one(
+            {"$push": {"evidence": item.model_dump(mode="json")}}
+        )
+        case.evidence.append(item)
         await index_evidence_item(case, item)
-        generation_summary = await generate_if_role_selected(case)
     except Exception:
         logger.exception(f"Error extracting evidence for case {cnr}")
         raise HTTPException(status_code=500, detail="Failed to extract evidence.")
 
-    return {
-        "evidence": item.model_dump(mode="json"),
-        "image_generation": (
-            generation_summary.model_dump() if generation_summary else None
-        ),
-    }
+    # Images come once a side is chosen, and only for visual exhibits.
+    queued = (
+        case.user_role != Roles.NOT_STARTED
+        and wants_image(item)
+        and image_slots(case) > 0
+    )
+    if queued:
+        await queue_image(case, len(case.evidence) - 1)
+        background_tasks.add_task(generate_queued_images, cnr)
+    return {"evidence": item.model_dump(mode="json"), "image_queued": queued}
 
 
 @router.post("/{cnr}/evidence/images/generate-missing")
 async def generate_missing_evidence_images(
     cnr: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
-    """Backend retry endpoint for missing evidence images."""
+    """Queue images for visual exhibits that have none; they are made in the
+    background and show up as the evidence is fetched again."""
     case = await get_owned_case(cnr, current_user)
-    summary = await generate_missing_evidence_images_for_case(case)
+    await release_stuck_images(case)
+    queued = await queue_missing_images(case)
+    if queued:
+        background_tasks.add_task(generate_queued_images, cnr)
     return {
         "evidence": [item.model_dump(mode="json") for item in case.evidence],
-        "image_generation": summary.model_dump(),
+        "images_queued": queued,
     }
 
 
@@ -148,15 +171,32 @@ async def generate_missing_evidence_images(
 async def regenerate_evidence_image(
     cnr: str,
     evidence_id: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
-    """Retry image generation for a single failed or missing evidence item."""
+    """Retry one exhibit's image in the background."""
     case = await get_owned_case(cnr, current_user)
-    if not any(item.id == evidence_id for item in case.evidence):
+    await release_stuck_images(case)
+    index = next(
+        (i for i, item in enumerate(case.evidence) if item.id == evidence_id), None
+    )
+    if index is None:
         raise HTTPException(status_code=404, detail="Evidence not found")
+    item = case.evidence[index]
 
-    summary = await regenerate_evidence_image_for_case_item(case, evidence_id)
-    return {
-        "evidence": [item.model_dump(mode="json") for item in case.evidence],
-        "image_generation": summary.model_dump(),
-    }
+    message = None
+    if item.image_url:
+        message = "This exhibit already has its image."
+    elif item.media_status == EvidenceMediaStatus.PENDING:
+        message = "The image is already being made."
+    elif not wants_image(item):
+        message = "This exhibit is text, so it has no image."
+    elif image_slots(case) == 0:
+        limit = settings.evidence_image_generation_limit_per_case
+        message = f"This case has used its {limit} exhibit images."
+    if message:
+        raise HTTPException(status_code=409, detail=message)
+
+    await queue_image(case, index)
+    background_tasks.add_task(generate_queued_images, cnr)
+    return {"evidence": [e.model_dump(mode="json") for e in case.evidence]}

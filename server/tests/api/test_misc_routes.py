@@ -1,5 +1,7 @@
 """Tests for parties, evidence, location, feedback, client-log, analysis and rate-limit routes."""
 
+from datetime import timedelta
+
 import pytest
 
 from app import messages
@@ -133,16 +135,32 @@ async def test_chat_with_party_saves_history(
     client, auth_headers, prep_case, witness_party, fake_llm
 ):
     fake_llm.responses.append("I paid on the first of every month.")
-    case = await prep_case()
+    receipt = EvidenceItem(
+        exhibit_ref="EX-01",
+        title="Cash receipt",
+        evidence_type="Document",
+        description="Rent paid",
+    )
+    case = await prep_case(evidence=[receipt])
 
     response = await client.post(
         f"/cases/{case.cnr}/parties/{witness_party.id}/chat",
         headers=auth_headers,
-        json={"message": "When did you pay?"},
+        json={"message": "When did you pay?", "exhibit_refs": ["EX-01"]},
+    )
+    unknown = await client.post(
+        f"/cases/{case.cnr}/parties/{witness_party.id}/chat",
+        headers=auth_headers,
+        json={"message": "And this?", "exhibit_refs": ["EX-09"]},
     )
 
     body = response.json()
     assert body["party_response"]["content"] == "I paid on the first of every month."
+    assert body["user_message"]["exhibit_refs"] == ["EX-01"]
+    # the party knows the exhibits, not just the case details
+    assert "EX-01: Cash receipt" in fake_llm.prompts[-1]
+    assert "Counsel relies on EX-01 (Cash receipt)" in fake_llm.prompts[-1]
+    assert unknown.status_code == 400
     history = (
         await client.get(
             f"/cases/{case.cnr}/parties/{witness_party.id}/chat-history",
@@ -150,6 +168,7 @@ async def test_chat_with_party_saves_history(
         )
     ).json()
     assert [m["sender"] for m in history["messages"]] == ["user", "party"]
+    assert [m["exhibit_refs"] for m in history["messages"]] == [["EX-01"], []]
     assert history["party_name"] == "Ravi Kumar"
 
 
@@ -434,8 +453,10 @@ async def test_extract_evidence_from_party_reply(
     evidence = response.json()["evidence"]
     assert (evidence["title"], evidence["source"]) == ("Receipt", "Ravi Kumar chat")
     assert evidence["origin_id"] == "p1:m2"
-    # no side chosen yet, so no image is generated
-    assert response.json()["image_generation"] is None
+    # an interview is privileged: a note, not yet an exhibit
+    assert (evidence["private"], evidence["exhibit_ref"]) == (True, "PN-01")
+    # no side chosen yet (and a receipt is text), so no image is queued
+    assert response.json()["image_queued"] is False
     # the text came from the stored message, not from the request
     assert "I paid 5000 in cash." in fake_llm.prompts[0]
 
@@ -457,6 +478,7 @@ async def test_extract_evidence_from_witness_answer_and_old_message(
     )
 
     assert answer.json()["evidence"]["source"] == "Asha Rao testimony"
+    assert answer.json()["evidence"]["private"] is False  # said in open court
     assert old.status_code == 201
     assert "I saw him at the gate at 9 pm." in fake_llm.prompts[0]
 
@@ -532,8 +554,8 @@ async def test_extracted_evidence_gets_image_once_role_selected(
     client, auth_headers, courtroom_case, image_pipeline, fake_llm, witness_party
 ):
     fake_llm.responses.append(
-        '{"title": "Bank slip", "evidence_type": "Digital Evidence",'
-        ' "description": "Cash deposit slip"}'
+        '{"title": "Photo of the gate", "evidence_type": "Digital Evidence",'
+        ' "description": "A photograph taken at 9 pm", "image_prompt": "a gate at night"}'
     )
     case = await courtroom_case(
         evidence=[
@@ -556,8 +578,10 @@ async def test_extracted_evidence_gets_image_once_role_selected(
 
     body = response.json()
     assert response.status_code == 201
-    assert body["evidence"]["exhibit_ref"] == "EX-05"
-    assert body["image_generation"]["generated"] == 1
+    assert body["evidence"]["exhibit_ref"] == "PN-01"  # a privileged note
+    assert body["image_queued"] is True
+    saved = (await reload(case)).evidence[-1]
+    assert saved.media_status == EvidenceMediaStatus.GENERATED
 
 
 async def test_generate_missing_and_regenerate_images(
@@ -568,23 +592,30 @@ async def test_generate_missing_and_regenerate_images(
     monkeypatch.setattr(settings, "evidence_image_generation_limit_per_case", 3)
     failed = EvidenceItem(
         exhibit_ref="EX-02",
-        title="B",
-        evidence_type="Doc",
+        title="Photo B",
+        evidence_type="Digital",
         description="d",
         image_prompt="p",
         media_status=EvidenceMediaStatus.FAILED,
+    )
+    text = EvidenceItem(
+        exhibit_ref="EX-03",
+        title="Loan agreement",
+        evidence_type="Document",
+        description="Signed terms",
     )
     case = await make_case(
         user,
         evidence=[
             EvidenceItem(
                 exhibit_ref="EX-01",
-                title="A",
-                evidence_type="Doc",
+                title="CCTV still A",
+                evidence_type="Digital",
                 description="d",
                 image_prompt="p",
             ),
             failed,
+            text,
         ],
     )
 
@@ -593,23 +624,81 @@ async def test_generate_missing_and_regenerate_images(
             f"/cases/{case.cnr}/evidence/images/generate-missing", headers=auth_headers
         )
     ).json()
-    assert missing["image_generation"]["generated"] == 2
+    assert missing["images_queued"] == 2
+    saved = (await reload(case)).evidence
+    assert [e.media_status for e in saved] == [
+        EvidenceMediaStatus.GENERATED,
+        EvidenceMediaStatus.GENERATED,
+        EvidenceMediaStatus.NOT_REQUESTED,  # text: read, not looked at
+    ]
 
-    again = (
-        await client.post(
-            f"/cases/{case.cnr}/evidence/{failed.id}/image/regenerate",
+    async def regenerate(evidence_id):
+        return await client.post(
+            f"/cases/{case.cnr}/evidence/{evidence_id}/image/regenerate",
             headers=auth_headers,
         )
-    ).json()
-    assert (
-        again["image_generation"]["message"]
-        == "Evidence image has already been generated."
+
+    again = await regenerate(failed.id)
+    assert again.status_code == 409
+    assert again.json()["detail"] == "This exhibit already has its image."
+    assert (await regenerate(text.id)).json()["detail"] == (
+        "This exhibit is text, so it has no image."
     )
-    assert (
-        await client.post(
-            f"/cases/{case.cnr}/evidence/unknown/image/regenerate", headers=auth_headers
+    assert (await regenerate("unknown")).status_code == 404
+
+
+async def test_regenerate_retries_a_failed_image(
+    client, user, auth_headers, make_case, image_pipeline
+):
+    failed = EvidenceItem(
+        exhibit_ref="EX-01",
+        title="CCTV still",
+        evidence_type="Digital",
+        description="d",
+        image_prompt="p",
+        media_status=EvidenceMediaStatus.FAILED,
+    )
+    case = await make_case(user, evidence=[failed])
+
+    response = await client.post(
+        f"/cases/{case.cnr}/evidence/{failed.id}/image/regenerate", headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    saved = (await reload(case)).evidence[0]
+    assert saved.media_status == EvidenceMediaStatus.GENERATED
+    assert image_pipeline["uploads"] == [failed.id]
+
+
+async def test_an_image_lost_to_a_restart_can_be_made_again(
+    client, user, auth_headers, make_case, image_pipeline
+):
+    def pending(minutes_ago):
+        return EvidenceItem(
+            exhibit_ref="EX-01",
+            title="CCTV still",
+            evidence_type="Digital",
+            description="d",
+            image_prompt="p",
+            media_status=EvidenceMediaStatus.PENDING,
+            image_requested_at=get_current_datetime() - timedelta(minutes=minutes_ago),
         )
-    ).status_code == 404
+
+    lost, making = pending(30), pending(1)
+    case = await make_case(user, evidence=[lost, making])
+    url = f"/cases/{case.cnr}/evidence/{{}}/image/regenerate"
+
+    busy = await client.post(url.format(making.id), headers=auth_headers)
+    retried = await client.post(url.format(lost.id), headers=auth_headers)
+
+    assert retried.status_code == 200
+    assert (await reload(case)).evidence[0].media_status == (
+        EvidenceMediaStatus.GENERATED
+    )
+    assert (busy.status_code, busy.json()["detail"]) == (
+        409,
+        "The image is already being made.",
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ from app.models.case import (
     Case,
     CaseStatus,
     EvidenceItem,
+    EvidenceMediaStatus,
     Roles,
     WitnessTestimony,
 )
@@ -339,9 +340,10 @@ async def test_adjourning_dismisses_witness_on_stand(
     assert saved.status == CaseStatus.ADJOURNED
     assert saved.current_witness_id is None and saved.is_ai_examining is False
     assert saved.witness_testimonies[0].ended_at is not None
-    dismissal = saved.courtroom_proceedings[-1]
+    dismissal, note = saved.courtroom_proceedings[-2:]
     assert dismissal.type == EventType.WITNESS_DISMISSED
     assert dismissal.content.startswith("Ravi (stand) dismissed")
+    assert note.content == "Court adjourned by counsel"
 
 
 async def test_adjourning_uses_party_name_without_open_testimony(
@@ -355,7 +357,7 @@ async def test_adjourning_uses_party_name_without_open_testimony(
 
     assert (
         (await reload(case))
-        .courtroom_proceedings[-1]
+        .courtroom_proceedings[-2]
         .content.startswith("Ravi Kumar dismissed")
     )
 
@@ -371,7 +373,7 @@ async def test_adjourning_unknown_witness_uses_generic_name(
 
     assert (
         (await reload(case))
-        .courtroom_proceedings[-1]
+        .courtroom_proceedings[-2]
         .content.startswith("Witness dismissed")
     )
 
@@ -394,7 +396,7 @@ async def test_status_save_failure(client, user, auth_headers, make_case, monkey
 
 
 async def test_choose_roles_and_generate_images(
-    client, user, auth_headers, make_case, monkeypatch
+    client, user, auth_headers, make_case, monkeypatch, image_pipeline
 ):
     from app.config import settings
 
@@ -420,8 +422,10 @@ async def test_choose_roles_and_generate_images(
 
     body = response.json()
     assert (body["user_role"], body["ai_role"]) == ("defendant", "plaintiff")
-    # Cloudflare is not configured in tests, so the attempt is recorded as failed.
-    assert body["image_generation"]["failed"] == 1
+    # The image is made in the background, after the response.
+    assert body["images_queued"] == 1
+    saved = (await reload(case)).evidence[0]
+    assert saved.media_status == EvidenceMediaStatus.GENERATED
 
 
 async def test_roles_are_locked_once_chosen(client, user, auth_headers, make_case):
@@ -458,17 +462,31 @@ async def test_roles_validation(
     )
 
 
-async def test_roles_survive_image_generation_crash(
-    client, user, auth_headers, make_case, monkeypatch
+async def test_roles_survive_image_generation_failure(
+    client, user, auth_headers, make_case, image_pipeline
 ):
-    monkeypatch.setattr(cases_routes, "generate_missing_evidence_images_for_case", boom)
-    case = await make_case(user)
+    image_pipeline["fail"] = RuntimeError("provider down")
+    case = await make_case(
+        user,
+        evidence=[
+            EvidenceItem(
+                exhibit_ref="EX-01",
+                title="CCTV",
+                evidence_type="Digital",
+                description="d",
+                image_prompt="p",
+            )
+        ],
+    )
 
     response = await client.put(
         f"/cases/{case.cnr}/roles", headers=auth_headers, json={"ai_role": "defendant"}
     )
 
-    assert response.status_code == 200 and response.json()["image_generation"] is None
+    assert response.status_code == 200
+    saved = await reload(case)
+    assert saved.ai_role == Roles.DEFENDANT
+    assert saved.evidence[0].media_status == EvidenceMediaStatus.FAILED
 
 
 async def test_roles_save_failure(client, user, auth_headers, make_case, monkeypatch):

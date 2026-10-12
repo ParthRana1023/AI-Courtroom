@@ -11,7 +11,7 @@ from pymongo.results import UpdateResult
 
 from app import messages
 from app.config import settings
-from app.dependencies import courtroom_control, get_current_user, get_owned_case
+from app.dependencies import controls_hearing, get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
     Case,
@@ -19,11 +19,18 @@ from app.models.case import (
     CourtroomProceedingsEvent,
     CourtroomProceedingsEventType,
     ExaminationItem,
+    PendingLeave,
     Roles,
     WitnessPhase,
     WitnessTestimony,
 )
 from app.models.user import User
+from app.routes.arguments import AI_SPEAKER, cited_exhibits, exhibit_note, refs_in
+from app.routes.courtroom import (
+    check_grounds,
+    objection_events,
+    record_lines,
+)
 from app.schemas.witness import (
     AICrossExaminationResponse,
     AllTestimoniesResponse,
@@ -34,14 +41,22 @@ from app.schemas.witness import (
     CurrentWitnessResponse,
     ExaminationItemResponse,
     ExamineWitnessRequest,
+    LeaveResponseRequest,
     WitnessExaminationResponse,
     WitnessInfo,
     WitnessTestimonyResponse,
 )
-from app.services.llm import witness_service
+from app.services.evidence_service import (
+    extract_evidence_from_text,
+    format_evidence_context,
+    index_evidence_item,
+    next_exhibit_ref,
+    tender_exhibits,
+)
+from app.services.llm import judge, lawyer, witness_service
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
-from app.utils.llm import LLMGenerationError
+from app.utils.llm import LLMGenerationError, pick_case_context
 from app.utils.rate_limiter import witness_question_limiter_for
 
 logger = get_logger(__name__)
@@ -112,7 +127,7 @@ async def get_available_witnesses(
     )
 
 
-@router.post("/{case_cnr}/witness/call", dependencies=[Depends(courtroom_control)])
+@router.post("/{case_cnr}/witness/call", dependencies=[controls_hearing])
 async def call_witness(
     case_cnr: str,
     request: CallWitnessRequest,
@@ -134,6 +149,9 @@ async def call_witness(
             status_code=400,
             detail="A witness is already on the stand. Dismiss them first.",
         )
+
+    if case.pending_leave:
+        raise HTTPException(status_code=409, detail=messages.LEAVE_PENDING)
 
     # Find the party
     party = case.get_party(request.witness_id)
@@ -180,7 +198,7 @@ async def call_witness(
     )
 
 
-@router.post("/{case_cnr}/witness/examine", dependencies=[Depends(courtroom_control)])
+@router.post("/{case_cnr}/witness/examine", dependencies=[controls_hearing])
 async def examine_witness(
     case_cnr: str,
     request: ExamineWitnessRequest,
@@ -224,6 +242,9 @@ async def examine_witness(
     # Each question is an AI call, so users get a daily allowance.
     limiter = witness_question_limiter_for(current_user)
     await limiter.check_only(current_user)
+    exhibit_refs, _ = cited_exhibits(case, request.exhibit_refs)
+    exhibit_refs, tendered = tender_exhibits(case, exhibit_refs, examiner_role)
+    cites = exhibit_note(case, exhibit_refs)
 
     # Build examination history for context
     exam_history = [
@@ -254,10 +275,11 @@ async def examine_witness(
             witness_role=party.role.value,
             witness_bio=party.bio or "",
             examiner_role=examiner_role,
-            question=request.question,
+            question=request.question + cites,
             case_details=case.details,
             examination_history=exam_history[-settings.witness_history_limit :],
             rag_context=rag_context,
+            evidence_context=format_evidence_context(case.evidence),
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Witness response generated in {duration_ms:.2f}ms")
@@ -293,6 +315,7 @@ async def examine_witness(
             witness_id=party.id,
             question=request.question,
             timestamp=get_current_datetime(),
+            exhibit_refs=exhibit_refs,
         )
     )
 
@@ -310,6 +333,8 @@ async def examine_witness(
 
     try:
         await case.save()
+        for item in tendered:
+            await index_evidence_item(case, item)
         await upsert_memory_item(
             case,
             "witness_testimony",
@@ -443,6 +468,77 @@ async def finish_ai_turn(case_cnr: str, witness_id: str, testimony_id: str) -> N
     )
 
 
+SIDE_NAME = {"plaintiff": "the Plaintiff", "defendant": "the Defence"}
+LOG_CANDIDATES = 6
+
+
+async def ai_logs_testimony(case_cnr: str, witness_id: str, ai_role: str) -> None:
+    """At the end of its turn the AI lawyer may log one of the witness's answers
+    as an exhibit, as the user can with Extract as evidence."""
+    case = await Case.find_one(Case.cnr == case_cnr)
+    if not case:
+        return
+    logged = {item.origin_id for item in case.evidence}
+    answers = [
+        e
+        for e in case.courtroom_proceedings
+        if e.type == CourtroomProceedingsEventType.WITNESS_EXAMINED_A
+        and e.witness_id == witness_id
+        and e.content
+        and not e.struck
+        and e.id not in logged
+    ][-LOG_CANDIDATES:]
+    if not answers:
+        return
+    pick = await lawyer.choose_testimony_to_log(
+        ai_role,
+        pick_case_context(None, case.details),
+        [a.content or "" for a in answers],
+    )
+    if pick is None:
+        return
+    answer = answers[pick]
+    name = answer.speaker_name or "the witness"
+    item = await extract_evidence_from_text(
+        answer.content or "",
+        source=f"{name} testimony",
+        exhibit_ref=next_exhibit_ref(case),
+    )
+    item.origin_id = answer.id
+    item.extracted_by = ai_role
+    note = CourtroomProceedingsEvent(
+        type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
+        content=f"Counsel for {SIDE_NAME[ai_role]} logs {name}'s answer as {item.exhibit_ref}",
+        timestamp=get_current_datetime(),
+    )
+    # ponytail: exhibit numbering can clash if the user extracts at this same
+    # moment; a unique index on exhibit refs would close that.
+    await Case.find_one(Case.cnr == case_cnr).update_one(
+        {"$push": {"evidence": item, "courtroom_proceedings": note}}
+    )
+    await index_evidence_item(case, item)
+
+
+def objection_window(question: str) -> float:
+    """Seconds from the AI's question to the witness's answer: time for it to type
+    out on the user's screen and be read, so they can object before the answer."""
+    return min(20.0, 5 + len(question) / 15)
+
+
+async def wait_for_ruling(case_cnr: str) -> Case | None:
+    """The case once no objection is pending: the AI examiner waits for the court.
+
+    ponytail: polls once a second; a hold lapses by itself (Case.OBJECTION_HOLD),
+    so one left behind can't stall the examination for good.
+    """
+    for _ in range(int(Case.OBJECTION_HOLD.total_seconds())):
+        case = await Case.find_one(Case.cnr == case_cnr)
+        if not case or not case.objection_pending:
+            return case
+        await asyncio.sleep(1)
+    return await Case.find_one(Case.cnr == case_cnr)
+
+
 async def process_ai_examination(case_cnr: str):
     """Background task: the AI examines the witness for the current phase.
 
@@ -488,8 +584,9 @@ async def process_ai_examination(case_cnr: str):
     }
 
     try:
-        for asked in range(max_questions):
-            case = await Case.find_one(Case.cnr == case_cnr)
+        asked = 0  # questions put to the witness so far
+        while asked < max_questions:
+            case = await wait_for_ruling(case_cnr)
             if not case or case.current_witness_id != initial_witness_id:
                 logger.info("Witness changed or dismissed, stopping AI examination")
                 break
@@ -534,11 +631,14 @@ async def process_ai_examination(case_cnr: str):
                 can_stop=asked >= min_questions,
                 case_arguments=arguments_summary,
                 rag_context=question_context,
+                evidence_context=format_evidence_context(case.evidence),
             )
             if not question:
                 logger.info(f"AI ended {phase.value} after {asked} question(s)")
                 break
 
+            # Exhibits the AI names are put to the witness, as the user's are.
+            q_refs = refs_in(case, question)
             q_event = CourtroomProceedingsEvent(
                 type=CourtroomProceedingsEventType.WITNESS_EXAMINED_Q,
                 timestamp=get_current_datetime(),
@@ -547,13 +647,31 @@ async def process_ai_examination(case_cnr: str):
                 speaker_name="AI Lawyer",
                 witness_id=party.id,
                 question=question,
+                exhibit_refs=q_refs,
             )
-            result = await Case.find_one(still_examining).update_one(
-                {"$push": {"courtroom_proceedings": q_event}}
-            )
+            # Posted only while no objection is live: the user may click Object
+            # while this question was being drafted. Then the court rules first
+            # and the AI drafts afresh in light of the ruling.
+            lapsed = get_current_datetime() - Case.OBJECTION_HOLD
+            no_objection = {
+                "$or": [
+                    {"objection_pending_at": None},
+                    {"objection_pending_at": {"$lt": lapsed}},
+                ]
+            }
+            result = await Case.find_one(
+                {**still_examining, **no_objection}
+            ).update_one({"$push": {"courtroom_proceedings": q_event}})
             if not isinstance(result, UpdateResult) or not result.modified_count:
+                if await Case.find_one(still_examining):
+                    logger.info(
+                        "Objection raised while drafting: waiting, then redrafting"
+                    )
+                    continue
                 logger.info("AI examination was stopped meanwhile, discarding question")
                 break
+            asked += 1
+            posted = time.monotonic()
             await upsert_memory_item(
                 case,
                 "proceeding",
@@ -587,21 +705,36 @@ async def process_ai_examination(case_cnr: str):
                     witness_role=party.role.value,
                     witness_bio=party.bio or "",
                     examiner_role=ai_role,
-                    question=question,
+                    question=question + exhibit_note(case, q_refs),
                     case_details=case.details,
                     examination_history=(
                         exam_history[-settings.witness_history_limit :]
                         + [{"examiner": ai_role, "question": question, "answer": ""}]
                     ),
                     rag_context=answer_context,
+                    evidence_context=format_evidence_context(case.evidence),
                 )
             except Exception:
                 logger.exception("Error generating answer")
                 break
 
-            # The answer is generated immediately, but only becomes visible after
-            # a court-style pause.
-            await asyncio.sleep(3)
+            # The answer is drafted at once but given only after the objection
+            # window, counted from when the question went on the record.
+            await asyncio.sleep(
+                max(0.0, objection_window(question) - (time.monotonic() - posted))
+            )
+            # If the user objected to the question, the witness waits for the
+            # ruling, and doesn't answer a question the court made withdrawn.
+            case = await wait_for_ruling(case_cnr)
+            if not case:
+                break
+            asked_q = next(
+                (e for e in case.courtroom_proceedings if e.id == q_event.id), None
+            )
+            if not asked_q:
+                break
+            if asked_q.struck:
+                continue
 
             exam_item = ExaminationItem(
                 examiner=ai_role, question=question, answer=answer, phase=phase
@@ -660,13 +793,15 @@ async def process_ai_examination(case_cnr: str):
     except Exception:
         logger.exception("Error in background examination")
     finally:
+        try:
+            await ai_logs_testimony(case_cnr, initial_witness_id, ai_role)
+        except Exception:
+            logger.exception("AI lawyer couldn't log testimony as evidence")
         await finish_ai_turn(case_cnr, initial_witness_id, testimony_id)
         logger.info("Background examination finished")
 
 
-@router.post(
-    "/{case_cnr}/witness/ai-cross-examine", dependencies=[Depends(courtroom_control)]
-)
+@router.post("/{case_cnr}/witness/ai-cross-examine", dependencies=[controls_hearing])
 async def ai_cross_examine_witness(
     case_cnr: str,
     background_tasks: BackgroundTasks,
@@ -739,7 +874,7 @@ async def ai_cross_examine_witness(
     )
 
 
-@router.post("/{case_cnr}/witness/conclude", dependencies=[Depends(courtroom_control)])
+@router.post("/{case_cnr}/witness/conclude", dependencies=[controls_hearing])
 async def conclude_witness(
     case_cnr: str, current_user: User = Depends(get_current_user)
 ):
@@ -776,7 +911,7 @@ async def conclude_witness(
     )
 
 
-@router.post("/{case_cnr}/witness/dismiss", dependencies=[Depends(courtroom_control)])
+@router.post("/{case_cnr}/witness/dismiss", dependencies=[controls_hearing])
 async def dismiss_witness(
     case_cnr: str, current_user: User = Depends(get_current_user)
 ):
@@ -924,7 +1059,7 @@ async def get_all_testimonies(
     return AllTestimoniesResponse(testimonies=testimonies)
 
 
-@router.post("/{case_cnr}/witness/ai-call", dependencies=[Depends(courtroom_control)])
+@router.post("/{case_cnr}/witness/ai-call", dependencies=[controls_hearing])
 async def ai_call_witness(
     case_cnr: str,
     background_tasks: BackgroundTasks,
@@ -947,6 +1082,9 @@ async def ai_call_witness(
     if case.current_witness_id:
         return {"should_call": False, "reason": "A witness is already on the stand"}
 
+    if case.pending_leave:
+        return {"should_call": False, "reason": "Waiting for the court's leave"}
+
     arguments_since_witness = count_arguments_since_last_witness_activity(case)
     if arguments_since_witness < MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS:
         return {
@@ -964,7 +1102,7 @@ async def ai_call_witness(
     available_witnesses = [
         {"id": p.id, "name": p.name, "role": p.role.value, "bio": p.bio or ""}
         for p in case.parties_involved
-        if p.id not in testified_ids
+        if p.id not in testified_ids and p.id not in case.refused_witness_ids
     ]
 
     if not available_witnesses:
@@ -999,52 +1137,36 @@ async def ai_call_witness(
             ),
         )
 
-        if witness_id:
-            # Find the witness name
-            witness_name = None
-            witness_role = None
-            for w in available_witnesses:
-                if w["id"] == witness_id:
-                    witness_name = w["name"]
-                    witness_role = w["role"]
-                    break
-
-            # Actually call the witness
-            party = case.get_party(witness_id)
-            if party:
-                testimony = WitnessTestimony(
-                    witness_id=party.id, witness_name=party.name, called_by=ai_role
-                )
-                case.witness_testimonies.append(testimony)
-                case.current_witness_id = party.id
-                case.courtroom_proceedings.append(
-                    CourtroomProceedingsEvent(
-                        type=CourtroomProceedingsEventType.WITNESS_CALLED,
-                        content=f"{party.name} called to the witness stand by {ai_role}.",
-                        speaker_role=ai_role,
-                        speaker_name=party.name,
-                        witness_id=party.id,
-                        timestamp=get_current_datetime(),
-                    )
-                )
-
-                # The AI called the witness, so it examines in chief first.
-                case.is_ai_examining = True
-                await case.save()
-
-                background_tasks.add_task(process_ai_examination, case_cnr)
-
-                logger.info(
-                    f"AI called witness: {witness_name}, auto-starting AI examination"
-                )
-                return {
-                    "should_call": True,
-                    "witness_id": witness_id,
-                    "witness_name": witness_name,
-                    "witness_role": witness_role,
-                    "called_by": ai_role,
-                    "message": f"The {ai_role}'s lawyer calls {witness_name} to the witness stand.",
-                }
+        party = case.get_party(witness_id) if witness_id else None
+        if party:
+            # The AI asks the court's leave; the user may object before it's granted.
+            side = "the Plaintiff" if ai_role == "plaintiff" else "the Defence"
+            request = CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.LEAVE_REQUEST,
+                content=f"Your Honour, {side} seeks leave to call {party.name} to the stand.",
+                speaker_role=ai_role,
+                speaker_name=AI_SPEAKER[ai_role],
+                witness_id=party.id,
+                timestamp=get_current_datetime(),
+            )
+            case.courtroom_proceedings.append(request)
+            case.pending_leave = PendingLeave(
+                event_id=request.id,
+                witness_id=party.id,
+                witness_name=party.name,
+                called_by=ai_role,
+            )
+            await case.save()
+            logger.info(f"AI seeks leave to call witness: {party.name}")
+            return {
+                "should_call": True,
+                "pending_leave": True,
+                "witness_id": party.id,
+                "witness_name": party.name,
+                "witness_role": party.role.value,
+                "called_by": ai_role,
+                "message": request.content,
+            }
 
         return {
             "should_call": False,
@@ -1053,3 +1175,101 @@ async def ai_call_witness(
     except Exception:
         logger.exception("Error in AI witness decision")
         return {"should_call": False, "reason": "Error evaluating witness strategy"}
+
+
+def seat_ai_witness(case: Case, background_tasks: BackgroundTasks) -> str:
+    """Leave granted: the AI's witness takes the stand and the AI examines in chief."""
+    leave = case.pending_leave
+    assert leave is not None
+    case.pending_leave = None
+    case.witness_testimonies.append(
+        WitnessTestimony(
+            witness_id=leave.witness_id,
+            witness_name=leave.witness_name,
+            called_by=leave.called_by,
+        )
+    )
+    case.current_witness_id = leave.witness_id
+    case.courtroom_proceedings.append(
+        CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.WITNESS_CALLED,
+            content=f"{leave.witness_name} called to the witness stand by {leave.called_by}.",
+            speaker_role=leave.called_by,
+            speaker_name=leave.witness_name,
+            witness_id=leave.witness_id,
+            timestamp=get_current_datetime(),
+        )
+    )
+    case.is_ai_examining = True
+    background_tasks.add_task(process_ai_examination, case.cnr)
+    return leave.witness_name
+
+
+@router.post("/{case_cnr}/witness/leave/respond", dependencies=[controls_hearing])
+async def respond_to_leave(
+    case_cnr: str,
+    request: LeaveResponseRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    """Answer the other side's request to call a witness: no objection, or object.
+
+    An objection is ruled on by the judge; sustained refuses leave (that witness
+    won't be asked for again), overruled grants it.
+    """
+    case = await get_owned_case(case_cnr, current_user)
+    if case.status != CaseStatus.ACTIVE:
+        raise HTTPException(status_code=409, detail=messages.COURT_NOT_IN_SESSION)
+    leave = case.pending_leave
+    if leave is None:
+        raise HTTPException(
+            status_code=409, detail="No one is asking to call a witness."
+        )
+
+    if request.objection is None:
+        case.courtroom_proceedings.append(
+            CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
+                content="No objection · Leave granted",
+                timestamp=get_current_datetime(),
+            )
+        )
+        name = seat_ai_witness(case, background_tasks)
+        await case.save()
+        return {"granted": True, "witness_name": name}
+
+    grounds = request.objection.grounds
+    details = request.objection.details.strip()
+    check_grounds("leave", grounds)
+    party = case.get_party(leave.witness_id)
+    user_side = (
+        case.user_role.value if case.user_role != Roles.NOT_STARTED else "plaintiff"
+    )
+    testified = ", ".join(t.witness_name for t in case.witness_testimonies) or "no one"
+    sustained, ruling = await judge.rule_on_objection(
+        kind="leave",
+        grounds=grounds,
+        details=details,
+        target_text=(
+            f"Leave to call {leave.witness_name}"
+            f" ({party.role.value if party else 'not a party'}). "
+            f"{(party.bio if party and party.bio else '')} "
+            f"Witnesses already heard: {testified}."
+        ),
+        objector_role=user_side,
+        case_context=pick_case_context(None, case.details),
+        record=record_lines(case),
+    )
+    case.courtroom_proceedings.extend(
+        objection_events(
+            case, current_user, leave.event_id, grounds, details, sustained, ruling
+        )
+    )
+    if sustained:
+        case.pending_leave = None
+        case.refused_witness_ids.append(leave.witness_id)
+        await case.save()
+        return {"granted": False, "sustained": True, "ruling": ruling}
+    name = seat_ai_witness(case, background_tasks)
+    await case.save()
+    return {"granted": True, "sustained": False, "ruling": ruling, "witness_name": name}

@@ -43,7 +43,7 @@ test.describe("case details", () => {
       [`GET /cases/${CNR}`]: (route: Route) => route.fulfill({ json: body ? picked : caseOf() }),
       [`PUT /cases/${CNR}/roles`]: async (route: Route) => {
         body = route.request().postDataJSON();
-        await route.fulfill({ json: { image_generation: { generated: 1 } } });
+        await route.fulfill({ json: { images_queued: 1 } });
       },
       ...prepRoutes(picked),
     });

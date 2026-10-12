@@ -36,6 +36,7 @@ async def examine_witness(
     case_details: str,
     examination_history: list[dict] | None = None,
     rag_context: str | None = None,
+    evidence_context: str = "",
 ) -> str:
     """
     Generate a witness response to an examination question.
@@ -89,6 +90,9 @@ Your Background:
 
 Case Context (for reference, do not quote directly):
 {case_context}
+
+Exhibits before the court (if counsel shows you one, answer from what you know of it):
+{evidence_context or "(None yet)"}
 
 Previous Examination (if any):
 {history_text if history_text else "(This is the first question)"}
@@ -184,6 +188,7 @@ async def generate_witness_question(
     can_stop: bool,
     case_arguments: str = "",
     rag_context: str | None = None,
+    evidence_context: str = "",
 ) -> str | None:
     """The AI lawyer's next question to the witness, or None to stop.
 
@@ -224,9 +229,13 @@ Arguments made in this case so far:
 Testimony from this witness so far:
 {testimony_text if testimony_text else "(No testimony yet - this is the first question)"}
 
+Exhibits before the court:
+{evidence_context or "(None)"}
+
 Rules:
 - Ask ONE question; build on the answers so far and never repeat a question
 - Rely only on facts in the case file and the testimony; never invent any
+- You may put an exhibit to the witness by naming its reference (e.g. "Look at EX-02 ...")
 - {stop_rule}
 
 You are speaking to the WITNESS, not the judge. "My Lord" and "Your Lordship" are
