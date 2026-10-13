@@ -1,5 +1,5 @@
 # app/schemas/user.py
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import (
@@ -12,7 +12,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.models.user import AuthMethod, PartialScoring
+from app.models.user import AuthMethod, NotificationPrefs, PartialScoring
 from app.utils.datetime import get_current_datetime
 from app.utils.llm_trace import is_developer
 
@@ -126,6 +126,15 @@ class UserOut(BaseModel):
     preferred_case_state: str | None = None
     rag_enabled: bool = True
     partial_scoring: PartialScoring = "zero"
+
+    # Account and security
+    has_password: bool = False
+    google_linked: bool = False
+    google_email: str | None = None
+    password_changed_at: datetime | None = None
+    notification_prefs: NotificationPrefs = NotificationPrefs()
+    data_export_requested_at: datetime | None = None
+    member_since: datetime | None = None
 
     @computed_field
     @property

@@ -1,6 +1,7 @@
 # app/services/email.py
 import asyncio
 import smtplib
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -19,8 +20,13 @@ def _deliver(message: MIMEMultipart) -> None:
     server.quit()
 
 
-async def send_email(to_email: str, subject: str, body: str):
-    """Send an email using SMTP"""
+async def send_email(
+    to_email: str,
+    subject: str,
+    body: str,
+    attachments: tuple[tuple[str, bytes], ...] = (),
+):
+    """Send an email using SMTP, with optional (filename, bytes) attachments."""
     message = MIMEMultipart()
     # Use a display name that shows your brand but keeps the actual Gmail address
     message["From"] = f"AI Courtroom <{settings.email_username}>"
@@ -28,6 +34,10 @@ async def send_email(to_email: str, subject: str, body: str):
     message["Subject"] = subject
 
     message.attach(MIMEText(body, "html"))
+    for filename, data in attachments:
+        part = MIMEApplication(data, Name=filename)
+        part["Content-Disposition"] = f'attachment; filename="{filename}"'
+        message.attach(part)
 
     try:
         logger.debug(
@@ -82,3 +92,65 @@ async def send_password_reset_email(email: str, link: str) -> bool:
     </html>
     """
     return await send_email(email, subject, body)
+
+
+async def send_delete_code_email(email: str, code: str) -> bool:
+    """The code that confirms deleting the account."""
+    body = f"""
+    <html>
+    <body>
+        <h2>AI Courtroom - Confirm account deletion</h2>
+        <p>Your code to delete your AI Courtroom account is: <strong>{code}</strong></p>
+        <p>It expires in {settings.otp_expire_minutes} minutes.</p>
+        <p>If you did not ask to delete your account, change your password now.</p>
+    </body>
+    </html>
+    """
+    return await send_email(email, "Confirm account deletion - AI Courtroom", body)
+
+
+async def send_security_alert(email: str, subject: str, lines: list[str]) -> bool:
+    """New sign-ins, password changes and deletion. Always sent, with no opt-out."""
+    paragraphs = "".join(f"<p>{line}</p>" for line in lines)
+    body = f"""
+    <html>
+    <body>
+        <h2>AI Courtroom - {subject}</h2>
+        {paragraphs}
+        <p>If this wasn't you, change your password and sign out other devices in
+        Settings, or contact us.</p>
+    </body>
+    </html>
+    """
+    return await send_email(email, f"{subject} - AI Courtroom", body)
+
+
+async def send_email_change_code(email: str, code: str) -> bool:
+    """The code that proves this address belongs to whoever is adding it."""
+    body = f"""
+    <html>
+    <body>
+        <h2>AI Courtroom - Confirm your email</h2>
+        <p>Your code to add this email to your AI Courtroom account is: <strong>{code}</strong></p>
+        <p>It expires in {settings.otp_expire_minutes} minutes.</p>
+        <p>If you did not ask for this, you can ignore this email.</p>
+    </body>
+    </html>
+    """
+    return await send_email(email, "Confirm your email - AI Courtroom", body)
+
+
+async def send_case_ready_email(email: str, title: str, cnr: str, base: str) -> bool:
+    """A generated case is ready. Sent only with the "Case ready" setting on."""
+    body = f"""
+    <html>
+    <body>
+        <h2>AI Courtroom - Your case is ready</h2>
+        <p><strong>{title}</strong> ({cnr}) has finished drafting.</p>
+        <p><a href="{base}/cases/{cnr}">Open the case file</a></p>
+        <p style="color:#6b5d4b">You get this because "Case ready" is on.
+        <a href="{base}/settings">Turn it off in Settings</a>.</p>
+    </body>
+    </html>
+    """
+    return await send_email(email, f"Your case is ready: {title} - AI Courtroom", body)

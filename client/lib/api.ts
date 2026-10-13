@@ -2,9 +2,12 @@ import axios, { type AxiosError } from "axios";
 import type {
   CaseGenerationFormData,
   ContactFormData,
+  DeviceSession,
   LoginFormData,
+  NotificationPrefs,
   PartialScoring,
   RegisterFormData,
+  User,
   UserStats,
 } from "@/types";
 
@@ -349,17 +352,21 @@ export const authAPI = {
   },
 
   // Update profile
+  // Only the fields sent change; an optional one sent as null or "" is cleared.
   updateProfile: async (data: {
     first_name?: string;
     last_name?: string;
-    nickname?: string;
-    gender?: string;
-    city?: string;
-    state?: string;
-    state_iso2?: string;
-    country?: string;
-    country_iso2?: string;
-    phone_code?: string;
+    nickname?: string | null;
+    gender?: string | null;
+    date_of_birth?: string | null;
+    email?: string | null;
+    phone_code?: string | null;
+    phone_number?: string | null;
+    city?: string | null;
+    state?: string | null;
+    state_iso2?: string | null;
+    country?: string | null;
+    country_iso2?: string | null;
   }) => {
     try {
       const response = await api.put("/auth/profile", data);
@@ -419,6 +426,33 @@ export const authAPI = {
       throw error;
     }
   },
+};
+
+// Account and security (Settings). Errors keep the server's `detail` for getErrorDetail.
+export const accountAPI = {
+  changePassword: async (current_password: string, new_password: string): Promise<{ signed_out: number }> =>
+    (await api.put("/auth/password", { current_password, new_password })).data,
+  sessions: async (): Promise<DeviceSession[]> => (await api.get("/auth/sessions")).data.sessions,
+  signOutOthers: async (): Promise<{ signed_out: number }> => (await api.post("/auth/sessions/revoke-others")).data,
+  /** Without a choice, different emails come back as `needs_choice` with a token for the second call. */
+  linkGoogle: async (body: {
+    credential?: string;
+    code?: string;
+    state?: string;
+    link_token?: string;
+    use_google_email?: boolean;
+  }): Promise<User | { needs_choice: true; google_email: string; link_token: string }> =>
+    (await api.post("/auth/google/link", body)).data,
+  unlinkGoogle: async (): Promise<User> => (await api.delete("/auth/google/link")).data,
+  updateNotifications: async (prefs: NotificationPrefs): Promise<User> =>
+    (await api.put("/auth/profile/notification-preference", prefs)).data,
+  requestExport: async (): Promise<{ requested_at: string; email: string }> => (await api.post("/auth/export")).data,
+  sendDeleteCode: async (): Promise<{ sent_to: string }> => (await api.post("/auth/account/delete-code")).data,
+  /** A phone account adds an email by entering the code sent to it. */
+  sendEmailCode: async (email: string): Promise<{ sent_to: string }> => (await api.post("/auth/profile/email/send-code", { email })).data,
+  verifyEmailCode: async (code: string): Promise<User> => (await api.post("/auth/profile/email/verify", { code })).data,
+  deleteAccount: async (proof: { password?: string; code?: string }): Promise<{ recoverable_until: string }> =>
+    (await api.delete("/auth/account", { data: { ...proof, confirm: "DELETE" } })).data,
 };
 
 // Case API calls

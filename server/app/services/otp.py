@@ -7,7 +7,11 @@ from app import messages
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.otp import OTP
-from app.services.email import send_otp_email
+from app.services.email import (
+    send_delete_code_email,
+    send_email_change_code,
+    send_otp_email,
+)
 from app.services.sms import send_sms
 from app.utils.datetime import create_expiry_time, get_current_datetime
 from app.utils.rate_limiter import otp_send_rate_limiter
@@ -24,6 +28,7 @@ async def create_otp(
     email: str,
     is_registration: bool = True,
     channel: Literal["email", "sms"] = "email",
+    purpose: str | None = None,
 ) -> str:
     """Create, store and deliver an OTP.
 
@@ -47,7 +52,11 @@ async def create_otp(
 
     # Store OTP in database (UTC time)
     otp = OTP(
-        email=email, otp=otp_code, expiry=expiry_utc, is_registration=is_registration
+        email=email,
+        otp=otp_code,
+        expiry=expiry_utc,
+        is_registration=is_registration,
+        purpose=purpose,
     )
     logger.debug(f"Inserting OTP for: {email}, expiry={expiry_utc}")
     await otp.insert()
@@ -55,11 +64,16 @@ async def create_otp(
     logger.debug(f"OTP inserted successfully for: {email}")
 
     if channel == "sms":
+        purpose_text = " to delete your account" if purpose == "delete_account" else ""
         await send_sms(
             email,
-            f"{otp_code} is your AI Courtroom code. "
+            f"{otp_code} is your AI Courtroom code{purpose_text}. "
             f"It expires in {settings.otp_expire_minutes} minutes.",
         )
+    elif purpose == "delete_account":
+        await send_delete_code_email(email, otp_code)
+    elif purpose == "email_change":
+        await send_email_change_code(email, otp_code)
     else:
         await send_otp_email(email, otp_code, is_registration)
 
@@ -67,15 +81,20 @@ async def create_otp(
 
 
 async def verify_otp(
-    email: str, otp_code: str, is_registration: bool | None = None
+    email: str,
+    otp_code: str,
+    is_registration: bool | None = None,
+    purpose: str | None = None,
 ) -> bool:
     """Check an OTP and consume it on success, so each code works only once.
 
     Every check uses up one of ``settings.otp_max_attempts`` tries; after the
     last one the code is discarded, so a 6-digit code can't be brute-forced.
     If ``is_registration`` is given, the OTP must have been issued for that purpose.
+    A code issued for another ``purpose`` (e.g. deleting the account) never
+    signs anyone in.
     """
-    filters = [OTP.email == email]
+    filters = [OTP.email == email, OTP.purpose == purpose]
     if is_registration is not None:
         filters.append(OTP.is_registration == is_registration)
 

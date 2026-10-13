@@ -802,6 +802,29 @@ async def test_generate_case_uses_location_preference(
     )
 
 
+@pytest.mark.parametrize("wanted", [True, False])
+async def test_generated_case_is_emailed_when_the_user_wants_it(
+    client, make_user, make_auth_headers, fake_llm, outbox, wanted
+):
+    fake_llm.responder = generation_responder
+    user = await make_user(notification_prefs={"case_ready": wanted})
+
+    response = await client.post(
+        "/cases/generate",
+        headers=make_auth_headers(user),
+        json={"sections_involved": 1, "section_numbers": [303]},
+    )
+
+    cnr = response.json()["cnr"]
+    ready = [m for m in outbox if m["subject"].startswith("Your case is ready")]
+    if wanted:
+        assert [m["to"] for m in ready] == [user.email]
+        assert f"/cases/{cnr}" in ready[0]["body"]
+        assert "/settings" in ready[0]["body"]
+    else:
+        assert ready == []
+
+
 async def test_generate_case_shell_failure_returns_500(client, auth_headers, fake_llm):
     fake_llm.error = RuntimeError("provider down")
 

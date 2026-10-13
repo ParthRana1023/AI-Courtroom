@@ -4,7 +4,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 from beanie import PydanticObjectId
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 from app import messages
 from app.config import settings
@@ -28,6 +28,7 @@ from app.models.report import Report
 from app.models.user import User
 from app.schemas.case import CaseCreate, CaseOut
 from app.services.counsel_conferences import run_counsel_conferences
+from app.services.email import send_case_ready_email
 from app.services.evidence_service import (
     extract_evidence_items,
     format_evidence_context,
@@ -587,6 +588,8 @@ async def get_case_history(
 @router.post("/generate", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
 async def generate_new_case(
     case_data: CaseCreate,
+    request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(case_generation_rate_limiter.check_only),
 ):
     logger.info(
@@ -686,6 +689,16 @@ async def generate_new_case(
     # Register rate limit usage only after successful generation
     await case_generation_rate_limiter.register_usage(str(current_user.id))
     logger.debug(f"Rate limit registered for user: {current_user.email}")
+
+    # "Case ready" email, if the user wants it (Settings -> Notifications).
+    if current_user.email and current_user.notification_prefs.case_ready:
+        background_tasks.add_task(
+            send_case_ready_email,
+            current_user.email,
+            case.title,
+            case.cnr,
+            settings.app_url_for(request.headers.get("origin")),
+        )
 
     # Convert ObjectId fields to strings before returning
     case_dict = case.model_dump()

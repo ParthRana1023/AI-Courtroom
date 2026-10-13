@@ -57,8 +57,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
             logger.warning(f"Token validation failed - user lookup error: {e!s}")
             raise credentials_exception from e
 
-    if user is None:
-        logger.warning(f"Token validation failed - user not found: {user_id}")
+    if user is None or user.deleted_at is not None:
+        logger.warning(f"Token validation failed - no active user: {user_id}")
         raise credentials_exception
 
     # A revoked session (signed out remotely, password reset) ends here. Tokens

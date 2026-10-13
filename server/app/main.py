@@ -20,6 +20,8 @@ from app.logging_config import (
 )
 from app.models.case import Case
 from app.routes import (
+    account,
+    admin,
     arguments,
     auth,
     case_analysis,
@@ -194,6 +196,8 @@ async def health_check():
 
 
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+app.include_router(account.router, prefix="/auth", tags=["Account"])
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 app.include_router(cases.router, prefix="/cases", tags=["Cases"])
 app.include_router(evidence.router, prefix="/cases", tags=["Evidence"])
 app.include_router(arguments.router, prefix="/cases", tags=["Arguments"])

@@ -1,909 +1,636 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import {
-  Settings,
-  Save,
-  Check,
-  Cookie,
-  Type,
-  Shield,
-  FolderCog,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  BrainCircuit,
-  Trophy,
-  Cpu,
-} from "lucide-react";
-import { useSettings } from "@/contexts/settings-context";
-import { useCookieConsent } from "@/contexts/cookie-consent-context";
-import { useAuth } from "@/contexts/auth-context";
-import { locationAPI, authAPI } from "@/lib/api";
-import type {
-  IndianState,
-  CaseLocationPreference,
-  PartialScoring,
-} from "@/types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useTheme } from "next-themes";
 import SiteHeader from "@/components/chrome/site-header";
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarInset,
-  SidebarHeader,
-  SidebarFooter,
-  useSidebar,
-} from "@/components/animate-ui/components/radix/sidebar";
-import { useLifecycleLogger } from "@/hooks/use-performance-logger";
-import { getLogger } from "@/lib/logger";
+import AccountSection from "@/components/settings/account";
+import { Box, LABEL, Lead, OUTLINE, Options, Section, Switch, TAG } from "@/components/settings/kit";
+import { useAuth } from "@/contexts/auth-context";
+import { useCookieConsent } from "@/contexts/cookie-consent-context";
+import { usePwaInstall } from "@/contexts/pwa-install-context";
+import { useSettings } from "@/contexts/settings-context";
+import { useMounted } from "@/hooks/use-mounted";
+import { useOnline } from "@/hooks/use-online";
+import { useViewport } from "@/hooks/use-viewport";
+import { accountAPI, authAPI, locationAPI } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import type { CaseLocationPreference, PartialScoring } from "@/types";
 
-const logger = getLogger("ui");
+// Settings.dc.html: one form, one save bar. Theme and developer mode apply at once.
 
-// Custom toggle button for sidebar
-function SidebarToggleButton() {
-  const { state, toggleSidebar } = useSidebar();
-  const isOpen = state === "expanded";
-
-  return (
-    <button
-      onClick={toggleSidebar}
-      className="flex items-center justify-center w-full p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200"
-      aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
-    >
-      {isOpen ? (
-        <>
-          <ChevronLeft className="h-5 w-5" />
-          {/* <span className="ml-2 group-data-[collapsible=icon]:hidden">
-            Collapse
-          </span> */}
-        </>
-      ) : (
-        <ChevronRight className="h-5 w-5" />
-      )}
-    </button>
-  );
+type TextSize = "small" | "medium" | "large";
+interface Local {
+  textSize: TextSize;
+  enterSubmits: boolean;
+  autoExpand: boolean;
+  skipArchive: boolean;
+  skipDelete: boolean;
+  loc: CaseLocationPreference;
+  locState: string;
+  rag: boolean;
+  partial: PartialScoring;
+  nCase: boolean;
+  nRemind: boolean;
+  nProduct: boolean;
 }
+type Key = keyof Local;
+
+/** [id, title, tab label, signed-in only] */
+const SECS: [string, string, string, boolean][] = [
+  ["text", "Accessibility", "Text", false],
+  ["look", "Appearance", "Theme", false],
+  ["writing", "Writing arguments", "Writing", true],
+  ["cases", "Case management", "Cases", true],
+  ["ai", "Courtroom AI", "AI", true],
+  ["notify", "Notifications", "Email", true],
+  ["privacy", "Privacy", "Privacy", false],
+  ["account", "Account & security", "Account", true],
+];
+const GROUP: Record<string, Key[]> = {
+  text: ["textSize"],
+  writing: ["enterSubmits", "autoExpand"],
+  cases: ["skipArchive", "skipDelete", "loc", "locState"],
+  ai: ["rag", "partial"],
+  // Hearing reminders and product updates come back once something sends them.
+  notify: ["nCase"],
+};
+/** Kept on this device, so a signed-out visitor can set them too. */
+const DEVICE: Key[] = ["textSize", "enterSubmits", "autoExpand", "skipArchive", "skipDelete"];
+const NUMS = ["I.", "II.", "III.", "IV.", "V.", "VI.", "VII.", "VIII."];
 
 export default function SettingsPage() {
-  useLifecycleLogger("SettingsPage");
-
-  const { isAuthenticated, user } = useAuth();
-  const {
-    enterKeySubmits,
-    setEnterKeySubmits,
-    autoExpandTextAreas,
-    setAutoExpandTextAreas,
-    textSize,
-    setTextSize,
-    skipArchiveConfirmation,
-    setSkipArchiveConfirmation,
-    skipDeleteConfirmation,
-    setSkipDeleteConfirmation,
-    devMode,
-    setDevMode,
-  } = useSettings();
+  const st = useSettings();
+  const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
+  const { theme, setTheme } = useTheme();
+  const mounted = useMounted();
   const { consent, openSettings: openCookieSettings } = useCookieConsent();
+  const { canInstall, isInstalled, installMode, openPrompt } = usePwaInstall();
+  const online = useOnline();
+  const { w } = useViewport();
+  const wide = w >= 860;
+  const mob = w < 560;
+  const signedIn = isAuthenticated && !!user;
 
-  // Ref for sections to scroll to
-  const accessibilityRef = useRef<HTMLDivElement>(null);
-  const privacyRef = useRef<HTMLDivElement>(null);
-  const caseManagementRef = useRef<HTMLDivElement>(null);
-
-  // Active section tracking
-  const [activeSection, setActiveSection] = useState("accessibility");
-
-  // Local state to track changes before saving
-  const [localEnterKeySubmits, setLocalEnterKeySubmits] =
-    useState(enterKeySubmits);
-  const [localAutoExpandTextAreas, setLocalAutoExpandTextAreas] =
-    useState(autoExpandTextAreas);
-  const [localTextSize, setLocalTextSize] = useState(textSize);
-  const [localSkipArchiveConfirmation, setLocalSkipArchiveConfirmation] =
-    useState(skipArchiveConfirmation);
-  const [localSkipDeleteConfirmation, setLocalSkipDeleteConfirmation] =
-    useState(skipDeleteConfirmation);
-
-  // Case location preference state
-  const [caseLocationPreference, setCaseLocationPreference] =
-    useState<CaseLocationPreference>("random");
-  const [preferredCaseState, setPreferredCaseState] = useState<string>("");
-  const [indianStates, setIndianStates] = useState<IndianState[]>([]);
-  const [, setIsLoadingStates] = useState(false);
-  const [originalCaseLocationPreference, setOriginalCaseLocationPreference] =
-    useState<CaseLocationPreference>("random");
-  const [originalPreferredCaseState, setOriginalPreferredCaseState] =
-    useState<string>("");
-  const [ragEnabled, setRagEnabled] = useState(true);
-  const [originalRagEnabled, setOriginalRagEnabled] = useState(true);
-  const [partialScoring, setPartialScoring] = useState<PartialScoring>("zero");
-  const [originalPartialScoring, setOriginalPartialScoring] =
-    useState<PartialScoring>("zero");
-
-  const [saveMessage, setSaveMessage] = useState("");
-  const [hasChanges, setHasChanges] = useState(false);
-
-  // Track changes to enable/disable save button
+  const saved = useMemo<Local>(
+    () => ({
+      textSize: st.textSize,
+      enterSubmits: st.enterKeySubmits,
+      autoExpand: st.autoExpandTextAreas,
+      skipArchive: st.skipArchiveConfirmation,
+      skipDelete: st.skipDeleteConfirmation,
+      loc: user?.case_location_preference ?? "random",
+      locState: user?.preferred_case_state ?? "",
+      rag: user?.rag_enabled ?? true,
+      partial: user?.partial_scoring ?? "zero",
+      nCase: user?.notification_prefs?.case_ready ?? true,
+      nRemind: user?.notification_prefs?.hearing_reminders ?? true,
+      nProduct: user?.notification_prefs?.product_updates ?? false,
+    }),
+    [st.textSize, st.enterKeySubmits, st.autoExpandTextAreas, st.skipArchiveConfirmation, st.skipDeleteConfirmation, user],
+  );
+  const [local, setLocal] = useState<Local>(saved);
+  // The form starts from the saved settings once we know who is signed in.
+  const seed = isLoading ? "" : (user?.id ?? "guest");
+  const seeded = useRef("");
   useEffect(() => {
-    const hasUnsavedChanges =
-      localEnterKeySubmits !== enterKeySubmits ||
-      localAutoExpandTextAreas !== autoExpandTextAreas ||
-      localTextSize !== textSize ||
-      localSkipArchiveConfirmation !== skipArchiveConfirmation ||
-      localSkipDeleteConfirmation !== skipDeleteConfirmation ||
-      caseLocationPreference !== originalCaseLocationPreference ||
-      preferredCaseState !== originalPreferredCaseState ||
-      ragEnabled !== originalRagEnabled ||
-      partialScoring !== originalPartialScoring;
+    if (!seed || seeded.current === seed) return;
+    seeded.current = seed;
+    setLocal(saved);
+  }, [seed, saved]);
 
-    setHasChanges(hasUnsavedChanges);
-  }, [
-    localEnterKeySubmits,
-    localAutoExpandTextAreas,
-    localTextSize,
-    localSkipArchiveConfirmation,
-    localSkipDeleteConfirmation,
-    enterKeySubmits,
-    autoExpandTextAreas,
-    textSize,
-    skipArchiveConfirmation,
-    skipDeleteConfirmation,
-    caseLocationPreference,
-    preferredCaseState,
-    originalCaseLocationPreference,
-    originalPreferredCaseState,
-    ragEnabled,
-    originalRagEnabled,
-    partialScoring,
-    originalPartialScoring,
-  ]);
-
-  // Load Indian states and user preferences
+  const [tried, setTried] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ t: string; ok: boolean } | null>(null);
+  const msgTimer = useRef(0);
+  const [states, setStates] = useState<{ state_iso2: string; state_name: string; high_court: string }[]>([]);
   useEffect(() => {
-    const loadData = async () => {
-      if (!isAuthenticated) return;
+    if (!signedIn) return;
+    locationAPI
+      .getIndianStates()
+      .then(setStates)
+      .catch(() => setStates([]));
+  }, [signedIn]);
 
-      // Load Indian states for the dropdown
-      setIsLoadingStates(true);
-      try {
-        const states = await locationAPI.getIndianStates();
-        setIndianStates(states);
-      } catch (error) {
-        logger.error("Failed to load Indian states", error as Error);
-      } finally {
-        setIsLoadingStates(false);
-      }
-
-      // Load user's current preferences
-      try {
-        const profile = await authAPI.getProfile();
-        if (profile.case_location_preference) {
-          setCaseLocationPreference(profile.case_location_preference);
-          setOriginalCaseLocationPreference(profile.case_location_preference);
-        }
-        if (profile.preferred_case_state) {
-          setPreferredCaseState(profile.preferred_case_state);
-          setOriginalPreferredCaseState(profile.preferred_case_state);
-        }
-        setRagEnabled(profile.rag_enabled ?? true);
-        setOriginalRagEnabled(profile.rag_enabled ?? true);
-        setPartialScoring(profile.partial_scoring ?? "zero");
-        setOriginalPartialScoring(profile.partial_scoring ?? "zero");
-      } catch (error) {
-        logger.error("Failed to load user preferences", error as Error);
-      }
-    };
-
-    loadData();
-  }, [isAuthenticated]);
-
-  const handleSave = async () => {
-    // Update global settings
-    setEnterKeySubmits(localEnterKeySubmits);
-    setAutoExpandTextAreas(localAutoExpandTextAreas);
-    setTextSize(localTextSize);
-    setSkipArchiveConfirmation(localSkipArchiveConfirmation);
-    setSkipDeleteConfirmation(localSkipDeleteConfirmation);
-
-    // Save case location preference to backend if authenticated
-    let backendSaveFailed = false;
-    if (isAuthenticated) {
-      const locationChanged =
-        caseLocationPreference !== originalCaseLocationPreference ||
-        preferredCaseState !== originalPreferredCaseState;
-
-      if (locationChanged) {
-        try {
-          await locationAPI.updateCaseLocationPreference({
-            case_location_preference: caseLocationPreference,
-            preferred_case_state:
-              caseLocationPreference === "specific_state"
-                ? preferredCaseState
-                : undefined,
-          });
-          setOriginalCaseLocationPreference(caseLocationPreference);
-          setOriginalPreferredCaseState(preferredCaseState);
-        } catch (error) {
-          backendSaveFailed = true;
-          logger.error("Failed to save case location preference", error as Error);
-        }
-      }
-
-      if (ragEnabled !== originalRagEnabled) {
-        try {
-          await authAPI.updateRagPreference({ rag_enabled: ragEnabled });
-          setOriginalRagEnabled(ragEnabled);
-        } catch (error) {
-          backendSaveFailed = true;
-          logger.error("Failed to save RAG preference", error as Error);
-        }
-      }
-
-      if (partialScoring !== originalPartialScoring) {
-        try {
-          await authAPI.updateStatsPreference({
-            partial_scoring: partialScoring,
-          });
-          setOriginalPartialScoring(partialScoring);
-        } catch (error) {
-          backendSaveFailed = true;
-          logger.error("Failed to save stats preference", error as Error);
-        }
-      }
-    }
-
-    // Show success message
-    setSaveMessage(
-      backendSaveFailed
-        ? "Some settings could not be saved. Please try again."
-        : "Settings saved successfully!",
-    );
-
-    // Clear message after 3 seconds
-    setTimeout(() => {
-      setSaveMessage("");
-    }, 3000);
+  const secs = SECS.filter(([, , , only]) => signedIn || !only);
+  const num = Object.fromEntries(secs.map(([id], i) => [id, NUMS[i]]));
+  const diff = (Object.keys(saved) as Key[]).filter(
+    (k) =>
+      (signedIn || DEVICE.includes(k)) &&
+      local[k] !== saved[k] &&
+      !(k === "locState" && local.loc !== "specific_state" && saved.loc !== "specific_state"),
+  );
+  const n = diff.length;
+  const edited = (id: string) => (GROUP[id] ?? []).some((k) => diff.includes(k));
+  const set = <K extends Key>(k: K, v: Local[K]) => {
+    setLocal((l) => ({ ...l, [k]: v }));
+    setMsg(null);
   };
 
-  // Get text size class based on current setting
-  const getTextSizeClass = () => {
-    switch (localTextSize) {
-      case "small":
-        return "text-sm";
-      case "large":
-        return "text-lg";
-      default:
-        return "text-base";
-    }
-  };
-
-  // Scroll to section
-  const scrollToSection = (section: string) => {
-    setActiveSection(section);
-    const refs: Record<string, React.RefObject<HTMLDivElement | null>> = {
-      accessibility: accessibilityRef,
-      privacy: privacyRef,
-      caseManagement: caseManagementRef,
+  // ---- section index: jump with an eased scroll, follow the scroll, keep the tab in view ----
+  const scRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState("text");
+  const lock = useRef(0);
+  const raf = useRef(0);
+  const jump = useCallback((id: string) => {
+    const sc = scRef.current;
+    const el = sc?.querySelector<HTMLElement>(`#s-${id}`);
+    setActive(id);
+    if (!sc || !el) return;
+    const from = sc.scrollTop;
+    const to = Math.max(0, Math.min(el.offsetTop - 14, sc.scrollHeight - sc.clientHeight));
+    const dist = to - from;
+    cancelAnimationFrame(raf.current);
+    lock.current = Date.now() + 2000;
+    const done = () => {
+      lock.current = Date.now();
+      sc.removeEventListener("wheel", cancel);
+      sc.removeEventListener("touchstart", cancel);
     };
-    refs[section]?.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
+    const cancel = () => {
+      cancelAnimationFrame(raf.current);
+      done();
+    };
+    if (Math.abs(dist) < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      sc.scrollTop = to;
+      return done();
+    }
+    sc.addEventListener("wheel", cancel, { passive: true });
+    sc.addEventListener("touchstart", cancel, { passive: true });
+    const dur = Math.min(950, 420 + Math.abs(dist) * 0.22);
+    const t0 = performance.now();
+    const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    const step = (now: number) => {
+      const p = Math.min(1, (now - t0) / dur);
+      sc.scrollTop = from + dist * ease(p);
+      if (p < 1) raf.current = requestAnimationFrame(step);
+      else done();
+    };
+    raf.current = requestAnimationFrame(step);
+  }, []);
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+
+  const onScroll = () => {
+    if (Date.now() - lock.current < 700) return;
+    const sc = scRef.current;
+    if (!sc) return;
+    let cur = secs[0][0];
+    sc.querySelectorAll<HTMLElement>("[data-sec]").forEach((el) => {
+      if (el.offsetTop - 60 <= sc.scrollTop) cur = el.id.slice(2);
     });
+    if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4) cur = secs[secs.length - 1][0];
+    if (cur !== active) setActive(cur);
   };
+
+  // Phones: the tab strip follows the section, the active tab near the left with the previous one peeking.
+  const firstActive = useRef(true);
+  useEffect(() => {
+    if (firstActive.current) {
+      firstActive.current = false;
+      return;
+    }
+    const strip = tabsRef.current;
+    const tab = strip?.querySelector<HTMLElement>(`[data-tab="${active}"]`);
+    if (!strip || !tab) return;
+    const prev = tab.previousElementSibling as HTMLElement | null;
+    const target = Math.max(0, Math.min((prev ? prev.offsetLeft + prev.offsetWidth * 0.5 : tab.offsetLeft) - 8, strip.scrollWidth - strip.clientWidth));
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) strip.scrollLeft = target;
+    else strip.scrollTo({ left: target, behavior: "smooth" });
+  }, [active]);
+
+  // ---- save bar ----
+  const flash = (t: string, ok: boolean) => {
+    window.clearTimeout(msgTimer.current);
+    setMsg({ t, ok });
+    if (ok) msgTimer.current = window.setTimeout(() => setMsg(null), 3000);
+  };
+  useEffect(() => () => window.clearTimeout(msgTimer.current), []);
+
+  const save = async () => {
+    if (!n || saving) return;
+    if (!online) return flash("Some settings could not be saved. You’re offline. Your changes are kept.", false);
+    if (local.loc === "specific_state" && !local.locState) {
+      setTried(true);
+      return jump("cases");
+    }
+    const has = (...ks: Key[]) => ks.some((k) => diff.includes(k));
+    if (has("textSize")) st.setTextSize(local.textSize);
+    if (has("enterSubmits")) st.setEnterKeySubmits(local.enterSubmits);
+    if (has("autoExpand")) st.setAutoExpandTextAreas(local.autoExpand);
+    if (has("skipArchive")) st.setSkipArchiveConfirmation(local.skipArchive);
+    if (has("skipDelete")) st.setSkipDeleteConfirmation(local.skipDelete);
+    const jobs: Promise<unknown>[] = [];
+    if (has("loc", "locState"))
+      jobs.push(
+        locationAPI.updateCaseLocationPreference({
+          case_location_preference: local.loc,
+          preferred_case_state: local.loc === "specific_state" ? local.locState : undefined,
+        }),
+      );
+    if (has("rag")) jobs.push(authAPI.updateRagPreference({ rag_enabled: local.rag }));
+    if (has("partial")) jobs.push(authAPI.updateStatsPreference({ partial_scoring: local.partial }));
+    if (has("nCase", "nRemind", "nProduct"))
+      jobs.push(accountAPI.updateNotifications({ case_ready: local.nCase, hearing_reminders: local.nRemind, product_updates: local.nProduct }));
+    setSaving(true);
+    const results = await Promise.allSettled(jobs);
+    if (jobs.length) await refreshUser();
+    setSaving(false);
+    setTried(false);
+    const failed = results.some((r) => r.status === "rejected");
+    flash(failed ? "Some settings could not be saved. Please try again." : "Settings saved successfully!", !failed);
+  };
+
+  const stateErr = tried && local.loc === "specific_state" && !local.locState ? "Choose a state, or pick another option." : "";
+  const status = msg?.t ?? (n ? (n === 1 ? "1 unsaved change" : `${n} unsaved changes`) : "All changes saved");
+  const statusColor = msg ? (msg.ok ? "text-green" : "text-error") : n ? "text-amber-deep" : "text-ink-muted";
+  const installLabel = `${installMode === "apk" ? "Download" : "Install"} app`;
+  const cookies: [string, boolean, boolean][] = [
+    ["Essential", true, true],
+    ["Functional", consent.functional, false],
+    ["Analytics", consent.analytics, false],
+    ["Marketing", consent.marketing, false],
+  ];
+
+  const heading = (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <span className={cn("whitespace-nowrap uppercase text-desk-red", mob ? "text-[10.5px] tracking-[0.16em]" : "text-[11px] tracking-[0.3em]")}>
+        Chambers · Preferences
+      </span>
+      <h1 className={cn("m-0 font-display font-normal", mob ? "text-[clamp(28px,8.5vw,40px)]/none" : "text-[clamp(36px,4vw,52px)]/none")}>SETTINGS</h1>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen">
-      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
-      <SidebarProvider defaultOpen={true}>
-        <Sidebar
-          variant="inset"
-          collapsible="icon"
-          className="pt-16 hidden md:flex"
-        >
-          <SidebarHeader className="pt-4 pb-6">
-            <div className="flex items-center gap-2 px-2">
-              <Settings className="h-5 w-5 shrink-0" />
-              <span className="font-semibold group-data-[collapsible=icon]:hidden">
-                Settings
-              </span>
-            </div>
-          </SidebarHeader>
-          <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel>General</SidebarGroupLabel>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={activeSection === "accessibility"}
-                    onClick={() => scrollToSection("accessibility")}
-                    tooltip="Accessibility"
-                  >
-                    <Type className="h-4 w-4" />
-                    <span>Accessibility</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={activeSection === "privacy"}
-                    onClick={() => scrollToSection("privacy")}
-                    tooltip="Privacy"
-                  >
-                    <Shield className="h-4 w-4" />
-                    <span>Privacy</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroup>
-
-            {isAuthenticated && (
-              <SidebarGroup>
-                <SidebarGroupLabel>Advanced</SidebarGroupLabel>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={activeSection === "caseManagement"}
-                      onClick={() => scrollToSection("caseManagement")}
-                      tooltip="Case Management"
+    <div className="flex h-dvh flex-col overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_80%_0%,var(--desk-glow)_0%,var(--desk-bg)_70%)] font-type text-desk-ink">
+      <SiteHeader />
+      <main className={cn("mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col", mob ? "gap-2.5 px-3 pb-2.5 pt-3" : "gap-3.5 px-[4vw] pb-4.5 pt-5")}>
+        {!wide && heading}
+        <div className={cn("grid min-h-0 flex-1", wide ? "grid-cols-[240px_minmax(0,1fr)] gap-10" : "grid-cols-1")}>
+          {wide && (
+            <div className="flex min-h-0 flex-col gap-6.5">
+              {heading}
+              <nav aria-label="Settings sections" className="flex flex-col border-t border-desk-rule-mid">
+                {secs.map(([id, t], i) => {
+                  const cur = active === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => jump(id)}
+                      aria-current={cur}
+                      className={cn(
+                        "grid cursor-pointer grid-cols-[34px_1fr_auto] items-baseline gap-2 border-0 border-b border-desk-rule-mid bg-transparent py-3.25 text-left leading-[1.15] hover:text-desk-hover",
+                        cur ? "text-desk-strong" : "text-desk-muted",
+                      )}
                     >
-                      <FolderCog className="h-4 w-4" />
-                      <span>Case Management</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroup>
+                      <span className="font-display text-[17px]/[1.15] text-desk-amber">{NUMS[i].slice(0, -1)}</span>
+                      <span className="text-base/[1.15]">{t}</span>
+                      <span aria-hidden="true" className={cn("h-1.75 w-1.75 self-center", edited(id) ? "bg-[#e9a33a] light:bg-amber-deep" : "bg-transparent")} />
+                    </button>
+                  );
+                })}
+                {!signedIn && !isLoading && <p className="m-0 mt-4 text-[13px] leading-normal text-desk-muted">Sign in to see case, writing and courtroom settings.</p>}
+              </nav>
+            </div>
+          )}
+
+          <section aria-label="Settings" className="flex min-h-0 flex-col bg-paper text-ink shadow-sheet">
+            <div className={cn("flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pt-3.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ink-label", mob ? "px-4" : "px-7")}>
+              <span className="whitespace-nowrap">Form P-5</span>
+              <span className="min-w-0 truncate">Standing orders</span>
+            </div>
+            {!wide && (
+              <div ref={tabsRef} role="tablist" aria-label="Settings sections" className="flex overflow-x-auto border-b border-ink/20 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {secs.map(([id, , short]) => {
+                  const cur = active === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={cur}
+                      data-tab={id}
+                      onClick={() => jump(id)}
+                      className={cn(
+                        "h-11 flex-none cursor-pointer whitespace-nowrap border-0 border-b-2 bg-transparent px-3.5 text-[11px] font-bold uppercase tracking-[0.08em]",
+                        cur ? "border-seal text-ink" : "border-transparent text-ink-hint",
+                      )}
+                    >
+                      {short}
+                    </button>
+                  );
+                })}
+              </div>
             )}
-          </SidebarContent>
-          <SidebarFooter>
-            <SidebarToggleButton />
-          </SidebarFooter>
-        </Sidebar>
 
-        <SidebarInset className="pt-16">
-          <div className="max-w-4xl mx-auto p-3 sm:p-6">
-            {/* ============================================ */}
-            {/* ACCESSIBILITY SETTINGS - Visible to Everyone */}
-            {/* ============================================ */}
             <div
-              ref={accessibilityRef}
-              id="accessibility"
-              className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6 transition-all duration-200 scroll-mt-24"
+              ref={scRef}
+              data-scroller=""
+              onScroll={onScroll}
+              className={cn("relative flex min-h-0 flex-1 flex-col gap-9.5 overflow-y-auto overscroll-contain", mob ? "px-4 pb-5 pt-4" : "px-7 pb-6 pt-5.5")}
             >
-              <h2 className="text-lg sm:text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 flex items-center gap-2">
-                <Type className="h-5 w-5 text-blue-600" />
-                Accessibility Settings
-              </h2>
-
-              {/* Text Size */}
-              <div className="mb-8">
-                <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
-                  Text Size
-                </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  Adjust the size of text throughout the application
-                </p>
-                <div className="flex flex-wrap gap-3 pl-2">
-                  <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                    <input
-                      type="radio"
-                      name="textSize"
-                      checked={localTextSize === "small"}
-                      onChange={() => setLocalTextSize("small")}
-                      className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-medium">Small</span>
-                  </label>
-                  <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                    <input
-                      type="radio"
-                      name="textSize"
-                      checked={localTextSize === "medium"}
-                      onChange={() => setLocalTextSize("medium")}
-                      className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-base font-medium">Medium</span>
-                  </label>
-                  <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                    <input
-                      type="radio"
-                      name="textSize"
-                      checked={localTextSize === "large"}
-                      onChange={() => setLocalTextSize("large")}
-                      className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-lg font-medium">Large</span>
-                  </label>
+              <Section id="text" num={num.text} title="Accessibility" edited={edited("text")}>
+                <div className="flex flex-col gap-3">
+                  <Lead t="Text size" d="Adjust the size of text throughout the application" />
+                  <div role="radiogroup" aria-label="Text size" className="grid max-w-115 grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        ["small", "Small", "16px"],
+                        ["medium", "Medium", "20px"],
+                        ["large", "Large", "25px"],
+                      ] as [TextSize, string, string][]
+                    ).map(([v, t, fs]) => {
+                      const on = local.textSize === v;
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          onClick={() => set("textSize", v)}
+                          className={cn("flex h-16 cursor-pointer flex-col items-center justify-center gap-1 border-[1.5px]", on ? "border-ink bg-ink text-paper" : "border-ink/30 bg-transparent text-ink")}
+                        >
+                          <span className="font-display leading-none" style={{ fontSize: fs }}>
+                            Aa
+                          </span>
+                          <span className="text-xs">{t}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-
-              {/* Preview Section */}
-              <div className="mb-4">
-                <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400 flex items-center gap-2">
-                  <Eye className="h-4 w-4" />
-                  Preview
-                </h3>
-                <p className={`mb-4 ${getTextSizeClass()}`}>
-                  This text will appear at the selected size throughout the
-                  application.
-                </p>
-                <div className="border dark:border-zinc-700 p-5 rounded-lg bg-gray-50 dark:bg-zinc-900 shadow-inner">
-                  <p
-                    className={`mb-3 font-medium ${getTextSizeClass()} text-blue-600 dark:text-blue-400`}
-                  >
-                    Sample Argument
-                  </p>
-                  <p className={getTextSizeClass()}>
-                    The plaintiff argues that the defendant breached the
-                    contract by failing to deliver the goods on time. This
-                    caused significant financial damage to the plaintiff's
-                    business operations.
+                <div className="flex flex-col gap-2 border border-ink/15 bg-[#f8f3e7] px-4.5 py-4">
+                  <span className={LABEL}>Preview · Sample argument</span>
+                  <p className="m-0 text-pretty leading-[1.6] text-ink" style={{ fontSize: { small: "14px", medium: "16px", large: "19px" }[local.textSize] }}>
+                    The plaintiff argues that the defendant breached the contract by failing to deliver the goods on time. This caused significant financial damage to the
+                    plaintiff&apos;s business operations.
                   </p>
                 </div>
-              </div>
+              </Section>
 
-              {/* Save Button for Text Size */}
-              {localTextSize !== textSize && (
-                <div className="mt-6 pt-4 border-t dark:border-zinc-700">
-                  <button
-                    onClick={() => setTextSize(localTextSize)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg flex items-center transition-all duration-200 transform hover:scale-105 active:scale-95"
+              <Section id="look" num={num.look} title="Appearance">
+                <div className="flex flex-col gap-3">
+                  <Lead t="Theme" d="Choose a dark or light desk. Documents stay on paper either way. Applies immediately on this device." />
+                  <div role="radiogroup" aria-label="Theme" className="grid max-w-140 grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-1.5">
+                    {(
+                      [
+                        ["dark", "Dark", "#070504"],
+                        ["light", "Light", "#d9cfbb"],
+                        ["system", "Match device", "linear-gradient(90deg,#070504 50%,#d9cfbb 50%)"],
+                      ] as const
+                    ).map(([v, t, desk]) => {
+                      const on = mounted && theme === v;
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          onClick={() => setTheme(v)}
+                          className={cn("flex cursor-pointer flex-col gap-2.5 border-[1.5px] p-2.5 text-left text-ink hover:border-ink", on ? "border-ink bg-[#f8f3e7]" : "border-ink/25 bg-transparent")}
+                        >
+                          <span aria-hidden="true" className="relative block h-15.5 overflow-hidden border border-ink/25" style={{ background: desk }}>
+                            <span className="absolute inset-x-[20%] -bottom-px top-3 bg-paper shadow-[0_6px_14px_-6px_rgba(0,0,0,.6)]" />
+                            <span className="absolute left-[28%] right-[44%] top-5.5 h-0.75 bg-ink" />
+                            <span className="absolute left-[28%] right-[32%] top-7.75 h-0.5 bg-ink/35" />
+                            <span className="absolute left-[28%] right-[38%] top-9.5 h-0.5 bg-ink/35" />
+                          </span>
+                          <span className="flex items-center gap-2.5">
+                            <Box on={on} />
+                            <span className="text-[15px] font-bold">{t}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 border-t border-ink/12 pt-3.5">
+                  <span className="min-w-0 flex-[1_1_260px]">
+                    <Lead small t="Install the app" d="Add AI Courtroom to your home screen for instant access, faster loading, and offline support." />
+                  </span>
+                  {canInstall ? (
+                    <button type="button" onClick={openPrompt} className={cn(OUTLINE, "h-11.5 px-4.5")}>
+                      {installLabel}
+                    </button>
+                  ) : (
+                    isInstalled && <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-green">Installed on this device</span>
+                  )}
+                </div>
+              </Section>
+
+              {signedIn && (
+                <>
+                  <Section id="writing" num={num.writing} title="Writing arguments" edited={edited("writing")}>
+                    <div className="flex flex-col gap-3">
+                      <Lead t="Enter key" d="Control how the Enter key works when typing arguments" />
+                      <Options
+                        label="Enter key behaviour"
+                        value={local.enterSubmits}
+                        onPick={(v) => set("enterSubmits", v)}
+                        opts={[
+                          [true, "Submit on Enter", "Use Shift+Enter for a new line."],
+                          [false, "New line on Enter", "Use Ctrl+Enter to submit."],
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <Switch on={local.autoExpand} onToggle={() => set("autoExpand", !local.autoExpand)} t="Auto-expand text areas" d="Text boxes grow as you type long arguments." />
+                    </div>
+                  </Section>
+
+                  <Section id="cases" num={num.cases} title="Case management" edited={edited("cases")}>
+                    <div>
+                      <Switch on={local.skipArchive} onToggle={() => set("skipArchive", !local.skipArchive)} t="Skip confirmation when archiving cases" />
+                      <Switch
+                        on={local.skipDelete}
+                        onToggle={() => set("skipDelete", !local.skipDelete)}
+                        t="Skip confirmation when permanently deleting cases"
+                        d="For a faster workflow. You’ll still get 5 seconds to undo."
+                      />
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <Lead t="Case generation location" d="Choose which High Court jurisdiction to use when generating new cases" />
+                      <Options
+                        label="Case generation location"
+                        value={local.loc}
+                        onPick={(v) => set("loc", v)}
+                        opts={[
+                          ["random", "Random High Court", "Cases will be assigned to a random Indian High Court."],
+                          ["user_location", "My location", "Uses the location from your profile."],
+                          ["specific_state", "Specific state", "Always use a specific Indian state’s High Court."],
+                        ]}
+                      />
+                      {local.loc === "specific_state" && (
+                        <div className="flex flex-col gap-1.75 pl-11">
+                          <label htmlFor="st-sel" className={LABEL}>
+                            State
+                          </label>
+                          <select
+                            id="st-sel"
+                            value={local.locState}
+                            onChange={(e) => set("locState", e.target.value)}
+                            aria-invalid={!!stateErr}
+                            className={cn(
+                              "h-12 w-full max-w-105 cursor-pointer rounded-none border-0 border-b-2 bg-paper-alt px-2.5 font-data text-[15px] text-ink outline-none scheme-light",
+                              stateErr ? "border-error" : "border-ink/55",
+                            )}
+                          >
+                            <option value="">Select a state…</option>
+                            {states.map((s) => (
+                              <option key={s.state_iso2} value={s.state_iso2}>
+                                {s.state_name} — {s.high_court}
+                              </option>
+                            ))}
+                          </select>
+                          {stateErr && (
+                            <span role="alert" className="text-[13px] text-error">
+                              {stateErr}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </Section>
+
+                  <Section id="ai" num={num.ai} title="Courtroom AI" edited={edited("ai")}>
+                    <div className="flex flex-col gap-3">
+                      <Lead
+                        t="Case memory retrieval"
+                        d="Every case keeps a searchable memory. Choose whether the courtroom AI reads the most relevant parts of it or the full case record. Case analysis always uses the memory."
+                      />
+                      <div>
+                        <Switch
+                          on={local.rag}
+                          onToggle={() => set("rag", !local.rag)}
+                          t="Use RAG for courtroom AI"
+                          d="When off, the AI reads the full case details and courtroom proceedings instead."
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <Lead t="Win rate" d="Choose how a partly successful case (for example, a petition allowed only in part) counts toward the win rate on your profile." />
+                      <div className="flex flex-col gap-1.75">
+                        <label htmlFor="ps-sel" className={LABEL}>
+                          Partial wins count as
+                        </label>
+                        <select
+                          id="ps-sel"
+                          value={local.partial}
+                          onChange={(e) => set("partial", e.target.value as PartialScoring)}
+                          className="h-12 w-full max-w-105 cursor-pointer rounded-none border-0 border-b-2 border-ink/55 bg-paper-alt px-2.5 font-data text-[15px] text-ink outline-none scheme-light"
+                        >
+                          <option value="zero">A loss (not a win)</option>
+                          <option value="half">Half a win</option>
+                          <option value="exclude">Left out of the win rate</option>
+                        </select>
+                      </div>
+                    </div>
+                    {user.is_developer && (
+                      <div className="flex flex-col gap-3">
+                        <Lead t="Developer mode" />
+                        <div>
+                          <Switch
+                            on={st.devMode}
+                            onToggle={() => st.setDevMode(!st.devMode)}
+                            t="Show which AI model answered"
+                            d="A panel in the bottom-left corner lists the model, provider and fallback used for each AI response. Applies immediately on this device."
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </Section>
+
+                  <Section id="notify" num={num.notify} title="Notifications" edited={edited("notify")}>
+                    <Lead
+                      t="Email notifications"
+                      d={
+                        user.email ? (
+                          <>
+                            Sent to <strong className="wrap-anywhere font-data text-[13.5px] font-medium text-ink">{user.email}</strong>. Each one links back here to turn it off.
+                          </>
+                        ) : (
+                          "Your account has no email yet. Add one in your profile to get these."
+                        )
+                      }
+                    />
+                    <div>
+                      <Switch on={local.nCase} onToggle={() => set("nCase", !local.nCase)} t="Case ready" d="When a case you asked for has finished drafting." />
+                      <div className="flex items-center justify-between gap-4 border-t border-ink/12 py-3">
+                        <Lead small t="Security alerts" d="New sign-ins, password changes and account deletion requests." />
+                        <span className={cn(TAG, "flex-none tracking-[0.16em] text-ink-muted")}>Always on</span>
+                      </div>
+                    </div>
+                  </Section>
+                </>
+              )}
+
+              <Section id="privacy" num={num.privacy} title="Privacy">
+                <Lead t="Cookie preferences" d="Control how we use cookies to personalize your experience and analyze site usage." />
+                <div className="flex max-w-115 flex-col border-t border-ink/20">
+                  {cookies.map(([t, on, always]) => (
+                    <div key={t} className="flex justify-between gap-3 border-b border-ink/12 py-2.5 text-[15px]">
+                      <span>{t}</span>
+                      <span className={cn("text-[11px] font-bold uppercase tracking-[0.16em]", on ? "text-green" : "text-ink-hint")}>
+                        {always ? "Always on" : on ? "On" : "Off"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={openCookieSettings} className={cn(OUTLINE, "h-11.5 self-start px-4.5")}>
+                  Manage cookie preferences
+                </button>
+              </Section>
+
+              {signedIn && <AccountSection num={num.account} user={user} online={online} refreshUser={refreshUser} />}
+
+              {!signedIn && !isLoading && (
+                <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 bg-ink px-4.5 py-4 text-paper">
+                  <span className="flex-[1_1_240px] text-sm leading-normal">Log in to access additional settings like case management preferences.</span>
+                  <Link
+                    href="/login?next=/settings"
+                    className="flex h-11 items-center bg-paper px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-ink hover:bg-white hover:text-ink"
                   >
-                    <Save className="h-5 w-5 mr-2" />
-                    Save Text Size
-                  </button>
+                    Log in
+                  </Link>
                 </div>
               )}
             </div>
 
-            {/* ====================================== */}
-            {/* PRIVACY SETTINGS - Visible to Everyone */}
-            {/* ====================================== */}
-            <div
-              ref={privacyRef}
-              id="privacy"
-              className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6 transition-all duration-200 scroll-mt-24"
-            >
-              <h2 className="text-lg sm:text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 flex items-center gap-2">
-                <Shield className="h-5 w-5 text-blue-600" />
-                Privacy Settings
-              </h2>
-
-              <div className="mb-6">
-                <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
-                  Cookie Preferences
-                </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  Control how we use cookies to personalize your experience and
-                  analyze site usage.
-                </p>
-
-                {/* Current Consent Status */}
-                <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                    Current Cookie Consent:
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          consent.essential ? "bg-green-500" : "bg-red-500"
-                        }`}
-                      />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Essential: Always On
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          consent.functional ? "bg-green-500" : "bg-red-500"
-                        }`}
-                      />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Functional: {consent.functional ? "On" : "Off"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          consent.analytics ? "bg-green-500" : "bg-red-500"
-                        }`}
-                      />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Analytics: {consent.analytics ? "On" : "Off"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          consent.marketing ? "bg-green-500" : "bg-red-500"
-                        }`}
-                      />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Marketing: {consent.marketing ? "On" : "Off"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
+            <div className={cn("flex flex-wrap items-center justify-between gap-x-5 gap-y-2.5 border-t-[3px] border-double border-ink", mob ? "px-4 pb-3.5 pt-3" : "px-7 pb-4 pt-3.5")}>
+              <span role="status" aria-live="polite" className={cn("flex-[1_1_180px] text-sm", statusColor)}>
+                {status}
+              </span>
+              <div className={cn("flex gap-2", mob ? "flex-[1_1_100%]" : "flex-none")}>
                 <button
-                  onClick={openCookieSettings}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors"
+                  type="button"
+                  onClick={() => {
+                    setLocal(saved);
+                    setTried(false);
+                    setMsg(null);
+                  }}
+                  disabled={!n}
+                  className={cn("h-12.5 border-[1.5px] bg-transparent px-4.5 text-xs font-bold uppercase tracking-[0.14em]", n ? "cursor-pointer border-ink text-ink" : "cursor-default border-ink/35 text-ink/35")}
                 >
-                  <Cookie className="h-4 w-4" />
-                  <span>Manage Cookie Preferences</span>
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void save()}
+                  disabled={!n || saving}
+                  className={cn(
+                    "h-12.5 flex-1 whitespace-nowrap border-0 px-5.5 text-[13px] font-bold uppercase tracking-[0.14em] text-cream",
+                    mob ? "min-w-0" : "min-w-50",
+                    n ? "cursor-pointer bg-seal hover:bg-seal-hover" : "cursor-default bg-[#a79c8b]",
+                  )}
+                >
+                  {saving ? "Saving…" : "Save settings"}
                 </button>
               </div>
             </div>
-
-            {/* ============================================== */}
-            {/* CASE MANAGEMENT SETTINGS - Only for Logged In */}
-            {/* ============================================== */}
-            {isAuthenticated && (
-              <div
-                ref={caseManagementRef}
-                id="case-management"
-                className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6 transition-all duration-200 scroll-mt-24"
-              >
-                <h2 className="text-lg sm:text-xl font-semibold mb-4 border-b pb-2 dark:border-zinc-700 flex items-center gap-2">
-                  <FolderCog className="h-5 w-5 text-blue-600" />
-                  Case Management Settings
-                </h2>
-
-                {/* Enter Key Behavior */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
-                    Enter Key Behavior
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    Control how the Enter key works when typing arguments
-                  </p>
-                  <div className="space-y-3 pl-2">
-                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                      <input
-                        type="radio"
-                        name="enterKeyBehavior"
-                        checked={localEnterKeySubmits}
-                        onChange={() => setLocalEnterKeySubmits(true)}
-                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className={`${getTextSizeClass()} font-medium`}>
-                        Submit on Enter{" "}
-                        <span className="text-gray-500 dark:text-gray-400 font-normal">
-                          (use Shift+Enter for new line)
-                        </span>
-                      </span>
-                    </label>
-                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                      <input
-                        type="radio"
-                        name="enterKeyBehavior"
-                        checked={!localEnterKeySubmits}
-                        onChange={() => setLocalEnterKeySubmits(false)}
-                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className={`${getTextSizeClass()} font-medium`}>
-                        New line on Enter{" "}
-                        <span className="text-gray-500 dark:text-gray-400 font-normal">
-                          (use Ctrl+Enter to submit)
-                        </span>
-                      </span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Auto-expand Text Areas */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
-                    Text Area Behavior
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    Control how text areas behave when typing long arguments
-                  </p>
-                  <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={localAutoExpandTextAreas}
-                      onChange={() =>
-                        setLocalAutoExpandTextAreas(!localAutoExpandTextAreas)
-                      }
-                      className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className={`${getTextSizeClass()} font-medium`}>
-                      Auto-expand text areas for long arguments
-                    </span>
-                  </label>
-                </div>
-
-                {/* Confirmation Preferences */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
-                    Confirmation Dialogs
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    Skip confirmation dialogs for faster workflow (for power
-                    users)
-                  </p>
-                  <div className="space-y-3">
-                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={localSkipArchiveConfirmation}
-                        onChange={() =>
-                          setLocalSkipArchiveConfirmation(
-                            !localSkipArchiveConfirmation,
-                          )
-                        }
-                        className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className={`${getTextSizeClass()} font-medium`}>
-                        Skip confirmation when archiving cases
-                      </span>
-                    </label>
-                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={localSkipDeleteConfirmation}
-                        onChange={() =>
-                          setLocalSkipDeleteConfirmation(
-                            !localSkipDeleteConfirmation,
-                          )
-                        }
-                        className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className={`${getTextSizeClass()} font-medium`}>
-                        Skip confirmation when permanently deleting cases
-                      </span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Case Location Preference Section */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400">
-                    Case Generation Location
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    Choose which High Court jurisdiction to use when generating
-                    new cases
-                  </p>
-                  <div className="space-y-3">
-                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                      <input
-                        type="radio"
-                        name="caseLocation"
-                        value="random"
-                        checked={caseLocationPreference === "random"}
-                        onChange={() => setCaseLocationPreference("random")}
-                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div>
-                        <span
-                          className={`${getTextSizeClass()} font-medium block`}
-                        >
-                          Random High Court
-                        </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          Cases will be assigned to a random Indian High Court
-                        </span>
-                      </div>
-                    </label>
-                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                      <input
-                        type="radio"
-                        name="caseLocation"
-                        value="user_location"
-                        checked={caseLocationPreference === "user_location"}
-                        onChange={() =>
-                          setCaseLocationPreference("user_location")
-                        }
-                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div>
-                        <span
-                          className={`${getTextSizeClass()} font-medium block`}
-                        >
-                          My Location
-                        </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          Uses the location from your profile
-                        </span>
-                      </div>
-                    </label>
-                    <label className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                      <input
-                        type="radio"
-                        name="caseLocation"
-                        value="specific_state"
-                        checked={caseLocationPreference === "specific_state"}
-                        onChange={() =>
-                          setCaseLocationPreference("specific_state")
-                        }
-                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div>
-                        <span
-                          className={`${getTextSizeClass()} font-medium block`}
-                        >
-                          Specific State
-                        </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          Always use a specific Indian state&apos;s High Court
-                        </span>
-                      </div>
-                    </label>
-
-                    {/* State Dropdown - shown when specific_state is selected */}
-                    {caseLocationPreference === "specific_state" && (
-                      <div className="ml-7 mt-2">
-                        <select
-                          value={preferredCaseState}
-                          onChange={(e) =>
-                            setPreferredCaseState(e.target.value)
-                          }
-                          className="w-full md:w-1/2 p-3 border-2 rounded-lg border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white focus:border-blue-500 focus:outline-none"
-                        >
-                          <option value="">Select a state...</option>
-                          {indianStates.map((state) => (
-                            <option
-                              key={state.state_iso2}
-                              value={state.state_iso2}
-                            >
-                              {state.state_name} - {state.high_court}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* RAG Preference */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400 flex items-center gap-2">
-                    <BrainCircuit className="h-4 w-4" />
-                    Case Memory Retrieval
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    Every case keeps a searchable memory. Choose whether the
-                    courtroom AI reads the most relevant parts of it or the full
-                    case record. Case analysis always uses the memory.
-                  </p>
-                  <label className="flex items-center justify-between gap-4 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                    <div>
-                      <span className={`${getTextSizeClass()} font-medium block`}>
-                        Use RAG for courtroom AI
-                      </span>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        When off, the AI reads the full case details and
-                        courtroom proceedings instead.
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={ragEnabled}
-                      onChange={(event) => setRagEnabled(event.target.checked)}
-                      className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500"
-                    />
-                  </label>
-                </div>
-
-                {/* Win rate preference */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400 flex items-center gap-2">
-                    <Trophy className="h-4 w-4" />
-                    Win Rate
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    Choose how a partly successful case (for example, a
-                    petition allowed only in part) counts toward the win rate
-                    on your profile.
-                  </p>
-                  <label
-                    htmlFor="partial-scoring"
-                    className={`${getTextSizeClass()} font-medium block mb-2`}
-                  >
-                    Partial wins count as
-                  </label>
-                  <select
-                    id="partial-scoring"
-                    value={partialScoring}
-                    onChange={(e) =>
-                      setPartialScoring(e.target.value as PartialScoring)
-                    }
-                    className="w-full md:w-1/2 p-3 border-2 rounded-lg border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white focus:border-blue-500 focus:outline-none"
-                  >
-                    <option value="zero">A loss (not a win)</option>
-                    <option value="half">Half a win</option>
-                    <option value="exclude">Left out of the win rate</option>
-                  </select>
-                </div>
-
-                {/* Developer mode (allowlisted developers only) */}
-                {user?.is_developer && (
-                  <div className="mb-8">
-                    <h3 className="text-lg font-medium mb-2 text-blue-600 dark:text-blue-400 flex items-center gap-2">
-                      <Cpu className="h-4 w-4" />
-                      Developer Mode
-                    </h3>
-                    <label className="flex items-center justify-between gap-4 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer">
-                      <div>
-                        <span
-                          className={`${getTextSizeClass()} font-medium block`}
-                        >
-                          Show which AI model answered
-                        </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          A panel in the bottom-left corner lists the model,
-                          provider and fallback used for each AI response.
-                          Applies immediately on this device.
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={devMode}
-                        onChange={(event) => setDevMode(event.target.checked)}
-                        className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500"
-                      />
-                    </label>
-                  </div>
-                )}
-
-                {/* Save Button */}
-                <div className="flex items-center justify-between mt-8 pt-4 border-t dark:border-zinc-700">
-                  <button
-                    onClick={handleSave}
-                    disabled={!hasChanges}
-                    className={`${
-                      hasChanges
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "bg-gray-400 cursor-not-allowed"
-                    } text-white font-bold py-2.5 sm:py-2 px-4 sm:px-6 rounded-lg flex items-center transition-all duration-200 transform hover:scale-105 active:scale-95 text-sm sm:text-base`}
-                  >
-                    {saveMessage ? (
-                      <>
-                        <Check className="h-5 w-5 mr-2" />
-                        Saved
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-5 w-5 mr-2" />
-                        Save Settings
-                      </>
-                    )}
-                  </button>
-
-                  {saveMessage && (
-                    <span className="text-green-600 dark:text-green-400 ml-4 font-medium animate-[ac-fade_.3s_ease-in-out]">
-                      {saveMessage}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Message for logged out users */}
-            {!isAuthenticated && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-center">
-                <p className="text-blue-700 dark:text-blue-300">
-                  <a
-                    href="/login"
-                    className="underline font-medium hover:text-blue-800 dark:hover:text-blue-200"
-                  >
-                    Log in
-                  </a>{" "}
-                  to access additional settings like case management
-                  preferences.
-                </p>
-              </div>
-            )}
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+          </section>
+        </div>
+      </main>
     </div>
   );
 }

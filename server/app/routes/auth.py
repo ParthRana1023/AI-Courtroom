@@ -1,6 +1,5 @@
 # app/routes/auth.py
 import time
-from datetime import date
 
 from argon2.exceptions import VerifyMismatchError
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -33,6 +32,8 @@ from app.services.auth import (
     Device,
     create_password_reset_token,
     create_user,
+    day,
+    ensure_not_deleted,
     find_user_by_email,
     issue_token,
     ph,
@@ -40,7 +41,7 @@ from app.services.auth import (
     user_from_reset_token,
 )
 from app.services.cloudinary_service import extract_public_id_from_url
-from app.services.email import send_password_reset_email
+from app.services.email import send_password_reset_email, send_security_alert
 from app.services.google_auth import (
     authenticate_google_user,
     exchange_code_for_token,
@@ -51,6 +52,7 @@ from app.services.google_auth import (
 )
 from app.services.otp import create_otp, verify_otp
 from app.services.user_stats import compute_user_stats
+from app.utils.datetime import get_current_datetime
 from app.utils.rate_limiter import (
     login_failure_email_limiter,
     login_failure_ip_limiter,
@@ -68,6 +70,14 @@ async def initiate_registration(user_data: UserCreate, request: Request):
 
     # Add duplicate check
     existing_user = await find_user_by_email(user_data.email)
+    held_until = existing_user.recoverable_until if existing_user else None
+    if existing_user and existing_user.deleted_at and held_until:
+        raise HTTPException(
+            status_code=400,
+            detail=messages.EMAIL_HELD.format(
+                deleted=day(existing_user.deleted_at), until=day(held_until)
+            ),
+        )
     if existing_user:
         logger.warning(
             f"Registration failed - email already registered: {user_data.email}"
@@ -234,6 +244,7 @@ async def initiate_login(login_data: dict, request: Request):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
+    ensure_not_deleted(user)
 
     # Generate and send OTP
     await create_otp(email, is_registration=False)
@@ -303,48 +314,53 @@ async def profile(current_user: User = Depends(get_current_user)):
 async def update_profile(
     data: ProfileUpdateRequest, current_user: User = Depends(get_current_user)
 ):
-    """Update user profile - only updates fields that are provided."""
+    """Edit profile: only the fields sent change, and an optional one sent empty
+    is cleared. The email and phone a user signed up with are locked."""
+    user = current_user
+    sent = data.model_fields_set
+    method = user.sign_in_method
 
-    logger.info(f"Profile update requested for user: {current_user.email}")
+    # A new email is set only once the code sent to it is entered
+    # (/profile/email/verify): an unproven address could claim someone else's
+    # email and catch their Google sign-in. Removing it needs no code.
+    if "email" in sent and data.email != (user.email or None):
+        if method != "phone":
+            raise HTTPException(status_code=400, detail=messages.EMAIL_LOCKED)
+        if data.email:
+            raise HTTPException(status_code=400, detail=messages.EMAIL_NEEDS_CODE)
+        user.email = None
+        user.pending_email = None
 
-    try:
-        # Update only provided fields
-        if data.first_name is not None:
-            current_user.first_name = data.first_name
-        if data.last_name is not None:
-            current_user.last_name = data.last_name
-        if data.nickname is not None:
-            current_user.nickname = data.nickname if data.nickname.strip() else None
-        if data.gender is not None:
-            current_user.gender = data.gender
-        if data.phone_number is not None:
-            current_user.phone_number = data.phone_number
-        if data.date_of_birth is not None:
-            dob = date.fromisoformat(data.date_of_birth)
-            current_user.date_of_birth = dob
+    phone = (data.phone_code, data.phone_number)
+    if {"phone_code", "phone_number"} & sent:
+        if method == "phone":
+            if phone != (user.phone_code, user.phone_number):
+                raise HTTPException(status_code=400, detail=messages.PHONE_LOCKED)
+        else:
+            user.phone_code, user.phone_number = phone
 
-        # Location fields
-        if data.city is not None:
-            current_user.city = data.city
-        if data.state is not None:
-            current_user.state = data.state
-        if data.state_iso2 is not None:
-            current_user.state_iso2 = data.state_iso2
-        if data.country is not None:
-            current_user.country = data.country
-        if data.country_iso2 is not None:
-            current_user.country_iso2 = data.country_iso2
-        if data.phone_code is not None:
-            current_user.phone_code = data.phone_code
+    for name in (
+        "first_name",
+        "last_name",
+        "nickname",
+        "gender",
+        "date_of_birth",
+        "city",
+        "state",
+        "state_iso2",
+        "country",
+        "country_iso2",
+    ):
+        if name in sent:
+            value = getattr(data, name)
+            if isinstance(value, str):
+                value = value.strip() or None
+            if value is not None or name not in ("first_name", "last_name"):
+                setattr(user, name, value)
 
-        await current_user.save()
-        logger.info(f"Profile updated successfully for user: {current_user.email}")
-        return current_user
-    except ValueError as e:
-        logger.error(f"Invalid profile update data for {current_user.email}: {e!s}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data."
-        )
+    await user.save()
+    logger.info(f"Profile updated for user {user.id}")
+    return user
 
 
 @router.post("/google")
@@ -710,7 +726,7 @@ async def forgot_password(data: ForgotPasswordRequest, request: Request):
     await otp_send_rate_limiter.register_usage(key)
 
     user = await find_user_by_email(data.email)
-    if user is not None and user.email:
+    if user is not None and user.email and user.deleted_at is None:
         base = settings.app_url_for(request.headers.get("origin"))
         link = f"{base}/forgot-password?token={create_password_reset_token(user)}"
         await send_password_reset_email(user.email, link)
@@ -728,7 +744,16 @@ async def reset_password(data: ResetPasswordRequest):
         raise HTTPException(status_code=400, detail=messages.RESET_LINK_INVALID)
 
     user.password_hash = ph.hash(data.password)
+    user.password_changed_at = get_current_datetime()
     await user.save()
     revoked = await revoke_sessions(user.id)
     logger.info(f"Password reset for user {user.id}; {revoked} session(s) revoked")
+    if user.email:
+        await send_security_alert(
+            user.email,
+            "Password changed",
+            [
+                "Your password was reset with an emailed link. Every device was signed out."
+            ],
+        )
     return {"message": messages.PASSWORD_CHANGED}

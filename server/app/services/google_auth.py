@@ -73,10 +73,13 @@ def validate_state_token(token: str) -> bool:
 GOOGLE_SIGNUP_TOKEN_TTL_SECONDS = 30 * 60
 
 
-def create_google_signup_token(google_id: str, email: str) -> str:
-    """Proof, signed by us, that Google verified this email and Google account."""
+def create_google_signup_token(
+    google_id: str, email: str, purpose: str = "google_signup"
+) -> str:
+    """Proof, signed by us, that Google verified this email and Google account.
+    ``purpose`` keeps a sign-up token from being used to connect an account."""
     payload = {
-        "purpose": "google_signup",
+        "purpose": purpose,
         "sub": google_id,
         "email": email,
         "exp": int(time.time()) + GOOGLE_SIGNUP_TOKEN_TTL_SECONDS,
@@ -84,13 +87,15 @@ def create_google_signup_token(google_id: str, email: str) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
-def read_google_signup_token(token: str) -> dict[str, Any] | None:
-    """Claims of a valid, unexpired sign-up token, or None."""
+def read_google_signup_token(
+    token: str, purpose: str = "google_signup"
+) -> dict[str, Any] | None:
+    """Claims of a valid, unexpired token for ``purpose``, or None."""
     try:
         claims = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
     except jwt.InvalidTokenError:
         return None
-    return claims if claims.get("purpose") == "google_signup" else None
+    return claims if claims.get("purpose") == purpose else None
 
 
 async def verify_risc_token(token: str) -> dict[str, Any]:
@@ -245,6 +250,27 @@ async def exchange_code_for_token(code: str) -> dict:
 # =============================================================================
 
 
+async def verified_google_account(credential: str) -> tuple[str, str, dict]:
+    """(email, Google user id, claims) from a verified ID token whose email
+    Google has verified."""
+    google_info = await verify_google_token(credential)
+
+    # Without a verified email, anyone could claim an address they don't own and
+    # get linked to that account. Google sends a bool; tolerate "true" strings.
+    if str(google_info.get("email_verified")).lower() != "true":
+        logger.warning(
+            "Google account email is not verified",
+            extra={"email": google_info.get("email")},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your Google account email is not verified.",
+        )
+
+    # Verified Google ID tokens always carry both claims.
+    return google_info["email"].lower(), google_info["sub"], google_info
+
+
 async def authenticate_google_user(
     credential: str | None = None,
     remember_me: bool = False,
@@ -279,23 +305,7 @@ async def authenticate_google_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A Google ID token (credential) or authorization code is required",
         )
-    google_info = await verify_google_token(credential)
-
-    # Without a verified email, anyone could claim an address they don't own and
-    # get linked to that account. Google sends a bool; tolerate "true" strings.
-    if str(google_info.get("email_verified")).lower() != "true":
-        logger.warning(
-            "Google account email is not verified",
-            extra={"email": google_info.get("email")},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Your Google account email is not verified.",
-        )
-
-    # Verified Google ID tokens always carry both claims.
-    email = google_info["email"].lower()
-    google_id = google_info["sub"]
+    email, google_id, google_info = await verified_google_account(credential)
 
     # Check if user exists
     user = await User.find_one(User.google_id == google_id)
@@ -307,6 +317,7 @@ async def authenticate_google_user(
         if user:
             # Link Google account to existing user
             user.google_id = google_id
+            user.google_email = email
             # Update profile photo from Google if user doesn't have one
             google_picture = google_info.get("picture")
             if google_picture and not user.profile_photo_url:

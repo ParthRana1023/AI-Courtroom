@@ -16,6 +16,7 @@ import {
   Objection,
   OrDivider,
   outlineButton,
+  PASSWORD_RULES,
   PhoneField,
   phoneError,
   primaryButton,
@@ -37,13 +38,6 @@ import { cn } from "@/lib/utils";
 import type { RegisterFormData, User } from "@/types";
 
 type Screen = "form" | "otp" | "practice";
-
-const PASSWORD_RULES: [string, (p: string) => boolean, string][] = [
-  ["8+ characters", (p) => p.length >= 8, "Password must be at least 8 characters"],
-  ["A letter", (p) => /[a-zA-Z]/.test(p), "Password must contain at least 1 letter"],
-  ["A digit", (p) => /\d/.test(p), "Password must contain at least 1 digit"],
-  ["A symbol @$!%*#?&", (p) => /[@$!%*#?&]/.test(p), "Password must contain at least 1 special character"],
-];
 
 export default function RegisterPage() {
   const router = useRouter();

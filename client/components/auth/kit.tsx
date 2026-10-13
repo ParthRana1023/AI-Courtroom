@@ -461,3 +461,11 @@ export function GoogleMark() {
     </svg>
   );
 }
+
+/** The server password rules: [checklist label, test, message when missed]. */
+export const PASSWORD_RULES: [string, (p: string) => boolean, string][] = [
+  ["8+ characters", (p) => p.length >= 8, "Password must be at least 8 characters"],
+  ["A letter", (p) => /[a-zA-Z]/.test(p), "Password must contain at least 1 letter"],
+  ["A digit", (p) => /\d/.test(p), "Password must contain at least 1 digit"],
+  ["A symbol @$!%*#?&", (p) => /[@$!%*#?&]/.test(p), "Password must contain at least 1 special character"],
+];

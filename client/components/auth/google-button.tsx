@@ -16,17 +16,16 @@ export interface GoogleAuthData {
 }
 
 /**
- * "Google" on the sign-in slips. Web: authorization-code popup with our signed
- * state (fetched ahead so the popup isn't blocked). Native app: Google Sign-In plugin.
+ * Google sign-in, shared by the sign-in slips and Settings (Connect Google). Web:
+ * authorization-code popup with our signed state (fetched ahead so the popup isn't
+ * blocked). Native app: Google Sign-In plugin, which returns an ID token.
  */
-export default function GoogleButton({
+export function useGoogleAuth({
   onSuccess,
   onError,
-  disabled,
 }: {
   onSuccess: (data: GoogleAuthData) => Promise<void>;
   onError: (message: string) => void;
-  disabled?: boolean;
 }) {
   const isNative = isNativePlatform();
   const nativeReady = useRef(false);
@@ -77,13 +76,22 @@ export default function GoogleButton({
     }
   };
 
+  return { ready: isNative || !!state, start };
+}
+
+/** "Google" on the sign-in slips. */
+export default function GoogleButton({
+  onSuccess,
+  onError,
+  disabled,
+}: {
+  onSuccess: (data: GoogleAuthData) => Promise<void>;
+  onError: (message: string) => void;
+  disabled?: boolean;
+}) {
+  const google = useGoogleAuth({ onSuccess, onError });
   return (
-    <button
-      type="button"
-      onClick={start}
-      disabled={disabled || (!isNative && !state)}
-      className={outlineButton}
-    >
+    <button type="button" onClick={google.start} disabled={disabled || !google.ready} className={outlineButton}>
       <GoogleMark />
       <span>Google</span>
     </button>

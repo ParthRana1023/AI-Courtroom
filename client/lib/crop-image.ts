@@ -39,7 +39,9 @@ export async function getCroppedImg(
   imageSrc: string,
   pixelCrop: { x: number; y: number; width: number; height: number },
   rotation = 0,
-  flip = { horizontal: false, vertical: false }
+  flip = { horizontal: false, vertical: false },
+  /** square output size in px; the crop's own size when left out */
+  outSize?: number
 ): Promise<Blob | null> {
   const image = await createImage(imageSrc);
   const canvas = document.createElement("canvas");
@@ -79,8 +81,8 @@ export async function getCroppedImg(
   }
 
   // Set the size of the cropped canvas
-  croppedCanvas.width = pixelCrop.width;
-  croppedCanvas.height = pixelCrop.height;
+  croppedCanvas.width = outSize ?? pixelCrop.width;
+  croppedCanvas.height = outSize ?? pixelCrop.height;
 
   // Draw the cropped image from the source canvas onto the cropped canvas
   croppedCtx.drawImage(
@@ -91,8 +93,8 @@ export async function getCroppedImg(
     pixelCrop.height,
     0,
     0,
-    pixelCrop.width,
-    pixelCrop.height
+    croppedCanvas.width,
+    croppedCanvas.height
   );
 
   // Export as JPEG blob with 90% quality as requested

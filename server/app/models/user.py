@@ -1,5 +1,5 @@
 # app/models/user.py
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from typing import ClassVar, Literal
 
 from beanie import Document
@@ -17,6 +17,15 @@ PartialScoring = Literal["zero", "half", "exclude"]
 
 # How the account was created; it decides which sign-in details are locked
 AuthMethod = Literal["email", "phone", "google"]
+
+
+class NotificationPrefs(BaseModel):
+    """Optional emails. Security alerts (new sign-ins, password changes,
+    deletion) are always sent and have no switch."""
+
+    case_ready: bool = True
+    hearing_reminders: bool = True
+    product_updates: bool = False
 
 
 class User(Document):
@@ -51,10 +60,44 @@ class User(Document):
     rag_enabled: bool = True
     partial_scoring: PartialScoring = "zero"
 
+    # Account and security
+    google_email: str | None = None  # the connected Google account's address
+    # A phone account's new email, until the code sent to it is entered.
+    pending_email: str | None = None
+    password_changed_at: datetime | None = None
+    notification_prefs: NotificationPrefs = NotificationPrefs()
+    data_export_requested_at: datetime | None = None
+    # Soft delete: the account can be restored for DELETION_GRACE, then it's purged.
+    deleted_at: datetime | None = None
+
+    DELETION_GRACE: ClassVar[timedelta] = timedelta(days=30)
+
     @property
     def sign_in_method(self) -> AuthMethod:
         """How the account was created; older accounts are inferred."""
         return self.auth_method or ("google" if self.google_id else "email")
+
+    @property
+    def has_password(self) -> bool:
+        return self.password_hash is not None
+
+    @property
+    def google_linked(self) -> bool:
+        return self.google_id is not None
+
+    @property
+    def member_since(self) -> datetime | None:
+        return self.id.generation_time if self.id else None
+
+    @property
+    def recoverable_until(self) -> datetime | None:
+        """For a deleted account, the last moment it can be restored."""
+        if self.deleted_at is None:
+            return None
+        at = self.deleted_at
+        if at.tzinfo is None:  # MongoDB returns naive UTC
+            at = at.replace(tzinfo=UTC)
+        return at + self.DELETION_GRACE
 
     class Settings:
         name = "users"

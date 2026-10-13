@@ -11,11 +11,13 @@ from beanie import PydanticObjectId
 from bson.errors import InvalidId
 from fastapi import HTTPException, status
 
+from app import messages
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.user import User
 from app.models.user_session import UserSession
 from app.schemas.user import UserCreate
+from app.services.email import send_security_alert
 from app.utils.datetime import create_jwt_expiry, get_current_datetime
 
 logger = get_logger(__name__)
@@ -57,6 +59,7 @@ async def create_user(user_data: UserCreate) -> User:
         ),
         password_hash=hashed_password,
         auth_method="google" if user_data.google_id else "email",
+        google_email=user_data.email if user_data.google_id else None,
     )
     await user.insert()
     logger.info(f"User created successfully: {user_data.email}")
@@ -97,24 +100,56 @@ def token_lifetime(remember_me: bool) -> timedelta:
     )
 
 
+def day(at) -> str:
+    """'13 Oct 2026', as dates read in emails and messages."""
+    return f"{at.day} {at:%b %Y}"
+
+
+def ensure_not_deleted(user: User) -> None:
+    """A deleted account can't sign in until support restores it."""
+    until = user.recoverable_until
+    if until is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=messages.ACCOUNT_DELETED.format(until=day(until)),
+        )
+
+
 async def issue_token(
     user: User, remember_me: bool = False, device: Device | None = None
 ) -> str:
-    """Sign ``user`` in on a device: record the session and return its JWT."""
+    """Sign ``user`` in on a device: record the session and return its JWT.
+
+    Every sign-in (password, Google, phone) ends here, so a deleted account is
+    turned away here, and a sign-in from a device not seen before is emailed.
+    """
     assert user.id is not None
+    ensure_not_deleted(user)
     device = device or Device()
     lifetime = token_lifetime(remember_me)
     now = get_current_datetime()
     sid = secrets.token_urlsafe(16)
+    user_agent = (device.user_agent or "")[:300] or None
+    earlier = await UserSession.find(UserSession.user_id == user.id).to_list()
+    new_device = bool(earlier) and all(s.user_agent != user_agent for s in earlier)
     await UserSession(
         sid=sid,
         user_id=user.id,
         created_at=now,
         last_active=now,
         expires_at=now + lifetime,
-        user_agent=(device.user_agent or "")[:300] or None,
+        user_agent=user_agent,
         ip=device.ip,
     ).insert()
+    if new_device and user.email:
+        await send_security_alert(
+            user.email,
+            "New sign-in",
+            [
+                "Your account was just signed in on a device we haven't seen before:",
+                f"{user_agent or 'Unknown device'} from {device.ip or 'an unknown address'}.",
+            ],
+        )
     return create_access_token(
         data={"sub": str(user.id), "sid": sid}, expires_delta=lifetime
     )

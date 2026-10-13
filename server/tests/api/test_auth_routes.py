@@ -607,7 +607,7 @@ async def test_update_profile_rejects_bad_date(client, auth_headers):
         "/auth/profile", headers=auth_headers, json={"date_of_birth": "03/02/1990"}
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

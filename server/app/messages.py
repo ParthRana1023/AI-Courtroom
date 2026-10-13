@@ -64,6 +64,31 @@ RESET_LINK_INVALID = (
 )
 PASSWORD_CHANGED = "Your password has been changed. Sign in with your new password."
 
+# Account and security
+ACCOUNT_DELETED = "This account was deleted. Contact us before {until} to recover it."
+EMAIL_HELD = (
+    "This email belongs to an account deleted on {deleted}. Contact us before "
+    "{until} to recover it, or register again after that."
+)
+NO_PASSWORD = "This account has no password: you sign in with Google or a code."
+WRONG_PASSWORD = "That password is not correct."
+EMAIL_LOCKED = "You signed up with this email, so it can't be changed here."
+PHONE_LOCKED = "You signed up with this number, so it can't be changed here."
+EMAIL_TAKEN = "Another account already uses this email."
+EMAIL_NEEDS_CODE = "Confirm a new email with the code we send to it."
+CODE_INVALID = "This code is wrong or has expired. Ask for a new one."
+NO_EMAIL = "Add an email address to your profile first."
+DELETE_CODE_INVALID = "This code is wrong or has expired. Ask for a new one."
+GOOGLE_LINKED_ELSEWHERE = (
+    "This Google account is connected to another AI Courtroom account."
+)
+GOOGLE_ALREADY_LINKED = "Disconnect the Google account that is connected first."
+GOOGLE_NOT_LINKED = "No Google account is connected."
+GOOGLE_STAYS = "You signed up with Google, so it stays connected."
+EXPORT_LIMIT = (
+    "You can request your data once a day. Check your email for the last one."
+)
+
 # Case access
 CASE_NOT_FOUND = "This case file could not be found in the court registry."
 CASE_FORBIDDEN = "This case file belongs to another advocate."

@@ -15,6 +15,8 @@ class OTP(Document):
     expiry: datetime
     is_registration: bool = True
     attempts: int = 0  # verification tries so far, right or wrong
+    # None for sign-in and sign-up codes; "delete_account" confirms a deletion.
+    purpose: str | None = None
 
     class Settings:
         name = "otp"

@@ -54,6 +54,30 @@ export interface User {
   rag_enabled?: boolean;
   partial_scoring?: PartialScoring;
   is_developer?: boolean; // may turn on developer mode (server allowlist)
+  // Account and security
+  has_password?: boolean;
+  google_linked?: boolean;
+  google_email?: string | null;
+  password_changed_at?: string | null;
+  notification_prefs?: NotificationPrefs;
+  data_export_requested_at?: string | null;
+  member_since?: string | null;
+}
+
+export interface NotificationPrefs {
+  case_ready: boolean;
+  hearing_reminders: boolean;
+  product_updates: boolean;
+}
+
+/** One signed-in device (GET /auth/sessions). */
+export interface DeviceSession {
+  id: string;
+  user_agent: string | null;
+  ip: string | null;
+  created_at: string;
+  last_active: string;
+  current: boolean;
 }
 
 // How a partly successful case counts toward the win rate

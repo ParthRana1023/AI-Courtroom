@@ -23,7 +23,7 @@ export default function DeskPage({
       )}
     >
       <SiteHeader />
-      <Scroller tone="desk" className="flex flex-1 flex-col">
+      <Scroller tone="desk" data-desk="" className="flex flex-1 flex-col">
         {children}
       </Scroller>
     </div>

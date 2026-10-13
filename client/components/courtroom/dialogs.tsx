@@ -14,7 +14,7 @@ import type { CaseOutcome } from "@/types";
 const LABEL = "text-[10.5px] font-bold uppercase tracking-[0.18em]";
 
 /** These dialogs open from state, not a Radix trigger, so return focus to whatever opened them. */
-function useReturnFocus() {
+export function useReturnFocus() {
   const ret = useRef<HTMLElement | null>(null);
   return {
     onOpenAutoFocus: () => {
@@ -28,7 +28,7 @@ function useReturnFocus() {
   };
 }
 
-const CLOSE = "h-10 w-10 flex-none cursor-pointer border-0 bg-ink text-[22px] leading-none text-paper hover:bg-seal";
+export const CLOSE = "h-10 w-10 flex-none cursor-pointer border-0 bg-ink text-[22px] leading-none text-paper hover:bg-seal";
 
 export const OUTCOME: Record<CaseOutcome, [string, string]> = {
   won: ["WON", "#3f6b3a"],
