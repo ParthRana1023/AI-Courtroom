@@ -155,6 +155,15 @@ client_log_rate_limiter = RateLimiter(
     settings.client_log_rate_limit, settings.client_log_rate_window, "client_log"
 )
 
+# Contact messages come from guests too: keyed by sender (user id or guest email)
+# and by IP. No captcha, so these are the only brake on spam.
+contact_sender_limiter = RateLimiter(
+    settings.contact_rate_limit, settings.contact_rate_window, "contact_sender"
+)
+contact_ip_limiter = RateLimiter(
+    settings.contact_ip_rate_limit, settings.contact_rate_window, "contact_ip"
+)
+
 # Both share one counter ("witness_question"); developers just get a higher cap.
 witness_question_rate_limiter = RateLimiter(
     settings.witness_question_rate_limit,

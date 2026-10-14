@@ -7,6 +7,7 @@ import type {
   NotificationPrefs,
   PartialScoring,
   RegisterFormData,
+  SystemStatus,
   User,
   UserStats,
 } from "@/types";
@@ -756,12 +757,17 @@ export const courtroomAPI = {
   },
 };
 
-// Contact API calls
+// Contact API calls (open to guests)
 export const contactAPI = {
   submitContactForm: async (formData: ContactFormData) => {
     const response = await api.post("/feedback/submit", formData);
     return response.data;
   },
+};
+
+export const statusAPI = {
+  // A stalled request (API restarting, a cold start) must not leave the page on "Checking" for good.
+  get: async (): Promise<SystemStatus> => (await api.get("/status", { timeout: 10_000 })).data,
 };
 // Parties API calls
 export const partiesAPI = {

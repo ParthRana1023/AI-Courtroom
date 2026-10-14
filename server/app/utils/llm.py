@@ -17,6 +17,7 @@ from langchain_groq import ChatGroq
 
 from app.config import settings
 from app.logging_config import get_logger
+from app.services import health
 from app.utils.llm_trace import record_llm_call
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
@@ -131,6 +132,25 @@ LLM_TASKS = ("drafter", "lawyer", "judge", "analyzer", "outcome", "party", "witn
 _CHAIN_PREFIXES = ("", "fallback_", "fallback2_", "fallback3_")
 
 
+# Status-page component per task; the rest (lawyer, judge, party, witness) are "court".
+TASK_COMPONENT = {"drafter": "gen", "analyzer": "analysis", "outcome": "analysis"}
+_PROVIDER_KEYS = {
+    "groq": ("groq_api_key",),
+    "openrouter": ("openrouter_api_key",),
+    "cloudflare": ("cloudflare_api_token", "cloudflare_account_id"),
+}
+
+
+def task_configured(task: str) -> bool:
+    """Whether at least one model in the task's chain has its provider's keys set."""
+    return any(
+        all(
+            getattr(settings, key, None) for key in _PROVIDER_KEYS.get(provider, ("_",))
+        )
+        for provider, _ in task_model_chain(task)
+    )
+
+
 def task_model_chain(task: str) -> list[tuple[str, str]]:
     """(provider, model) pairs for a task, in the order they are tried."""
     chain = []
@@ -223,4 +243,13 @@ def get_llm(task: str) -> Runnable:
         )
         for attempt, (provider, model) in enumerate(task_model_chain(task))
     ]
-    return models[0].with_fallbacks(models[1:])
+    # The status page counts whole-chain answers and failures, not each model's.
+    component = TASK_COMPONENT.get(task, "court")
+    return (
+        models[0]
+        .with_fallbacks(models[1:])
+        .with_listeners(
+            on_end=lambda run: health.record(component, ok=True),
+            on_error=lambda run: health.record(component, ok=False),
+        )
+    )

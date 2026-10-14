@@ -84,6 +84,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     return user
 
 
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
+
+
+async def get_optional_user(
+    token: str | None = Depends(optional_oauth2_scheme),
+) -> User | None:
+    """The signed-in user, or None for guests (and for stale or revoked tokens)."""
+    if not token:
+        return None
+    try:
+        return await get_current_user(token)
+    except HTTPException:
+        return None
+
+
 @dataclass(frozen=True)
 class Session:
     """The login session behind a request (one per device login)."""

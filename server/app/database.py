@@ -10,6 +10,7 @@ from app.models.case_outcome import CaseOutcomeRecord
 from app.models.client_log import ClientLog
 from app.models.cnr_counter import CnrCounter
 from app.models.feedback import Feedback
+from app.models.incident import Incident
 from app.models.location_cache import LocationCache
 from app.models.otp import OTP
 from app.models.rate_limit import RateLimitEntry
@@ -32,6 +33,7 @@ DOCUMENT_MODELS = [
     CaseOutcomeRecord,
     UserSession,
     Report,
+    Incident,
 ]
 
 

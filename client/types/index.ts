@@ -283,12 +283,34 @@ export type FeedbackCategory =
   | "bug_report"
   | "feature_request"
   | "account_support"
+  | "account_recovery"
   | "legal_inquiry"
   | "other";
 
 export interface ContactFormData {
   feedback_category: FeedbackCategory;
   message: string;
+  /** Guests only: who to reply to. */
+  name?: string;
+  email?: string;
+  /** Account recovery only. */
+  account_identifier?: string;
+  deleted_on?: string;
+}
+
+export type ServiceState = "ok" | "degraded" | "outage";
+
+export interface SystemStatus {
+  updated_at: string;
+  components: { id: string; status: ServiceState }[];
+  incidents: {
+    id: string;
+    title: string;
+    impact: "degraded" | "outage";
+    status: string;
+    resolved: boolean;
+    updates: { at: string; kind: string; text: string }[];
+  }[];
 }
 
 // Parties types

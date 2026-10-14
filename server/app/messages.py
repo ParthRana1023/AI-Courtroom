@@ -89,6 +89,13 @@ EXPORT_LIMIT = (
     "You can request your data once a day. Check your email for the last one."
 )
 
+# Contact
+CONTACT_LIMIT = (
+    "The registry has received several letters from you already. "
+    "Kindly wait {minutes} minute(s) before sending another."
+)
+GUEST_DETAILS_REQUIRED = "Leave your name and email so we can reply, or sign in."
+
 # Case access
 CASE_NOT_FOUND = "This case file could not be found in the court registry."
 CASE_FORBIDDEN = "This case file belongs to another advocate."

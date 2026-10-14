@@ -160,6 +160,10 @@ class Settings(BaseSettings):
     party_chat_rate_window: int = 60  # Window in seconds (1 minute)
     client_log_rate_limit: int = 30  # Client log batches per IP per window
     client_log_rate_window: int = 60  # Window in seconds (1 minute)
+    # Contact form: messages per sender (account or guest email) and per IP
+    contact_rate_limit: int = 5
+    contact_ip_rate_limit: int = 10
+    contact_rate_window: int = 3600  # Window in seconds (1 hour)
 
     # AI lawyer's private conferences with the parties on its side
     counsel_questions_per_round: int = 2  # per party, each case prep / adjournment

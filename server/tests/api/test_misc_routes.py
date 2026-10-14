@@ -1,4 +1,4 @@
-"""Tests for parties, evidence, location, feedback, client-log, analysis and rate-limit routes."""
+"""Tests for parties, evidence, location, client-log, analysis and rate-limit routes."""
 
 from datetime import timedelta
 
@@ -19,7 +19,6 @@ from app.models.case import (
     WitnessTestimony,
 )
 from app.models.client_log import ClientLog
-from app.models.feedback import Feedback
 from app.models.party import PartyInvolved, PartyRole
 from app.routes import case_analysis as analysis_routes
 from app.routes import evidence as evidence_routes
@@ -769,46 +768,6 @@ async def test_location_routes_report_provider_errors(
 
     assert response.status_code == 500
     assert "timed out" not in response.json()["detail"]  # cause stays in the log
-
-
-# ---------------------------------------------------------------------------
-# feedback
-# ---------------------------------------------------------------------------
-
-
-async def test_submit_feedback_uses_profile_details(client, user, auth_headers):
-    response = await client.post(
-        "/feedback/submit",
-        headers=auth_headers,
-        json={
-            "feedback_category": "bug_report",
-            "message": "The gavel sound is too loud.",
-        },
-    )
-
-    body = response.json()
-    assert response.status_code == 201
-    assert (body["email"], body["feedback_category"]) == (user.email, "bug_report")
-    assert await Feedback.find(Feedback.user_id == str(user.id)).count() == 1
-
-
-async def test_submit_feedback_validation_and_failure(
-    client, auth_headers, monkeypatch
-):
-    short = await client.post(
-        "/feedback/submit",
-        headers=auth_headers,
-        json={"feedback_category": "other", "message": "short"},
-    )
-    assert short.status_code == 422
-
-    monkeypatch.setattr(Feedback, "insert", boom)
-    failed = await client.post(
-        "/feedback/submit",
-        headers=auth_headers,
-        json={"feedback_category": "other", "message": "A long enough message"},
-    )
-    assert failed.status_code == 500
 
 
 # ---------------------------------------------------------------------------

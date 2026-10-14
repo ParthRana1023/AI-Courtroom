@@ -1,6 +1,6 @@
 {
   "name": "ai-courtroom",
-  "version": "4.10.5",
+  "version": "4.10.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
     "cap:android": "cap sync android && cap open android",
     "cap:ios": "cap sync ios && cap open ios",
     "test:e2e": "playwright test -c e2e",
+    "test:e2e:fast": "playwright test -c e2e --project=desktop",
     "test:e2e:update": "playwright test -c e2e --update-snapshots"
   },
   "dependencies": {

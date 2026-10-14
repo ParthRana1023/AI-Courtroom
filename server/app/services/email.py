@@ -1,5 +1,6 @@
 # app/services/email.py
 import asyncio
+import html
 import smtplib
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
@@ -7,6 +8,7 @@ from email.mime.text import MIMEText
 
 from app.config import settings
 from app.logging_config import get_logger
+from app.services import health
 
 logger = get_logger(__name__)
 
@@ -45,9 +47,11 @@ async def send_email(
         )
         await asyncio.to_thread(_deliver, message)
         logger.info(f"Email sent successfully to {to_email}")
+        health.record("auth", ok=True)
         return True
     except Exception:
         logger.exception(f"Failed to send email to {to_email}")
+        health.record("auth", ok=False)
         return False
 
 
@@ -154,3 +158,24 @@ async def send_case_ready_email(email: str, title: str, cnr: str, base: str) -> 
     </html>
     """
     return await send_email(email, f"Your case is ready: {title} - AI Courtroom", body)
+
+
+async def send_recovery_request_email(fields: dict[str, str | None]) -> bool:
+    """Tell support (our own mailbox) that someone asked to recover an account."""
+    rows = "".join(
+        f"<p><strong>{label}:</strong> {html.escape(value or '-')}</p>"
+        for label, value in fields.items()
+    )
+    body = f"""
+    <html>
+    <body>
+        <h2>AI Courtroom - Account recovery request</h2>
+        {rows}
+        <p>Restore it with POST /admin/accounts/{{id-or-email}}/restore within 30 days
+        of deletion.</p>
+    </body>
+    </html>
+    """
+    return await send_email(
+        settings.email_username, "Account recovery request - AI Courtroom", body
+    )

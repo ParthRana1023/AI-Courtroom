@@ -33,6 +33,7 @@ from app.routes import (
     location,
     parties,
     rate_limit,
+    status,
     witness,
 )
 from app.services.location_service import preload_cache as preload_location_cache
@@ -209,3 +210,4 @@ app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
 app.include_router(location.router, prefix="/location", tags=["Location"])
 app.include_router(client_logs.router, prefix="/logs", tags=["Client Logs"])
+app.include_router(status.router, prefix="/status", tags=["Status"])

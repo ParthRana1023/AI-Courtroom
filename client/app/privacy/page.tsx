@@ -1,245 +1,263 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
-import SiteHeader from "@/components/chrome/site-header";
-import { Shield, Cookie, Eye, Lock, Mail, Users } from "lucide-react";
+import DocPage from "@/components/docs/doc-page";
+import { K, Sec } from "@/components/docs/kit";
+
+// Copy generated verbatim from the handoff's Privacy Policy.dc.html.
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "What personal data AI Courtroom collects, how AI processes your cases, and your rights.",
+};
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen flex flex-col p-0 pt-16">
-      <SiteHeader className="fixed inset-x-0 top-0 z-50 bg-desk" />
+    <DocPage
+      current="/privacy"
+      kicker="Records · Privacy"
+      title="PRIVACY POLICY"
+      lede="We are committed to protecting your privacy and keeping your data safe. Here’s everything you need to know."
+      updated="6 October 2026"
+      form={["Form R-7", "Record of data held"]}
+      label="Privacy Policy"
+      index={[
+        ["commit", "Our commitment to privacy"],
+        ["collect", "Information we collect"],
+        ["use", "How we use your information"],
+        ["ai", "How AI processes your cases"],
+        ["cookies", "Cookies"],
+        ["keep", "Keeping and deleting your data"],
+        ["security", "Data security"],
+        ["contact", "Contact us"],
+      ]}
+    >
+      <Sec id="commit" n="I." title="Our commitment to privacy">
+        <p className={K.p}>
+          At AI Courtroom, we are committed to protecting your privacy. This policy explains how we collect, use, and safeguard your personal
+          information when you use our AI-powered legal simulation platform.
+        </p>
+      </Sec>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden py-16 sm:py-20 lg:py-28">
-        <div className="container px-4 sm:px-6 mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-sm font-medium mb-8">
-            <Shield className="h-4 w-4" />
-            Your Data, Your Rights
-          </div>
-          <h1 className="text-4xl font-extrabold tracking-tight lg:text-6xl mb-6 bg-linear-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Privacy Policy
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            We are committed to protecting your privacy and keeping your data
-            safe. Here's everything you need to know.
-          </p>
-          <p className="text-sm text-muted-foreground/60 mt-4">
-            Last updated: January 13, 2026
-          </p>
+      <Sec id="collect" n="II." title="Information we collect">
+        <p className={K.p}>We collect information that you provide directly to us, and some that is created as you use the platform:</p>
+        <ul className={K.defs}>
+          {" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Account</span>
+            <span className={K.note}>
+              Your name, and either your email address and password or your mobile number. If you sign up with Google or connect Google later, we
+              receive your name and email address from Google. If you signed up with a phone number, connecting Google makes that email your account
+              email.
+            </span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Age confirmation</span>
+            <span className={K.note}>That you have confirmed you are 18 or older. We do not ask for your date of birth at sign-up.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Optional profile details</span>
+            <span className={K.note}>
+              A nickname, gender, date of birth, phone number and photo, if you add them in your profile. Your date of birth and phone number are
+              never shown to anyone.
+            </span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Seat of practice</span>
+            <span className={K.note}>The country, state and city where you practise, used to set your cases in the right courts.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Messages to us</span>
+            <span className={K.note}>
+              What you send through the contact page, with the category you choose. If you aren’t signed in, also the name and email you give us for a
+              reply. Account recovery requests include the email or phone number on the deleted account.
+            </span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Case data</span>
+            <span className={K.note}>
+              The sections you choose, the cases generated for you, your arguments, your conversations with AI parties, and the verdicts.
+            </span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Preferences</span>
+            <span className={K.note}>
+              Settings saved to your account, such as case location, case memory, how partial wins count and which emails you receive. Display
+              settings such as text size and theme are stored in your browser.
+            </span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Profile</span>
+            <span className={K.note}>A nickname, gender and profile photo, if you choose to add them on your profile.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Messages</span>
+            <span className={K.note}>Anything you send through the contact form, with the category you chose.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Usage and device</span>
+            <span className={K.note}>
+              How you use the service, your browser type, operating system and IP address. We use these to list your signed-in devices in Settings, so
+              you can sign out any you don’t recognise.
+            </span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Voice input</span>
+            <span className={K.note}>
+              If you use the microphone in the courtroom, your browser’s speech service turns your speech into text. We receive only the text you
+              submit, not the audio. Some browsers process the audio on their provider’s servers, under that provider’s privacy policy.
+            </span>
+          </li>{" "}
+        </ul>
+      </Sec>
+
+      <Sec id="use" n="III." title="How we use your information">
+        <ul className={K.defs}>
+          {" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Running the courtroom</span>
+            <span className={K.note}>Generating your cases, playing the parties and the judge, and delivering verdicts.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Your record</span>
+            <span className={K.note}>Calculating your results and the win rate on your profile.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Personalisation</span>
+            <span className={K.note}>Setting cases in the courts where you practise and remembering your preferences.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Communication</span>
+            <span className={K.note}>
+              Sending sign-in codes by email or text message, security alerts about new sign-ins and password changes, the email notifications you
+              turn on, and replies to your messages.
+            </span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Improvement and analytics</span>
+            <span className={K.note}>Analysing usage patterns to improve our features.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Security</span>
+            <span className={K.note}>Keeping the platform secure and preventing fraud and abuse.</span>
+          </li>{" "}
+        </ul>
+      </Sec>
+
+      <Sec id="ai" n="IV." title="How AI processes your cases">
+        <p className={K.p}>
+          To run the courtroom, the content of your cases, including your arguments, is sent to third-party AI model providers that generate the
+          judge’s and the parties’ responses.
+        </p>
+        <p className={K.p}>
+          Depending on your case memory setting in{" "}
+          <Link href="/settings" className={K.a}>
+            Settings
+          </Link>
+          , the AI receives either the most relevant parts of the case or the full case record.
+        </p>
+        <p className={K.p}>
+          Objections you raise, the court’s rulings, witness testimony and any exhibits you pin to an argument are part of the case record and are
+          processed the same way.
+        </p>
+        <div className={K.callout}>
+          <strong className={K.calloutT}>Keep real people out of your arguments.</strong>
+          <span className={K.calloutD}>
+            Cases are fictional. Please don’t include real personal details about yourself or anyone else in your arguments or messages.
+          </span>
         </div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-200 h-100 bg-purple-500/10 blur-[100px] -z-10 rounded-full" />
-      </section>
+      </Sec>
 
-      {/* Policy Content */}
-      <section className="py-12 sm:py-16">
-        <div className="container px-4 sm:px-6 mx-auto max-w-4xl space-y-6 sm:space-y-8">
-          <PolicyCard
-            icon={<Shield className="h-5 w-5" />}
-            iconColor="text-purple-500"
-            iconBg="bg-purple-500/10"
-            title="Our Commitment to Privacy"
-          >
-            <p className="text-muted-foreground leading-relaxed">
-              At AI Courtroom, we are committed to protecting your privacy. This
-              policy explains how we collect, use, and safeguard your personal
-              information when you use our AI-powered legal simulation platform.
-            </p>
-          </PolicyCard>
+      <Sec id="cookies" n="V." title="Cookies">
+        <p className={K.p}>We use cookies and similar technologies in four categories:</p>
+        <ul className={K.defs}>
+          {" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Essential</span>
+            <span className={K.note}>Required for the platform to work, such as keeping you signed in. Always on.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Functional</span>
+            <span className={K.note}>Remember your settings and preferences.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Analytics</span>
+            <span className={K.note}>Help us understand how you use the service.</span>
+          </li>{" "}
+          <li className={K.defRow}>
+            <span className={K.term}>Marketing</span>
+            <span className={K.note}>Used only if you allow them.</span>
+          </li>{" "}
+        </ul>
+        <p className={K.p}>
+          Read the{" "}
+          <Link href="/cookies" className={K.a}>
+            Cookie Policy
+          </Link>{" "}
+          for the full list. You can change your choices at any time in{" "}
+          <Link href="/settings" className={K.a}>
+            Settings → Privacy
+          </Link>
+          .
+        </p>
+      </Sec>
 
-          <PolicyCard
-            icon={<Eye className="h-5 w-5" />}
-            iconColor="text-blue-500"
-            iconBg="bg-blue-500/10"
-            title="Information We Collect"
-          >
-            <p className="text-muted-foreground mb-4">
-              We collect information that you provide directly to us:
-            </p>
-            <div className="grid gap-3">
-              <InfoItem
-                label="Account Information"
-                desc="Name, email address, and profile details"
-              />
-              <InfoItem
-                label="Case Data"
-                desc="Legal cases and arguments you create on our platform"
-              />
-              <InfoItem
-                label="Usage Data"
-                desc="How you interact with our services"
-              />
-              <InfoItem
-                label="Device Information"
-                desc="Browser type, operating system, and IP address"
-              />
-            </div>
-          </PolicyCard>
-
-          <PolicyCard
-            icon={<Cookie className="h-5 w-5" />}
-            iconColor="text-amber-500"
-            iconBg="bg-amber-500/10"
-            title="Cookies & Tracking"
-          >
-            <p className="text-muted-foreground mb-4">
-              We use cookies and similar technologies for:
-            </p>
-            <div className="grid gap-3">
-              <InfoItem
-                label="Essential Cookies"
-                desc="Required for the platform to function"
-              />
-              <InfoItem
-                label="Analytics Cookies"
-                desc="Help us understand how you use our service"
-              />
-              <InfoItem
-                label="Preference Cookies"
-                desc="Remember your settings and preferences"
-              />
-            </div>
-            <p className="text-muted-foreground mt-4 text-sm">
-              You can manage your cookie preferences at any time through your
-              browser settings or our cookie consent banner.
-            </p>
-          </PolicyCard>
-
-          <PolicyCard
-            icon={<Users className="h-5 w-5" />}
-            iconColor="text-green-500"
-            iconBg="bg-green-500/10"
-            title="How We Use Your Information"
-          >
-            <p className="text-muted-foreground mb-4">
-              We use the information we collect to:
-            </p>
-            <div className="grid gap-3">
-              <InfoItem
-                label="Service Improvement"
-                desc="Provide and improve our AI legal simulation services"
-              />
-              <InfoItem
-                label="Personalization"
-                desc="Personalize your experience on the platform"
-              />
-              <InfoItem
-                label="Communication"
-                desc="Send important updates and notifications"
-              />
-              <InfoItem
-                label="Analytics"
-                desc="Analyze usage patterns to enhance our features"
-              />
-              <InfoItem
-                label="Security"
-                desc="Ensure platform security and prevent fraud"
-              />
-            </div>
-          </PolicyCard>
-
-          <PolicyCard
-            icon={<Lock className="h-5 w-5" />}
-            iconColor="text-indigo-500"
-            iconBg="bg-indigo-500/10"
-            title="Data Security"
-          >
-            <p className="text-muted-foreground leading-relaxed">
-              We implement industry-standard security measures to protect your
-              data, including encryption, secure servers, and regular security
-              audits. Your case data and personal information are stored
-              securely and accessed only by authorized personnel.
-            </p>
-          </PolicyCard>
-
-          <PolicyCard
-            icon={<Mail className="h-5 w-5" />}
-            iconColor="text-rose-500"
-            iconBg="bg-rose-500/10"
-            title="Contact Us"
-          >
-            <p className="text-muted-foreground leading-relaxed">
-              If you have questions about this privacy policy or how we handle
-              your data, please contact us through our{" "}
-              <Link
-                href="/contact"
-                className="text-blue-500 hover:text-blue-600 underline underline-offset-4 transition-colors"
-              >
-                feedback page
+      <Sec id="keep" n="VI." title="Keeping and deleting your data">
+        <ul className={K.bullets}>
+          {" "}
+          <li className={K.bulletRow}>
+            <span className={K.bullet} aria-hidden="true">
+              —
+            </span>
+            <span>Cases stay in My Cases until you archive them.</span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.bullet} aria-hidden="true">
+              —
+            </span>
+            <span>Archived cases stay in the archive until you restore or delete them.</span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.bullet} aria-hidden="true">
+              —
+            </span>
+            <span>Deleting a case permanently removes it and all of its data. This can’t be undone.</span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.bullet} aria-hidden="true">
+              —
+            </span>
+            <span>
+              You can download a copy of your data, or delete your account and everything in it, in{" "}
+              <Link href="/settings" className={K.a}>
+                Settings → Account & security
               </Link>
-              .
-            </p>
-          </PolicyCard>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-card/80 backdrop-blur-sm border-t border-border py-12 mt-auto">
-        <div className="container px-4 mx-auto text-center">
-          <div className="flex flex-col md:flex-row justify-center items-center gap-6 text-sm text-muted-foreground max-w-2xl mx-auto">
-            <p>
-              © {new Date().getFullYear()} AI Courtroom. All rights reserved.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
-              <Link
-                href="/about"
-                className="hover:text-foreground transition-colors underline underline-offset-4"
-              >
-                About
+              . Deleting your account signs you out on every device and removes your profile and every case, including archived ones, from the
+              service. We keep the deleted account for 30 days so it can be recovered if you{" "}
+              <Link href="/contact?cat=account_recovery" className={K.a}>
+                contact us
               </Link>
-              <Link
-                href="/terms"
-                className="hover:text-foreground transition-colors underline underline-offset-4"
-              >
-                Terms of Service
-              </Link>
-              <Link
-                href="/contact"
-                className="hover:text-foreground transition-colors underline underline-offset-4"
-              >
-                Contact Us
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
-}
+              . After 30 days it’s erased for good.
+            </span>
+          </li>{" "}
+        </ul>
+      </Sec>
 
-function PolicyCard({
-  icon,
-  iconColor,
-  iconBg,
-  title,
-  children,
-}: {
-  icon: React.ReactNode;
-  iconColor: string;
-  iconBg: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="bg-card/80 backdrop-blur-sm p-6 sm:p-8 rounded-2xl border border-border hover:border-blue-500/20 transition-all duration-300 hover:shadow-lg">
-      <div className="flex items-center gap-3 mb-5">
-        <div className={`p-2.5 rounded-xl ${iconBg}`}>
-          <div className={iconColor}>{icon}</div>
-        </div>
-        <h2 className="text-xl font-bold">{title}</h2>
-      </div>
-      {children}
-    </div>
-  );
-}
+      <Sec id="security" n="VII." title="Data security">
+        <p className={K.p}>
+          We implement industry-standard security measures to protect your data, including encryption, secure servers, and regular security audits.
+          Your case data and personal information are stored securely and accessed only by authorized personnel.
+        </p>
+      </Sec>
 
-function InfoItem({ label, desc }: { label: string; desc: string }) {
-  return (
-    <div className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
-      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0" />
-      <div>
-        <span className="font-medium text-foreground">{label}:</span>{" "}
-        <span className="text-muted-foreground">{desc}</span>
-      </div>
-    </div>
+      <Sec id="contact" n="VIII." title="Contact us">
+        <p className={K.p}>
+          If you have questions about this privacy policy or how we handle your data, please contact us through our{" "}
+          <Link href="/contact" className={K.a}>
+            contact page
+          </Link>
+          .
+        </p>
+      </Sec>
+    </DocPage>
   );
 }
