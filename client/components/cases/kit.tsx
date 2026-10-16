@@ -95,12 +95,16 @@ export function SearchBox({
   onChange,
   placeholder,
   className,
+  tall,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   className?: string;
+  /** 44px tall, to line up with 44px buttons beside it */
+  tall?: boolean;
 }) {
+  const h = tall ? "h-11" : "h-10.5";
   return (
     <div className={cn("relative min-w-0", className)}>
       <svg
@@ -123,14 +127,17 @@ export function SearchBox({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10.5 w-full rounded-none border border-desk-rule-mid bg-desk-ink/6 pl-10.5 pr-10 font-data text-[15px] text-desk-ink outline-none placeholder:text-desk-muted focus:border-desk-amber focus:bg-desk-ink/10 [&::-webkit-search-cancel-button]:hidden"
+        className={cn(
+          "w-full rounded-none border border-desk-rule-mid bg-desk-ink/6 pl-10.5 pr-10 font-data text-[15px] text-desk-ink outline-none placeholder:text-desk-muted focus:border-desk-amber focus:bg-desk-ink/10 [&::-webkit-search-cancel-button]:hidden",
+          h,
+        )}
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange("")}
           aria-label="Clear search"
-          className="absolute right-0 top-0 h-10.5 w-11 cursor-pointer font-data text-xl text-desk-muted hover:text-desk-hover"
+          className={cn("absolute right-0 top-0 w-11 cursor-pointer font-data text-xl text-desk-muted hover:text-desk-hover", h)}
         >
           ×
         </button>

@@ -26,8 +26,8 @@ import ConfirmDialog, { type ConfirmCopy } from "@/components/court/confirm-dial
 import { useSettings } from "@/contexts/settings-context";
 import { useOnline } from "@/hooks/use-online";
 import { useViewport } from "@/hooks/use-viewport";
-import { caseAPI } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { caseAPI } from "@/lib/api";
 
 const OFFLINE_TOAST = "You’re offline. Try again when you’re back online.";
 
@@ -162,49 +162,51 @@ export default function ArchivedCasesPage() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-4.5 min-[560px]:pt-5">
-      <PageHead kicker={`Archive · ${cases.length} ${cases.length === 1 ? "case" : "cases"}`} title="ARCHIVED" />
+      {/* Actions sit right of the title (under it when it wraps); search goes under them in table view, on its own row in card view. */}
+      <PageHead kicker={`Archive · ${cases.length} ${cases.length === 1 ? "case" : "cases"}`} title="ARCHIVED" wrap>
+        <div className={cn("ml-auto flex min-w-0 max-w-full flex-col items-stretch gap-3", table && "w-130 min-[1200px]:w-100")}>
+          <div className="flex flex-nowrap items-center justify-end gap-x-3.5">
+            <Link
+              href="/cases"
+              className="mr-1.5 flex min-h-10 flex-none items-center gap-2 whitespace-nowrap border-b border-desk-ink/30 text-xs uppercase tracking-[0.16em] text-desk-soft hover:text-desk-hover min-[560px]:min-h-11"
+            >
+              <span aria-hidden="true">←</span>
+              <span>My cases</span>
+            </Link>
+            <SelectToggle selecting={selecting} onToggle={() => (selecting ? stopSelecting() : setSelecting(true))} className="h-10 w-auto min-[560px]:h-11" />
+            {cases.length > 0 && (
+              <button
+                type="button"
+                onClick={() => ask("empty", cases.map((c) => c.cnr))}
+                className="flex h-10 flex-none cursor-pointer items-center justify-center whitespace-nowrap border-[1.5px] border-seal-hover px-3.5 text-meta font-bold uppercase tracking-[0.14em] text-desk-ink hover:bg-seal hover:text-cream min-[560px]:h-11 min-[560px]:px-5.5"
+              >
+                Empty archive
+              </button>
+            )}
+          </div>
+          {table && <SearchBox value={q} onChange={setQ} placeholder="Search by title or case number" tall className="w-full" />}
+        </div>
+      </PageHead>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
-        <SearchBox
-          value={q}
-          onChange={setQ}
-          placeholder={table ? "Search by title or case number" : "Search archive"}
-          className={cn("flex-[1_1_200px]", table ? "max-w-95" : "max-w-full")}
-        />
-        {!table && (
-          <div className="flex min-w-0 flex-[1_1_100%] min-[560px]:flex-none">
+      {!table && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+          <SearchBox value={q} onChange={setQ} placeholder={w < 560 ? "Search cases" : "Search by title or case number"} className="flex-[1_1_100%] min-[560px]:flex-[1_1_200px]" />
+          <div className="ml-auto flex min-w-0 flex-[1_1_100%] items-center gap-2 min-[560px]:flex-none">
             <SortSelect
               sort={sort}
               onChange={setSort}
               options={[
                 ["deleted_at:desc", "Recently archived"],
                 ["deleted_at:asc", "Archived longest ago"],
-                ["created_at:desc", "Newest first"],
+                ["created_at:desc", "Newest filed"],
                 ["title:asc", "Title A–Z"],
+                ["status:asc", "Status"],
+                ["cnr:asc", "Case number"],
               ]}
             />
           </div>
-        )}
-        <div className="ml-auto flex max-w-full flex-nowrap items-center gap-3.5">
-          <Link
-            href="/cases"
-            className="mr-1.5 flex min-h-10 flex-none items-center gap-2 whitespace-nowrap border-b border-desk-ink/30 text-xs uppercase tracking-[0.16em] text-desk-soft hover:text-desk-hover min-[560px]:min-h-11"
-          >
-            <span aria-hidden="true">←</span>
-            <span>My cases</span>
-          </Link>
-          <SelectToggle selecting={selecting} onToggle={() => (selecting ? stopSelecting() : setSelecting(true))} className="h-10 w-auto min-[560px]:h-11" />
-          {cases.length > 0 && (
-            <button
-              type="button"
-              onClick={() => ask("empty", cases.map((c) => c.cnr))}
-              className="flex h-10 flex-none cursor-pointer items-center justify-center whitespace-nowrap border-[1.5px] border-seal-hover px-3.5 text-meta font-bold uppercase tracking-[0.14em] text-desk-ink hover:bg-seal hover:text-cream min-[560px]:h-11 min-[560px]:px-5.5"
-            >
-              Empty archive
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
       {!online && <OfflineStrip>Showing the archive as it was last loaded. Restoring and deleting are paused.</OfflineStrip>}
 
