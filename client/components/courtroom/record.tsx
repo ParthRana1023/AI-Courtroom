@@ -126,7 +126,7 @@ function ReportButton({ done, onClick }: { done: boolean; onClick: () => void })
 function Struck({ e }: { e: Ev }) {
   if (!e.struck) return null;
   return (
-    <span className={cn(LABEL, "-rotate-[1.5deg] self-start border-[1.5px] border-ink-label px-2 pb-0.5 pt-0.75 tracking-[0.14em] text-ink-label")}>
+    <span className={cn(LABEL, "rotate-[-1.5deg] self-start border-[1.5px] border-ink-label px-2 pb-0.5 pt-0.75 tracking-[0.14em] text-ink-label")}>
       {e.struck === "withdrawn" ? "Question withdrawn" : "Struck from the record"}
     </span>
   );
@@ -181,7 +181,7 @@ export function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
             {isTyping && <Caret />}
           </p>
           {logged ? (
-            <span className={cn(LABEL, "-rotate-[1.5deg] self-start whitespace-nowrap border-[1.5px] border-seal px-2.25 pb-0.75 pt-1 tracking-[0.14em] text-seal")}>
+            <span className={cn(LABEL, "rotate-[-1.5deg] self-start whitespace-nowrap border-[1.5px] border-seal px-2.25 pb-0.75 pt-1 tracking-[0.14em] text-seal")}>
               {logged.extracted_by === ai ? `Logged by ${THE[ai].replace("The ", "the ")} as` : "Logged as"} {logged.exhibit_ref}
             </span>
           ) : (

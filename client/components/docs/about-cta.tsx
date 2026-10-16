@@ -12,7 +12,7 @@ export default function AboutCta() {
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 bg-ink px-6 py-5.5 text-paper">
       <div className="flex flex-[1_1_260px] flex-col gap-1.5">
         <span className="font-display text-2xl/[1.15]">Ready to enter the courtroom?</span>
-        <span className="text-[15px]/normal text-[#d8ccb4]">Start building your legal argumentation skills with AI-powered simulations today.</span>
+        <span className="text-body/normal text-[#d8ccb4]">Start building your legal argumentation skills with AI-powered simulations today.</span>
       </div>
       <div className="flex flex-wrap gap-2">
         <Link href={isAuthenticated ? "/cases" : "/register"} className={`${BTN} bg-paper text-ink hover:bg-white hover:text-ink`}>

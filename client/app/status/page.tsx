@@ -121,7 +121,7 @@ export default function StatusPage() {
             </ul>
             <div className={cn("flex flex-col gap-3.5 pb-6 pt-5", PAD)}>
               <h2 className="m-0 font-display text-xl font-normal">Incidents</h2>
-              {!incidents.length && <p className="m-0 text-[15px]/[1.5] text-ink-label">No incidents reported in the last 90 days.</p>}
+              {!incidents.length && <p className="m-0 text-body/normal text-ink-label">No incidents reported in the last 90 days.</p>}
               {incidents.map((n) => {
                 const color = n.resolved ? "border-green text-green" : n.impact === "outage" ? "border-seal text-seal" : "border-amber-deep text-amber-deep";
                 return (
@@ -132,7 +132,7 @@ export default function StatusPage() {
                     </div>
                     <ol className="m-0 flex list-none flex-col gap-2 p-0">
                       {n.updates.map((u, i) => (
-                        <li key={i} className="grid grid-cols-[minmax(0,92px)_minmax(0,1fr)] gap-2.5 text-sm/[1.5] text-ink">
+                        <li key={i} className="grid grid-cols-[minmax(0,92px)_minmax(0,1fr)] gap-2.5 text-sm/normal text-ink">
                           <span className="font-data text-xs/[1.75] font-medium text-ink-muted">{when(u.at)}</span>
                           <span>
                             <strong>{u.kind}.</strong> {u.text}
@@ -145,7 +145,7 @@ export default function StatusPage() {
               })}
             </div>
           </section>
-          <p className="m-0 text-[13px]/[1.5] text-desk-muted text-pretty">
+          <p className="m-0 text-meta/normal text-desk-muted text-pretty">
             Times are shown in your local time zone. If something isn’t working and it isn’t listed here,{" "}
             <Link href="/contact" className="border-b border-current">
               tell us

@@ -1,5 +1,10 @@
 import { test, expect } from "./support/fixtures";
 
+// These test the overlays, not the 3D scene, which is slow on CI's software WebGL: use the simple landing.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.getItem("aiCourtroom-landing") || localStorage.setItem("aiCourtroom-landing", "classic"));
+});
+
 test.describe("cookie consent", () => {
   test.use({ consented: false });
 
@@ -10,7 +15,7 @@ test.describe("cookie consent", () => {
     await banner.getByRole("button", { name: "Accept All" }).click();
     await expect(banner).toBeHidden();
     await page.reload();
-    await expect(page.getByRole("heading", { name: "AI Courtroom", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your first case is waiting.", level: 1 })).toBeVisible();
     await expect(banner).toBeHidden();
   });
 

@@ -3,8 +3,9 @@ import { test, expect } from "./support/fixtures";
 const isMobile = (name: string) => name.startsWith("mobile");
 
 test.describe("header, signed out", () => {
+  // The landing has its own header, so the site header is checked on another public page.
   test("shows public nav and sign-in links", async ({ page }, info) => {
-    await page.goto("/");
+    await page.goto("/about");
     const header = page.locator("header");
     await expect(header.getByRole("link", { name: "AI Courtroom home" })).toBeVisible();
 
@@ -14,13 +15,13 @@ test.describe("header, signed out", () => {
       for (const tile of ["Home", "Contact", "About", "Settings", "Login", "Take a Side"]) {
         await expect(menu.getByRole("link", { name: tile, exact: true })).toBeVisible();
       }
-      await expect(menu.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("aria-current", "page");
+      await expect(menu.getByRole("link", { name: "About", exact: true })).toHaveAttribute("aria-current", "page");
       await page.keyboard.press("Escape");
       await expect(menu).toBeHidden();
     } else {
       const nav = header.getByRole("navigation", { name: "Main" });
       await expect(nav.getByRole("link")).toHaveText(["Home", "Contact", "About", "Settings", "Login", "Take a Side"]);
-      await expect(nav.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+      await expect(nav.getByRole("link", { name: "About" })).toHaveAttribute("aria-current", "page");
     }
   });
 
@@ -85,7 +86,7 @@ test.describe("header, signed in", () => {
 
 test.describe("theme", () => {
   test("defaults to dark, toggles to light and remembers it", async ({ page }, info) => {
-    await page.goto("/");
+    await page.goto("/about");
     const html = page.locator("html");
     await expect(html).toHaveAttribute("data-theme", "dark");
 

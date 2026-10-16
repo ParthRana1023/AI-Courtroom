@@ -250,7 +250,7 @@ export default function SettingsPage() {
               <span className="min-w-0 truncate">Standing orders</span>
             </div>
             {!wide && (
-              <div ref={tabsRef} role="tablist" aria-label="Settings sections" className="flex overflow-x-auto border-b border-ink/20 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div ref={tabsRef} role="tablist" aria-label="Settings sections" className="flex overflow-x-auto border-b border-ink/20 scrollbar-none [&::-webkit-scrollbar]:hidden">
                 {secs.map(([id, , short]) => {
                   const cur = active === id;
                   return (

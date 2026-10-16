@@ -94,7 +94,7 @@ export default function DocPage({
               <nav
                 ref={navRef}
                 aria-label="Contents"
-                className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain border-t border-[rgba(239,230,211,.16)] pb-6 [mask-image:linear-gradient(#000_calc(100%-32px),transparent)] [scrollbar-width:none] light:border-[rgba(18,13,9,.24)] [&::-webkit-scrollbar]:hidden"
+                className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain border-t border-[rgba(239,230,211,.16)] pb-6 mask-[linear-gradient(#000_calc(100%-32px),transparent)] scrollbar-none light:border-[rgba(18,13,9,.24)] [&::-webkit-scrollbar]:hidden"
               >
                 {index.map(([id, t], i) => {
                   const cur = active === id;

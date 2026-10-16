@@ -27,6 +27,57 @@ export function initialsOf(first?: string, last?: string) {
   return `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
 }
 
+/**
+ * The avatar button and its menu: name and email, Your profile (and Settings where asked), Log out.
+ * Renders nothing until someone is signed in.
+ */
+export function AccountMenu({ size = 36, withSettings = false }: { size?: 36 | 38; withSettings?: boolean }) {
+  const { user, logout } = useAuth();
+  if (!user) return null;
+  return (
+    <DropdownMenu.Root modal={false}>
+      <DropdownMenu.Trigger
+        aria-label="Account menu"
+        className={cn(
+          "cursor-pointer rounded-full bg-paper bg-cover bg-center font-display text-sm normal-case tracking-normal text-ink transition-shadow hover:shadow-[0_0_0_2px_#e0453a] data-[state=open]:shadow-[0_0_0_2px_#e0453a]",
+          size === 38 ? "size-9.5" : "size-9",
+        )}
+        style={user.profile_photo_url ? { backgroundImage: `url("${user.profile_photo_url}")` } : undefined}
+      >
+        {user.profile_photo_url ? "" : initialsOf(user.first_name, user.last_name)}
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align="end" sideOffset={10} className={cn(menuPanel, "min-w-57.5")}>
+          <div className="flex flex-col gap-0.5 border-b-[3px] border-double border-ink px-4.5 pb-3 pt-2.5">
+            <span className="font-display text-[1.0625rem] leading-[1.2]">
+              {user.first_name} {user.last_name}
+            </span>
+            <span className="font-type text-xs text-ink-muted">{user.email}</span>
+          </div>
+          <DropdownMenu.Item asChild>
+            <Link href="/profile" className={menuItem}>
+              Your profile
+            </Link>
+          </DropdownMenu.Item>
+          {withSettings && (
+            <DropdownMenu.Item asChild>
+              <Link href="/settings" className={menuItem}>
+                Settings
+              </Link>
+            </DropdownMenu.Item>
+          )}
+          <DropdownMenu.Item
+            onSelect={logout}
+            className="cursor-pointer border-t border-ink/20 px-4.5 py-3 font-type text-meta font-bold uppercase tracking-[0.12em] text-seal outline-none data-highlighted:bg-paper-hi"
+          >
+            Log out
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
 interface SiteHeaderProps {
   className?: string;
 }
@@ -160,44 +211,7 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
 
           {!isLoading &&
             (isAuthenticated && user ? (
-              <DropdownMenu.Root modal={false}>
-                <DropdownMenu.Trigger
-                  aria-label="Account menu"
-                  className="h-9 w-9 cursor-pointer rounded-full bg-paper bg-cover bg-center font-display text-sm normal-case tracking-normal text-ink transition-shadow hover:shadow-[0_0_0_2px_#e0453a] data-[state=open]:shadow-[0_0_0_2px_#e0453a]"
-                  style={
-                    user.profile_photo_url
-                      ? { backgroundImage: `url("${user.profile_photo_url}")` }
-                      : undefined
-                  }
-                >
-                  {user.profile_photo_url ? "" : initialsOf(user.first_name, user.last_name)}
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content
-                    align="end"
-                    sideOffset={10}
-                    className={cn(menuPanel, "min-w-57.5")}
-                  >
-                    <div className="flex flex-col gap-0.5 border-b-[3px] border-double border-ink px-4.5 pb-3 pt-2.5">
-                      <span className="font-display text-[1.0625rem] leading-[1.2]">
-                        {user.first_name} {user.last_name}
-                      </span>
-                      <span className="font-type text-xs text-ink-muted">{user.email}</span>
-                    </div>
-                    <DropdownMenu.Item asChild>
-                      <Link href="/profile" className={menuItem}>
-                        Your profile
-                      </Link>
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                      onSelect={logout}
-                      className="cursor-pointer border-t border-ink/20 px-4.5 py-3 font-type text-meta font-bold uppercase tracking-[0.12em] text-seal outline-none data-highlighted:bg-paper-hi"
-                    >
-                      Log out
-                    </DropdownMenu.Item>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
+              <AccountMenu />
             ) : (
               <>
                 <Link

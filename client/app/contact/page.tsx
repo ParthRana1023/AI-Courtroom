@@ -171,7 +171,7 @@ export default function ContactPage() {
               <p className="m-0 border-t border-[rgba(239,230,211,.16)] pt-4.5 text-base/[1.55] text-desk-soft text-pretty light:border-[rgba(18,13,9,.24)]">
                 {INTRO}
               </p>
-              <p className="m-0 text-[13px]/[1.5] text-desk-muted text-pretty">{REPLY}</p>
+              <p className="m-0 text-meta/normal text-desk-muted text-pretty">{REPLY}</p>
             </div>
           )}
 
@@ -216,7 +216,7 @@ export default function ContactPage() {
             ) : (
               <>
                 <div data-scroller="" className={cn("flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain", mob ? "px-4 pb-5 pt-4" : "px-7 pb-6 pt-5.5")}>
-                  {!wide && <p className="m-0 text-base/[1.5] text-ink-label text-pretty">{INTRO}</p>}
+                  {!wide && <p className="m-0 text-base/normal text-ink-label text-pretty">{INTRO}</p>}
                   {signedOut && (
                     <>
                       <div role="status" className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 bg-ink px-3.5 py-3 text-sm/[1.45] text-paper">

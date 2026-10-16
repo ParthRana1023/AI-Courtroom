@@ -124,7 +124,7 @@ export default function ProfilePage() {
   const px = mob ? "px-4" : "px-6";
 
   return (
-    <div data-pscroll="" className={cn("mx-auto flex w-full max-w-320 flex-col", mob ? "gap-3 px-3 pb-6 pt-3.5" : "gap-4.5 px-[3vw] pb-8 pt-5.5")}>
+    <div data-pscroll="" className={cn("mx-auto flex w-full max-w-7xl flex-col", mob ? "gap-3 px-3 pb-6 pt-3.5" : "gap-4.5 px-[3vw] pb-8 pt-5.5")}>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5">
         <div className="flex flex-col gap-1.5">
           <span className={cn(TAG, "text-desk-muted")}>Your profile</span>
@@ -227,7 +227,7 @@ function Identity({ user: u, cases, mob, onEdit }: { user: User; cases: CaseRow[
           )}
           <span
             aria-hidden="true"
-            className="absolute -right-1.5 bottom-0.5 rotate-[-6deg] border-[1.5px] border-seal bg-paper px-2 pb-0.75 pt-1 text-[10.5px] font-bold tracking-[0.14em] text-seal"
+            className="absolute -right-1.5 bottom-0.5 -rotate-6 border-[1.5px] border-seal bg-paper px-2 pb-0.75 pt-1 text-[10.5px] font-bold tracking-[0.14em] text-seal"
           >
             ENROLLED
           </span>
@@ -266,7 +266,7 @@ function Identity({ user: u, cases, mob, onEdit }: { user: User; cases: CaseRow[
         >
           <span className="flex min-w-0 flex-col gap-0.75">
             <span className={cn(TAG, "text-seal")}>Pick up where you left off</span>
-            <span className="truncate font-display text-[17px] leading-[1.25]">{resume.title}</span>
+            <span className="truncate font-display text-[17px] leading-tight">{resume.title}</span>
             <span className="font-data text-[11.5px] font-medium text-ink-meta">
               {resume.cnr} · {sideLabel(resume.user_role)} · {stamp(resume)[0]}
             </span>
@@ -522,7 +522,7 @@ function RecentCases({ cases, px, mob }: { cases: CaseRow[]; px: string; mob: bo
             )}
           >
             <span className="flex min-w-0 flex-col gap-0.75">
-              <span className="truncate font-display text-[17px] leading-[1.25]">{c.title}</span>
+              <span className="truncate font-display text-[17px] leading-tight">{c.title}</span>
               <span className="font-data text-[11.5px] font-medium text-ink-meta">
                 {c.cnr} · {sideLabel(c.user_role)}
               </span>
