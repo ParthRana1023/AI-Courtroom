@@ -1,26 +1,8 @@
 // User types
-export enum Roles {
+enum Roles {
   PLAINTIFF = "plaintiff",
   DEFENDANT = "defendant",
   NOT_STARTED = "not_started",
-}
-
-// Location types
-export interface LocationSearchResult {
-  type: "city" | "state" | "country";
-  name: string;
-  city: string | null;
-  state: string | null;
-  state_iso2: string | null;
-  country: string;
-  country_iso2: string;
-  phone_code: string;
-}
-
-export interface IndianState {
-  state_iso2: string;
-  state_name: string;
-  high_court: string;
 }
 
 export type CaseLocationPreference =
@@ -28,7 +10,7 @@ export type CaseLocationPreference =
   | "specific_state"
   | "random";
 
-export type AuthMethod = "email" | "phone" | "google";
+type AuthMethod = "email" | "phone" | "google";
 
 export interface User {
   id?: string;
@@ -94,7 +76,7 @@ export interface OutcomeCounts {
   win_rate: number; // percent, 0-100
 }
 
-export interface RecentOutcome {
+interface RecentOutcome {
   cnr: string;
   title: string;
   role: Roles;
@@ -102,14 +84,14 @@ export interface RecentOutcome {
   decided_at: string;
 }
 
-export interface MonthlyOutcomes {
+interface MonthlyOutcomes {
   month: string; // "YYYY-MM"
   wins: number;
   losses: number;
   partials: number;
 }
 
-export interface ActivityStats {
+interface ActivityStats {
   arguments: number;
   witnesses_examined: number;
   conferences_held: number;
@@ -174,23 +156,14 @@ export interface CourtroomProceedingsEvent {
   struck?: "struck" | "withdrawn" | null;
 }
 
-export interface PendingLeave {
+interface PendingLeave {
   event_id: string;
   witness_id: string;
   witness_name: string;
   called_by: string;
 }
 
-export interface CaseListItem {
-  id: string;
-  cnr: string;
-  title: string;
-  created_at: string;
-  status: CaseStatus;
-  outcome?: CaseOutcome | null;
-}
-
-export type EvidenceMediaStatus =
+type EvidenceMediaStatus =
   | "not_requested"
   | "pending"
   | "generated"
@@ -215,7 +188,7 @@ export interface EvidenceItem {
   private?: boolean;
 }
 
-export interface Argument {
+interface Argument {
   id?: string; // Added optional id field
   type: string;
   content: string;
@@ -250,9 +223,6 @@ export interface Case {
   pending_leave?: PendingLeave | null;
   reported?: string[]; // AI responses this user already reported
 }
-
-// Form types
-export type Gender = "male" | "female" | "others" | "prefer-not-to-say";
 
 export interface RegisterFormData {
   first_name: string;
@@ -339,16 +309,8 @@ export interface ChatMessage {
   exhibit_refs?: string[];
 }
 
-export interface PartiesListResponse {
-  parties: PersonInvolved[];
-  user_role: string;
-  can_access_courtroom: boolean;
-  is_in_courtroom: boolean;
-  case_status: string;
-}
-
 // Witness types
-export interface ExaminationItem {
+interface ExaminationItem {
   id: string;
   examiner: string;
   question: string;
@@ -357,13 +319,6 @@ export interface ExaminationItem {
   objection_ruling?: string;
   timestamp: string;
   phase?: "chief" | "cross" | "re_exam" | null;
-}
-
-export interface WitnessInfo {
-  id: string;
-  name: string;
-  role: string;
-  has_testified: boolean;
 }
 
 export interface CurrentWitnessResponse {
@@ -376,15 +331,5 @@ export interface CurrentWitnessResponse {
   is_ai_examining?: boolean;
   phase?: "chief" | "cross" | "re_exam";
   next_examiner?: string; // whose turn it is: plaintiff or defendant
-}
-
-export interface WitnessExaminationResponse {
-  witness_id: string;
-  witness_name: string;
-  question: string;
-  answer: string;
-  examination_id: string;
-  timestamp: string;
-  ai_followup?: string;
 }
 

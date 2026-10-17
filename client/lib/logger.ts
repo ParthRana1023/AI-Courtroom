@@ -33,7 +33,7 @@ export type LogCategory =
   | "general"; // Default category
 
 // Structured log entry matching backend schema
-export interface LogEntry {
+interface LogEntry {
   timestamp: string;
   level: "debug" | "info" | "warn" | "error";
   category: LogCategory;
@@ -463,8 +463,3 @@ export class Logger {
 export function getLogger(category: LogCategory = "general"): Logger {
   return new Logger(category);
 }
-
-/**
- * Default logger instance
- */
-export const logger = getLogger("general");

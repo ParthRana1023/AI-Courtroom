@@ -43,10 +43,6 @@ jobs:
             server/requirements.txt
             server/requirements-dev.txt
 
-      # sentence-transformers otherwise pulls the CUDA build of PyTorch (~2 GB).
-      - name: Install CPU-only PyTorch
-        run: pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
-
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 

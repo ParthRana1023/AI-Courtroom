@@ -106,21 +106,6 @@ def test_get_current_testimony_ignores_finished_sessions(witness_party):
 # ---------------------------------------------------------------------------
 
 
-async def test_available_witnesses_marks_who_testified(
-    client, auth_headers, courtroom_case, witness_party
-):
-    case = await courtroom_case(witness_testimonies=[open_testimony(witness_party)])
-
-    body = (
-        await client.get(f"/cases/{case.cnr}/witness/available", headers=auth_headers)
-    ).json()
-
-    assert {w["name"]: w["has_testified"] for w in body["witnesses"]} == {
-        "Ravi Kumar": True,
-        "Asha Rao": False,
-    }
-
-
 async def test_call_witness(client, auth_headers, courtroom_case, witness_party):
     case = await courtroom_case("defendant")
 
@@ -393,12 +378,6 @@ async def test_witness_questions_are_rate_limited(
     assert last_allowed.status_code == 200
     assert blocked.status_code == 429
     assert "enough from the witnesses" in blocked.json()["detail"]
-
-
-async def test_witness_question_limit_status(client, auth_headers):
-    body = (await client.get("/limit/witness-question", headers=auth_headers)).json()
-
-    assert (body["remaining_attempts"], body["max_attempts"]) == (20, 20)
 
 
 @pytest.mark.parametrize("target", ["examine_witness", "upsert_memory_item"])
@@ -947,13 +926,12 @@ async def test_ai_examination_waits_for_the_ruling_and_drops_a_withdrawn_questio
 
 
 # ---------------------------------------------------------------------------
-# conclude, dismiss, current state and testimonies
+# conclude and current state
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("action", ["conclude", "dismiss"])
-async def test_conclude_and_dismiss_end_the_testimony(
-    client, auth_headers, on_stand, witness_party, action
+async def test_conclude_end_the_testimony(
+    client, auth_headers, on_stand, witness_party
 ):
     case = await on_stand(
         is_ai_examining=True,
@@ -968,12 +946,11 @@ async def test_conclude_and_dismiss_end_the_testimony(
     )
 
     response = await client.post(
-        f"/cases/{case.cnr}/witness/{action}", headers=auth_headers
+        f"/cases/{case.cnr}/witness/conclude", headers=auth_headers
     )
 
     assert response.json()["success"] is True
-    if action == "conclude":
-        assert response.json()["total_questions_asked"] == 1
+    assert response.json()["total_questions_asked"] == 1
     saved = await reload(case)
     assert saved.current_witness_id is None and saved.is_ai_examining is False
     assert saved.witness_testimonies[0].ended_at is not None
@@ -983,14 +960,11 @@ async def test_conclude_and_dismiss_end_the_testimony(
     )
 
 
-@pytest.mark.parametrize("action", ["conclude", "dismiss"])
-async def test_conclude_and_dismiss_unknown_witness(
-    client, auth_headers, on_stand, action
-):
+async def test_conclude_unknown_witness(client, auth_headers, on_stand):
     case = await on_stand(current_witness_id="ghost")
 
     response = await client.post(
-        f"/cases/{case.cnr}/witness/{action}", headers=auth_headers
+        f"/cases/{case.cnr}/witness/conclude", headers=auth_headers
     )
 
     assert response.json()["success"] is True
@@ -999,27 +973,21 @@ async def test_conclude_and_dismiss_unknown_witness(
     ].content == "Witness dismissed from the stand."
 
 
-@pytest.mark.parametrize("action", ["conclude", "dismiss"])
-async def test_conclude_and_dismiss_without_witness(
-    client, auth_headers, courtroom_case, action
-):
+async def test_conclude_without_witness(client, auth_headers, courtroom_case):
     case = await courtroom_case()
 
     assert (
-        await client.post(f"/cases/{case.cnr}/witness/{action}", headers=auth_headers)
+        await client.post(f"/cases/{case.cnr}/witness/conclude", headers=auth_headers)
     ).status_code == 400
 
 
-@pytest.mark.parametrize("action", ["conclude", "dismiss"])
-async def test_conclude_and_dismiss_save_failure(
-    client, auth_headers, on_stand, monkeypatch, action
-):
+async def test_conclude_save_failure(client, auth_headers, on_stand, monkeypatch):
     case = await on_stand()
 
     monkeypatch.setattr(Case, "save", boom)
 
     assert (
-        await client.post(f"/cases/{case.cnr}/witness/{action}", headers=auth_headers)
+        await client.post(f"/cases/{case.cnr}/witness/conclude", headers=auth_headers)
     ).status_code == 500
 
 
@@ -1078,30 +1046,6 @@ async def test_current_witness_shows_pending_ai_question(
         "",
         "opposition",
     )
-
-
-async def test_all_testimonies(client, auth_headers, courtroom_case, witness_party):
-    case = await courtroom_case(
-        witness_testimonies=[
-            open_testimony(
-                witness_party,
-                examination=[
-                    ExaminationItem(
-                        examiner="defendant",
-                        question="Q",
-                        answer="A",
-                        objection="Leading",
-                    )
-                ],
-            )
-        ]
-    )
-
-    body = (
-        await client.get(f"/cases/{case.cnr}/witness/testimonies", headers=auth_headers)
-    ).json()
-
-    assert body["testimonies"][0]["examination"][0]["objection"] == "Leading"
 
 
 # ---------------------------------------------------------------------------

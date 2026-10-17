@@ -19,7 +19,7 @@ export const MOVES_ON = new Set<string>([...SPOKEN, T.WITNESS_EXAMINED_Q]);
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** HH:MM. The database hands back naive UTC times. */
-export function clock(ts: string) {
+function clock(ts: string) {
   const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(ts) ? ts : `${ts}Z`);
   return Number.isNaN(d.getTime()) ? "" : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
@@ -30,7 +30,7 @@ export function aiMade(e: Ev, ai: Side) {
   return e.speaker_role === ai && (MOVES_ON.has(e.type) || e.type === T.LEAVE_REQUEST);
 }
 
-export type Group = { kind: "group"; id: string; items: { e: Ev; i: number }[]; done: boolean };
+type Group = { kind: "group"; id: string; items: { e: Ev; i: number }[]; done: boolean };
 export type Row = { kind: "entry"; e: Ev; i: number } | Group;
 
 /** Each witness's examination, from being called to stepping down, folds into one entry. */
@@ -137,7 +137,7 @@ function ExhibitChips({ e, ctx }: { e: Ev; ctx: RecordCtx }) {
   return <RefChips refs={refs} evidence={ctx.evidence} onExhibit={ctx.onExhibit} />;
 }
 
-export function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
+function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
   const { me, ai, mob, typing } = ctx;
   const no = pad(i + 1);
   const mine = e.speaker_role === me;

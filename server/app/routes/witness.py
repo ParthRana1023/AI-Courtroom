@@ -33,8 +33,6 @@ from app.routes.courtroom import (
 )
 from app.schemas.witness import (
     AICrossExaminationResponse,
-    AllTestimoniesResponse,
-    AvailableWitnessesResponse,
     CallWitnessRequest,
     CallWitnessResponse,
     ConcludeWitnessResponse,
@@ -43,8 +41,6 @@ from app.schemas.witness import (
     ExamineWitnessRequest,
     LeaveResponseRequest,
     WitnessExaminationResponse,
-    WitnessInfo,
-    WitnessTestimonyResponse,
 )
 from app.services.evidence_service import (
     extract_evidence_from_text,
@@ -97,34 +93,6 @@ def count_arguments_since_last_witness_activity(case: Case) -> int:
             count += 1
 
     return count
-
-
-@router.get("/{case_cnr}/witness/available")
-async def get_available_witnesses(
-    case_cnr: str, current_user: User = Depends(get_current_user)
-) -> AvailableWitnessesResponse:
-    """Get list of available witnesses (parties) for the case"""
-    logger.info(f"Getting available witnesses for case {case_cnr}")
-
-    case = await get_owned_case(case_cnr, current_user)
-
-    # Get IDs of witnesses who have already testified
-    testified_ids = {t.witness_id for t in case.witness_testimonies}
-
-    witnesses = []
-    for party in case.parties_involved:
-        witnesses.append(
-            WitnessInfo(
-                id=party.id,
-                name=party.name,
-                role=party.role.value,
-                has_testified=party.id in testified_ids,
-            )
-        )
-
-    return AvailableWitnessesResponse(
-        witnesses=witnesses, current_witness_id=case.current_witness_id
-    )
 
 
 @router.post("/{case_cnr}/witness/call", dependencies=[controls_hearing])
@@ -911,35 +879,6 @@ async def conclude_witness(
     )
 
 
-@router.post("/{case_cnr}/witness/dismiss", dependencies=[controls_hearing])
-async def dismiss_witness(
-    case_cnr: str, current_user: User = Depends(get_current_user)
-):
-    """Dismiss the current witness from the stand"""
-    logger.info(f"Dismissing witness for case {case_cnr}")
-
-    case = await get_owned_case(case_cnr, current_user)
-
-    if not case.current_witness_id:
-        raise HTTPException(
-            status_code=400, detail="No witness is currently on the stand"
-        )
-
-    _, witness_name, _ = case.dismiss_current_witness()
-
-    try:
-        await case.save()
-        logger.info(f"Witness {witness_name} dismissed from the stand")
-    except Exception:
-        logger.exception("Error dismissing witness")
-        raise HTTPException(status_code=500, detail="Failed to dismiss witness")
-
-    return {
-        "success": True,
-        "message": f"{witness_name} has been dismissed from the stand.",
-    }
-
-
 @router.get("/{case_cnr}/witness/current")
 async def get_current_witness(
     case_cnr: str, current_user: User = Depends(get_current_user)
@@ -1019,44 +958,6 @@ async def get_current_witness(
         phase=testimony.phase.value,
         next_examiner=testimony.examining_side(),
     )
-
-
-@router.get("/{case_cnr}/witness/testimonies")
-async def get_all_testimonies(
-    case_cnr: str, current_user: User = Depends(get_current_user)
-) -> AllTestimoniesResponse:
-    """Get all witness testimonies for the case"""
-    logger.debug(f"Getting all testimonies for case {case_cnr}")
-
-    case = await get_owned_case(case_cnr, current_user)
-
-    testimonies = []
-    for t in case.witness_testimonies:
-        examination = [
-            ExaminationItemResponse(
-                id=e.id,
-                examiner=e.examiner,
-                question=e.question,
-                answer=e.answer,
-                objection=e.objection,
-                objection_ruling=e.objection_ruling,
-                timestamp=e.timestamp,
-            )
-            for e in t.examination
-        ]
-        testimonies.append(
-            WitnessTestimonyResponse(
-                id=t.id,
-                witness_id=t.witness_id,
-                witness_name=t.witness_name,
-                called_by=t.called_by,
-                examination=examination,
-                started_at=t.started_at,
-                ended_at=t.ended_at,
-            )
-        )
-
-    return AllTestimoniesResponse(testimonies=testimonies)
 
 
 @router.post("/{case_cnr}/witness/ai-call", dependencies=[controls_hearing])

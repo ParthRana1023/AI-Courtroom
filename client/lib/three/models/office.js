@@ -69,7 +69,7 @@ function leatherTexture(THREE) {
 // Deep diamond tufting: a dense plane pushed out between buttons, pinched to zero along the button-to-button creases.
 // Faces +Z, edges flatten to z 0. Returns the geometry and button positions [x, y, z].
 function tufted(THREE, w, h, nx, ny, depth) {
-  const geo = new THREE.PlaneGeometry(w, h, Math.round(nx * 24), Math.round(ny * 24)), p = geo.attributes.position, btns = [];
+  const geo = new THREE.PlaneGeometry(w, h, Math.round(nx * 12), Math.round(ny * 12)), p = geo.attributes.position, btns = [];
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), u = (x + w / 2) / w * nx, v = (y + h / 2) / h * ny, A = u + v, Bq = u - v;
     const puff = Math.pow(Math.sin(Math.PI * (A - Math.floor(A))) * Math.sin(Math.PI * (Bq - Math.floor(Bq))), 0.45);
@@ -95,7 +95,7 @@ export function buildOfficeChair(THREE, opts = {}) {
   const mesh = mk(THREE), B = (w, h, d) => new THREE.BoxGeometry(w, h, d), g = new THREE.Group(); g.name = 'leather_office_chair';
   const rbox = (w, h, d, r) => { const s = new THREE.Shape(), x = -(w / 2 - r), y = -(h / 2 - r); s.moveTo(x, y); s.lineTo(-x, y); s.lineTo(-x, -y); s.lineTo(x, -y); s.closePath(); const geo = new THREE.ExtrudeGeometry(s, { depth: d - 2 * r, bevelEnabled: true, bevelThickness: r, bevelSize: r, bevelSegments: 4, curveSegments: 1 }); geo.translate(0, 0, -(d - 2 * r) / 2); return geo; };
   const lathe = (pts, seg = 24) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg);
-  const btn = new THREE.SphereGeometry(0.011, 10, 8), nail = new THREE.SphereGeometry(0.0062, 8, 6);
+  const btn = new THREE.SphereGeometry(0.011, 8, 6), nail = new THREE.SphereGeometry(0.0062, 6, 4);
   const V2 = (x, y) => new THREE.Vector2(x, y), along = (c, step) => c.getSpacedPoints(Math.max(2, Math.round(c.getLength() / step)));
   let nn = 0; const nailAt = (parent, x, y, z) => mesh('nailhead_' + (++nn), nail, mats.brass, parent, x, y, z);
 

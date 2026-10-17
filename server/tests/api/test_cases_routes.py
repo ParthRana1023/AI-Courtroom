@@ -582,7 +582,7 @@ async def test_generate_plaintiff_opening_failures(
 
 
 async def test_delete_restore_and_permanent_delete(
-    client, user, auth_headers, make_case
+    client, user, auth_headers, make_case, monkeypatch
 ):
     from app.services.rag import index_case_memory
 
@@ -592,16 +592,21 @@ async def test_delete_restore_and_permanent_delete(
     assert (
         await client.delete(f"/cases/{case.cnr}", headers=auth_headers)
     ).status_code == 200
-    assert await CaseMemoryChunk.find(CaseMemoryChunk.case_id == case.id).count() == 0
+    # archiving keeps the case's memory, so restoring doesn't re-embed it
+    kept = await CaseMemoryChunk.find(CaseMemoryChunk.case_id == case.id).count()
+    assert kept > 0
     deleted = (await client.get("/cases/deleted/list", headers=auth_headers)).json()
     assert [c["cnr"] for c in deleted] == [case.cnr] and deleted[0]["deleted_at"]
 
+    monkeypatch.setattr(cases_routes, "index_case_memory", boom)
     assert (
         await client.post(f"/cases/{case.cnr}/restore", headers=auth_headers)
     ).status_code == 200
     restored = await reload(case)
     assert restored.is_deleted is False and restored.deleted_at is None
-    assert await CaseMemoryChunk.find(CaseMemoryChunk.case_id == case.id).count() > 0
+    assert (
+        await CaseMemoryChunk.find(CaseMemoryChunk.case_id == case.id).count() == kept
+    )
 
     await client.delete(f"/cases/{case.cnr}", headers=auth_headers)
     assert (
@@ -706,7 +711,7 @@ async def test_restore_needs_an_archived_case_and_both_need_ownership(
 @pytest.mark.parametrize(
     "method, path_suffix, deleted, patch_target",
     [
-        ("DELETE", "", False, "delete_case_memory"),
+        # a case archived before memory was kept has none, so restoring rebuilds it
         ("POST", "/restore", True, "index_case_memory"),
         ("DELETE", "/permanent", True, "delete_case_memory"),
     ],
@@ -909,3 +914,12 @@ async def test_empty_archive_deletes_only_this_users_archived_cases(
     assert await Case.find_one(Case.cnr == kept.cnr) is not None
     assert await Case.find_one(Case.cnr == other.cnr) is not None
     assert await Case.find(Case.user_id == user.id).count() == 1
+
+
+async def test_archive_save_failure(client, user, auth_headers, make_case, monkeypatch):
+    case = await make_case(user)
+    monkeypatch.setattr(Case, "save", boom)
+
+    response = await client.delete(f"/cases/{case.cnr}", headers=auth_headers)
+
+    assert response.status_code == 500

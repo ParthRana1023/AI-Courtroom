@@ -1,17 +1,14 @@
 """Unit tests for auth, OTP, email, Google OAuth and rate-limit services.
 
-Third-party boundaries (Google's token endpoints via urllib / google-auth,
-SMTP) are replaced with fakes; no request leaves the process.
+Third-party boundaries (Google's endpoints via a mocked httpx, google-auth's
+signature check, SMTP) are replaced with fakes; no request leaves the process.
 """
 
-import io
-import json
 import time
-import urllib.error
 from datetime import UTC, datetime, timedelta
-from email.message import Message
 from typing import Any
 
+import httpx
 import jwt as pyjwt
 import pytest
 from fastapi import HTTPException
@@ -159,24 +156,64 @@ async def test_send_email_returns_false_on_smtp_failure(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# services/google_auth.py (google-auth and urllib are faked)
+# services/google_auth.py (Google's endpoints served by mock_http; signature
+# checks faked at google.auth.jwt.decode)
 # ---------------------------------------------------------------------------
 
+CERTS = {"kid-1": "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n"}
 
-def fake_verify(claims=None, error=None):
-    def _verify(token, request, audience, clock_skew_in_seconds=0):
+
+@pytest.fixture
+def served_certs(mock_http):
+    """Serve CERTS at Google's certs URL; the list collects every request made."""
+    hits: list[str] = []
+
+    def handler(request):
+        hits.append(str(request.url))
+        return httpx.Response(
+            200, json=CERTS, headers={"cache-control": "public, max-age=600"}
+        )
+
+    mock_http(google_auth, handler)
+    return hits
+
+
+def fake_decode(claims=None, error=None):
+    def _decode(token, certs, audience, clock_skew_in_seconds=0):
+        assert certs == CERTS
         if error:
             raise error
         return {**(claims or {}), "aud": audience}
 
-    return _verify
+    return _decode
 
 
-async def test_verify_google_token_accepts_google_issuer(monkeypatch):
+async def test_google_certs_are_cached_until_max_age(served_certs, monkeypatch):
+    assert await google_auth.google_certs() == CERTS
+    assert await google_auth.google_certs() == CERTS
+    assert served_certs == [google_auth.GOOGLE_CERTS_URL]
+
+    # an expired cache is fetched again
+    monkeypatch.setattr(google_auth, "_certs", (0.0, {}))
+    assert await google_auth.google_certs() == CERTS
+    assert len(served_certs) == 2
+
+
+async def test_google_certs_without_max_age_and_on_error(mock_http, monkeypatch):
+    mock_http(google_auth, lambda r: httpx.Response(200, json=CERTS))
+    assert await google_auth.google_certs() == CERTS
+
+    monkeypatch.setattr(google_auth, "_certs", None)
+    mock_http(google_auth, lambda r: httpx.Response(503))
+    with pytest.raises(httpx.HTTPStatusError):
+        await google_auth.google_certs()
+
+
+async def test_verify_google_token_accepts_google_issuer(served_certs, monkeypatch):
     monkeypatch.setattr(
-        google_auth.id_token,
-        "verify_oauth2_token",
-        fake_verify(
+        google_auth.google_jwt,
+        "decode",
+        fake_decode(
             {"iss": "https://accounts.google.com", "sub": "1", "email": "a@example.com"}
         ),
     )
@@ -188,14 +225,14 @@ async def test_verify_google_token_accepts_google_issuer(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "verify",
+    "decode",
     [
-        fake_verify({"iss": "evil.example.com"}),
-        fake_verify(error=ValueError("Token expired")),
+        fake_decode({"iss": "evil.example.com"}),
+        fake_decode(error=ValueError("Token expired")),
     ],
 )
-async def test_verify_google_token_rejects(monkeypatch, verify):
-    monkeypatch.setattr(google_auth.id_token, "verify_oauth2_token", verify)
+async def test_verify_google_token_rejects(served_certs, monkeypatch, decode):
+    monkeypatch.setattr(google_auth.google_jwt, "decode", decode)
 
     with pytest.raises(HTTPException) as exc:
         await google_auth.verify_google_token("id-token")
@@ -211,75 +248,41 @@ async def test_verify_google_token_requires_client_id(monkeypatch):
     assert exc.value.detail == "Invalid Google token."
 
 
-async def test_verify_risc_token(monkeypatch):
+async def test_verify_risc_token(served_certs, monkeypatch):
     monkeypatch.setattr(
-        google_auth.id_token,
-        "verify_oauth2_token",
-        fake_verify({"iss": "accounts.google.com", "events": {}}),
+        google_auth.google_jwt,
+        "decode",
+        fake_decode({"iss": "accounts.google.com", "events": {}}),
     )
     assert (await google_auth.verify_risc_token("t"))["iss"] == "accounts.google.com"
 
-    monkeypatch.setattr(
-        google_auth.id_token, "verify_oauth2_token", fake_verify({"iss": "other"})
-    )
+    monkeypatch.setattr(google_auth.google_jwt, "decode", fake_decode({"iss": "other"}))
     with pytest.raises(ValueError, match="Invalid RISC token"):
         await google_auth.verify_risc_token("t")
 
 
-class FakeHTTPResponse:
-    def __init__(self, payload, status=200):
-        self.status = status
-        self._body = json.dumps(payload).encode()
-
-    def read(self):
-        return self._body
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-
-def http_error(code=400, body=b'{"error": "invalid_grant"}'):
-    return urllib.error.HTTPError(
-        "https://oauth2.googleapis.com",
-        code,
-        "Bad Request",
-        Message(),
-        io.BytesIO(body),
-    )
-
-
-async def test_exchange_code_for_token(monkeypatch):
+async def test_exchange_code_for_token(mock_http):
     sent = {}
 
-    def urlopen(request):
-        sent["body"] = request.data.decode()
-        return FakeHTTPResponse({"id_token": "idt", "access_token": "at"})
+    def handler(request):
+        sent["url"] = str(request.url)
+        sent["body"] = request.content.decode()
+        return httpx.Response(200, json={"id_token": "idt", "access_token": "at"})
 
-    monkeypatch.setattr(google_auth.urllib.request, "urlopen", urlopen)
+    mock_http(google_auth, handler)
 
     tokens = await google_auth.exchange_code_for_token("code-1")
 
     assert tokens["id_token"] == "idt"
+    assert sent["url"] == google_auth.GOOGLE_TOKEN_URL
     assert "code=code-1" in sent["body"] and "redirect_uri=postmessage" in sent["body"]
 
 
-async def test_exchange_code_for_token_errors(monkeypatch):
-    monkeypatch.setattr(
-        google_auth.urllib.request,
-        "urlopen",
-        lambda r: FakeHTTPResponse({}, status=503),
+async def test_exchange_code_for_token_errors(mock_http, monkeypatch):
+    mock_http(
+        google_auth, lambda r: httpx.Response(400, json={"error": "invalid_grant"})
     )
-    with pytest.raises(ValueError, match="returned 503"):
-        await google_auth.exchange_code_for_token("c")
-
-    def raise_http_error(request):
-        raise http_error()
-
-    monkeypatch.setattr(google_auth.urllib.request, "urlopen", raise_http_error)
-    with pytest.raises(ValueError, match="Failed to exchange code"):
+    with pytest.raises(ValueError, match="Failed to exchange code: HTTP 400"):
         await google_auth.exchange_code_for_token("c")
 
     monkeypatch.setattr(settings, "google_client_secret", None)

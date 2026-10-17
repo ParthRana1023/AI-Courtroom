@@ -10,19 +10,16 @@ Includes:
 5. Authorization code exchange
 """
 
-import asyncio
-import json
+import re
 import secrets
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
+from collections.abc import Mapping
 from typing import Any
 
+import httpx
 import jwt
 from fastapi import HTTPException, status
-from google.auth.transport import requests
-from google.oauth2 import id_token
+from google.auth import jwt as google_jwt
 
 from app.config import settings
 from app.logging_config import get_logger
@@ -31,6 +28,45 @@ from app.models.user import User
 from app.services.auth import Device, find_user_by_email, issue_token
 
 logger = get_logger(__name__)
+
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v1/certs"
+GOOGLE_HTTP_TIMEOUT = 10.0
+# All Google calls go through httpx's async client: it races IPv6 against IPv4
+# (Happy Eyeballs), where urllib/requests try every IPv6 address in turn and a
+# host with a broken IPv6 route waited ~21 s per address (minutes per sign-in).
+
+# Google's signing certificates, cached for their Cache-Control max-age
+# (hours), so a sign-in doesn't download them every time.
+_certs: tuple[float, Mapping[str, str]] | None = None
+
+
+async def google_certs() -> Mapping[str, str]:
+    """Google's current ID-token signing certificates, by key id."""
+    global _certs
+    if _certs and _certs[0] > time.monotonic():
+        return _certs[1]
+    async with httpx.AsyncClient(timeout=GOOGLE_HTTP_TIMEOUT) as client:
+        response = await client.get(GOOGLE_CERTS_URL)
+    response.raise_for_status()
+    age = re.search(r"max-age=(\d+)", response.headers.get("cache-control", ""))
+    _certs = (time.monotonic() + (int(age.group(1)) if age else 3600), response.json())
+    return _certs[1]
+
+
+async def decode_google_jwt(token: str) -> dict[str, Any]:
+    """Claims of a Google-signed JWT for our client id (signature, expiry and
+    audience checked; 60 s clock skew allowed). Raises ValueError if invalid."""
+    certs = await google_certs()
+    return dict(
+        google_jwt.decode(
+            token,
+            certs=certs,
+            audience=settings.google_client_id,
+            clock_skew_in_seconds=60,
+        )
+    )
+
 
 # =============================================================================
 # OAuth Security Functions (State Parameter & RISC)
@@ -113,16 +149,7 @@ async def verify_risc_token(token: str) -> dict[str, Any]:
     """
     try:
         # RISC tokens are signed by Google, so we verify using Google's public keys
-        audience = settings.google_client_id
-
-        # Verify the token signature and claims
-        claims = await asyncio.to_thread(
-            id_token.verify_oauth2_token,
-            token,
-            requests.Request(),
-            audience=audience,
-            clock_skew_in_seconds=60,  # Allow 60 seconds of clock drift
-        )
+        claims = await decode_google_jwt(token)
 
         # Verify the issuer is Google
         if claims.get("iss") not in [
@@ -170,13 +197,7 @@ async def verify_google_token(credential: str) -> dict:
             logger.error("GOOGLE_CLIENT_ID environment variable not set")
             raise ValueError("GOOGLE_CLIENT_ID environment variable is not set")
 
-        idinfo = await asyncio.to_thread(
-            id_token.verify_oauth2_token,
-            credential,
-            requests.Request(),
-            client_id,
-            clock_skew_in_seconds=60,  # Allow 60 seconds of clock drift
-        )
+        idinfo = await decode_google_jwt(credential)
 
         # Verify the issuer
         if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
@@ -198,13 +219,6 @@ async def verify_google_token(credential: str) -> dict:
         )
 
 
-def _post_token_request(req: urllib.request.Request) -> dict:
-    with urllib.request.urlopen(req) as response:
-        if response.status != 200:
-            raise ValueError(f"Google Token Endpoint returned {response.status}")
-        return json.loads(response.read().decode("utf-8"))
-
-
 async def exchange_code_for_token(code: str) -> dict:
     """
     Exchange authorization code for access/ID tokens.
@@ -218,26 +232,20 @@ async def exchange_code_for_token(code: str) -> dict:
     if not settings.google_client_id or not settings.google_client_secret:
         raise ValueError("Google OAuth credentials not configured")
 
-    # For 'postmessage' flow (common in React Google Login):
-    redirect_uri = "postmessage"
-
-    token_url = "https://oauth2.googleapis.com/token"
     payload = {
         "code": code,
         "client_id": settings.google_client_id,
         "client_secret": settings.google_client_secret,
-        "redirect_uri": redirect_uri,
+        # The popup (postmessage) code flow from @react-oauth/google.
+        "redirect_uri": "postmessage",
         "grant_type": "authorization_code",
     }
-
-    data = urllib.parse.urlencode(payload).encode()
-    req = urllib.request.Request(token_url, data=data, method="POST")
-
-    try:
-        return await asyncio.to_thread(_post_token_request, req)
-    except urllib.error.HTTPError as e:
-        logger.error(f"Token exchange failed: {e.read().decode('utf-8')}")
-        raise ValueError(f"Failed to exchange code: {e}")
+    async with httpx.AsyncClient(timeout=GOOGLE_HTTP_TIMEOUT) as client:
+        response = await client.post(GOOGLE_TOKEN_URL, data=payload)
+    if response.status_code != 200:
+        logger.error(f"Token exchange failed: {response.text}")
+        raise ValueError(f"Failed to exchange code: HTTP {response.status_code}")
+    return response.json()
 
 
 # =============================================================================

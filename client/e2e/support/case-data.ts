@@ -2,7 +2,7 @@
 
 export const CNR = "DLND010004212026";
 
-export const PETITION = `**IN THE HIGH COURT OF DELHI**
+const PETITION = `**IN THE HIGH COURT OF DELHI**
 **CASE NO.: CRL.M.C. No. 1234/2026**
 **CNR No.: ${CNR}**
 

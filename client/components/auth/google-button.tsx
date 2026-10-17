@@ -30,14 +30,28 @@ export function useGoogleAuth({
   const isNative = isNativePlatform();
   const nativeReady = useRef(false);
   const [state, setState] = useState<string | null>(null);
+  // From the click until our server has answered (or the popup was closed).
+  const [busy, setBusy] = useState(false);
 
   const login = useGoogleLogin({
     flow: "auth-code",
     ux_mode: "popup",
     onSuccess: async ({ code }) => {
-      await onSuccess({ code, state: sessionStorage.getItem("oauth_state") ?? undefined });
+      try {
+        await onSuccess({ code, state: sessionStorage.getItem("oauth_state") ?? undefined });
+      } finally {
+        setBusy(false);
+      }
     },
-    onError: () => onError("Google sign-in was cancelled or blocked. Please try again."),
+    onError: () => {
+      setBusy(false);
+      onError("Google sign-in was cancelled or blocked. Please try again.");
+    },
+    // Closing the popup is a change of mind, not an error; a blocked popup needs saying.
+    onNonOAuthError: ({ type }) => {
+      setBusy(false);
+      if (type === "popup_failed_to_open") onError("Your browser blocked the Google window. Allow pop-ups for this site and try again.");
+    },
   });
 
   useEffect(() => {
@@ -57,9 +71,12 @@ export function useGoogleAuth({
   }, [isNative]);
 
   const start = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
       if (!isNative) {
         if (!state) throw new Error("Google sign-in is not ready yet. Please try again.");
+        // Busy stays on until the popup's callbacks above report back.
         (login as (o: { state: string }) => void)({ state });
         return;
       }
@@ -71,29 +88,40 @@ export function useGoogleAuth({
       const result = await GoogleSignIn.signIn();
       if (!result.idToken) throw new Error("Google did not return a sign-in token.");
       await onSuccess({ credential: result.idToken });
+      setBusy(false);
     } catch (err) {
+      setBusy(false);
       onError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  return { ready: isNative || !!state, start };
+  return { ready: isNative || !!state, busy, start };
 }
 
-/** "Google" on the sign-in slips. */
+/** "Google" on the sign-in slips. ``onBusyChange`` lets the slip lock its other buttons meanwhile. */
 export default function GoogleButton({
   onSuccess,
   onError,
+  onBusyChange,
   disabled,
 }: {
   onSuccess: (data: GoogleAuthData) => Promise<void>;
   onError: (message: string) => void;
+  onBusyChange?: (busy: boolean) => void;
   disabled?: boolean;
 }) {
   const google = useGoogleAuth({ onSuccess, onError });
+  useEffect(() => onBusyChange?.(google.busy), [google.busy, onBusyChange]);
   return (
-    <button type="button" onClick={google.start} disabled={disabled || !google.ready} className={outlineButton}>
+    <button
+      type="button"
+      onClick={google.start}
+      disabled={disabled || google.busy || !google.ready}
+      aria-busy={google.busy || undefined}
+      className={outlineButton}
+    >
       <GoogleMark />
-      <span>Google</span>
+      <span>{google.busy ? "Signing in…" : "Google"}</span>
     </button>
   );
 }

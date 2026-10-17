@@ -59,6 +59,8 @@ export default function RegisterPage() {
   const [pwTip, setPwTip] = useState({ hover: false, focus: false });
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Google sign-up under way: the other ways in wait for it.
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
   const [note, setNote] = useState("");
 
@@ -362,7 +364,7 @@ export default function RegisterPage() {
           {err("r_adult") && <span className="text-meta text-error">{err("r_adult")}</span>}
         </div>
 
-        <button type="submit" disabled={busy} className={primaryButton}>
+        <button type="submit" disabled={busy || googleBusy} className={cn(primaryButton, googleBusy && "opacity-60")}>
           {busy ? "Filing…" : "Enrol →"}
         </button>
 
@@ -370,10 +372,11 @@ export default function RegisterPage() {
           <>
             <OrDivider>or sign up with</OrDivider>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2">
-              <GoogleButton onSuccess={continueWithGoogle} onError={setFormErr} disabled={busy} />
+              <GoogleButton onSuccess={continueWithGoogle} onError={setFormErr} onBusyChange={setGoogleBusy} disabled={busy} />
               {PHONE_AUTH_ENABLED && (
                 <button
                   type="button"
+                  disabled={busy || googleBusy}
                   onClick={() => {
                     setVia(viaPhone ? "email" : "phone");
                     setTried(false);

@@ -5,7 +5,7 @@
 export const LLM_TRACE_HEADER = "x-llm-models";
 const MAX_ENTRIES = 30;
 
-export interface LLMCall {
+interface LLMCall {
   task: string;
   provider: string;
   model: string;

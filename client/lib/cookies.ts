@@ -21,7 +21,7 @@ export interface CookieConsent {
 }
 
 // Cookie options
-export interface CookieOptions {
+interface CookieOptions {
   path?: string;
   expires?: Date | number; // Date or days from now
   maxAge?: number; // seconds
@@ -50,7 +50,7 @@ export const COOKIE_NAMES = {
 /**
  * Set a cookie with given name, value, and options
  */
-export function setCookie(
+function setCookie(
   name: string,
   value: string,
   options: CookieOptions = {},
@@ -110,7 +110,7 @@ export function getCookie(name: string): string | null {
 /**
  * Delete a cookie by name
  */
-export function deleteCookie(name: string, path: string = "/"): void {
+function deleteCookie(name: string, path: string = "/"): void {
   if (typeof document === "undefined") return;
 
   document.cookie = `${encodeURIComponent(

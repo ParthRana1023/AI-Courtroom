@@ -5,9 +5,8 @@ Logs are processed in background to minimize response time.
 
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 
-from app.dependencies import get_current_user
 from app.logging_config import get_logger
 from app.models.client_log import ClientLog
 from app.routes.auth import client_ip
@@ -97,35 +96,3 @@ async def process_client_logs(logs: list[ClientLogEntry]):
 
         except Exception:
             logger.exception("Failed to store client log")
-
-
-@router.get("/client/stats", dependencies=[Depends(get_current_user)])
-async def get_client_log_stats():
-    """
-    Get statistics about client logs.
-    Useful for monitoring error rates.
-    """
-    try:
-        # Count logs by level in the last 24 hours
-        from datetime import timedelta
-
-        since = get_current_datetime() - timedelta(hours=24)
-
-        pipeline = [
-            {"$match": {"timestamp": {"$gte": since}}},
-            {"$group": {"_id": "$level", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}},
-        ]
-
-        results = await ClientLog.aggregate(pipeline).to_list()
-
-        stats = {item["_id"]: item["count"] for item in results}
-
-        return {
-            "period": "last_24_hours",
-            "counts": stats,
-            "total": sum(stats.values()),
-        }
-    except Exception:
-        logger.exception("Failed to get client log stats")
-        raise HTTPException(status_code=500, detail="Failed to get client log stats.")

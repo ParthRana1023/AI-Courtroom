@@ -1,7 +1,7 @@
 /**
  * Helper to create an HTML Image element from a source URL
  */
-export const createImage = (url: string): Promise<HTMLImageElement> =>
+const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new Image();
     image.addEventListener("load", () => resolve(image));
@@ -14,14 +14,14 @@ export const createImage = (url: string): Promise<HTMLImageElement> =>
 /**
  * Helper to convert degree value to radians
  */
-export function getRadianAngle(degreeValue: number) {
+function getRadianAngle(degreeValue: number) {
   return (degreeValue * Math.PI) / 180;
 }
 
 /**
  * Returns the new bounding box of a rotated rectangle.
  */
-export function rotateSize(width: number, height: number, rotation: number) {
+function rotateSize(width: number, height: number, rotation: number) {
   const rotRad = getRadianAngle(rotation);
 
   return {

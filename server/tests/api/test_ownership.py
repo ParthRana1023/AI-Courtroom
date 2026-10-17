@@ -24,14 +24,11 @@ CASE_ROUTES = [
     ("POST", "/cases/{cnr}/evidence/images/generate-missing", None),
     ("POST", "/cases/{cnr}/evidence/e1/image/regenerate", None),
     # witness
-    ("GET", "/cases/{cnr}/witness/available", None),
     ("POST", "/cases/{cnr}/witness/call", {"witness_id": "x"}),
     ("POST", "/cases/{cnr}/witness/examine", {"question": "Q?"}),
     ("POST", "/cases/{cnr}/witness/ai-cross-examine", None),
     ("POST", "/cases/{cnr}/witness/conclude", None),
-    ("POST", "/cases/{cnr}/witness/dismiss", None),
     ("GET", "/cases/{cnr}/witness/current", None),
-    ("GET", "/cases/{cnr}/witness/testimonies", None),
     ("POST", "/cases/{cnr}/witness/ai-call", None),
 ]
 

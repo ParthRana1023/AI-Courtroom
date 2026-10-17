@@ -1,7 +1,6 @@
 # Runtime dependencies, pinned so every deploy installs what was tested.
 # Test and lint tools live in requirements-dev.txt.
-# PyTorch comes in through sentence-transformers; the Dockerfile and CI install
-# the CPU-only build first, so the ~2 GB CUDA build is never pulled.
+# Embeddings run on fastembed (ONNX Runtime), so there is no PyTorch.
 
 # Core Web Framework & Server
 fastapi==0.141.1
@@ -38,7 +37,7 @@ langchain-groq==1.1.3
 langchain-openai==1.6.6
 langchain-text-splitters==1.1.2
 numpy==2.5.3
-sentence-transformers==6.1.0
+fastembed==0.9.0
 
 # Google Authentication & OAuth
 google-auth==2.58.1

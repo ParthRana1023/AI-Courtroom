@@ -807,39 +807,12 @@ async def test_client_logs_are_stored_and_counted(client):
     assert stored["error"].error_stack == "Traceback"
 
 
-async def test_client_log_stats_counts_recent_logs(client, auth_headers):
-    await client.post(
-        "/logs/client", json={"logs": [log_entry(level="warn", timestamp="not-a-date")]}
-    )
-
-    stats = (await client.get("/logs/client/stats", headers=auth_headers)).json()
-
-    assert stats["period"] == "last_24_hours"
-    assert stats["counts"] == {"warn": 1}
-
-
 async def test_client_log_storage_errors_are_swallowed(client, monkeypatch):
     monkeypatch.setattr(ClientLog, "insert", boom)
 
     assert (
         await client.post("/logs/client", json={"logs": [log_entry()]})
     ).status_code == 200
-
-
-async def test_client_log_stats_error_is_reported(client, auth_headers, monkeypatch):
-    def broken_collection():
-        raise RuntimeError("db down")
-
-    monkeypatch.setattr(ClientLog, "get_pymongo_collection", broken_collection)
-
-    response = await client.get("/logs/client/stats", headers=auth_headers)
-
-    assert response.status_code == 500
-    assert "db down" not in response.json()["detail"]
-
-
-async def test_client_log_stats_require_login(client):
-    assert (await client.get("/logs/client/stats")).status_code == 401
 
 
 async def test_client_log_fields_are_capped(client):

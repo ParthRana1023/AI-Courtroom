@@ -40,6 +40,7 @@ from app.services.llm.case_generation import generate_case_shell
 from app.services.llm.parties_service import extract_and_assign_parties
 from app.services.rag import (
     delete_case_memory,
+    has_case_memory,
     index_case_memory,
     retrieve_case_context,
     upsert_memory_item,
@@ -452,8 +453,9 @@ async def delete_case(cnr: str, current_user: User = Depends(get_current_user)):
     case.is_deleted = True
     case.deleted_at = get_current_datetime()
     try:
+        # Its RAG memory stays: retrieval is per case and an archived case is never
+        # argued, so restoring needs no re-embedding. Permanent deletion purges it.
         await case.save()
-        await delete_case_memory(case)
         logger.info(f"Case {cnr} moved to recycle bin")
     except Exception:
         logger.exception(f"Error deleting case {cnr}")
@@ -527,7 +529,10 @@ async def restore_case(cnr: str, current_user: User = Depends(get_current_user))
     case.deleted_at = None
     try:
         await case.save()
-        await index_case_memory(case)
+        # Only cases archived before memory was kept need it rebuilt (embedding
+        # loads the model and re-embeds the whole case).
+        if not await has_case_memory(case):
+            await index_case_memory(case)
         logger.info(f"Case {cnr} restored from recycle bin")
     except Exception:
         logger.exception(f"Error restoring case {cnr}")

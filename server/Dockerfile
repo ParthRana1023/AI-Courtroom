@@ -9,15 +9,13 @@ WORKDIR /app
 
 # The embedding model is downloaded at build time into a folder the app user owns.
 ENV HF_HOME=/app/.cache/huggingface \
+    FASTEMBED_CACHE_PATH=/app/.cache/fastembed \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# CPU-only PyTorch first, so sentence-transformers doesn't pull the ~2 GB CUDA build.
-RUN pip install --no-cache-dir torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/all-MiniLM-L6-v2')"
 
 COPY . /app/
 RUN chown -R app:app /app

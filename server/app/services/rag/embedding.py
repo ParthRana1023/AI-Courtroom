@@ -2,6 +2,8 @@ import asyncio
 from functools import lru_cache
 from importlib import import_module
 
+import numpy as np
+
 from app.config import settings
 from app.logging_config import get_logger
 
@@ -10,9 +12,12 @@ logger = get_logger(__name__)
 
 @lru_cache(maxsize=1)
 def _load_model():
+    # fastembed runs the model on ONNX Runtime: no PyTorch, ~2 s to load and ~160 MB.
+    # Its all-MiniLM-L6-v2 gives the same vectors sentence-transformers did, so stored
+    # memory stays valid. Imported lazily so the server starts without loading it.
     logger.info(f"Loading embedding model: {settings.embedding_model_name}")
-    SentenceTransformer = import_module("sentence_transformers").SentenceTransformer
-    return SentenceTransformer(settings.embedding_model_name)
+    TextEmbedding = import_module("fastembed").TextEmbedding
+    return TextEmbedding(settings.embedding_model_name)
 
 
 def embed_texts_sync(texts: list[str]) -> list[list[float]]:
@@ -20,12 +25,10 @@ def embed_texts_sync(texts: list[str]) -> list[list[float]]:
         return []
 
     model = _load_model()
-    embeddings = model.encode(
-        texts,
-        normalize_embeddings=True,
-        show_progress_bar=False,
-    )
-    return [[float(value) for value in embedding] for embedding in embeddings]
+    embeddings = np.asarray(list(model.embed(texts)), dtype=np.float32)
+    # Retrieval scores with a dot product, so every vector must be unit length.
+    embeddings /= np.linalg.norm(embeddings, axis=1, keepdims=True).clip(min=1e-12)
+    return [[float(value) for value in row] for row in embeddings]
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:

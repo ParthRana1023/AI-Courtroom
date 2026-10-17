@@ -74,40 +74,6 @@ class CurrentWitnessResponse(BaseModel):
     next_examiner: str | None = None  # plaintiff or defendant: whose turn it is
 
 
-class WitnessInfo(BaseModel):
-    """Basic witness info for listing"""
-
-    id: str
-    name: str
-    role: str
-    has_testified: bool
-
-
-class AvailableWitnessesResponse(BaseModel):
-    """List of available witnesses"""
-
-    witnesses: list[WitnessInfo]
-    current_witness_id: str | None = None
-
-
-class WitnessTestimonyResponse(BaseModel):
-    """Complete testimony from a witness"""
-
-    id: str
-    witness_id: str
-    witness_name: str
-    called_by: str
-    examination: list[ExaminationItemResponse]
-    started_at: datetime
-    ended_at: datetime | None = None
-
-
-class AllTestimoniesResponse(BaseModel):
-    """All witness testimonies in a case"""
-
-    testimonies: list[WitnessTestimonyResponse]
-
-
 class CallWitnessResponse(BaseModel):
     """Response after calling a witness"""
 

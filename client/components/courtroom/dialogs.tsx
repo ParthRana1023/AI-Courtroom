@@ -30,7 +30,7 @@ export function useReturnFocus() {
 
 export const CLOSE = "h-10 w-10 flex-none cursor-pointer border-0 bg-ink text-[22px] leading-none text-paper hover:bg-seal";
 
-export const OUTCOME: Record<CaseOutcome, [string, string]> = {
+const OUTCOME: Record<CaseOutcome, [string, string]> = {
   won: ["WON", "#3f6b3a"],
   lost: ["LOST", "#8e1f19"],
   partial: ["PARTLY WON", "#7a4a0c"],

@@ -456,7 +456,7 @@ function GoogleDialog({
                 <Dialog.Close type="button" className={cn(OUTLINE, "h-11.5")}>
                   Cancel
                 </Dialog.Close>
-                <button type="submit" disabled={busy || (!choice && !google.ready)} className={SEAL}>
+                <button type="submit" disabled={busy || google.busy || (!choice && !google.ready)} className={SEAL}>
                   {busy ? "Connecting…" : choice ? "Connect Google" : "Continue with Google"}
                 </button>
               </div>

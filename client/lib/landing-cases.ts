@@ -40,7 +40,7 @@ export interface LandingAsset {
 }
 
 /** Always one of the three files on the desk. */
-export const FIXED_CASE: LandingCase = {
+const FIXED_CASE: LandingCase = {
   id: "snowwhite",
   timeline: [
     {
@@ -121,7 +121,7 @@ export const FIXED_CASE: LandingCase = {
   },
 };
 
-export const CASE_POOL: LandingCase[] = [
+const CASE_POOL: LandingCase[] = [
   {
     id: "alibi",
     timeline: [

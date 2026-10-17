@@ -101,7 +101,6 @@ docker compose up --build
 3. Install dependencies:
 
    ```bash
-   pip install torch --index-url https://download.pytorch.org/whl/cpu  # CPU-only, skips the ~2 GB CUDA build
    pip install -r requirements-dev.txt  # app + test and lint tools
    ```
 

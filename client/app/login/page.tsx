@@ -33,6 +33,7 @@ import { needsSeatOfPractice, safeNext } from "@/lib/auth-redirect";
 import { PHONE_AUTH_ENABLED } from "@/lib/config";
 import { getErrorDetail } from "@/lib/error-utils";
 import type { User } from "@/types";
+import { cn } from "@/lib/utils";
 
 type Screen = "form" | "otp" | "practice";
 
@@ -52,6 +53,8 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Google sign-in under way: the other ways in wait for it.
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
   const [admitted, setAdmitted] = useState(false);
   const toasted = useRef(false);
@@ -228,7 +231,7 @@ export default function LoginPage() {
           Keep me signed in on this device
         </Check>
 
-        <button type="submit" disabled={busy} className={primaryButton}>
+        <button type="submit" disabled={busy || googleBusy} className={cn(primaryButton, googleBusy && "opacity-60")}>
           {viaPhone
             ? busy
               ? "Sending code…"
@@ -240,9 +243,9 @@ export default function LoginPage() {
 
         <OrDivider>or continue with</OrDivider>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2">
-          <GoogleButton onSuccess={google} onError={setFormErr} disabled={busy} />
+          <GoogleButton onSuccess={google} onError={setFormErr} onBusyChange={setGoogleBusy} disabled={busy} />
           {PHONE_AUTH_ENABLED && (
-            <button type="button" onClick={switchVia} className={outlineButton}>
+            <button type="button" onClick={switchVia} disabled={busy || googleBusy} className={outlineButton}>
               {viaPhone ? "Email" : "Phone"}
             </button>
           )}

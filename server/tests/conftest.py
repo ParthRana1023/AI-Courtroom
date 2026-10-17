@@ -195,7 +195,7 @@ def _fake_embedding(text: str, dims: int = 32) -> list[float]:
 
 @pytest.fixture(autouse=True)
 def fake_embeddings(monkeypatch):
-    """Keep sentence-transformers (and PyTorch) out of the test run."""
+    """Keep the fastembed model out of the test run."""
 
     async def embed_texts(texts):
         return [_fake_embedding(text) for text in texts]
@@ -253,15 +253,13 @@ def block_third_party_calls(monkeypatch):
     import urllib.request
 
     import cloudinary.uploader
-    from google.oauth2 import id_token
 
-    from app.services import image_generation, location_service
+    from app.services import google_auth, image_generation, location_service
 
     monkeypatch.setattr(cloudinary.uploader, "upload", _blocked("cloudinary upload"))
     monkeypatch.setattr(cloudinary.uploader, "destroy", _blocked("cloudinary destroy"))
-    monkeypatch.setattr(
-        id_token, "verify_oauth2_token", _blocked("Google token verify")
-    )
+    monkeypatch.setattr(google_auth, "httpx", _httpx_stub())
+    monkeypatch.setattr(google_auth, "_certs", None)
     monkeypatch.setattr(urllib.request, "urlopen", _blocked("urllib.request.urlopen"))
     monkeypatch.setattr(image_generation, "httpx", _httpx_stub())
     monkeypatch.setattr(location_service, "httpx", _httpx_stub())

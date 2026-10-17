@@ -105,22 +105,25 @@ def test_split_text_uses_fallback_when_splitter_unavailable(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# embedding (the sentence-transformers model is replaced by a fake)
+# embedding (the fastembed model is replaced by a fake)
 # ---------------------------------------------------------------------------
 
 
-class FakeSentenceModel:
-    def encode(self, texts, normalize_embeddings, show_progress_bar):
-        assert normalize_embeddings is True
-        return [[float(len(t)), 0.0] for t in texts]
+class FakeTextEmbedding:
+    """Unnormalised vectors, so the test proves embed_texts makes them unit length."""
+
+    def embed(self, texts):
+        for t in texts:
+            yield [float(len(t)), float(len(t))]
 
 
 async def test_embed_texts_and_query_use_loaded_model(monkeypatch):
-    monkeypatch.setattr(embedding, "_load_model", lambda: FakeSentenceModel())
+    monkeypatch.setattr(embedding, "_load_model", lambda: FakeTextEmbedding())
+    unit = pytest.approx([2**-0.5, 2**-0.5])
 
     assert embedding.embed_texts_sync([]) == []
-    assert await embedding.embed_texts(["ab", "abcd"]) == [[2.0, 0.0], [4.0, 0.0]]
-    assert await embedding.embed_query("xyz") == [3.0, 0.0]
+    assert await embedding.embed_texts(["ab", "abcd"]) == [unit, unit]
+    assert await embedding.embed_query("xyz") == unit
 
 
 async def test_embed_query_empty_result(monkeypatch):
@@ -132,17 +135,17 @@ async def test_embed_query_empty_result(monkeypatch):
     assert await embedding.embed_query("x") == []
 
 
-def test_load_model_builds_sentence_transformer_once(monkeypatch):
+def test_load_model_builds_text_embedding_once(monkeypatch):
     created = []
 
-    class FakeST:
+    class FakeFastEmbed:
         def __init__(self, name):
             created.append(name)
 
     monkeypatch.setattr(
         embedding,
         "import_module",
-        lambda name: SimpleNamespace(SentenceTransformer=FakeST),
+        lambda name: SimpleNamespace(TextEmbedding=FakeFastEmbed),
     )
     embedding._load_model.cache_clear()
     try:

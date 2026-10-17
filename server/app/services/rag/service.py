@@ -559,6 +559,13 @@ async def retrieve_case_context(
         return await _case_fallback_context(case, status, include_conferences, party_id)
 
 
+async def has_case_memory(case: Case) -> bool:
+    """Whether any memory chunks are stored for this case."""
+    if not case.id:
+        return False
+    return await CaseMemoryChunk.find(CaseMemoryChunk.case_id == case.id).count() > 0
+
+
 async def delete_case_memory(case: Case) -> int:
     if not case.id:
         return 0

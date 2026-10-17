@@ -20,6 +20,14 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+// Set by the inline script in layout.tsx, which catches the events before React mounts.
+declare global {
+  interface Window {
+    __deferredPrompt?: BeforeInstallPromptEvent | null;
+    __appInstalled?: boolean;
+  }
+}
+
 /**
  * The install mode determines how the install action behaves:
  * - "pwa": Triggers the native browser install prompt (desktop Chrome/Edge).
@@ -84,15 +92,12 @@ export function PwaInstallProvider({
     }
 
     // Check global variables defined in layout.tsx
-    // @ts-expect-error - added globally in layout
     if (window.__appInstalled) {
       setIsInstalled(true);
       return;
     }
 
-    // @ts-expect-error - added globally in layout
     if (window.__deferredPrompt) {
-      // @ts-expect-error - added globally in layout
       deferredPromptRef.current = window.__deferredPrompt;
       setCanInstall(true);
       setInstallMode("pwa");
@@ -105,8 +110,7 @@ export function PwaInstallProvider({
     const onBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       deferredPromptRef.current = e as BeforeInstallPromptEvent;
-      // @ts-expect-error - sync global state
-      window.__deferredPrompt = e;
+      window.__deferredPrompt = deferredPromptRef.current;
       setCanInstall(true);
       // Switch to PWA mode since the browser supports it
       setInstallMode("pwa");
@@ -116,7 +120,6 @@ export function PwaInstallProvider({
       setIsInstalled(true);
       setCanInstall(false);
       deferredPromptRef.current = null;
-      // @ts-expect-error - sync global state
       window.__appInstalled = true;
     };
 

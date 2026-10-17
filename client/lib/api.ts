@@ -12,7 +12,6 @@ import type {
   UserStats,
 } from "@/types";
 
-export type { RegisterFormData };
 import {
   getCookie,
   setAuthTokenCookie,
@@ -71,7 +70,7 @@ function logApiError(error: unknown, context?: string): void {
 }
 
 // Create axios instance with base URL from environment variables
-export const apiBaseUrl =
+const apiBaseUrl =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 logger.info("API initialized", { baseUrl: apiBaseUrl });
 

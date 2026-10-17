@@ -1,11 +1,25 @@
 import type * as Three from "three";
 
 type T = typeof Three;
-/* eslint-disable @typescript-eslint/no-explicit-any -- the model builders are untyped design JS */
-type Builders = Record<string, (THREE: T, opts?: object) => any>;
-/* eslint-enable @typescript-eslint/no-explicit-any */
+type O = Three.Object3D;
+/** The parts of the (untyped) design-JS model builders that the loader uses. */
+export interface Builders {
+  buildGavel(THREE: T): { gavel: O; block: O };
+  buildInkwellSet(THREE: T): { set: O };
+  buildTypewriter(THREE: T): { typewriter: O; carriage: O; keys: Three.InstancedMesh; keyBase: Three.Matrix4[] };
+  buildBankerLamp(THREE: T): { lamp: O };
+  buildClockCase(THREE: T): { clock: O };
+  buildPendulum(THREE: T): O;
+  buildWaxSeal(THREE: T): { seal: O; halfA: O; halfB: O };
+  buildNamePlaque(THREE: T): { plaque: O };
+  buildJudgesChair(THREE: T): { chair: O };
+  buildWitnessStand(THREE: T): { stand: O };
+  buildLantern(THREE: T): { lantern: O };
+  buildClubChair(THREE: T): { chair: O };
+  buildSconce(THREE: T): { sconce: O };
+}
 
-export interface Built {
+interface Built {
   obj: Three.Object3D;
   /** Per-frame animation, given seconds since start. */
   tick?: (t: number) => void;
@@ -20,7 +34,7 @@ export interface LoaderModel {
 }
 
 // Objects from the landing scene, shown by the route loader (model-loader.js).
-export const LOADER_MODELS: LoaderModel[] = [
+const LOADER_MODELS: LoaderModel[] = [
   {
     key: "gavel",
     name: "Gavel and sound block",
@@ -204,5 +218,3 @@ export function pickLoaderModel(): LoaderModel {
   }
   return model;
 }
-
-export type { Builders };

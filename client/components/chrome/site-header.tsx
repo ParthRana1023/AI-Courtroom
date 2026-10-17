@@ -23,7 +23,7 @@ const menuPanel =
 const menuItem =
   "block px-4.5 py-3 font-type text-sm text-ink outline-none data-highlighted:bg-paper-hi data-highlighted:text-seal";
 
-export function initialsOf(first?: string, last?: string) {
+function initialsOf(first?: string, last?: string) {
   return `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
 }
 

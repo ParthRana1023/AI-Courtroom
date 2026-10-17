@@ -3,7 +3,7 @@
 import { Select as RadixSelect } from "radix-ui";
 import { cn } from "@/lib/utils";
 
-export interface SelectOption {
+interface SelectOption {
   value: string;
   label: string;
   disabled?: boolean;

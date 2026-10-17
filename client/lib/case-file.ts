@@ -11,7 +11,7 @@ import type { EvidenceItem } from "@/types";
 
 export type Row = { label: string; text: string };
 export type Item = { mark: string; title?: string; text: string };
-export type Exhibit = { ref: string; title: string; text: string };
+type Exhibit = { ref: string; title: string; text: string };
 
 export type CaseFile = {
   court: string;

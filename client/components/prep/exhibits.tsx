@@ -17,7 +17,7 @@ const STATUS = {
 
 const reduce = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-export const statusText = (e: EvidenceItem) => STATUS[e.media_status]?.[0] ?? "No image";
+const statusText = (e: EvidenceItem) => STATUS[e.media_status]?.[0] ?? "No image";
 
 function added(e: EvidenceItem) {
   if (!e.origin_id) return "With the case file";
@@ -26,7 +26,7 @@ function added(e: EvidenceItem) {
 }
 
 /** Parties whose surname appears in the exhibit. */
-export function mentioned(e: EvidenceItem, parties: PersonInvolved[]) {
+function mentioned(e: EvidenceItem, parties: PersonInvolved[]) {
   const hay = `${e.title} ${e.source ?? ""} ${e.description}`;
   return parties.filter((p) => {
     const sur = plain(p.name).split(" ").pop();

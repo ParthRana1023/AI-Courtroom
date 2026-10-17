@@ -9,7 +9,6 @@ import { ThemeProvider } from "next-themes";
 import { SettingsProvider } from "@/contexts/settings-context";
 import { CookieConsentProvider } from "@/contexts/cookie-consent-context";
 import TextSizeProvider from "@/components/text-size-provider";
-import NotificationProvider from "@/components/notification-provider";
 import ConditionalAnalytics from "@/components/conditional-analytics";
 import CookieConsent from "@/components/chrome/cookie-consent";
 import InstallPrompt from "@/components/chrome/install-prompt";
@@ -183,14 +182,12 @@ export default function RootLayout({
                   <AuthProvider>
                     <LoggerProvider>
                       <LoggingErrorBoundary>
-                        <NotificationProvider>
-                          <PwaInstallProvider>
-                            {children}
-                            <InstallPrompt />
-                          </PwaInstallProvider>
-                          <OfflineBanner />
-                          <DevModelPanel />
-                        </NotificationProvider>
+                        <PwaInstallProvider>
+                          {children}
+                          <InstallPrompt />
+                        </PwaInstallProvider>
+                        <OfflineBanner />
+                        <DevModelPanel />
                       </LoggingErrorBoundary>
                     </LoggerProvider>
                   </AuthProvider>
