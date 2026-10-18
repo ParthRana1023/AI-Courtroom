@@ -2,6 +2,8 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./support/fixtures";
 
 const isMobile = (name: string) => name.startsWith("mobile");
+/** three.js chunk + first frame; a busy CI runner rendering WebGL in software needs more than 5s. */
+const LOADER_MS = 20_000;
 
 /** Pretend this browser has no WebGL, as when hardware acceleration is off. */
 const noWebGL = (page: Page) =>
@@ -51,8 +53,8 @@ test.describe("landing classic", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Your first case is waiting." })).toBeVisible();
     await expect(page.getByRole("note")).toHaveCount(0);
     await page.getByRole("button", { name: "Walk through the 3D courtroom instead →" }).click();
+    // What ?view=3d then shows is the "landing 3D" tests' job; CI's software WebGL is too slow to wait on twice.
     await expect(page).toHaveURL(/\/\?view=3d$/);
-    await expect(page.getByText("Today’s cause list")).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("aiCourtroom-landing"))).toBe("3d");
   });
 
@@ -77,7 +79,7 @@ test.describe("landing 3D", () => {
     await prefer(page, "classic");
     await api();
     await page.goto("/?view=3d");
-    await expect(page.getByText("Today’s cause list")).toBeVisible();
+    await expect(page.getByText("Today’s cause list")).toBeVisible({ timeout: LOADER_MS });
     await expect(page.getByText("Chambers unlocked")).toBeVisible();
   });
 
@@ -91,14 +93,15 @@ test.describe("landing 3D", () => {
     await page.goto("/");
 
     // The loader stamps its items, then lifts to show the door.
-    await expect(page.getByText("Today’s cause list")).toBeVisible();
+    await expect(page.getByText("Today’s cause list")).toBeVisible({ timeout: LOADER_MS });
     await expect(page.getByRole("img", { name: /First-person 3D walk-through/ })).toBeAttached({ timeout: 30_000 });
     await expect(page.getByText("Today’s cause list")).toBeHidden({ timeout: 90_000 });
     await expect(page.getByRole("heading", { level: 1, name: "YOUR FIRST CASE IS WAITING.", exact: true })).toBeVisible();
 
     if (isMobile(info.project.name)) {
       await page.getByRole("button", { name: "Settings" }).click();
-      await page.getByRole("menuitem", { name: "Simple view" }).click();
+      // force: software WebGL's render loop starves animation frames, so the "stable" check never settles.
+      await page.getByRole("menuitem", { name: "Simple view" }).click({ force: true });
     } else {
       await page.getByRole("button", { name: "Simple view" }).click();
     }

@@ -30,6 +30,7 @@ python-multipart==0.0.32  # FastAPI form and file uploads
 
 # Async & Networking Utilities
 httpx==0.28.1
+tzdata==2026.5  # zoneinfo data where the OS has none (Windows, slim images)
 
 # AI / LLM / LangChain Stack
 langchain-core==1.6.5

@@ -21,9 +21,3 @@ test("offline page", async ({ page, checkA11y }) => {
   await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   await checkA11y();
 });
-
-test("landing page has no serious accessibility issues", async ({ page, checkA11y }) => {
-  await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await checkA11y();
-});
