@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { NUMERALS, SECTIONS, type CaseFile, type Item, type Row, type SectionId } from "@/lib/case-file";
 import { cn } from "@/lib/utils";
 
-/** The six sections of the indexed case file (Case Details and the courtroom's case file panel). */
+/** The seven sections of the indexed case file (Case Details and the courtroom's case file panel). */
 export default function CaseFileBody({ file, mob }: { file: CaseFile; mob: boolean }) {
   return (
     <>
@@ -12,13 +12,7 @@ export default function CaseFileBody({ file, mob }: { file: CaseFile; mob: boole
             {p}
           </p>
         ))}
-        {file.relief.length > 0 && (
-          <>
-            <Sub>Relief sought</Sub>
-            <Numbered items={file.relief} />
-          </>
-        )}
-        {!file.summary.length && !file.relief.length && <Empty />}
+        {!file.summary.length && <Empty />}
       </Section>
       <Section id="parties">{file.parties.length ? <Rows rows={file.parties} mob={mob} /> : <Empty />}</Section>
       <Section id="facts">
@@ -41,6 +35,7 @@ export default function CaseFileBody({ file, mob }: { file: CaseFile; mob: boole
                 <span className="flex flex-col gap-0.75">
                   <span className="text-[15px] font-bold leading-[1.4]">{x.title}</span>
                   <span className="text-pretty text-[14.5px] leading-[1.55] text-ink-label">{x.text}</span>
+                  {x.fromPetition && <span className="text-label font-bold uppercase tracking-[0.14em] text-ink-muted">From the petition</span>}
                 </span>
               </div>
             ))}
@@ -50,6 +45,16 @@ export default function CaseFileBody({ file, mob }: { file: CaseFile; mob: boole
         )}
       </Section>
       <Section id="issues">{file.issues.length ? <Numbered items={file.issues} /> : <Empty />}</Section>
+      <Section id="prayer">
+        {file.relief.length > 0 && <Numbered items={file.relief} />}
+        {file.verification && (
+          <>
+            <Sub>Verification</Sub>
+            <p className="m-0 text-pretty text-[14.5px] italic leading-[1.6] text-ink-label">{file.verification}</p>
+          </>
+        )}
+        {!file.relief.length && !file.verification && <Empty />}
+      </Section>
     </>
   );
 }

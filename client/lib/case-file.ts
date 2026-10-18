@@ -11,13 +11,15 @@ import type { EvidenceItem } from "@/types";
 
 export type Row = { label: string; text: string };
 export type Item = { mark: string; title?: string; text: string };
-type Exhibit = { ref: string; title: string; text: string };
+/** `fromPetition`: an annexure the petition lists that no extracted exhibit covers. */
+type Exhibit = { ref: string; title: string; text: string; fromPetition?: boolean };
 
 export type CaseFile = {
   court: string;
   charges: string[];
   summary: string[];
   relief: Item[];
+  verification: string;
   parties: Row[];
   facts: Item[];
   chronology: Row[];
@@ -33,14 +35,23 @@ export const SECTIONS = [
   ["charges", "Charges"],
   ["evidence", "Evidence"],
   ["issues", "Issues for the court"],
+  ["prayer", "Prayer"],
 ] as const;
 
 export type SectionId = (typeof SECTIONS)[number][0];
 
-export const NUMERALS = ["I", "II", "III", "IV", "V", "VI"];
+export const NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII"];
 
-/** `**bold**` markers removed and whitespace collapsed; the petition uses no other markdown inline. */
-export const plain = (s: string) => s.replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+/**
+ * `**bold**` markers removed and whitespace collapsed; the petition uses no other markdown inline.
+ * Non-breaking hyphens ("NON‑APPLICANT", "B‑12") become plain ones so labels match.
+ */
+export const plain = (s: string) =>
+  s
+    .replace(/\*\*/g, "")
+    .replace(/[‐‑]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const sentence = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -84,6 +95,28 @@ function paragraphs(lines: string[], marker: RegExp) {
   return out;
 }
 
+/**
+ * The numbered "That …" paragraphs of SHEWETH. Some petitions put several facts under one
+ * paragraph as lettered points ("a) …" or "(a) …"); those are kept apart as `subs`.
+ */
+function sheweth(lines: string[]) {
+  const out: { lead: string; subs: string[] }[] = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || isNote(line)) continue;
+    const para = line.match(/^\d+\.\s+/);
+    const sub = out.length ? line.match(/^\(?[a-z]\)\s+/) : null;
+    if (para) out.push({ lead: line.slice(para[0].length), subs: [] });
+    else if (sub) out[out.length - 1].subs.push(line.slice(sub[0].length));
+    else if (out.length) {
+      const last = out[out.length - 1];
+      if (last.subs.length) last.subs[last.subs.length - 1] += " " + line;
+      else last.lead += " " + line;
+    }
+  }
+  return out;
+}
+
 /** "- **Label:** text" bullets (top level only), continuation lines joined. */
 function bullets(lines: string[]) {
   const out: Row[] = [];
@@ -108,23 +141,68 @@ const shortCharge = (s: string) => s.replace(SECTION_RE, "§ $1 ");
 
 const stripThat = (s: string) => sentence(plain(s).replace(/^That\s+/i, ""));
 
+/** "Annexure A‑3" / "Annexure A3" anywhere in the text → "A-3". */
+const annexureOf = (s: string) => {
+  const m = plain(s).match(/Annexure\s*([A-Z])\s*-?\s*(\d+)/i);
+  return m ? `${m[1].toUpperCase()}-${m[2]}` : null;
+};
+
+const STOP = new Set(["of", "the", "and", "for", "with", "from", "section", "dated", "annexure", "certificate", "bsa"]);
+const keyWords = (s: string) =>
+  new Set(
+    plain(s)
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/g, " ")
+      .split(" ")
+      .filter((w) => w.length > 2 && !STOP.has(w)),
+  );
+
+/** Whether an extracted exhibit already covers a petition annexure: same annexure number,
+ * or at least half of the annexure title's key words, and two of them when it has two or
+ * more ("CCTV Footage of Satpura Office" matches "Digital CCTV Footage"; "Bank Statements"
+ * doesn't match "Statements of Three Witnesses"). */
+function covered(item: { title: string; annexure: string | null }, evidence: EvidenceItem[]) {
+  const want = keyWords(item.title);
+  return evidence.some((e) => {
+    const text = `${e.title} ${e.description}`;
+    if (item.annexure && annexureOf(text) === item.annexure) return true;
+    const have = keyWords(e.title);
+    const shared = [...want].filter((w) => have.has(w)).length;
+    return want.size > 0 && shared / want.size >= 0.5 && shared >= Math.min(2, want.size);
+  });
+}
+
 export function readCaseFile(text: string, evidence: EvidenceItem[] = []): CaseFile {
   const { blocks, find } = split(text || "");
 
   const courtLine = blocks[0].lines.find((l) => /^\*\*IN THE /i.test(l.trim()));
   const court = courtLine ? titleCase(plain(courtLine).replace(/^IN THE\s+/i, "")) : "";
 
-  // II. Parties: "1. **Name**, details ... **APPLICANT**" under IN THE MATTER OF.
+  // II. Parties: "1. **Name**, details ... **APPLICANT**" under IN THE MATTER OF. The leader
+  // before the label is dots, or a dash ("– **APPLICANT**") in some petitions.
   const parties: Row[] = [];
   for (const line of find(/^IN THE MATTER OF/i)?.lines ?? []) {
-    const m = line.trim().match(/^\d+\.\s+(.*?)\s*\.{2,}\s*\*\*(.+?)\*\*\s*$/);
+    const m = line.trim().match(/^\d+\.\s+(.*?)\s*(?:\.{2,}|[-–—])\s*\*\*(.+?)\*\*\s*$/);
     if (m) parties.push({ label: titleCase(plain(m[2])), text: plain(m[1]).replace(/,\s*$/, "") });
   }
 
-  // I and III: the "That …" paragraphs. The first three set out the case; the rest are facts.
-  const sheweth = paragraphs(find(/SHEWETH/i)?.lines ?? [], /^(\d+)\.\s+/);
-  const summary = sheweth.slice(0, 3).map((p) => stripThat(p.body));
-  const facts: Item[] = sheweth.slice(3).map((p, i) => ({ mark: `${i + 1}.`, text: stripThat(p.body) }));
+  // I and III: the "That …" paragraphs. The first three set out the case and the rest are
+  // facts. Lettered points under a paragraph are facts too, headed by that paragraph's lead;
+  // a lead that only introduces its points ("… is as follows:") stays out of the summary.
+  const paras = sheweth(find(/SHEWETH/i)?.lines ?? []);
+  const lead = (p: { lead: string }) => stripThat(p.lead).replace(/[:\s]+$/, "");
+  const summary = paras
+    .slice(0, 3)
+    .filter((p) => !(p.subs.length && /:\s*$/.test(p.lead)))
+    .map((p) => stripThat(p.lead));
+  const factSource = paras.flatMap((p, i) =>
+    p.subs.length
+      ? p.subs.map((s, k) => ({ title: k === 0 ? lead(p) : undefined, text: sentence(plain(s)) }))
+      : i >= 3
+        ? [{ title: undefined, text: stripThat(p.lead) }]
+        : [],
+  );
+  const facts: Item[] = factSource.map((f, i) => ({ mark: `${i + 1}.`, ...(f.title ? { title: f.title } : {}), text: f.text }));
 
   const relief: Item[] = [];
   for (const raw of find(/^PRAYER/i)?.lines ?? []) {
@@ -139,12 +217,31 @@ export function readCaseFile(text: string, evidence: EvidenceItem[] = []): CaseF
   const related = bullets(find(/^RELATED BNS/i)?.lines ?? []).filter((r) => !main.some((m) => m.label === r.label));
   const counts = [...main, ...related].map((r) => ({ label: countLabel(r.label), text: r.text }));
 
-  // V. Evidence: the structured exhibits; the petition's own list if none were extracted.
+  // V. Evidence: the structured exhibits, then any annexure the petition lists that none of
+  // them covers; the petition's own list alone if nothing was extracted.
+  const listed = bullets((find(/^EVIDENCE/i)?.lines ?? []).map((l) => l.replace(/^\s{2,}-/, "-")))
+    .filter((r) => !/^(Eyewitness|Physical|Witness Name|Testimony)/i.test(r.label))
+    .map((r) => ({
+      title: r.label.replace(/\s*\([^)]*\)\s*$/, ""),
+      annexure: annexureOf(`${r.label} ${r.text}`),
+      text: r.text.replace(/^\(Annexure [^)]*\)\s*/i, ""),
+    }));
   const exhibits: Exhibit[] = evidence.length
-    ? evidence.map((e) => ({ ref: e.exhibit_ref, title: e.title, text: e.description }))
-    : bullets((find(/^EVIDENCE/i)?.lines ?? []).map((l) => l.replace(/^\s{2,}-/, "-")))
-        .filter((r) => !/^(Eyewitness|Physical|Witness Name|Testimony)/i.test(r.label))
-        .map((r, i) => ({ ref: `E-${i + 1}`, title: r.label, text: r.text.replace(/^\(Annexure [^)]*\)\s*/i, "") }));
+    ? [
+        ...evidence.map((e) => ({ ref: e.exhibit_ref, title: e.title, text: e.description })),
+        ...listed
+          .filter((item) => !covered(item, evidence))
+          .map((item, i) => ({ ref: item.annexure ?? `P-${i + 1}`, title: item.title, text: item.text, fromPetition: true })),
+      ]
+    : listed.map((item, i) => ({ ref: `E-${i + 1}`, title: item.title, text: item.text }));
+
+  // VII. Prayer: the relief above, then the verification sentence.
+  const verification = plain(
+    (find(/^VERIFICATION/i)?.lines ?? [])
+      .join("\n")
+      .split(/\n\s*\n/)
+      .find((p) => p.trim()) ?? "",
+  );
 
   // VI. Issues: the lettered grounds.
   const issues: Item[] = paragraphs(find(/^GROUNDS/i)?.lines ?? [], /^([A-Z])\.\s+/).map((g) => {
@@ -154,7 +251,7 @@ export function readCaseFile(text: string, evidence: EvidenceItem[] = []): CaseF
       : { mark: `${g.mark}.`, text: plain(g.body) };
   });
 
-  const recognised = parties.length + sheweth.length + counts.length + issues.length > 0;
+  const recognised = parties.length + paras.length + counts.length + issues.length > 0;
   const petition = blocks.find((b) => /^PETITION\b/i.test(b.head));
   return {
     court,
@@ -167,6 +264,7 @@ export function readCaseFile(text: string, evidence: EvidenceItem[] = []): CaseF
           ? [sentence(plain(petition.head).toLowerCase())]
           : [],
     relief,
+    verification,
     parties,
     facts,
     chronology,

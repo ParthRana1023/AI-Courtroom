@@ -1,5 +1,6 @@
 # app/config.py
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -209,6 +210,23 @@ class Settings(BaseSettings):
     rag_top_k: int = 8
     rag_min_score: float = 0.25
 
+    # Daily jobs (purge, reminders, announcements). POST /admin/jobs/daily needs
+    # "Authorization: Bearer <JOBS_TOKEN>"; with no token set, it answers 404.
+    jobs_token: str = ""
+    # This API's public URL, for one-click unsubscribe links in emails. On Render
+    # RENDER_EXTERNAL_URL is used when this is unset.
+    public_api_url: str | None = None
+    # Product-update emails sent per run; Gmail SMTP allows about 500 a day.
+    announcement_batch_size: int = 300
+
+    # Cloudflare Turnstile on the signed-out Contact form. With no secret, guests
+    # aren't asked (local dev); the e2e and CI builds use Cloudflare's test keys.
+    turnstile_secret_key: str = ""
+    # Hosts the Contact page is served from (comma-separated). Unset = the host of
+    # FRONTEND_URL. Add localhost only in a local .env, never in production.
+    turnstile_hostnames: str = ""
+    turnstile_action: str = "contact"  # the client renders the widget with this action
+
     # Logging settings
     log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR
     log_format: str = "json"  # json (production) or text (development)
@@ -287,6 +305,15 @@ class Settings(BaseSettings):
         ):
             return origin
         return (self.frontend_url or "http://localhost:3000").strip().rstrip("/")
+
+    @property
+    def allowed_turnstile_hostnames(self) -> set[str]:
+        """Where a Turnstile token may come from. Empty means every token is refused."""
+        if self.turnstile_hostnames.strip():
+            names = self.turnstile_hostnames.split(",")
+        else:
+            names = [urlsplit(self.frontend_url or "").hostname or ""]
+        return {n.strip().lower() for n in names if n.strip()}
 
     @property
     def parsed_cors_allowed_origins(self) -> list[str]:

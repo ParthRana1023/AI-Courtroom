@@ -10,6 +10,7 @@ import { useOnline } from "@/hooks/use-online";
 import { useViewport } from "@/hooks/use-viewport";
 import { contactAPI } from "@/lib/api";
 import { getErrorDetail } from "@/lib/error-utils";
+import Turnstile, { TURNSTILE_SITE_KEY } from "@/components/contact/turnstile";
 import { cn } from "@/lib/utils";
 import type { FeedbackCategory } from "@/types";
 
@@ -84,6 +85,16 @@ export default function ContactPage() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // Guests pass Cloudflare Turnstile; each token works once, so a new key remounts it.
+  const needCheck = signedOut && !!TURNSTILE_SITE_KEY;
+  const [human, setHuman] = useState<string | null>(null);
+  const [checkFailed, setCheckFailed] = useState(false);
+  const [checkKey, setCheckKey] = useState(0);
+  const freshCheck = () => {
+    setHuman(null);
+    setCheckFailed(false);
+    setCheckKey((k) => k + 1);
+  };
 
   const rec = cat === "account_recovery";
   const len = msg.trim().length;
@@ -114,6 +125,13 @@ export default function ContactPage() {
       window.setTimeout(() => formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 0);
       return;
     }
+    if (needCheck && !human) {
+      return setFormErr(
+        checkFailed
+          ? "The robot check couldn’t load. Refresh the page, or sign in to write without it."
+          : "One moment: we’re still checking you’re not a robot. Send again when it’s done.",
+      );
+    }
     setBusy(true);
     setFormErr("");
     try {
@@ -122,6 +140,7 @@ export default function ContactPage() {
         message: msg.trim(),
         ...(signedOut ? { name: gName.trim(), email: gEmail.trim() } : {}),
         ...(rec ? { account_identifier: rAcct.trim(), deleted_on: rWhen || undefined } : {}),
+        ...(needCheck && human ? { turnstile_token: human } : {}),
       });
       setSent(true);
       setTried(false);
@@ -133,6 +152,7 @@ export default function ContactPage() {
       );
     } finally {
       setBusy(false);
+      if (needCheck) freshCheck(); // the token is spent either way
     }
   };
 
@@ -356,6 +376,18 @@ export default function ContactPage() {
                     )}
                   </div>
                 </div>
+                {needCheck && (
+                  <div className={cn("flex flex-col gap-1.5", mob ? "px-4 pb-3" : "px-7 pb-3.5")}>
+                    <Turnstile key={checkKey} onToken={setHuman} onError={() => setCheckFailed(true)} />
+                    <span aria-live="polite" className="font-data text-xs font-medium text-ink-muted">
+                      {checkFailed
+                        ? "The robot check couldn’t load. Refresh the page, or sign in to write without it."
+                        : human
+                          ? "✓ Checked: you’re not a robot."
+                          : "Checking you’re not a robot…"}
+                    </span>
+                  </div>
+                )}
                 <div
                   className={cn(
                     "flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-[3px] border-double border-ink",

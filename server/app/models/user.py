@@ -69,6 +69,8 @@ class User(Document):
     data_export_requested_at: datetime | None = None
     # Soft delete: the account can be restored for DELETION_GRACE, then it's purged.
     deleted_at: datetime | None = None
+    # The "erased in 3 days" email went out (cleared when the account is restored).
+    purge_notice_sent_at: datetime | None = None
 
     DELETION_GRACE: ClassVar[timedelta] = timedelta(days=30)
 

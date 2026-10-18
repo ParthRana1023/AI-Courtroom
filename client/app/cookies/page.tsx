@@ -17,7 +17,7 @@ export default function CookiePolicyPage() {
       kicker="Records · Cookies"
       title="COOKIE POLICY"
       lede="What cookies AI Courtroom uses, why, and how to change your choices."
-      updated="4 October 2026"
+      updated="18 October 2026"
       form={["Form R-8", "Schedule of cookies"]}
       label="Cookie Policy"
       index={[
@@ -87,6 +87,10 @@ export default function CookiePolicyPage() {
           Display and writing settings, such as text size, theme, Enter key behaviour and confirmation dialogs, are saved in your browser’s local
           storage so they apply on this device. Local storage also remembers whether you’ve installed or dismissed the app prompt. Settings like case
           location, case memory and how partial wins count are saved to your account instead.
+        </p>
+        <p className={K.p}>
+          When you write to us without signing in, the contact page loads Cloudflare Turnstile from challenges.cloudflare.com to check you’re
+          not a robot. It runs in Cloudflare’s own frame and sets no cookies on our site.
         </p>
       </Sec>
 

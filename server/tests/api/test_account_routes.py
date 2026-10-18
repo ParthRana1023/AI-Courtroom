@@ -401,7 +401,10 @@ async def test_support_restores_a_deleted_account(
 ):
     dev = await make_user()
     monkeypatch.setattr(settings, "dev_mode_emails", dev.email)
-    gone = await make_user(deleted_at=get_current_datetime() - timedelta(days=3))
+    gone = await make_user(
+        deleted_at=get_current_datetime() - timedelta(days=28),
+        purge_notice_sent_at=get_current_datetime(),
+    )
     expired = await make_user(deleted_at=get_current_datetime() - timedelta(days=31))
     live = await make_user()
 
@@ -426,7 +429,9 @@ async def test_support_restores_a_deleted_account(
         "id": str(gone.id),
         "email": gone.email,
     }
-    assert (await reload(gone)).deleted_at is None
+    restored = await reload(gone)
+    assert restored.deleted_at is None
+    assert restored.purge_notice_sent_at is None  # a later deletion warns again
     assert too_late.status_code == 410
     assert not_deleted.status_code == 404
     assert bad_id.status_code == 404

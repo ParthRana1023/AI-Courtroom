@@ -73,14 +73,15 @@ test.describe("settings", () => {
     await form.getByRole("switch", { name: /Use RAG for courtroom AI/ }).click();
     await form.getByLabel("Partial wins count as").selectOption("half");
     await form.getByRole("switch", { name: /Case ready/ }).click();
-    await expect(form.getByRole("switch", { name: /Product updates/ })).toHaveCount(0);
-    await expect(form.getByText("3 unsaved changes")).toBeVisible();
+    await expect(form.getByRole("switch", { name: /Hearing reminders/ })).toHaveAttribute("aria-checked", "true");
+    await form.getByRole("switch", { name: /Product updates/ }).click();
+    await expect(form.getByText("4 unsaved changes")).toBeVisible();
     await form.getByRole("button", { name: "Save settings" }).click();
     await expect(form.getByText("Settings saved successfully!")).toBeVisible();
     expect(puts).toEqual({
       rag: { rag_enabled: false },
       stats: { partial_scoring: "half" },
-      notify: { case_ready: false, hearing_reminders: true, product_updates: false },
+      notify: { case_ready: false, hearing_reminders: true, product_updates: true },
     });
   });
 

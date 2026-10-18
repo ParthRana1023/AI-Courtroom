@@ -16,16 +16,51 @@ export default function ChangelogPage() {
       kicker="The record · Changelog"
       title="CHANGELOG"
       lede="What’s new and what’s changed in AI Courtroom."
-      updated="6 October 2026"
+      updated="18 October 2026"
       form={["Form L-9", "Record of proceedings"]}
       label="Changelog"
       index={[
+        ["v22", "2.2 · 18 October 2026"],
         ["v21", "2.1 · 6 October 2026"],
         ["v2", "2.0 · October 2026"],
         ["v1", "Before October 2026"],
       ]}
     >
-      <Sec id="v21" n="I." title="2.1 · 6 October 2026">
+      <Sec id="v22" n="I." title="2.2 · 18 October 2026">
+        <p className={K.p}>Reminders for waiting hearings, product news if you want it, and faster sign-in with Google.</p>
+        <ul className={K.bullets}>
+          {" "}
+          <li className={K.bulletRow}>
+            <span className={K.tagNew}>New</span>
+            <span>Hearing reminders. When an adjourned case has waited 7 days for your next argument, we email you once.</span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.tagNew}>New</span>
+            <span>Product updates by email, about once a month. Off unless you turn it on in Settings → Notifications.</span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.tagNew}>New</span>
+            <span>Every optional email has a one-click unsubscribe link.</span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.tagFix}>Changed</span>
+            <span>
+              Deleted accounts are now erased automatically 30 days after deletion, with a reminder email three days before. Deleting a case
+              for good also removes its evidence images.
+            </span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.tagFix}>Changed</span>
+            <span>Writing to us without signing in includes a quick robot check by Cloudflare Turnstile.</span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.tagFix}>Fixed</span>
+            <span>Signing in with Google takes a second or two, and the other sign-in buttons wait while it runs.</span>
+          </li>{" "}
+        </ul>
+      </Sec>
+
+      <Sec id="v21" n="II." title="2.1 · 6 October 2026">
         <p className={K.p}>More ways to sign in, and a way back if you delete your account.</p>
         <ul className={K.bullets}>
           {" "}
@@ -63,7 +98,7 @@ export default function ChangelogPage() {
         </ul>
       </Sec>
 
-      <Sec id="v2" n="II." title="2.0 · October 2026">
+      <Sec id="v2" n="III." title="2.0 · October 2026">
         <p className={K.p}>A full redesign of the site in the courtroom theme.</p>
         <ul className={K.bullets}>
           {" "}
@@ -159,7 +194,7 @@ export default function ChangelogPage() {
         </ul>
       </Sec>
 
-      <Sec id="v1" n="III." title="Before October 2026">
+      <Sec id="v1" n="IV." title="Before October 2026">
         <ul className={K.bullets}>
           {" "}
           <li className={K.bulletRow}>

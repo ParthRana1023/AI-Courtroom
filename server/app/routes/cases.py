@@ -27,8 +27,8 @@ from app.models.case import (
 from app.models.report import Report
 from app.models.user import User
 from app.schemas.case import CaseCreate, CaseOut
+from app.services import purge
 from app.services.counsel_conferences import run_counsel_conferences
-from app.services.email import send_case_ready_email
 from app.services.evidence_service import (
     extract_evidence_items,
     format_evidence_context,
@@ -38,8 +38,8 @@ from app.services.evidence_service import (
 from app.services.llm import lawyer
 from app.services.llm.case_generation import generate_case_shell
 from app.services.llm.parties_service import extract_and_assign_parties
+from app.services.notifications import send_case_ready_email
 from app.services.rag import (
-    delete_case_memory,
     has_case_memory,
     index_case_memory,
     retrieve_case_context,
@@ -505,10 +505,9 @@ async def empty_archive(current_user: User = Depends(get_current_user)):
 
 
 async def purge_case(case: Case) -> None:
-    """Remove a case and its RAG memory for good."""
+    """Remove a case for good: evidence images, RAG memory and the case."""
     try:
-        await delete_case_memory(case)
-        await case.delete()
+        await purge.purge_case(case)
     except Exception:
         logger.exception(f"Error permanently deleting case {case.cnr}")
         raise HTTPException(
@@ -699,7 +698,7 @@ async def generate_new_case(
     if current_user.email and current_user.notification_prefs.case_ready:
         background_tasks.add_task(
             send_case_ready_email,
-            current_user.email,
+            current_user,
             case.title,
             case.cnr,
             settings.app_url_for(request.headers.get("origin")),

@@ -27,13 +27,17 @@ async def send_email(
     subject: str,
     body: str,
     attachments: tuple[tuple[str, bytes], ...] = (),
+    headers: dict[str, str] | None = None,
 ):
-    """Send an email using SMTP, with optional (filename, bytes) attachments."""
+    """Send an email using SMTP, with optional (filename, bytes) attachments and
+    extra headers (List-Unsubscribe on optional emails)."""
     message = MIMEMultipart()
     # Use a display name that shows your brand but keeps the actual Gmail address
     message["From"] = f"AI Courtroom <{settings.email_username}>"
     message["To"] = to_email
     message["Subject"] = subject
+    for name, value in (headers or {}).items():
+        message[name] = value
 
     message.attach(MIMEText(body, "html"))
     for filename, data in attachments:
@@ -142,22 +146,6 @@ async def send_email_change_code(email: str, code: str) -> bool:
     </html>
     """
     return await send_email(email, "Confirm your email - AI Courtroom", body)
-
-
-async def send_case_ready_email(email: str, title: str, cnr: str, base: str) -> bool:
-    """A generated case is ready. Sent only with the "Case ready" setting on."""
-    body = f"""
-    <html>
-    <body>
-        <h2>AI Courtroom - Your case is ready</h2>
-        <p><strong>{title}</strong> ({cnr}) has finished drafting.</p>
-        <p><a href="{base}/cases/{cnr}">Open the case file</a></p>
-        <p style="color:#6b5d4b">You get this because "Case ready" is on.
-        <a href="{base}/settings">Turn it off in Settings</a>.</p>
-    </body>
-    </html>
-    """
-    return await send_email(email, f"Your case is ready: {title} - AI Courtroom", body)
 
 
 async def send_recovery_request_email(fields: dict[str, str | None]) -> bool:

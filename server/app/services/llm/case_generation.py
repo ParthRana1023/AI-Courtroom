@@ -83,7 +83,7 @@ FORMAT: Markdown. Every main header is bold UPPERCASE and ends with a colon, as 
 
 1. **State of [State]**, through Station House Officer, Police Station [name], {selected_city} ... **NON-APPLICANT NO. 1**
 2. **[Full name]**, [age], [occupation], resident of [full address] ... **NON-APPLICANT NO. 2**
-(Add further applicants or non-applicants only if the facts need them.)
+(Add further applicants or non-applicants only if the facts need them. End every party line with " ... **APPLICANT**" or " ... **NON-APPLICANT NO. n**" exactly as shown: three dots, never a dash.)
 
 **PETITION UNDER SECTION [provision] OF THE BHARATIYA NAGARIK SURAKSHA SANHITA, 2023 FOR [relief, e.g. QUASHING OF FIR NO. 123/{today.year} DATED [date] REGISTERED AT POLICE STATION [name], {selected_city.upper()}, UNDER SECTIONS [sections] OF THE BHARATIYA NYAYA SANHITA, 2023, AND ALL PROCEEDINGS ARISING THEREFROM]:**
 
@@ -96,9 +96,11 @@ FORMAT: Markdown. Every main header is bold UPPERCASE and ends with a colon, as 
 
 **MOST RESPECTFULLY SHEWETH:**
 1. That the applicant is filing the present petition seeking [relief] in connection with FIR No. [number] under BNS sections {bns_section_numbers_str} and the related sections.
-2. That [the prosecution's case as recorded in the FIR, in fair and specific detail].
-3. That [the applicant's version of events].
-(Numbered "That ..." paragraphs, as in a real petition.)
+2. That [the prosecution's case as recorded in the FIR, in brief].
+3. That [the applicant's version of events, in brief].
+4. That [one specific fact: what happened, when, where and who was involved].
+5. That [the next fact].
+(Numbered "That ..." paragraphs, as in a real petition. Continue 6, 7, 8 ... with one fact per paragraph, about 8 to 14 paragraphs in all. Never put lettered sub-points such as a), b) under a paragraph; give each its own number.)
 
 **BACKGROUND AND CHRONOLOGY OF EVENTS:**
 - **[DD/MM/YYYY]:** [event]

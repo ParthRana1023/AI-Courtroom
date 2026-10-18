@@ -549,3 +549,37 @@ def test_extract_public_id_handles_unexpected_input():
 
 async def test_load_cache_from_empty_database():
     assert await ls._load_cache_from_db() is False
+
+
+def test_delete_image_accepts_ok_and_not_found(cloudinary_configured, monkeypatch):
+    answers = iter([{"result": "ok"}, {"result": "not found"}, {"result": "error"}])
+    monkeypatch.setattr(cloudinary.uploader, "destroy", lambda pid: next(answers))
+
+    cs.delete_image("a")
+    cs.delete_image("b")  # already gone counts as done
+    with pytest.raises(RuntimeError, match="could not delete"):
+        cs.delete_image("c")
+
+
+def test_delete_case_images_repeats_while_partial(cloudinary_configured, monkeypatch):
+    import cloudinary.api
+
+    calls = []
+
+    def delete_by_prefix(prefix):
+        calls.append(prefix)
+        return {"partial": len(calls) < 3}
+
+    monkeypatch.setattr(cloudinary.api, "delete_resources_by_prefix", delete_by_prefix)
+
+    cs.delete_case_images("DL/01 2026")
+
+    assert calls == ["ai-courtroom/evidence/DL012026/"] * 3
+
+
+def test_cloudinary_deletes_need_configuration(monkeypatch):
+    monkeypatch.setattr(settings, "cloudinary_api_secret", None)
+    with pytest.raises(RuntimeError, match="not configured"):
+        cs.delete_image("a")
+    with pytest.raises(RuntimeError, match="not configured"):
+        cs.delete_case_images("X")

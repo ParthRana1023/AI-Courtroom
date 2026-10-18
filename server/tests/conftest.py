@@ -243,6 +243,15 @@ def _httpx_stub(handler=None) -> types.SimpleNamespace:
 
 
 @pytest.fixture(autouse=True)
+def neutral_secrets(monkeypatch):
+    """A developer's .env may hold real Slice 10 secrets; tests start without
+    them and turn each on where they need it."""
+    monkeypatch.setattr(settings, "jobs_token", "")
+    monkeypatch.setattr(settings, "turnstile_secret_key", "")
+    monkeypatch.setattr(settings, "turnstile_hostnames", "")
+
+
+@pytest.fixture(autouse=True)
 def block_third_party_calls(monkeypatch):
     """Block every third-party client at the library boundary.
 
@@ -252,12 +261,19 @@ def block_third_party_calls(monkeypatch):
     """
     import urllib.request
 
+    import cloudinary.api
     import cloudinary.uploader
 
-    from app.services import google_auth, image_generation, location_service
+    from app.services import google_auth, image_generation, location_service, turnstile
 
     monkeypatch.setattr(cloudinary.uploader, "upload", _blocked("cloudinary upload"))
     monkeypatch.setattr(cloudinary.uploader, "destroy", _blocked("cloudinary destroy"))
+    monkeypatch.setattr(
+        cloudinary.api,
+        "delete_resources_by_prefix",
+        _blocked("cloudinary delete_resources_by_prefix"),
+    )
+    monkeypatch.setattr(turnstile, "httpx", _httpx_stub())
     monkeypatch.setattr(google_auth, "httpx", _httpx_stub())
     monkeypatch.setattr(google_auth, "_certs", None)
     monkeypatch.setattr(urllib.request, "urlopen", _blocked("urllib.request.urlopen"))
@@ -317,7 +333,12 @@ def outbox(monkeypatch):
         def send_message(self, message):
             body = message.get_payload()[0].get_payload()
             sent.append(
-                {"to": message["To"], "subject": message["Subject"], "body": body}
+                {
+                    "to": message["To"],
+                    "subject": message["Subject"],
+                    "body": body,
+                    "headers": dict(message.items()),
+                }
             )
 
         def quit(self):

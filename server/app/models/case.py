@@ -284,6 +284,8 @@ class Case(Document):
     deleted_at: datetime | None = Field(
         default=None, description="Timestamp when the case was soft-deleted"
     )
+    # The hearing reminder for the current adjournment went out (one per adjournment).
+    reminder_sent_at: datetime | None = None
 
     @field_validator(
         "plaintiff_arguments",

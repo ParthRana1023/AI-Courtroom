@@ -1,5 +1,5 @@
 import type { Route } from "@playwright/test";
-import { test, expect } from "./support/fixtures";
+import { test, expect, TURNSTILE_TOKEN } from "./support/fixtures";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const SENT = { id: "f1", feedback_category: "general", created_at: "2026-10-14T10:00:00Z" };
@@ -38,12 +38,19 @@ test.describe("contact", () => {
     await form.getByLabel("Email for our reply").fill("meera@example.com");
     await form.getByLabel("Your message").fill("The gavel sound is lovely.");
     await expect(form.getByText("26 characters")).toBeVisible();
+    await expect(form.getByText("✓ Checked: you’re not a robot.")).toBeVisible();
     await form.getByRole("button", { name: "Send message to the maker →" }).click();
 
     await expect(form.getByText("RECEIVED")).toBeVisible();
     await expect(form.getByText("Filed under: General Feedback")).toBeVisible();
     await expect(form.getByRole("link", { name: "Back to my cases" })).toHaveCount(0);
-    expect(body).toEqual({ feedback_category: "general", message: "The gavel sound is lovely.", name: "Meera Iyer", email: "meera@example.com" });
+    expect(body).toEqual({
+      feedback_category: "general",
+      message: "The gavel sound is lovely.",
+      name: "Meera Iyer",
+      email: "meera@example.com",
+      turnstile_token: TURNSTILE_TOKEN,
+    });
 
     await form.getByRole("button", { name: "Write another" }).click();
     await expect(form.getByLabel("Your message")).toHaveValue("");
@@ -86,6 +93,23 @@ test.describe("contact", () => {
       account_identifier: "+91 98765 43210",
       deleted_on: threeDaysAgo,
     });
+  });
+
+  test("a guest whose robot check fails is told how to carry on", async ({ page, api }) => {
+    let sent = false;
+    await api({ "POST /feedback/submit": (route: Route) => ((sent = true), route.fulfill({ status: 201, json: SENT })) });
+    await page.addInitScript(() => Object.assign(window, { __turnstileFail: true }));
+    await page.goto("/contact");
+
+    const form = page.getByRole("form", { name: "Contact form" });
+    await expect(form.getByText("The robot check couldn’t load.")).toBeVisible();
+    await form.getByLabel("Your name").fill("Meera Iyer");
+    await form.getByLabel("Email for our reply").fill("meera@example.com");
+    await form.getByLabel("Your message").fill("The gavel sound is lovely.");
+    await form.getByRole("button", { name: "Send message to the maker →" }).click();
+
+    await expect(form.getByRole("alert")).toContainText("or sign in to write without it");
+    expect(sent).toBe(false);
   });
 
   test("signed in: no guest fields, and a refusal is shown as an objection", async ({ page, signIn }, info) => {

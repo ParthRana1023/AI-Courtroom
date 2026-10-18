@@ -16,6 +16,7 @@ from app.models.user import User
 from app.routes.auth import client_ip
 from app.schemas.feedback import FeedbackCategory, FeedbackCreate, FeedbackOut
 from app.services.email import send_recovery_request_email
+from app.services.turnstile import TurnstileUnavailable, verify_turnstile
 from app.utils.rate_limiter import contact_ip_limiter, contact_sender_limiter
 
 logger = get_logger(__name__)
@@ -35,6 +36,17 @@ async def submit_feedback(
         raise HTTPException(status_code=422, detail=messages.GUEST_DETAILS_REQUIRED)
 
     ip = client_ip(request)
+    # Guests pass Cloudflare Turnstile; signed-in senders are already accounted for.
+    if current_user is None:
+        try:
+            human = await verify_turnstile(feedback_data.turnstile_token, ip)
+        except TurnstileUnavailable:
+            raise HTTPException(
+                status_code=503, detail=messages.CAPTCHA_UNAVAILABLE
+            ) from None
+        if not human:
+            raise HTTPException(status_code=403, detail=messages.CAPTCHA_FAILED)
+
     sender = str(current_user.id) if current_user else feedback_data.email or ip
     await contact_ip_limiter.ensure_available(ip, messages.CONTACT_LIMIT)
     await contact_sender_limiter.ensure_available(sender, messages.CONTACT_LIMIT)

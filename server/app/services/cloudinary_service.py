@@ -2,12 +2,43 @@
 """Cloudinary integration service for profile and evidence image uploads."""
 
 import cloudinary
+import cloudinary.api
 import cloudinary.uploader
 
 from app.config import settings
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def _safe(value: str) -> str:
+    return "".join(ch for ch in value if ch.isalnum() or ch in ("-", "_"))
+
+
+def evidence_folder(cnr: str) -> str:
+    """Every evidence image of a case lives under this folder."""
+    return f"ai-courtroom/evidence/{_safe(cnr)}"
+
+
+def delete_image(public_id: str) -> None:
+    """Delete one image (blocking). Already gone counts as done; anything else raises."""
+    if not configure_cloudinary():
+        raise RuntimeError("Cloudinary is not configured.")
+    result = cloudinary.uploader.destroy(public_id)
+    if result.get("result") not in ("ok", "not found"):
+        raise RuntimeError(f"Cloudinary could not delete {public_id}: {result}")
+
+
+def delete_case_images(cnr: str) -> None:
+    """Delete every image in a case's evidence folder (blocking), including old
+    ones a regenerate replaced. Raises if Cloudinary can't be reached or refuses."""
+    if not configure_cloudinary():
+        raise RuntimeError("Cloudinary is not configured.")
+    # The Admin API deletes up to 1000 per call and says "partial" when more remain.
+    while cloudinary.api.delete_resources_by_prefix(f"{evidence_folder(cnr)}/").get(
+        "partial"
+    ):
+        pass
 
 
 def configure_cloudinary() -> bool:
@@ -96,14 +127,10 @@ async def upload_evidence_image(
     existing_public_id: str | None = None,
 ) -> tuple[str, str]:
     """Upload an evidence image under the case's folder; returns (secure_url, public_id)."""
-
-    def safe(value: str) -> str:
-        return "".join(ch for ch in value if ch.isalnum() or ch in ("-", "_"))
-
     return _replace_image(
         file_bytes,
-        folder=f"ai-courtroom/evidence/{safe(cnr)}",
-        public_id=f"evidence_{safe(evidence_id)}",
+        folder=evidence_folder(cnr),
+        public_id=f"evidence_{_safe(evidence_id)}",
         transformation=[
             {"width": 1200, "height": 800, "crop": "limit"},
             {"quality": "auto", "fetch_format": "auto"},

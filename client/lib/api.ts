@@ -756,6 +756,19 @@ export const courtroomAPI = {
   },
 };
 
+// Optional-email unsubscribe links (no sign-in; the token is in the link).
+export interface UnsubscribeState {
+  kind: "case_ready" | "hearing_reminders" | "product_updates";
+  label: string;
+  subscribed: boolean;
+}
+export const notificationsAPI = {
+  status: async (token: string): Promise<UnsubscribeState> =>
+    (await api.get("/notifications/unsubscribe", { params: { token } })).data,
+  unsubscribe: async (token: string): Promise<UnsubscribeState> =>
+    (await api.post("/notifications/unsubscribe", null, { params: { token } })).data,
+};
+
 // Contact API calls (open to guests)
 export const contactAPI = {
   submitContactForm: async (formData: ContactFormData) => {

@@ -266,6 +266,8 @@ export interface ContactFormData {
   /** Account recovery only. */
   account_identifier?: string;
   deleted_on?: string;
+  /** Guests only: Cloudflare Turnstile's token. */
+  turnstile_token?: string;
 }
 
 export type ServiceState = "ok" | "degraded" | "outage";

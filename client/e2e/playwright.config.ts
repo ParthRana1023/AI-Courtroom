@@ -80,6 +80,12 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 600_000,
     // E2E_COVERAGE turns on browser source maps so coverage maps back to our files.
-    env: { NEXT_PUBLIC_API_URL: E2E_API, NEXT_PUBLIC_PHONE_AUTH_ENABLED: "true", E2E_COVERAGE: "true" },
+    env: {
+      NEXT_PUBLIC_API_URL: E2E_API,
+      NEXT_PUBLIC_PHONE_AUTH_ENABLED: "true",
+      // Cloudflare's always-pass test site key; the widget script itself is faked in fixtures.ts.
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+      E2E_COVERAGE: "true",
+    },
   },
 });

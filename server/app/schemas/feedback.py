@@ -36,6 +36,8 @@ class FeedbackCreate(BaseModel):
     # Account recovery only.
     account_identifier: str | None = Field(None, max_length=254)
     deleted_on: date | None = None
+    # Cloudflare Turnstile's token; guests only.
+    turnstile_token: str | None = Field(None, max_length=2048)
 
     @field_validator("message", "name", "email", "account_identifier")
     @classmethod

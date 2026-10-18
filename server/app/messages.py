@@ -95,6 +95,10 @@ CONTACT_LIMIT = (
     "Kindly wait {minutes} minute(s) before sending another."
 )
 GUEST_DETAILS_REQUIRED = "Leave your name and email so we can reply, or sign in."
+CAPTCHA_FAILED = "We couldn't confirm you're not a robot. Please try the check again."
+CAPTCHA_UNAVAILABLE = (
+    "We couldn't run the robot check just now. Please try again in a minute."
+)
 
 # Case access
 CASE_NOT_FOUND = "This case file could not be found in the court registry."

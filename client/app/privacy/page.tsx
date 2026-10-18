@@ -17,7 +17,7 @@ export default function PrivacyPage() {
       kicker="Records · Privacy"
       title="PRIVACY POLICY"
       lede="We are committed to protecting your privacy and keeping your data safe. Here’s everything you need to know."
-      updated="6 October 2026"
+      updated="18 October 2026"
       form={["Form R-7", "Record of data held"]}
       label="Privacy Policy"
       index={[
@@ -129,7 +129,8 @@ export default function PrivacyPage() {
             <span className={K.term}>Communication</span>
             <span className={K.note}>
               Sending sign-in codes by email or text message, security alerts about new sign-ins and password changes, the email notifications you
-              turn on, and replies to your messages.
+              turn on (case ready, hearing reminders, product updates), and replies to your messages. Every optional email has a one-click
+              unsubscribe link; security alerts can’t be turned off.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -138,7 +139,10 @@ export default function PrivacyPage() {
           </li>{" "}
           <li className={K.defRow}>
             <span className={K.term}>Security</span>
-            <span className={K.note}>Keeping the platform secure and preventing fraud and abuse.</span>
+            <span className={K.note}>
+              Keeping the platform secure and preventing fraud and abuse. When you write to us without signing in, Cloudflare Turnstile checks
+              that you’re not a robot; Cloudflare sees your IP address and browser signals for that check only.
+            </span>
           </li>{" "}
         </ul>
       </Sec>
@@ -236,7 +240,9 @@ export default function PrivacyPage() {
               <Link href="/contact?cat=account_recovery" className={K.a}>
                 contact us
               </Link>
-              . After 30 days it’s erased for good.
+
+              . Three days before the 30 days are up we email you a last reminder. After 30 days it’s erased for good: your profile, photos, cases
+              and their AI memory. Messages you sent us are kept for our support records with your name and contact details removed.
             </span>
           </li>{" "}
         </ul>

@@ -19,6 +19,7 @@ from app.models.case import (
 from app.models.case_memory import CaseMemoryChunk
 from app.models.rate_limit import RateLimitEntry
 from app.routes import cases as cases_routes
+from app.services import purge as purge_service
 from app.services.high_court_mapping import INDIAN_HIGH_COURTS
 from app.utils.datetime import get_current_datetime
 from tests.helpers import boom, reload
@@ -709,11 +710,11 @@ async def test_restore_needs_an_archived_case_and_both_need_ownership(
 
 
 @pytest.mark.parametrize(
-    "method, path_suffix, deleted, patch_target",
+    "method, path_suffix, deleted, module, patch_target",
     [
         # a case archived before memory was kept has none, so restoring rebuilds it
-        ("POST", "/restore", True, "index_case_memory"),
-        ("DELETE", "/permanent", True, "delete_case_memory"),
+        ("POST", "/restore", True, cases_routes, "index_case_memory"),
+        ("DELETE", "/permanent", True, purge_service, "delete_case_memory"),
     ],
 )
 async def test_recycle_bin_failures(
@@ -725,9 +726,10 @@ async def test_recycle_bin_failures(
     method,
     path_suffix,
     deleted,
+    module,
     patch_target,
 ):
-    monkeypatch.setattr(cases_routes, patch_target, boom)
+    monkeypatch.setattr(module, patch_target, boom)
     case = await make_case(user, is_deleted=deleted)
 
     response = await client.request(
@@ -826,6 +828,10 @@ async def test_generated_case_is_emailed_when_the_user_wants_it(
         assert [m["to"] for m in ready] == [user.email]
         assert f"/cases/{cnr}" in ready[0]["body"]
         assert "/settings" in ready[0]["body"]
+        assert "/unsubscribe?token=" in ready[0]["body"]
+        assert (
+            ready[0]["headers"]["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
+        )
     else:
         assert ready == []
 

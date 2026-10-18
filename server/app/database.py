@@ -4,6 +4,7 @@ from pymongo import AsyncMongoClient
 
 from app.config import settings
 from app.logging_config import get_logger
+from app.models.announcement import Announcement
 from app.models.case import Case
 from app.models.case_memory import CaseMemoryChunk
 from app.models.case_outcome import CaseOutcomeRecord
@@ -11,6 +12,7 @@ from app.models.client_log import ClientLog
 from app.models.cnr_counter import CnrCounter
 from app.models.feedback import Feedback
 from app.models.incident import Incident
+from app.models.job_run import JobRun
 from app.models.location_cache import LocationCache
 from app.models.otp import OTP
 from app.models.rate_limit import RateLimitEntry
@@ -34,6 +36,8 @@ DOCUMENT_MODELS = [
     UserSession,
     Report,
     Incident,
+    JobRun,
+    Announcement,
 ]
 
 

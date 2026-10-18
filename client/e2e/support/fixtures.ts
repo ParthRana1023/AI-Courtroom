@@ -65,6 +65,15 @@ interface Fixtures {
   consented: boolean;
 }
 
+export const TURNSTILE_TOKEN = "e2e-turnstile-token";
+const FAKE_TURNSTILE = `window.turnstile = {
+  render(el, o) {
+    setTimeout(() => (window.__turnstileFail ? o["error-callback"]() : o.callback(${JSON.stringify(TURNSTILE_TOKEN)})), 50);
+    return "w" + Math.random();
+  },
+  remove() {},
+};`;
+
 export const test = base.extend<Fixtures>({
   consented: [true, { option: true }],
 
@@ -81,6 +90,10 @@ export const test = base.extend<Fixtures>({
   page: async ({ page, context, baseURL, consented }, run) => {
     // Tests never reach a third party (e.g. Google's sign-in script): only the app and the mocked API.
     await context.route(/^https?:\/\/(?!localhost[:/]|127\.0\.0\.1[:/])/, (route) => route.abort("blockedbyclient"));
+    // Cloudflare Turnstile (guest Contact) is faked: it passes at once, or fails when a test sets __turnstileFail.
+    await context.route("https://challenges.cloudflare.com/turnstile/**", (route) =>
+      route.fulfill({ contentType: "text/javascript", body: FAKE_TURNSTILE }),
+    );
     if (consented) {
       await context.addCookies([
         { name: "ai_courtroom_consent", value: encodeURIComponent(JSON.stringify(CONSENT)), url: baseURL! },

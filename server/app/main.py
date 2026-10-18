@@ -31,6 +31,7 @@ from app.routes import (
     evidence,
     feedback,
     location,
+    notifications,
     parties,
     rate_limit,
     status,
@@ -209,5 +210,8 @@ app.include_router(rate_limit.router, prefix="/limit", tags=["Rate Limit"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])
 app.include_router(location.router, prefix="/location", tags=["Location"])
+app.include_router(
+    notifications.router, prefix="/notifications", tags=["Notifications"]
+)
 app.include_router(client_logs.router, prefix="/logs", tags=["Client Logs"])
 app.include_router(status.router, prefix="/status", tags=["Status"])

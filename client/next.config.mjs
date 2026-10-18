@@ -18,12 +18,13 @@ const devScriptSrc = isDev ? " 'unsafe-eval'" : "";
 const devConnectSrc = isDev ? " http://localhost:8000" : "";
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${devScriptSrc} https://accounts.google.com https://*.vercel-scripts.com`,
+  // challenges.cloudflare.com: Turnstile, the robot check on the signed-out Contact form.
+  `script-src 'self' 'unsafe-inline'${devScriptSrc} https://accounts.google.com https://challenges.cloudflare.com https://*.vercel-scripts.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   `connect-src 'self'${devConnectSrc} ${apiOrigin} https://accounts.google.com https://*.vercel-insights.com https://*.vercel-analytics.com`,
-  "frame-src https://accounts.google.com",
+  "frame-src https://accounts.google.com https://challenges.cloudflare.com",
   "frame-ancestors 'self'",
   "object-src 'none'",
   "base-uri 'self'",

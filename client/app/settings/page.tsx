@@ -505,6 +505,18 @@ export default function SettingsPage() {
                     />
                     <div>
                       <Switch on={local.nCase} onToggle={() => set("nCase", !local.nCase)} t="Case ready" d="When a case you asked for has finished drafting." />
+                      <Switch
+                        on={local.nRemind}
+                        onToggle={() => set("nRemind", !local.nRemind)}
+                        t="Hearing reminders"
+                        d="When an adjourned case has waited 7 days for your next argument."
+                      />
+                      <Switch
+                        on={local.nProduct}
+                        onToggle={() => set("nProduct", !local.nProduct)}
+                        t="Product updates"
+                        d="New features and fixes from the changelog. About once a month."
+                      />
                       <div className="flex items-center justify-between gap-4 border-t border-ink/12 py-3">
                         <Lead small t="Security alerts" d="New sign-ins, password changes and account deletion requests." />
                         <span className={cn(TAG, "flex-none tracking-[0.16em] text-ink-muted")}>Always on</span>

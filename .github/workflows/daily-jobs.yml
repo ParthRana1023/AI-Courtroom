@@ -1,0 +1,47 @@
+# Once a day: purge notices, the 30-day account purge, hearing reminders and the
+# day's product-update emails (server/app/services/daily_jobs.py).
+#
+# Needs two repository secrets (Settings -> Secrets and variables -> Actions):
+#   API_URL     the backend's public URL, e.g. https://ai-courtroom-api.onrender.com
+#   JOBS_TOKEN  the same random value as the server's JOBS_TOKEN env var
+# Without them the run only prints a warning.
+name: Daily jobs
+
+on:
+  schedule:
+    - cron: "30 21 * * *" # 03:00 IST
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Count what's due, change nothing"
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: daily-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Run the daily jobs
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          JOBS_TOKEN: ${{ secrets.JOBS_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$JOBS_TOKEN" ]; then
+            echo "::warning::Set the API_URL and JOBS_TOKEN repository secrets to run the daily jobs."
+            exit 0
+          fi
+          # Render's free plan sleeps when idle: wake it first (can take about a minute).
+          curl --silent --show-error --fail --retry 6 --retry-delay 20 --retry-all-errors \
+            --max-time 60 -o /dev/null "$API_URL/status"
+          # One attempt only: a retry after a failed step would run the jobs twice.
+          curl --silent --show-error --fail-with-body --max-time 1500 -X POST \
+            -H "Authorization: Bearer $JOBS_TOKEN" \
+            "$API_URL/admin/jobs/daily?dry_run=$DRY_RUN"

@@ -9,12 +9,13 @@ const prepRoutes = (c: ReturnType<typeof caseOf>) => ({
 });
 
 test.describe("case details", () => {
-  test("reads the petition into the six-part case file", async ({ page, signIn, checkA11y }, info) => {
+  test("reads the petition into the seven-part case file", async ({ page, signIn, checkA11y }, info) => {
     await signIn(USERS.email, { [`GET /cases/${CNR}`]: caseOf() });
     await page.goto(`/cases/${CNR}`);
 
     const file = page.getByRole("article", { name: "Case file" });
-    for (const s of ["Case summary", "Parties", "Facts of the case", "Charges", "Evidence", "Issues for the court"]) {
+    await expect(file.getByText("I, Raghav Menon, verify that the contents are true.", { exact: false })).toBeAttached();
+    for (const s of ["Case summary", "Parties", "Facts of the case", "Charges", "Evidence", "Issues for the court", "Prayer"]) {
       await expect(file.getByRole("heading", { name: new RegExp(s) })).toBeVisible();
     }
     await expect(file.getByText("The applicant seeks the quashing of FIR No. 41/2025", { exact: false })).toBeVisible();
@@ -27,13 +28,39 @@ test.describe("case details", () => {
     if (info.project.name === "desktop") {
       await expect(page.getByText("High Court of Delhi · Filed 28 Sep 2026")).toBeVisible();
       await expect(page.getByText("§ 318 Cheating · § 316 Criminal breach of trust")).toBeVisible();
-      await page.getByRole("navigation", { name: "Case file contents" }).getByRole("button", { name: /Issues for the court/ }).click();
-      await expect(page.getByRole("navigation", { name: "Case file contents" }).getByRole("button", { name: /Issues for the court/ })).toHaveAttribute("aria-current", "true");
+      await page.getByRole("navigation", { name: "Case file contents" }).getByRole("button", { name: /Prayer/ }).click();
+      await expect(page.getByRole("navigation", { name: "Case file contents" }).getByRole("button", { name: /Prayer/ })).toHaveAttribute("aria-current", "true");
     } else {
       await page.getByLabel("Jump to section").selectOption("charges");
       await expect(file.getByText("§ 336 BNS · Forgery")).toBeInViewport();
     }
     await checkA11y();
+  });
+
+  test("a petition with dash-led parties and lettered points still fills Parties and Facts", async ({ page, signIn }) => {
+    const variant = [
+      "**IN THE Bombay High Court**",
+      "**IN THE MATTER OF:**",
+      "1. **Rahul Nair**, 31 years, Senior Manager – Infrastructure, Mumbai – **APPLICANT**",
+      "**VERSUS**",
+      "1. **State of Maharashtra**, through SHO, Andheri – **NON‑APPLICANT NO. 1**",
+      "**MOST RESPECTFULLY SHEWETH:**",
+      "1. That the applicant seeks quashing of FIR No. 12/2025.",
+      "2. That the prosecution’s case is as follows:",
+      "   a) On 08-08-2025 the complainant visited the resort.",
+      "   b) She alleges a shot was fired in Cabin C-7.",
+      "**GROUNDS:**",
+      "A. **No evidence of a firearm:** None was recovered.",
+    ].join("\n");
+    await signIn(USERS.email, { [`GET /cases/${CNR}`]: caseOf({ case_text: variant }) });
+    await page.goto(`/cases/${CNR}`);
+
+    const file = page.getByRole("article", { name: "Case file" });
+    await expect(file.getByText("Non-applicant No. 1")).toBeVisible();
+    await expect(file.getByText("Rahul Nair, 31 years", { exact: false })).toBeVisible();
+    await expect(file.getByText("The prosecution’s case is as follows.")).toBeVisible();
+    await expect(file.getByText("She alleges a shot was fired in Cabin C-7.")).toBeVisible();
+    await expect(file.getByText("The applicant seeks quashing of FIR No. 12/2025.")).toBeVisible();
   });
 
   test("taking a side asks first, then records it and opens Case Prep", async ({ page, signIn }) => {
