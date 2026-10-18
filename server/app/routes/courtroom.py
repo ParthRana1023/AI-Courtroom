@@ -257,10 +257,13 @@ async def raise_objection(
         events = objection_events(
             case, current_user, target.id, request.grounds, details, sustained, ruling
         )
-        change: dict = {"$push": {"courtroom_proceedings": {"$each": events}}}
+        # Two writes: MongoDB refuses $set on an element and $push to the same array at once.
+        # Each is atomic, and appending never shifts the indexes struck here.
         if struck:
-            change["$set"] = struck
-        await this_case().update_one(change)
+            await this_case().update_one({"$set": struck})
+        await this_case().update_one(
+            {"$push": {"courtroom_proceedings": {"$each": events}}}
+        )
     finally:
         await this_case().update_one({"$set": {"objection_pending_at": None}})
     await upsert_memory_item(
