@@ -617,7 +617,8 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                             onClick={() => setSel(p.id)}
                             title={plain(p.name)}
                             // The visible initials must be part of the name (WCAG 2.5.3, label in name).
-                            aria-label={`${plain(p.name)} (${initials(p.name)})`}
+                            // Not in parentheses: axe drops parenthesised text before comparing.
+                            aria-label={`${plain(p.name)}, ${initials(p.name)}`}
                             aria-current={cur ? "true" : undefined}
                             className={cn(
                               "flex h-9 w-9 flex-none cursor-pointer items-center justify-center font-display text-[13px] transition-transform duration-150 hover:scale-[1.08]",
