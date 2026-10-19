@@ -394,13 +394,11 @@ export function CaseList({
           rows.map((row) => {
             const on = selected.has(row.cnr);
             const activate = () => (selecting ? onToggle(row.cnr) : onOpen(row.cnr));
-            const [, statusLabel] = statusOf(row.status);
             return (
               <div
                 key={row.cnr}
                 role="link"
                 tabIndex={0}
-                aria-label={`${row.title}, ${statusLabel}, case ${row.cnr}`}
                 onClick={activate}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {

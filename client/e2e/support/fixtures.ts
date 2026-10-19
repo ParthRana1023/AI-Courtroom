@@ -117,7 +117,8 @@ export const test = base.extend<Fixtures>({
     await run(async () => {
       const { violations } = await new AxeBuilder({ page }).analyze();
       const serious = violations.filter((v) => v.impact === "serious" || v.impact === "critical");
-      expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target).join(", ")}`)).toEqual([]);
+      // The node HTML says which element failed; generated selectors like #radix-_r_0_ don't.
+      expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => `${n.target} ${n.html.slice(0, 160)}`).join(" | ")}`)).toEqual([]);
     });
   },
 });

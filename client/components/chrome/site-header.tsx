@@ -37,7 +37,8 @@ export function AccountMenu({ size = 36, withSettings = false }: { size?: 36 | 3
   return (
     <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger
-        aria-label="Account menu"
+        // The visible initials must be part of the name (WCAG 2.5.3, label in name).
+        aria-label={user.profile_photo_url ? "Account menu" : `Account menu, ${initialsOf(user.first_name, user.last_name)}`}
         className={cn(
           "cursor-pointer rounded-full bg-paper bg-cover bg-center font-display text-sm normal-case tracking-normal text-ink transition-shadow hover:shadow-[0_0_0_2px_#e0453a] data-[state=open]:shadow-[0_0_0_2px_#e0453a]",
           size === 38 ? "size-9.5" : "size-9",

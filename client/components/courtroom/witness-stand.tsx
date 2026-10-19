@@ -125,7 +125,7 @@ export default function WitnessStand({
           type="button"
           onClick={onToggle}
           aria-expanded="false"
-          aria-label="Open the witness stand"
+          aria-label={`Open the witness stand: ${witness ? `On the stand · ${witness.name}` : "Witness stand · empty"}`}
           className="flex min-h-0 w-full flex-1 animate-[ac-fade_.3s_ease_both] cursor-pointer flex-col items-center gap-3.5 border-0 bg-transparent py-4.5 text-ink transition-colors hover:bg-[#dcd0b6]"
         >
           <span aria-hidden="true" className="text-base leading-none">

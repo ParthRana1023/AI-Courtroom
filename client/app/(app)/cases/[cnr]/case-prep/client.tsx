@@ -598,7 +598,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                     <button
                       type="button"
                       onClick={() => setFocus("list")}
-                      aria-label="Show all parties"
+                      aria-label={`Parties · ${parties.length}: show all parties`}
                       aria-expanded="false"
                       className="flex w-11 flex-none cursor-pointer flex-col items-center gap-3 pb-2.5 pt-2 text-ink hover:text-seal"
                     >
@@ -616,7 +616,8 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                             type="button"
                             onClick={() => setSel(p.id)}
                             title={plain(p.name)}
-                            aria-label={plain(p.name)}
+                            // The visible initials must be part of the name (WCAG 2.5.3, label in name).
+                            aria-label={`${plain(p.name)} (${initials(p.name)})`}
                             aria-current={cur ? "true" : undefined}
                             className={cn(
                               "flex h-9 w-9 flex-none cursor-pointer items-center justify-center font-display text-[13px] transition-transform duration-150 hover:scale-[1.08]",
