@@ -9,7 +9,7 @@ const DOCS: [string, string, string, string, number, string | null][] = [
   ["/terms", "TERMS OF SERVICE", "Terms of Service", "Terms of Service", 12, "6 October 2026"],
   ["/cookies", "COOKIE POLICY", "Cookie Policy", "Cookie Policy", 7, "18 October 2026"],
   ["/help", "HELP & FAQ", "Help and FAQ", "Help & FAQ", 6, "6 October 2026"],
-  ["/changelog", "CHANGELOG", "Changelog", "Changelog", 4, "18 October 2026"],
+  ["/changelog", "CHANGELOG", "Changelog", "Changelog", 10, "19 October 2026"],
   ["/accessibility", "ACCESSIBILITY", "Accessibility", "Accessibility", 4, "4 October 2026"],
 ];
 const FOOTER = ["About", "Help & FAQ", "Changelog", "Privacy Policy", "Cookie Policy", "Terms of Service", "Accessibility", "Contact Us", "System status"];
