@@ -8,7 +8,7 @@ SMTP), so no `.env` secrets or running services are needed.
 ## Setup (once)
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # the app plus pytest, ruff, black and pyrefly
 ```
 
 ## Everyday commands

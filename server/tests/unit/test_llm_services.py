@@ -446,6 +446,34 @@ async def test_chat_with_party_first_message_and_failure(fake_llm):
         await ps.chat_with_party("Acme", "non_applicant", "", "", [], "Hi")
 
 
+@pytest.mark.parametrize(
+    ("module", "call", "task"),
+    [
+        (
+            ps,
+            lambda: ps.chat_with_party("Ravi", "applicant", "", "", [], "Hi"),
+            "party",
+        ),
+        (
+            ws,
+            lambda: ws.examine_witness("Ravi", "witness", "", "plaintiff", "Q?", ""),
+            "witness",
+        ),
+    ],
+)
+async def test_parties_and_witnesses_use_their_own_model_chain(
+    fake_llm, monkeypatch, module, call, task
+):
+    """PARTY_* and WITNESS_* settings only take effect through these tasks."""
+    fake_llm.responses.append("I paid the deposit in cash, sir.")
+    real, asked = module.get_llm, []
+    monkeypatch.setattr(module, "get_llm", lambda t: asked.append(t) or real(t))
+
+    await call()
+
+    assert asked == [task]
+
+
 async def test_chat_with_party_accepts_curly_braces(fake_llm):
     fake_llm.responses.append("Yes.")
 

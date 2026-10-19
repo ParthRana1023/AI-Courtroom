@@ -368,7 +368,7 @@ Respond as {party_name}:
 """
 
     prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
-    chain = prompt | get_llm("drafter") | StrOutputParser()
+    chain = prompt | get_llm("party") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()

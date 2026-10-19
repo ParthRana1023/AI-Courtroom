@@ -1,226 +1,303 @@
-<!-- markdownlint-disable MD033 -- centred header needs HTML; Markdown cannot align -->
-<h1 align="center" id="title">AI Courtroom</h1>
+<!-- markdownlint-disable MD033 MD041 -- centred header and collapsible sections need HTML -->
+<div align="center">
 
-<p align="center">
-  <img src="https://socialify.git.ci/ParthRana1023/AI-Courtroom/image?description=1&amp;language=1&amp;name=1&amp;theme=Dark" alt="project-image">
-</p>
+<img src="client/public/android-chrome-192x192.png" alt="AI Courtroom" width="96" height="96">
 
-<p align="center">
-  <img src="https://img.shields.io/badge/version-4.7.11-blue.svg" alt="version">
-  <img src="https://img.shields.io/badge/Next.js-Latest-black.svg" alt="nextjs">
-  <img src="https://img.shields.io/badge/FastAPI-0.115-009688.svg" alt="fastapi">
-  <img src="https://img.shields.io/badge/MongoDB-Latest-47A248.svg" alt="mongodb">
-</p>
-<!-- markdownlint-enable MD033 -->
+# AI Courtroom
 
-## 🧐 Features
+**Practise advocacy in a simulated Indian High Court.**<br>
+Take a side, argue against AI counsel, examine witnesses, object, and hear a reasoned judgment.
 
-Here're some of the project's best features:
+[![CI](https://github.com/ParthRana1023/AI-Courtroom/actions/workflows/ci.yml/badge.svg)](https://github.com/ParthRana1023/AI-Courtroom/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ParthRana1023/AI-Courtroom?label=android)](https://github.com/ParthRana1023/AI-Courtroom/releases/latest)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-8-47A248?logo=mongodb&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
+[![License: personal use](https://img.shields.io/badge/license-personal%20use%20only-lightgrey)](LICENSE.md)
 
-- **Case Generation**: AI-powered generation of legal case scenarios with location-based High Court assignment
-- **Witness Examination**: Interactive AI witness calling and examination flow with real-time polling and response generation
-- **RAG System**: Retrieval-Augmented Generation for standardized case context, improving AI accuracy and argument relevance
-- **Parties Involved**: Chat with case parties (applicants/non-applicants) to gather evidence before courtroom
-- **Interactive Arguments**: Submit arguments as either plaintiff or defendant with intelligent counter-arguments
-- **Verdict & Analysis**: Comprehensive AI-generated verdicts and case strength analysis
-- **Mobile Support**: Native-like experience on **Android** and **iOS** via Capacitor integration
-- **PWA Support**: Offline-ready and installable web application with Serwist
-- **User Authentication**: Secure login with email/password and Google OAuth
-- **Profile Management**: User profiles with bento grid layout, case statistics, and an interactive profile photo editor
-- **Location Caching**: Efficient MongoDB-based location data caching with monthly refresh
-- **SEO Optimized**: Advanced SEO with structured data, sitemap generation, and dynamic Open Graph images
-- **Structured Logging**: Comprehensive backend request tracing (Request IDs) and secure environment logging
+[**Open the app**](https://ai-courtroom.vercel.app) ·
+[**Download for Android**](https://github.com/ParthRana1023/AI-Courtroom/releases/latest/download/ai-courtroom.apk) ·
+[Changelog](https://ai-courtroom.vercel.app/changelog) ·
+[Report a bug](https://github.com/ParthRana1023/AI-Courtroom/issues) ·
+[Security](SECURITY.md)
 
-## Tech Stack
+</div>
 
-### Frontend
+---
 
-- **Next.js 15**: React framework for server-rendered applications
-- **Capacitor**: Cross-platform bridge for Android and iOS native builds
-- **Serwist**: Modern PWA library for Next.js (Service Workers)
-- **TypeScript**: Typed JavaScript for better development experience
-- **Tailwind CSS 4**: Utility-first CSS framework
-- **Framer Motion & GSAP**: Smooth animations and transitions
-- **Google OAuth**: Integrated authentication
-- **Playwright**: End-to-end testing framework
+## What is AI Courtroom?
 
-### Backend
+AI Courtroom drafts a realistic criminal case before a real Indian High Court, under the current laws (BNS, BNSS and BSA), and lets you argue it from start to finish. You choose a side; the AI plays opposing counsel, the witnesses and the judge. Every hearing follows courtroom procedure: openings, arguments, objections, witness examination, closings and a judgment that explains its reasoning.
 
-- **FastAPI**: Modern, fast web framework for Python APIs
-- **LangChain**: Framework for RAG and multi-provider LLM orchestration
-- **Multi-Provider LLM**: Robust fallback system using **Groq** and **OpenRouter**
-- **Beanie ODM**: MongoDB object-document mapper for Python
-- **Sentence Transformers**: Local embeddings for RAG (`all-MiniLM-L6-v2`)
-- **JWT Authentication**: Secure user authentication with configurable expiry
-- **Country State City API**: Global location data integration
+It is built for law students, moot court teams and anyone who wants to practise thinking on their feet in court.
 
-### Database
+## Features
 
-- **MongoDB**: NoSQL database for users, cases, feedback, and location cache
+### Cases
 
-### Deployment
+- **Case generation:** choose the BNS sections, and the AI drafts a petition before a High Court with a real-format CNR number, parties, facts, grounds, evidence and a prayer. The court and city follow your location preference in Settings (your own state, a state you pick, or random).
+- **Indexed case file:** the petition is read into seven parts: summary, parties, facts, charges, evidence, issues for the court, and prayer.
+- **My Cases:** filter, search, archive and restore your cases; deleting asks first and can be undone.
 
-- **Frontend**: Vercel (automatic deploys from GitHub)
-- **Backend**: Render (Docker-based deployment)
+### Case Prep
 
-## Getting Started
+- **Interview the parties:** chat with each party before the hearing to build your theory of the case.
+- **Exhibits:** evidence comes with AI-generated images, remade in the background if one fails.
+
+### The courtroom
+
+- **Arguments against AI counsel**, who answers your points and raises its own.
+- **Objections ruled on live** by the AI judge: sustained remarks are struck from the record and questions withdrawn.
+- **Witness examination:** call your witnesses, examine in chief, cross-examine the other side's, and object to their questions. When AI counsel wants a witness, it asks the court's leave and you can oppose it.
+- **Adjourn and resume:** the record, the hearing's state and a case memory (retrieval-augmented) carry over between sessions.
+- **Judgment and analysis:** a reasoned verdict, plus a written analysis of your arguments, witness examinations and client conferences.
+
+### Accounts and the rest
+
+- Email and password, Google sign-in and one-time codes; profile, settings and notification preferences.
+- Hearing reminders and optional product-update emails, each with one-click unsubscribe.
+- Account deletion: the account is kept for 30 days (restorable on request through Contact → Account Recovery), then erased automatically.
+- A 3D walk-through landing page (three.js) with a simple fallback for devices without WebGL.
+- Installable as a PWA, and as an [Android app](https://github.com/ParthRana1023/AI-Courtroom/releases/latest).
+- Public [status page](https://ai-courtroom.vercel.app/status), contact form protected by Cloudflare Turnstile, and pages checked for accessibility with axe in the end-to-end tests.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Client["Client · Next.js 16 on Vercel"]
+        Web["Web app / PWA"]
+        Android["Android app<br/>(Capacitor shell)"]
+    end
+
+    subgraph Server["Server · FastAPI on Render"]
+        Routes["REST API<br/>auth · cases · hearing · witnesses"]
+        AI["AI roles<br/>drafter · counsel · judge<br/>witness · party · analyzer"]
+        Memory["Case memory (RAG)<br/>fastembed embeddings"]
+        BG["Background tasks<br/>AI examination · images<br/>counsel conferences · emails"]
+        Jobs["Daily jobs<br/>purge · reminders · updates"]
+    end
+
+    DB[("MongoDB Atlas")]
+
+    subgraph External["External services"]
+        LLM["LLMs<br/>Groq → OpenRouter → Workers AI"]
+        Img["Workers AI images<br/>→ Cloudinary"]
+        Mail["Gmail SMTP"]
+        Auth["Google OAuth<br/>Cloudflare Turnstile"]
+    end
+
+    Android -->|loads the live site| Web
+    Web -->|"HTTPS + JWT, polling"| Routes
+    Routes --> AI --> LLM
+    AI --> Memory --> DB
+    Routes --> DB
+    Routes --> BG
+    BG --> Img
+    BG --> Mail
+    Routes --> Auth
+    GHA["GitHub Actions cron"] -->|"POST /admin/jobs/daily"| Jobs
+    Jobs --> DB
+    Jobs --> Mail
+```
+
+- **One API process, no queue:** slow AI work (witness examination, evidence images, AI counsel's private conferences) runs as background tasks after the response, and the client polls for it.
+- **Fallback per AI task:** each role has its own chain of up to four models, so one provider being down or rate-limited doesn't stop a hearing.
+- **Case memory:** everything said in a case is embedded and retrieved per prompt, filtered so private material (such as AI counsel's conferences) never reaches the judge.
+- **Android:** the app is a Capacitor shell that loads the live site, so most updates reach it without a new APK.
+
+For the codemap, sequence diagrams of every flow (case generation, the hearing, objections, witnesses, judgment, daily jobs) and the rules the code relies on, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
+## Tech stack
+
+| Area | Technology |
+| --- | --- |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript 6, Tailwind CSS 4, Radix UI, three.js |
+| Mobile and offline | Capacitor 8 (Android), Serwist (service worker / PWA) |
+| Backend | FastAPI, Pydantic 2, Beanie ODM on PyMongo's async client |
+| Database | MongoDB 8 (Atlas in production) |
+| AI | LangChain with per-task model chains on Groq, OpenRouter and Cloudflare Workers AI; fastembed (ONNX) embeddings for case memory |
+| Services | Google OAuth, Cloudinary, Cloudflare Turnstile, Gmail SMTP |
+| Testing | pytest (mongomock and real MongoDB), Playwright (desktop, mobile, WebKit) with axe, ruff, black, pyrefly, ESLint |
+| Hosting | Vercel (client), Render (server, native Python), GitHub Actions (CI and daily jobs) |
+
+## Getting started
 
 ### Prerequisites
 
-- Node.js (v22 or higher)
-- Python (v3.13 or higher)
-- MongoDB
-- Docker (optional, for containerized development)
+- Node.js 24 and pnpm 11 or later
+- Python 3.13
+- MongoDB: a local server, or a free [Atlas](https://www.mongodb.com/atlas) cluster
+- An API key for at least one LLM provider: [Groq](https://console.groq.com), [OpenRouter](https://openrouter.ai) or Cloudflare Workers AI
 
-### Quick Start with Docker
+### 1. Clone
 
 ```bash
-# Clone the repository
 git clone https://github.com/ParthRana1023/AI-Courtroom.git
 cd AI-Courtroom
-
-# Build and run with Docker Compose
-docker compose up --build
 ```
 
-### Backend Setup
+### 2. Server
 
-1. Navigate to the server directory:
+```bash
+cd server
+python -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+pip install -r requirements-dev.txt
+cp .env.example .env              # then fill in the values below
+uvicorn app.main:app --reload     # http://localhost:8000
+```
 
-   ```bash
-   cd server
-   ```
+The server refuses to start without these:
 
-2. Create a virtual environment:
+- `SECRET_KEY` and `OAUTH_STATE_SECRET`: random values of at least 32 characters each. Generate them with `python -c "import secrets; print(secrets.token_hex(32))"`.
+- `email_username` and `email_password`: an SMTP login, such as a Gmail address with an app password. Sign-in codes are sent by email.
 
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+It also needs `MONGODB_URL` (it defaults to `mongodb://localhost:27017`) and at least one LLM key, such as `GROQ_API_KEY`, to generate cases. Everything else is optional and documented in [`server/.env.example`](server/.env.example).
 
-3. Install dependencies:
+<details>
+<summary><b>Server environment variables</b></summary>
 
-   ```bash
-   pip install -r requirements-dev.txt  # app + test and lint tools
-   ```
+| Variable | Needed for |
+| --- | --- |
+| `MONGODB_URL`, `MONGODB_DB_NAME` | Database |
+| `SECRET_KEY`, `OAUTH_STATE_SECRET` | Signing sign-in tokens and the Google sign-in state (required, 32+ characters) |
+| `email_username`, `email_password` (required); `email_sender`, `smtp_server`, `smtp_port` | Sign-in codes, password reset and reminder emails |
+| `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` | The AI; at least one provider |
+| `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS` | Links in emails, and which sites may call the API |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Profile photos and evidence images |
+| `CSC_API_KEY` | Country, state and city lists for profile locations |
+| `TURNSTILE_SECRET_KEY` | Robot check on the signed-out contact form |
+| `JOBS_TOKEN`, `PUBLIC_API_URL` | The daily jobs endpoint and unsubscribe links |
+| `*_MODEL`, `*_FALLBACK_MODEL` | Override the model chain for each task (drafter, lawyer, judge, witness, party, analyzer, outcome) |
 
-4. Create a `.env` file (you can copy `.env.example` as a starting point):
+Rate limits, RAG tuning and courtroom pacing are also configurable; see the comments in `.env.example`.
 
-   ```env
-   # Database
-   MONGODB_URL=mongodb://localhost:27017
-   MONGODB_DB_NAME=ai_courtroom
+</details>
 
-   # Authentication
-   # Note: If not set, SECRET_KEY dynamically generates a random 32-character string on startup.
-   # For persistent sessions, always set a fixed secure key.
-   SECRET_KEY=your-secure-random-key-here
-   ALGORITHM=HS256
+### 3. Client
 
-   # AI Providers
-   GROQ_API_KEY=your_groq_api_key
-   OPENROUTER_API_KEY=your_openrouter_api_key
+```bash
+cd client
+pnpm install
+cp .env.example .env              # set NEXT_PUBLIC_API_URL=http://localhost:8000
+pnpm dev                          # http://localhost:3000
+```
 
-   # RAG Configuration
-   RAG_ENABLED=true
-   EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+<details>
+<summary><b>Client environment variables</b></summary>
 
-   # Email (for OTP) - Required (no default values)
-   email_sender=your-email-username-here
-   email_username=your-email-id-here
-   email_password=your-app-password-here
-   smtp_server=smtp.gmail.com
-   smtp_port=587
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_API_URL` | The server's URL (required) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google sign-in (the server's Web client ID) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Turnstile widget on the contact form |
+| `NEXT_PUBLIC_PHONE_AUTH_ENABLED` | Phone sign-in; development only |
+| `CAP_SERVER_URL` | The site the Android app loads (`.env` for dev, `.env.production` for release builds) |
+| `NEXT_PUBLIC_APK_DOWNLOAD_URL` | Override the Android download link |
 
-   # Google OAuth
-   GOOGLE_CLIENT_ID=your-google-client-id
-   GOOGLE_CLIENT_SECRET=your-google-client-secret
+</details>
 
-   # Cloudinary
-   CLOUDINARY_CLOUD_NAME=your-cloud-name
-   CLOUDINARY_API_KEY=your-api-key
-   CLOUDINARY_API_SECRET=your-api-secret
+### Docker (optional)
 
-   # Location API
-   CSC_API_KEY=your-country-state-city-api-key
+For local development only (production doesn't use Docker): `docker compose up --build` starts the server on port 8000 and the client on port 3000. It uses `server/.env` for its settings, so point `MONGODB_URL` at a database the container can reach, such as Atlas or `host.docker.internal`.
 
-   # Logging
-   LOG_LEVEL=INFO
-   LOG_FORMAT=text
+## Testing
 
-   PORT=8000
-   ```
+```bash
+# Server: lint, format, types and tests (CI requires 97% coverage)
+cd server
+ruff check . && black --check . && pyrefly check
+python -m pytest --cov --cov-fail-under=97
 
-   > [!NOTE]
-   > For production deployments, configure your environment variables using a `.env.production` file or set them directly in your hosting provider (Render, AWS, etc.). Do not commit `.env` or `.env.production` files containing real secrets to Git.
+# Run the same tests against a real MongoDB instead of the in-memory fake
+TEST_MONGODB_URL=mongodb://localhost:27017 python -m pytest
 
-5. Start the backend:
+# Client: types, lint and end-to-end tests (builds the app against a mocked API)
+cd client
+pnpm exec tsc --noEmit && pnpm lint
+pnpm test:e2e                     # desktop, mobile and WebKit
+pnpm test:e2e:fast                # desktop only
+```
 
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+The server tests use a fake LLM and fake embeddings and block third-party APIs, so they need no keys. CI runs every check on each push to `main` and on every pull request.
 
-### Frontend Setup
+## Android app
 
-1. Navigate to the client directory:
+Users download the APK from the [latest release](https://github.com/ParthRana1023/AI-Courtroom/releases/latest); the website's **Install app** button links straight to it.
 
-   ```bash
-   cd client
-   ```
+<details>
+<summary><b>Building a release APK</b></summary>
 
-2. Install dependencies:
+1. `cd client && pnpm build:android`. This syncs the Android project using `.env.production`, so the app opens the live site.
+2. Increase `versionCode` and set `versionName` in `android/app/build.gradle`.
+3. Run `npx cap open android`, then use **Build → Generate Signed App Bundle / APK → APK** with your release keystore. Keep the keystore out of the repo and backed up.
+4. Rename the output to `ai-courtroom.apk` and attach it to a new GitHub release marked as the latest.
 
-   ```bash
-   pnpm install
-   ```
+Google sign-in in the app needs an **Android** OAuth client for `com.aicourtroom.app` with your release key's SHA-1.
 
-3. Create a `.env.local` file:
+</details>
 
-   ```env
-   NEXT_PUBLIC_API_URL=http://localhost:8000
-   NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
-   ```
+## Deployment
 
-   > [!NOTE]
-   > For production client deployment, create a `.env.production` file pointing `NEXT_PUBLIC_API_URL` to your production backend API.
+| Part | Where | Notes |
+| --- | --- | --- |
+| Client | Vercel | Deploys `client/` from `main`; set the `NEXT_PUBLIC_*` variables |
+| Server | Render | Native Python service connected to this repo; redeploys when files under `server/` change on `main`. Build: `pip install -r requirements.txt`; start: Uvicorn. Set the server variables in Render |
+| Daily jobs | GitHub Actions | [`daily-jobs.yml`](.github/workflows/daily-jobs.yml) calls the API once a day; needs the `API_URL` and `JOBS_TOKEN` repository secrets |
 
-4. Start development:
-
-   ```bash
-   pnpm dev
-   ```
-
-5. **Mobile Build (Optional)**:
-
-   ```bash
-   pnpm build:mobile
-   npx cap sync android # or ios
-   npx cap open android # or ios
-   ```
-
-## Project Structure
+## Project structure
 
 ```text
-├── client/                 # Frontend Next.js application
-│   ├── android/            # Android native project files
-│   ├── ios/                # iOS native project files
-│   ├── app/                # Next.js app directory
-│   ├── components/         # React components
-│   ├── lib/                # Utility functions
-│   └── public/             # Static assets & PWA manifests
-├── server/                 # Backend FastAPI application
+AI-Courtroom/
+├── client/                   Next.js app
+│   ├── app/                  Routes: landing, auth, (app)/cases, courtroom, docs, status
+│   ├── components/           UI, grouped by feature (cases, court, landing, contact, …)
+│   ├── lib/                  API client, case-file reader, 3D scene, config
+│   ├── e2e/                  Playwright specs, fixtures and config
+│   └── capacitor.config.ts   Android shell settings
+├── server/                   FastAPI app
 │   ├── app/
-│   │   ├── models/         # Database models (Beanie)
-│   │   ├── routes/         # API routes (Cases, Witness, Arguments)
-│   │   ├── services/       # Business logic (RAG, LLM orchestration)
-│   │   └── utils/          # Utility functions
-│   ├── requirements.txt    # Runtime dependencies (pinned)
-│   └── requirements-dev.txt # Test and lint tools
-├── future_plans/           # Development roadmaps & redesign plans
-├── docker-compose.yaml     # Docker configuration
-└── README.md
+│   │   ├── routes/           Auth, account, cases, courtroom, witness, arguments, admin, …
+│   │   ├── services/         LLM tasks, RAG memory, evidence images, email, daily jobs
+│   │   ├── models/           Beanie documents
+│   │   └── schemas/          Request and response models
+│   ├── tests/                Unit and API tests
+│   ├── requirements.txt      Runtime dependencies (pinned)
+│   └── requirements-dev.txt  Runtime plus test and lint tools
+├── .github/workflows/        CI and daily jobs
+├── docker-compose.yml        Local development only
+├── ARCHITECTURE.md           How the system works, in depth
+└── SECURITY.md
 ```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Issues and pull requests are welcome. By submitting a contribution, you agree to the terms in section 4 of the [LICENSE](LICENSE.md): the copyright holder may use and relicense it, including commercially. Before opening a pull request:
+
+1. Run the server and client checks from [Testing](#testing); CI runs the same ones.
+2. Add or update tests with the change: pytest for the server, a Playwright spec for anything a user sees.
+3. Keep secrets out of commits. `.env` files and keystores are git-ignored; keep them that way.
+
+## Security
+
+Please report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md), not in public issues.
+
+## License
+
+AI Courtroom is **source-available, not open source**. Under the [AI Courtroom Personal Use License](LICENSE.md), individuals may download, run, study and modify it for their own personal, non-commercial use.
+
+You may not:
+
+- share or publish the code or your modified versions, except to propose changes to this repository;
+- host it for other people;
+- use it commercially;
+- use it for or on behalf of an organization.
+
+The "AI Courtroom" name and logo are not licensed. For any other use, including commercial licensing, contact [@ParthRana1023](https://github.com/ParthRana1023).
+
+## Disclaimer
+
+AI Courtroom is a practice tool. Its cases, arguments and judgments are generated by AI for training and are not legal advice.

@@ -120,7 +120,7 @@ Respond as {witness_name} (witness):
 """
 
     prompt = ChatPromptTemplate.from_messages([HumanMessage(content=template)])
-    chain = prompt | get_llm("lawyer") | StrOutputParser()
+    chain = prompt | get_llm("witness") | StrOutputParser()
 
     try:
         start_time = time.perf_counter()
