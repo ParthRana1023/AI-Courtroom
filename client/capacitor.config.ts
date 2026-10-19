@@ -13,8 +13,9 @@ type CapacitorConfig = {
   plugins?: Record<string, unknown>;
 };
 
+// `.env` for dev (live reload from localhost); release scripts pass CAP_ENV_FILE=.env.production.
 function readEnvFile() {
-  const envPath = path.resolve(process.cwd(), ".env");
+  const envPath = path.resolve(process.cwd(), process.env.CAP_ENV_FILE ?? ".env");
 
   if (!existsSync(envPath)) {
     return {};
