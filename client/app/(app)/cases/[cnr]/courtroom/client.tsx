@@ -420,7 +420,10 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
       const c = await refresh();
       setSending(null);
       fetchLimit();
-      if (res?.court_adjourns) {
+      // AI counsel's objection was sustained: the argument is struck and the floor is the user's again.
+      const struck = !!res.ai_objection?.sustained;
+      if (struck) note("Objection sustained: your argument is struck. Make another argument.");
+      if (res.court_adjourns) {
         await settle();
         await wait(900);
         showPopup("limit", 3200, () => {
@@ -432,7 +435,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
         return;
       }
       const list = (c.courtroom_proceedings ?? []) as Ev[];
-      if (!c.current_witness_id && argsSinceWitness(list, me) >= MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS) {
+      if (!struck && !c.current_witness_id && argsSinceWitness(list, me) >= MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS) {
         await settle();
         whenIdle(() => void aiConsidersWitness(), 1400);
       } else {
@@ -543,8 +546,9 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     setQAtt([]);
     if (qRef.current) qRef.current.style.height = "46px";
     try {
-      await witnessAPI.examineWitness(cnr, q, refs);
+      const res = await witnessAPI.examineWitness(cnr, q, refs);
       await refresh();
+      if (res.ai_objection?.sustained) note("Objection sustained: question withdrawn. Ask another.");
       later(() => qRef.current?.focus({ preventScroll: true }), 30);
     } catch (err) {
       setQDraft(q);

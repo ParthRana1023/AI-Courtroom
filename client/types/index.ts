@@ -311,6 +311,29 @@ export interface ChatMessage {
   exhibit_refs?: string[];
 }
 
+/** AI counsel's objection to the user's argument or question, and the court's ruling. */
+export interface AIObjection {
+  grounds: string;
+  sustained: boolean;
+  ruling: string;
+}
+
+export interface ArgumentResponse {
+  /** null when AI counsel's objection was sustained: the argument is struck and the floor is the user's again */
+  ai_counter_argument?: string | null;
+  ai_counter_role?: string;
+  ai_objection?: AIObjection | null;
+  court_adjourns?: boolean;
+  adjournment_message?: string;
+}
+
+export interface WitnessExaminationResponse {
+  question: string;
+  /** null when AI counsel's objection was sustained: the question is withdrawn */
+  answer: string | null;
+  ai_objection?: AIObjection | null;
+}
+
 // Witness types
 interface ExaminationItem {
   id: string;

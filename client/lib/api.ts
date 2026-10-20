@@ -1,5 +1,6 @@
 import axios, { type AxiosError } from "axios";
 import type {
+  ArgumentResponse,
   CaseGenerationFormData,
   ContactFormData,
   DeviceSession,
@@ -10,6 +11,7 @@ import type {
   SystemStatus,
   User,
   UserStats,
+  WitnessExaminationResponse,
 } from "@/types";
 
 import {
@@ -691,7 +693,7 @@ export const argumentAPI = {
         role,
         argumentLength: argument.length,
       });
-      const response = await api.post(`/cases/${caseCnr}/arguments`, {
+      const response = await api.post<ArgumentResponse>(`/cases/${caseCnr}/arguments`, {
         role,
         argument,
         exhibit_refs: exhibitRefs,
@@ -850,7 +852,7 @@ export const witnessAPI = {
   examineWitness: async (cnr: string, question: string, exhibitRefs: string[] = []) => {
     try {
       logger.debug("Examining witness", { cnr });
-      const response = await api.post(`/cases/${cnr}/witness/examine`, {
+      const response = await api.post<WitnessExaminationResponse>(`/cases/${cnr}/witness/examine`, {
         question,
         exhibit_refs: exhibitRefs,
       });
