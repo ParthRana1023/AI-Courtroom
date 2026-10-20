@@ -4,7 +4,19 @@ import json
 
 import pytest
 
-from app.models.case import CaseStatus, Roles, SettlementStatus
+from app.models.case import (
+    ArgumentItem,
+    CaseOutcome,
+    CaseStatus,
+    Roles,
+    Settlement,
+    SettlementOffer,
+    SettlementStatus,
+)
+from app.models.case import (
+    CourtroomProceedingsEventType as EventType,
+)
+from app.models.case_outcome import CaseOutcomeRecord
 from app.routes import settlement
 from tests.helpers import reload
 
@@ -23,6 +35,27 @@ COUNTER = reply(
 )
 ACCEPT = reply("accept", "My client accepts these terms.")
 REJECT = reply("reject", "My client will not settle on these terms.")
+
+ORDER = "**ORDER**\n1. The FIR and all proceedings arising from it are quashed."
+RECORDED = (
+    '<ruling>{"accepted": true, "mode": "quashing", '
+    '"ruling": "The dispute is private and settled; the FIR is quashed."}</ruling>\n'
+    f"<order>\n{ORDER}\n</order>"
+)
+REFUSED = (
+    '<ruling>{"accepted": false, "mode": null, "ruling": "An attempt to murder '
+    'cannot be compromised; the petition will be heard on merits."}</ruling>\n'
+    "<order>\n**ORDER**\n1. The compromise is not accepted.\n</order>"
+)
+
+
+def agreed_attempt(terms=TERMS):
+    return Settlement(
+        status=SettlementStatus.AGREED,
+        offers=[
+            SettlementOffer(side=Roles.PLAINTIFF, terms=terms, response="accepted")
+        ],
+    )
 
 
 @pytest.fixture
@@ -287,6 +320,180 @@ async def test_withdrawing_ends_the_attempt(client, auth_headers, adjourned, fak
     assert body["status"] == "withdrawn" and body["ended_at"]
     assert body["offers"][-1]["response"] == "withdrawn"
     assert (await post(client, auth_headers, case, "withdraw")).status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# before the court
+# ---------------------------------------------------------------------------
+
+
+async def test_court_records_the_compromise_and_the_case_ends(
+    client, auth_headers, adjourned, fake_llm, indexed, user
+):
+    fake_llm.responses.append(RECORDED)
+    case = await adjourned(settlements=[agreed_attempt()])
+
+    response = await post(client, auth_headers, case, "present")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "recorded" and body["mode"] == "quashing"
+    assert body["court_order"] == ORDER
+    saved = await reload(case)
+    assert saved.status == CaseStatus.RESOLVED
+    assert saved.verdict == ORDER
+    assert saved.outcome == CaseOutcome.SETTLED
+    placed, ruling, disposed = saved.courtroom_proceedings[-3:]
+    assert placed.content == "Compromise placed before the court"
+    assert ruling.type == EventType.SETTLEMENT and ruling.speaker_role == "judge"
+    assert ruling.content.startswith("The dispute is private")
+    assert disposed.content == "Case disposed of on compromise"
+    record = await CaseOutcomeRecord.find_one(CaseOutcomeRecord.case_id == case.id)
+    assert record and record.outcome == CaseOutcome.SETTLED
+    assert record.role == Roles.PLAINTIFF
+    assert [item[0] for item in indexed] == ["settlement", "verdict"]
+
+    prompt = fake_llm.prompts[0]
+    assert prompt.startswith("COMPROMISE BEFORE THE COURT")
+    assert TERMS in prompt
+
+    stats = await client.get("/auth/profile/stats", headers=auth_headers)
+    assert stats.status_code == 200
+
+
+async def test_court_refuses_the_compromise_and_the_case_goes_on(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.append(REFUSED)
+    case = await adjourned(settlements=[agreed_attempt()])
+
+    body = (await post(client, auth_headers, case, "present")).json()
+
+    assert body["status"] == "refused" and body["mode"] is None
+    saved = await reload(case)
+    assert saved.status == CaseStatus.ADJOURNED
+    assert saved.verdict is None and saved.outcome is None
+    assert saved.courtroom_proceedings[-1].type == EventType.SETTLEMENT
+    assert (
+        await CaseOutcomeRecord.find_one(CaseOutcomeRecord.case_id == case.id) is None
+    )
+    # No further attempts once the court has refused.
+    again = await offer(client, auth_headers, case)
+    assert again.status_code == 409
+    assert "refused" in again.json()["detail"]
+
+
+async def test_only_agreed_terms_go_before_the_court(
+    client, auth_headers, adjourned, fake_llm
+):
+    case = await adjourned()
+    assert (await post(client, auth_headers, case, "present")).status_code == 409
+
+    fake_llm.responses.append(COUNTER)
+    await offer(client, auth_headers, case)
+    response = await post(client, auth_headers, case, "present")
+
+    assert response.status_code == 409
+    assert "agree" in response.json()["detail"]
+    assert len(fake_llm.calls) == 1
+
+
+async def test_compromise_can_be_presented_in_session(
+    client, auth_headers, courtroom_case, fake_llm
+):
+    fake_llm.responses.append(RECORDED)
+    case = await courtroom_case(settlements=[agreed_attempt()])
+
+    response = await post(client, auth_headers, case, "present")
+
+    assert response.status_code == 200
+    saved = await reload(case)
+    assert saved.status == CaseStatus.RESOLVED
+    assert saved.active_session_id is None
+
+
+async def test_not_while_a_witness_is_on_the_stand(
+    client, auth_headers, courtroom_case, fake_llm
+):
+    case = await courtroom_case(
+        settlements=[agreed_attempt()], current_witness_id="someone"
+    )
+
+    response = await post(client, auth_headers, case, "present")
+
+    assert response.status_code == 409
+    assert fake_llm.calls == []
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "The compromise is accepted.",  # no tags
+        (  # accepted without a mode
+            '<ruling>{"accepted": true, "mode": null, "ruling": "Quashed."}</ruling>'
+            "<order>Order.</order>"
+        ),
+    ],
+)
+async def test_failed_review_leaves_the_terms_agreed(
+    client, auth_headers, adjourned, fake_llm, bad
+):
+    fake_llm.responses.append(bad)
+    case = await adjourned(settlements=[agreed_attempt()])
+
+    response = await post(client, auth_headers, case, "present")
+
+    assert response.status_code == 500
+    saved = await reload(case)
+    assert saved.settlements[0].status == SettlementStatus.AGREED
+    assert saved.status == CaseStatus.ADJOURNED
+
+
+async def test_refused_talks_never_reach_the_verdict(
+    client, auth_headers, adjourned, fake_llm, user
+):
+    """Without prejudice: after a refused compromise the judge decides the merits
+    without ever seeing the terms that were offered."""
+    secret = "The applicant pays Rs. 7,77,777 as SECRET-TERMS-XYZ to the complainant."
+    fake_llm.responses.extend([ACCEPT, REFUSED])
+    case = await adjourned(
+        plaintiff_arguments=[
+            ArgumentItem(
+                type="opening",
+                content="user opening",
+                user_id=user.id,
+                role=Roles.PLAINTIFF,
+            )
+        ],
+        defendant_arguments=[
+            ArgumentItem(type="opening", content="ai opening", role=Roles.DEFENDANT)
+        ],
+    )
+    await offer(client, auth_headers, case, terms=secret)
+    await post(client, auth_headers, case, "present")
+    await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "active"}
+    )
+
+    def respond(prompt):
+        if "impartial Indian Court judge" in prompt:
+            return "The petition is dismissed on merits after full consideration."
+        return "My Lord, the prosecution has failed to prove its case on the record."
+
+    fake_llm.responder = respond
+    response = await client.post(
+        f"/cases/{case.cnr}/closing-statement",
+        headers=auth_headers,
+        json={"role": "plaintiff", "statement": "I rest my case, My Lord."},
+    )
+
+    assert response.status_code == 200
+    verdict_prompts = [
+        p for p in fake_llm.prompts if "impartial Indian Court judge" in p
+    ]
+    assert verdict_prompts
+    assert all("SECRET-TERMS-XYZ" not in p for p in verdict_prompts)
+    assert all("7,77,777" not in p for p in fake_llm.prompts[2:])
 
 
 # ---------------------------------------------------------------------------

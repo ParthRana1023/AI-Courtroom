@@ -5,8 +5,18 @@ from pathlib import Path
 
 import pytest
 
-from app.models.case import Roles, Settlement, SettlementOffer, SettlementStatus
-from app.services.llm.settlement import format_negotiation, parse_offer_reply
+from app.models.case import (
+    Roles,
+    Settlement,
+    SettlementMode,
+    SettlementOffer,
+    SettlementStatus,
+)
+from app.services.llm.settlement import (
+    format_negotiation,
+    parse_compromise_ruling,
+    parse_offer_reply,
+)
 from app.utils.llm import LLMGenerationError
 
 APP = Path(__file__).resolve().parents[2] / "app"
@@ -37,6 +47,42 @@ def test_parses_a_counter():
 def test_rejects_bad_replies(text):
     with pytest.raises(LLMGenerationError):
         parse_offer_reply(text)
+
+
+def test_parses_a_compromise_ruling():
+    result = parse_compromise_ruling(
+        '<think>x</think><ruling>{"accepted": true, "mode": "bail", '
+        '"ruling": "Bail granted in view of the compromise."}</ruling>\n'
+        "<order>\n**ORDER**\n1. Bail granted.\n</order>"
+    )
+
+    assert result.accepted and result.mode == SettlementMode.BAIL
+    assert result.order == "**ORDER**\n1. Bail granted."
+
+
+def test_refusal_carries_no_mode_and_tolerates_an_unclosed_order():
+    result = parse_compromise_ruling(
+        '<ruling>{"accepted": false, "mode": "quashing", "ruling": "Refused."}'
+        "</ruling><order>**ORDER**\n1. Not accepted."
+    )
+
+    assert not result.accepted and result.mode is None
+    assert result.order.endswith("Not accepted.")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Quashed.",
+        '<ruling>{"accepted": true, "ruling": "Quashed."}</ruling><order>O</order>',
+        '<ruling>{"accepted": true, "mode": "pardon", "ruling": "x"}</ruling><order>O</order>',
+        '<ruling>{"accepted": false, "ruling": "No."}</ruling><order>  </order>',
+        "<ruling>not json</ruling><order>O</order>",
+    ],
+)
+def test_rejects_bad_compromise_rulings(text):
+    with pytest.raises(LLMGenerationError):
+        parse_compromise_ruling(text)
 
 
 def test_formats_the_talks_in_order():

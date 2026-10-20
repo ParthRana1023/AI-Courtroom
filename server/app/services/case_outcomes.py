@@ -63,6 +63,31 @@ async def _sync_from_record(case: Case, record: CaseOutcomeRecord) -> CaseOutcom
     return record.outcome
 
 
+async def record_settlement(case: Case, reason: str) -> None:
+    """Record a compromise the court accepted: the outcome is SETTLED, no classifier.
+
+    The case itself carries the outcome already; this adds the stats ledger row.
+    Never raises, like ensure_outcome.
+    """
+    role = user_role_in_case(case) or case.user_role
+    try:
+        await CaseOutcomeRecord(
+            user_id=case.user_id,
+            case_id=case.id,
+            cnr=case.cnr,
+            title=case.title,
+            role=role,
+            outcome=CaseOutcome.SETTLED,
+            reason=reason,
+            **activity_snapshot(case, role),
+        ).insert()
+        logger.info("Case settled", extra={"case_id": str(case.id)})
+    except DuplicateKeyError:
+        pass
+    except Exception:
+        logger.exception("Failed to record settlement", extra={"case_id": str(case.id)})
+
+
 async def ensure_outcome(case: Case) -> CaseOutcome | None:
     """The case's outcome, classifying and recording it the first time.
 

@@ -73,8 +73,8 @@ def monthly_trend(records: list[CaseOutcomeRecord]) -> list[MonthlyOutcomes]:
     }
     for record in records:
         bucket = buckets.get(ensure_ist_timezone(record.decided_at).strftime("%Y-%m"))
-        if bucket:
-            name = field[record.outcome]
+        name = field.get(record.outcome)
+        if bucket and name:
             setattr(bucket, name, getattr(bucket, name) + 1)
     return list(buckets.values())
 

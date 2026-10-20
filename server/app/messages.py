@@ -146,3 +146,7 @@ SETTLEMENT_NO_COUNTER = "There are no terms from the other side to accept."
 SETTLEMENT_FAILED = (
     "Opposing counsel could not respond to your offer. Please try again."
 )
+SETTLEMENT_NOT_AGREED = "Both sides must agree the terms before they go to the court."
+SETTLEMENT_REVIEW_FAILED = (
+    "The court could not take up the compromise just now. Please try again."
+)

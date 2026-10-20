@@ -15,14 +15,19 @@ from app.dependencies import controls_hearing, get_current_user, get_owned_case
 from app.logging_config import get_logger
 from app.models.case import (
     Case,
+    CaseOutcome,
     CaseStatus,
+    CourtroomProceedingsEvent,
+    CourtroomProceedingsEventType,
     Roles,
     Settlement,
     SettlementOffer,
     SettlementStatus,
 )
 from app.models.user import User
+from app.routes.arguments import check_floor_is_open
 from app.routes.courtroom import record_lines, sides
+from app.services.case_outcomes import record_settlement
 from app.services.evidence_service import format_evidence_context
 from app.services.llm import settlement as counsel
 from app.services.llm.parties_service import can_lawyer_confer_with_party
@@ -239,3 +244,78 @@ async def withdraw(
     attempt.ended_at = get_current_datetime()
     logger.info(f"Settlement withdrawn in {case_cnr}")
     return await save_and_index(case, attempt, changed)
+
+
+@router.post("/{case_cnr}/settlement/present", dependencies=[controls_hearing])
+async def present_compromise(
+    case_cnr: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Put the agreed terms before the court, which records the compromise (the
+    case ends, settled) or refuses it (the case goes on to be heard on merits)."""
+    case = await get_owned_case(case_cnr, current_user)
+    if case.status == CaseStatus.RESOLVED:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_CASE_CLOSED)
+    attempt = open_attempt(case)
+    if attempt.status != SettlementStatus.AGREED:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_NOT_AGREED)
+    if case.status == CaseStatus.ACTIVE:
+        check_floor_is_open(case)
+    agreed = next(o for o in reversed(attempt.offers) if o.response == "accepted")
+
+    try:
+        case_context = await retrieve_case_context(
+            case,
+            "compromise compoundable offences quashing bail facts sections charges",
+            source_types=["case_details", "evidence", "proceeding"],
+        )
+        ruling = await counsel.review_compromise(
+            title=case.title,
+            case_context=case_context or case.details[:6000],
+            record=record_lines(case),
+            terms=counsel.offer_text(agreed),
+        )
+    except Exception:
+        logger.exception(f"Compromise review failed for case {case_cnr}")
+        raise HTTPException(status_code=500, detail=messages.SETTLEMENT_REVIEW_FAILED)
+
+    attempt.ruling = ruling.ruling
+    attempt.court_order = ruling.order
+    attempt.mode = ruling.mode
+    attempt.ended_at = get_current_datetime()
+    case.log("Compromise placed before the court")
+    case.courtroom_proceedings.append(
+        CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.SETTLEMENT,
+            content=ruling.ruling,
+            speaker_role="judge",
+            speaker_name="Judge",
+        )
+    )
+    if ruling.accepted:
+        attempt.status = SettlementStatus.RECORDED
+        case.verdict = ruling.order
+        case.outcome = CaseOutcome.SETTLED
+        case.outcome_reason = ruling.ruling
+        case.status = CaseStatus.RESOLVED
+        case.active_session_id = None
+        case.active_session_expires_at = None
+        case.log("Case disposed of on compromise")
+    else:
+        attempt.status = SettlementStatus.REFUSED
+
+    await case.save()
+    await upsert_memory_item(
+        case,
+        "settlement",
+        attempt.id,
+        f"The court on the compromise ({attempt.status.value}): {ruling.ruling}",
+        {"status": attempt.status.value, "mode": ruling.mode and ruling.mode.value},
+    )
+    if ruling.accepted:
+        await upsert_memory_item(
+            case, "verdict", "verdict", ruling.order, {"title": case.title}
+        )
+        await record_settlement(case, ruling.ruling)
+    logger.info(f"Compromise in {case_cnr}: {attempt.status.value}")
+    return attempt.model_dump(mode="json")
