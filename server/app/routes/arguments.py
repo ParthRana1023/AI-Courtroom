@@ -16,6 +16,7 @@ from app.models.case import (
     Roles,
 )
 from app.models.user import User
+from app.routes.courtroom import AI_SPEAKER
 from app.services.case_outcomes import ensure_outcome
 from app.services.evidence_service import (
     format_evidence_context,
@@ -32,7 +33,6 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-AI_SPEAKER = {"plaintiff": "Plaintiff Lawyer", "defendant": "Defense Lawyer"}
 ARGUMENT_EVENTS = {
     CourtroomProceedingsEventType.ARGUMENT,
     CourtroomProceedingsEventType.AI_ARGUMENT,

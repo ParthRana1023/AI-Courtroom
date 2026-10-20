@@ -239,6 +239,83 @@ def test_a_forgotten_objection_stops_holding_the_examination():
 
 
 # ---------------------------------------------------------------------------
+# AI counsel's objections to the user
+# ---------------------------------------------------------------------------
+
+
+async def test_ai_counsel_never_objects_to_leading_in_cross(
+    courtroom_case, witness_party
+):
+    question = said(
+        EventType.WITNESS_EXAMINED_Q,
+        "You did, didn't you?",
+        "plaintiff",
+        witness_id=witness_party.id,
+    )
+
+    async def grounds(called_by):
+        case = await courtroom_case(
+            witness_testimonies=[
+                WitnessTestimony(
+                    witness_id=witness_party.id,
+                    witness_name=witness_party.name,
+                    called_by=called_by,
+                )
+            ]
+        )
+        return courtroom.ai_grounds(case, "question", question)
+
+    assert "Leading question" not in await grounds("defendant")  # user cross-examines
+    assert "Leading question" in await grounds("plaintiff")  # user's own witness
+
+
+async def test_ai_counsel_objection_sustained_strikes_the_users_argument(
+    courtroom_case, fake_llm
+):
+    fake_llm.responses.append(SUSTAINED)
+    mine = said(EventType.ARGUMENT, "₹50 lakh went missing.", "plaintiff")
+    case = await courtroom_case(courtroom_proceedings=[mine])
+    mine = case.courtroom_proceedings[0]
+
+    result = await courtroom.ai_objection_ruling(
+        case, "argument", mine, "Facts not in evidence", "No exhibit."
+    )
+
+    assert result == {
+        "grounds": "Facts not in evidence",
+        "sustained": True,
+        "ruling": "Sustained. No exhibit supports that figure. It is struck from the record.",
+    }
+    target, objection, ruling = case.courtroom_proceedings
+    assert target.struck == "struck"
+    assert objection.speaker_role == "defendant"
+    assert objection.speaker_name == "Defense Lawyer"
+    assert objection.objection.target_id == mine.id
+    assert ruling.sustained is True
+    assert "Counsel for the defendant objects" in fake_llm.prompts[0]
+
+
+async def test_ai_counsel_objection_overruled_or_unruled(courtroom_case, fake_llm):
+    fake_llm.responses += [OVERRULED, "I think it should be sustained"]
+    mine = said(EventType.ARGUMENT, "Intent is shown by conduct.", "plaintiff")
+    case = await courtroom_case(courtroom_proceedings=[mine])
+    mine = case.courtroom_proceedings[0]
+
+    overruled = await courtroom.ai_objection_ruling(
+        case, "argument", mine, "Argumentative", ""
+    )
+    assert overruled is not None and overruled["sustained"] is False
+    assert mine.struck is None and len(case.courtroom_proceedings) == 3
+
+    # The court couldn't rule: nothing goes on the record, the turn carries on.
+    assert (
+        await courtroom.ai_objection_ruling(case, "argument", mine, "Irrelevant", "")
+        is None
+    )
+    assert len(case.courtroom_proceedings) == 3
+
+
+# ---------------------------------------------------------------------------
 # reports
 # ---------------------------------------------------------------------------
 

@@ -20,12 +20,13 @@ from app.models.user import User
 from app.services.llm import judge
 from app.services.rag import upsert_memory_item
 from app.utils.datetime import get_current_datetime
-from app.utils.llm import pick_case_context
+from app.utils.llm import LLMGenerationError, pick_case_context
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
+AI_SPEAKER = {"plaintiff": "Plaintiff Lawyer", "defendant": "Defense Lawyer"}
 E = CourtroomProceedingsEventType
 GROUNDS = {
     "question": [
@@ -106,16 +107,15 @@ def objection_kind(case: Case, event: CourtroomProceedingsEvent) -> str | None:
 
 
 def objection_events(
-    case: Case,
-    user: User,
+    side: str,
+    speaker_name: str,
     target_id: str,
     grounds: str,
     details: str,
     sustained: bool,
     ruling: str,
 ) -> list[CourtroomProceedingsEvent]:
-    """The objection as raised, and the court's ruling on it."""
-    user_side, _ = sides(case)
+    """The objection as raised by counsel for ``side``, and the court's ruling on it."""
     text = f"Objection. {grounds}." + (f" {details}" if details else "")
     now = get_current_datetime()
     return [
@@ -123,8 +123,8 @@ def objection_events(
             type=E.OBJECTION,
             timestamp=now,
             content=text,
-            speaker_role=user_side,
-            speaker_name=f"{user.first_name} {user.last_name}",
+            speaker_role=side,
+            speaker_name=speaker_name,
             objection=Objection(target_id=target_id, grounds=grounds, details=details),
         ),
         CourtroomProceedingsEvent(
@@ -138,35 +138,72 @@ def objection_events(
     ]
 
 
+def in_cross(case: Case, question: CourtroomProceedingsEvent) -> bool:
+    """Whether the question was put in cross-examination (the witness was called by the other side)."""
+    testimony = next(
+        (
+            t
+            for t in reversed(case.witness_testimonies)
+            if t.witness_id == question.witness_id
+        ),
+        None,
+    )
+    return testimony is not None and testimony.called_by != question.speaker_role
+
+
 async def rule(
     case: Case,
     kind: str,
     target: CourtroomProceedingsEvent,
     grounds: str,
     details: str,
+    objector: str,
 ) -> tuple[bool, str]:
     """The judge's ruling. Leading questions are fair in cross, so that needs no judge."""
-    if kind == "question" and grounds == "Leading question":
-        testimony = next(
-            (
-                t
-                for t in reversed(case.witness_testimonies)
-                if t.witness_id == target.witness_id
-            ),
-            None,
-        )
-        if testimony and testimony.called_by != target.speaker_role:
-            return False, LEADING_IN_CROSS
-    user_side, _ = sides(case)
+    if kind == "question" and grounds == "Leading question" and in_cross(case, target):
+        return False, LEADING_IN_CROSS
     return await judge.rule_on_objection(
         kind=kind,
         grounds=grounds,
         details=details,
         target_text=target.content or "",
-        objector_role=user_side,
+        objector_role=objector,
         case_context=pick_case_context(None, case.details),
         record=record_lines(case),
     )
+
+
+def ai_grounds(case: Case, kind: str, target: CourtroomProceedingsEvent) -> list[str]:
+    """The grounds AI counsel may object on: never a leading question in cross."""
+    if kind == "question" and in_cross(case, target):
+        return [g for g in GROUNDS[kind] if g != "Leading question"]
+    return GROUNDS[kind]
+
+
+async def ai_objection_ruling(
+    case: Case,
+    kind: str,
+    target: CourtroomProceedingsEvent,
+    grounds: str,
+    details: str,
+) -> dict | None:
+    """Rule on AI counsel's objection to the user's argument or question and put it
+    on the record; the caller saves the case. None if the court couldn't rule."""
+    _, ai = sides(case)
+    try:
+        sustained, ruling = await rule(case, kind, target, grounds, details, ai)
+    except LLMGenerationError:
+        logger.exception(f"Ruling on AI counsel's objection failed in {case.cnr}")
+        return None
+    if sustained:
+        target.struck = "withdrawn" if kind == "question" else "struck"
+    case.courtroom_proceedings.extend(
+        objection_events(
+            ai, AI_SPEAKER[ai], target.id, grounds, details, sustained, ruling
+        )
+    )
+    logger.info(f"AI objection in {case.cnr}: {grounds}, sustained={sustained}")
+    return {"grounds": grounds, "sustained": sustained, "ruling": ruling}
 
 
 def check_grounds(kind: str, grounds: str) -> None:
@@ -233,7 +270,10 @@ async def raise_objection(
         {"$set": {"objection_pending_at": get_current_datetime()}}
     )
     try:
-        sustained, ruling = await rule(case, kind, target, request.grounds, details)
+        user_side, _ = sides(case)
+        sustained, ruling = await rule(
+            case, kind, target, request.grounds, details, user_side
+        )
 
         # Atomic, so a witness answer the AI's examination adds meanwhile is kept.
         record = (await this_case() or case).courtroom_proceedings
@@ -255,7 +295,13 @@ async def raise_objection(
             if kind == "question" and answer is not None:
                 struck[f"courtroom_proceedings.{answer}.struck"] = "struck"
         events = objection_events(
-            case, current_user, target.id, request.grounds, details, sustained, ruling
+            user_side,
+            f"{current_user.first_name} {current_user.last_name}",
+            target.id,
+            request.grounds,
+            details,
+            sustained,
+            ruling,
         )
         # Two writes: MongoDB refuses $set on an element and $push to the same array at once.
         # Each is atomic, and appending never shifts the indexes struck here.

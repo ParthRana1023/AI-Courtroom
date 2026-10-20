@@ -25,8 +25,9 @@ from app.models.case import (
     WitnessTestimony,
 )
 from app.models.user import User
-from app.routes.arguments import AI_SPEAKER, cited_exhibits, exhibit_note, refs_in
+from app.routes.arguments import cited_exhibits, exhibit_note, refs_in
 from app.routes.courtroom import (
+    AI_SPEAKER,
     check_grounds,
     objection_events,
     record_lines,
@@ -1163,7 +1164,13 @@ async def respond_to_leave(
     )
     case.courtroom_proceedings.extend(
         objection_events(
-            case, current_user, leave.event_id, grounds, details, sustained, ruling
+            user_side,
+            f"{current_user.first_name} {current_user.last_name}",
+            leave.event_id,
+            grounds,
+            details,
+            sustained,
+            ruling,
         )
     )
     if sustained:
