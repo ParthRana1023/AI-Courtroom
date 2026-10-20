@@ -5,10 +5,9 @@ import DocFooter from "@/components/chrome/doc-footer";
 import SiteHeader from "@/components/chrome/site-header";
 import { useSectionIndex } from "@/hooks/use-section-index";
 import { useViewport } from "@/hooks/use-viewport";
-import { cn } from "@/lib/utils";
+import { cn, roman } from "@/lib/utils";
 import { K } from "./kit";
 
-const NUMS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
 /**
  * An indexed paper document (About, Privacy, Terms, Cookies, Help, Changelog,
@@ -74,7 +73,7 @@ export default function DocPage({
             >
               {index.map(([id, t], i) => (
                 <option key={id} value={id}>
-                  {NUMS[i]}. {t}
+                  {roman(i + 1)}. {t}
                 </option>
               ))}
             </select>
@@ -109,7 +108,7 @@ export default function DocPage({
                         cur ? "text-desk-strong" : "text-desk-muted",
                       )}
                     >
-                      <span className="font-display text-[15px] text-desk-amber">{NUMS[i]}</span>
+                      <span className="font-display text-[15px] text-desk-amber">{roman(i + 1)}</span>
                       <span className="text-sm/[1.35]">{t}</span>
                     </button>
                   );

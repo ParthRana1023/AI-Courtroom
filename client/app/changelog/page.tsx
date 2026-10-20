@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import DocPage from "@/components/docs/doc-page";
 import { K, Sec } from "@/components/docs/kit";
+import { roman } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Changelog",
@@ -11,11 +12,23 @@ type Tag = "New" | "Changed" | "Fixed" | "Removed";
 type Release = { id: string; title: string; lede: string; items: [Tag, string][] };
 
 const TAG_CLASS: Record<Tag, string> = { New: K.tagNew, Changed: K.tagFix, Fixed: K.tagFix, Removed: K.tagRed };
-const NUMERALS = ["I.", "II.", "III.", "IV.", "V.", "VI.", "VII.", "VIII.", "IX.", "X."];
 
 // Versions follow client/package.json. Each entry groups a run of releases by what users noticed,
 // not every version bump in the git history.
 const RELEASES: Release[] = [
+  {
+    id: "v5-1",
+    title: "5.1 · 20 October 2026",
+    lede: "The opposing lawyer can object too.",
+    items: [
+      ["New", "The opposing lawyer objects to your arguments and to your questions to a witness when there are grounds, and the judge rules at once. A sustained objection strikes your argument, so make another, or withdraws your question, so ask another."],
+      ["Changed", "Objections and rulings, yours or the other side’s, appear the moment they happen."],
+      ["Changed", "“Judgment delivered” appears in the record once the court has finished deliberating."],
+      ["Changed", "The witness stand keeps the newest question and answer in view."],
+      ["Fixed", "You can scroll back through the record while the opposing lawyer replies. It follows new text again once you scroll to the end."],
+      ["Fixed", "A withdrawn question no longer shows the witness as still answering."],
+    ],
+  },
   {
     id: "v5-0",
     title: "5.0 · 18–19 October 2026",
@@ -170,13 +183,13 @@ export default function ChangelogPage() {
       kicker="The record · Changelog"
       title="CHANGELOG"
       lede="What’s new and what’s changed in AI Courtroom."
-      updated="19 October 2026"
+      updated="20 October 2026"
       form={["Form L-9", "Record of proceedings"]}
       label="Changelog"
       index={RELEASES.map((r) => [r.id, r.title])}
     >
       {RELEASES.map((r, i) => (
-        <Sec key={r.id} id={r.id} n={NUMERALS[i]} title={r.title}>
+        <Sec key={r.id} id={r.id} n={`${roman(i + 1)}.`} title={r.title}>
           <p className={K.p}>{r.lede}</p>
           <ul className={K.bullets}>
             {r.items.map(([tag, text]) => (
