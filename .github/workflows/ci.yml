@@ -21,12 +21,18 @@ jobs:
         database: [mongomock, mongodb]
     services:
       mongodb:
-        image: mongo:8
+        # Only the mongodb leg needs a server; an empty image skips the service,
+        # so a Docker Hub or startup hiccup can't fail the mongomock leg too.
+        # ponytail: MongoDB 8.x refuses to start on Linux kernels 6.19 to 7.0.13
+        # (SERVER-121912), which the runners now use. Back to mongo:8 once the
+        # runner kernel is 7.0.14 or newer.
+        image: ${{ matrix.database == 'mongodb' && 'mongo:7.0' || '' }}
         ports:
           - 27017:27017
         options: >-
           --health-cmd "mongosh --quiet --eval 'db.runCommand({ping: 1}).ok'"
-          --health-interval 5s --health-timeout 5s --health-retries 12
+          --health-start-period 30s --health-interval 5s --health-timeout 10s
+          --health-retries 12
     env:
       TEST_MONGODB_URL: ${{ matrix.database == 'mongodb' && 'mongodb://localhost:27017' || '' }}
     defaults:

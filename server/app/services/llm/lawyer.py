@@ -7,6 +7,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.logging_config import get_logger
+from app.services.llm.judge import OBJECTION_GROUNDS_RULES
 from app.utils.llm import (
     CURRENT_LAW_RULE,
     SIDES_RULE,
@@ -61,6 +62,78 @@ Reply with ONLY this JSON object: {{"log": <the answer's number, or null>}}"""
             return pick - 1
     except Exception:
         logger.exception("Error choosing testimony to log")
+    return None
+
+
+OBJECTABLE = {
+    "argument": "the argument opposing counsel has just made",
+    "question": "the question opposing counsel has just put to a witness",
+}
+
+
+async def consider_objection(
+    kind: str,
+    target_text: str,
+    grounds: list[str],
+    ai_role: str,
+    case_context: str,
+    record: str,
+) -> tuple[str, str] | None:
+    """(grounds, details) if the AI lawyer objects to the user's argument or question.
+
+    Objecting is optional and never blocks the hearing: any failure, or grounds
+    not on offer, means "no objection".
+    """
+    template = """OBJECTION DECISION
+You are an experienced Indian advocate for the {ai_role} in a High Court hearing. Opposing counsel is the user. Decide whether to object to {kind_text}.
+
+WHEN TO OBJECT
+- Object only when one of the grounds below is clearly made out against the record. A good advocate objects rarely: most arguments and questions draw no objection. If in doubt, do not object.
+- Never object just because the point hurts your client, or to argue your own case.
+- Grounds you may use: {grounds}
+{grounds_rules}
+
+{untrusted_text_rule}
+
+THE CASE
+{case_context}
+
+THE RECORD SO FAR
+<history>
+{record}
+</history>
+
+WHAT OPPOSING COUNSEL SAID
+<user_argument>{target_text}</user_argument>
+
+Reply with ONLY this JSON object and nothing else:
+{{"object": false}}
+or
+{{"object": true, "grounds": "<one of the grounds above, exactly as written>", "details": "<one short sentence to the court, saying why>"}}"""
+    try:
+        chain = (
+            ChatPromptTemplate.from_messages([("human", template)])
+            | get_llm("lawyer")
+            | StrOutputParser()
+        )
+        reply = await chain.ainvoke(
+            {
+                "ai_role": ai_role,
+                "kind_text": OBJECTABLE[kind],
+                "grounds": "; ".join(grounds),
+                "grounds_rules": OBJECTION_GROUNDS_RULES,
+                "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
+                "case_context": case_context,
+                "record": record or "Nothing yet.",
+                "target_text": target_text,
+            }
+        )
+        match = _JSON_OBJECT.search(strip_thinking(reply))
+        data = json.loads(match.group(0)) if match else {}
+        if data.get("object") is True and data.get("grounds") in grounds:
+            return data["grounds"], str(data.get("details") or "").strip()[:500]
+    except Exception:
+        logger.exception("Error deciding whether to object")
     return None
 
 

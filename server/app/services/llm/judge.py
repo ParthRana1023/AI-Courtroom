@@ -151,6 +151,15 @@ OBJECTION_KINDS = {
     "question": "a question opposing counsel put to a witness",
     "leave": "opposing counsel's request for leave to call a witness",
 }
+# What each ground means, for the judge ruling and for AI counsel deciding to object.
+OBJECTION_GROUNDS_RULES = """- "Leading question": a question that suggests its own answer. Leading questions are not allowed in examination-in-chief or re-examination, but are allowed in cross-examination.
+- "Hearsay": the question asks the witness to repeat what someone else said, to prove that it is true.
+- "Speculation": the question asks for a guess about what others thought or might have done.
+- "Asked and answered": the witness has already answered the same question.
+- "Facts not in evidence": the argument relies on a fact, figure or document that is not in the case file, the exhibits or the testimony.
+- "Misstates the evidence": the argument says an exhibit or testimony says something it does not.
+- "Argumentative": the argument or question attacks or badgers instead of making a point or seeking a fact.
+- "Irrelevant": it has no bearing on the charges or the issues for the court."""
 
 
 async def rule_on_objection(
@@ -167,14 +176,7 @@ async def rule_on_objection(
 
 HOW TO RULE
 - Decide on the stated grounds only, judged against the record below. Sustain the objection only if the grounds are clearly made out; otherwise overrule it.
-- "Leading question": a question that suggests its own answer. Leading questions are not allowed in examination-in-chief or re-examination, but are allowed in cross-examination.
-- "Hearsay": the question asks the witness to repeat what someone else said, to prove that it is true.
-- "Speculation": the question asks for a guess about what others thought or might have done.
-- "Asked and answered": the witness has already answered the same question.
-- "Facts not in evidence": the argument relies on a fact, figure or document that is not in the case file, the exhibits or the testimony.
-- "Misstates the evidence": the argument says an exhibit or testimony says something it does not.
-- "Argumentative": the argument or question attacks or badgers instead of making a point or seeking a fact.
-- "Irrelevant": it has no bearing on the charges or the issues for the court.
+{grounds_rules}
 - For a request to call a witness: "Irrelevant to the charge" (the witness can't speak to the issues), "Not on the witness list" (the witness is not a party named in the case file), "Repetitive evidence" (the court has already heard this evidence) or "Unfair surprise" (the other side had no fair notice of this witness).
 - {current_law_rule}
 
@@ -205,6 +207,7 @@ Reply with ONLY this JSON object and nothing else:
             {
                 "objector_role": objector_role,
                 "kind_text": OBJECTION_KINDS[kind],
+                "grounds_rules": OBJECTION_GROUNDS_RULES,
                 "case_context": case_context,
                 "record": record or "Nothing yet.",
                 "target_text": target_text,

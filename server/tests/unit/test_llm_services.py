@@ -770,3 +770,48 @@ async def test_witness_question_never_calls_the_witness_my_lord(
     assert question == expected
     assert "speaking to the WITNESS, not the judge" in fake_llm.prompts[0]
     assert 'Refer to the Judge as "My Lord"' not in fake_llm.prompts[0]
+
+
+ARGUMENT_GROUNDS = ["Facts not in evidence", "Argumentative", "Irrelevant"]
+
+
+@pytest.mark.parametrize(
+    "reply, expected",
+    [
+        ('{"object": false}', None),
+        (
+            (
+                '<think>x</think>{"object": true, "grounds": "Facts not in evidence", '
+                '"details": "  No exhibit shows that sum. "}'
+            ),
+            ("Facts not in evidence", "No exhibit shows that sum."),
+        ),
+        ('{"object": true, "grounds": "Argumentative"}', ("Argumentative", "")),
+        ('{"object": true, "grounds": "Hearsay"}', None),  # not on offer
+        ('{"object": "yes", "grounds": "Irrelevant"}', None),
+        ("I would object.", None),
+    ],
+)
+async def test_lawyer_considers_objecting(fake_llm, reply, expected):
+    fake_llm.responses.append(reply)
+
+    decision = await lawyer.consider_objection(
+        "argument", "₹50 lakh went missing.", ARGUMENT_GROUNDS, "defendant", "c", "r"
+    )
+
+    assert decision == expected
+    prompt = fake_llm.prompts[0]
+    assert prompt.startswith("OBJECTION DECISION")
+    assert "Facts not in evidence; Argumentative; Irrelevant" in prompt
+    assert "<user_argument>₹50 lakh went missing.</user_argument>" in prompt
+
+
+async def test_lawyer_objection_failure_means_no_objection(fake_llm):
+    fake_llm.error = RuntimeError("down")
+
+    assert (
+        await lawyer.consider_objection(
+            "question", "Q?", ["Hearsay"], "plaintiff", "c", ""
+        )
+        is None
+    )
