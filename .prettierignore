@@ -1,0 +1,20 @@
+# Prettier formats the whole repo (`pnpm format` in client/), on top of .gitignore.
+# Python is formatted by black.
+
+**/node_modules/
+**/pnpm-lock.yaml
+**/.venv/
+**/htmlcov/
+
+client/.next/
+client/out/
+client/android/
+client/ios/
+client/public/
+client/next-env.d.ts
+client/e2e/.report/
+client/e2e/.results/
+client/e2e/**/*-snapshots/
+
+# three.js model builders copied from the design handoff, kept as delivered
+client/lib/three/models/

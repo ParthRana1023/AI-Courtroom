@@ -63,11 +63,11 @@ export default function StatusPage() {
     <div className="flex h-dvh flex-col overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_80%_0%,var(--desk-glow)_0%,var(--desk-bg)_70%)] font-type leading-[normal] text-desk-ink">
       <header className="flex items-center justify-between gap-4 border-b border-desk-rule px-[clamp(18px,4vw,64px)] py-4">
         <Link href="/" translate="no" aria-label="AI Courtroom home" className="-my-3.5 flex items-baseline gap-1.5 py-3.5">
-          <span className="whitespace-nowrap font-display text-[15px] tracking-[0.24em] text-desk-ink">AI COURTROOM</span>
+          <span className="font-display text-[15px] tracking-[0.24em] whitespace-nowrap text-desk-ink">AI COURTROOM</span>
           <span aria-hidden="true" className="h-0.5 w-2.25 bg-cursor" />
         </Link>
         <div className="flex items-center gap-4.5">
-          <Link href="/contact" className="text-[11px] uppercase tracking-[0.2em] text-desk-muted hover:text-desk-hover">
+          <Link href="/contact" className="text-[11px] tracking-[0.2em] text-desk-muted uppercase hover:text-desk-hover">
             Report a problem
           </Link>
           <button
@@ -82,15 +82,17 @@ export default function StatusPage() {
         </div>
       </header>
       <Scroller tone="desk" data-desk="" className="flex-1">
-        <main className="mx-auto flex w-full max-w-205 flex-col gap-5.5 px-[clamp(14px,4vw,32px)] pb-12 pt-[clamp(24px,5vw,56px)]">
+        <main className="mx-auto flex w-full max-w-205 flex-col gap-5.5 px-[clamp(14px,4vw,32px)] pt-[clamp(24px,5vw,56px)] pb-12">
           <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] uppercase tracking-[0.3em] text-desk-red">Registry · Updated {data ? hm(new Date(data.updated_at)) : "…"}</span>
+            <span className="text-[11px] tracking-[0.3em] text-desk-red uppercase">
+              Registry · Updated {data ? hm(new Date(data.updated_at)) : "…"}
+            </span>
             <h1 className="m-0 font-display text-[clamp(30px,6vw,52px)]/none font-normal">SYSTEM STATUS</h1>
           </div>
           <section aria-label="Services" className="flex flex-col bg-paper text-ink shadow-sheet">
             <div
               className={cn(
-                "flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pt-3.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ink-label",
+                "flex justify-between gap-3 border-b-[3px] border-double border-ink pt-3.5 pb-2.5 text-[11px] font-bold tracking-[0.2em] text-ink-label uppercase",
                 PAD,
               )}
             >
@@ -111,7 +113,7 @@ export default function StatusPage() {
                       <span className="text-[15.5px] font-bold">{t}</span>
                       <span className="text-[13px] text-ink-muted">{d}</span>
                     </span>
-                    <span className={cn("flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em]", color)}>
+                    <span className={cn("flex items-center gap-2 text-[11px] font-bold tracking-[0.16em] uppercase", color)}>
                       <span aria-hidden="true" className="size-2 bg-current" />
                       {label}
                     </span>
@@ -119,16 +121,20 @@ export default function StatusPage() {
                 );
               })}
             </ul>
-            <div className={cn("flex flex-col gap-3.5 pb-6 pt-5", PAD)}>
+            <div className={cn("flex flex-col gap-3.5 pt-5 pb-6", PAD)}>
               <h2 className="m-0 font-display text-xl font-normal">Incidents</h2>
               {!incidents.length && <p className="m-0 text-body/normal text-ink-label">No incidents reported in the last 90 days.</p>}
               {incidents.map((n) => {
-                const color = n.resolved ? "border-green text-green" : n.impact === "outage" ? "border-seal text-seal" : "border-amber-deep text-amber-deep";
+                const color = n.resolved
+                  ? "border-green text-green"
+                  : n.impact === "outage"
+                    ? "border-seal text-seal"
+                    : "border-amber-deep text-amber-deep";
                 return (
                   <article key={n.id} className={cn("flex flex-col gap-2.5 border-[1.5px] px-4 py-3.5", color)}>
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                       <h3 className="m-0 text-base font-bold text-ink">{n.title}</h3>
-                      <span className="text-[11px] font-bold uppercase tracking-[0.16em]">{n.status}</span>
+                      <span className="text-[11px] font-bold tracking-[0.16em] uppercase">{n.status}</span>
                     </div>
                     <ol className="m-0 flex list-none flex-col gap-2 p-0">
                       {n.updates.map((u, i) => (
@@ -145,7 +151,7 @@ export default function StatusPage() {
               })}
             </div>
           </section>
-          <p className="m-0 text-meta/normal text-desk-muted text-pretty">
+          <p className="m-0 text-meta/normal text-pretty text-desk-muted">
             Times are shown in your local time zone. If something isn’t working and it isn’t listed here,{" "}
             <Link href="/contact" className="border-b border-current">
               tell us

@@ -21,11 +21,17 @@ const RELEASES: Release[] = [
     title: "5.1 · 20 October 2026",
     lede: "The opposing lawyer can object too.",
     items: [
-      ["New", "The opposing lawyer objects to your arguments and to your questions to a witness when there are grounds, and the judge rules at once. A sustained objection strikes your argument, so make another, or withdraws your question, so ask another."],
+      [
+        "New",
+        "The opposing lawyer objects to your arguments and to your questions to a witness when there are grounds, and the judge rules at once. A sustained objection strikes your argument, so make another, or withdraws your question, so ask another.",
+      ],
       ["Changed", "Objections and rulings, yours or the other side’s, appear the moment they happen."],
       ["Changed", "“Judgment delivered” appears in the record once the court has finished deliberating."],
       ["Changed", "The witness stand keeps the newest question and answer in view."],
-      ["Fixed", "You can scroll back through the record while the opposing lawyer replies. It follows new text again once you scroll to the end."],
+      [
+        "Fixed",
+        "You can scroll back through the record while the opposing lawyer replies. It follows new text again once you scroll to the end.",
+      ],
       ["Fixed", "A withdrawn question no longer shows the witness as still answering."],
     ],
   },
@@ -37,9 +43,15 @@ const RELEASES: Release[] = [
       ["New", "Hearing reminders. When an adjourned case has waited 7 days for your next argument, we email you once."],
       ["New", "Product updates by email, about once a month. Off unless you turn it on in Settings → Notifications."],
       ["New", "Every optional email has a one-click unsubscribe link."],
-      ["New", "The case file has a Prayer section with the relief sought and the verification, and annexures the petition mentions appear under Evidence."],
+      [
+        "New",
+        "The case file has a Prayer section with the relief sought and the verification, and annexures the petition mentions appear under Evidence.",
+      ],
       ["New", "An Android app, downloaded straight from the Install button on the website."],
-      ["Changed", "Deleted accounts are erased automatically 30 days after deletion, with a reminder email three days before. Deleting a case for good also removes its evidence images."],
+      [
+        "Changed",
+        "Deleted accounts are erased automatically 30 days after deletion, with a reminder email three days before. Deleting a case for good also removes its evidence images.",
+      ],
       ["Changed", "Writing to us without signing in includes a quick robot check by Cloudflare Turnstile."],
       ["Changed", "Parties in Case Prep and witnesses on the stand answer with their own AI models."],
       ["Changed", "A new app icon."],
@@ -51,12 +63,18 @@ const RELEASES: Release[] = [
     title: "4.10 · 7–17 October 2026",
     lede: "A full redesign of the site in the courtroom theme.",
     items: [
-      ["New", "Objections in the courtroom. Object to the opposing lawyer’s latest argument or question, give your grounds, and the judge sustains or overrules it."],
+      [
+        "New",
+        "Objections in the courtroom. Object to the opposing lawyer’s latest argument or question, give your grounds, and the judge sustains or overrules it.",
+      ],
       ["New", "A 3D courtroom on the home page, with a simpler version for devices without WebGL."],
       ["New", "Pin exhibits to an argument. They appear under your entry in the record."],
       ["New", "Voice input for arguments, using your browser’s speech recognition."],
       ["New", "Dark and light themes, or match your device. Switch from the header, the menu or Settings."],
-      ["New", "Account & security in Settings: change your password, see and sign out signed-in devices, connect Google, download your data and delete your account."],
+      [
+        "New",
+        "Account & security in Settings: change your password, see and sign out signed-in devices, connect Google, download your data and delete your account.",
+      ],
       ["New", "Account recovery. Deleted accounts are kept for 30 days, and you can ask for yours back through the contact page."],
       ["New", "Email notification settings, and a forgotten-password flow on the sign-in page."],
       ["New", "The contact page works without signing in."],
@@ -65,9 +83,15 @@ const RELEASES: Release[] = [
       ["Changed", "The case file reads as an indexed document, with the parties, facts, charges, evidence and issues for the court."],
       ["Changed", "Case Prep: party background in the middle and the interview on the right, with an exhibit viewer."],
       ["Changed", "Courtroom: the record reads as a numbered transcript, and each witness examination folds into one entry."],
-      ["Changed", "My Cases: search, status filters, sorting and selecting several cases at once. Archive: restore with undo, and empty the whole archive at once."],
+      [
+        "Changed",
+        "My Cases: search, status filters, sorting and selecting several cases at once. Archive: restore with undo, and empty the whole archive at once.",
+      ],
       ["Changed", "New case: pick from common BNS sections or type your own. The number of sections is worked out for you."],
-      ["Changed", "Profile: your record, stats and recent cases on one page, with a panel for editing your details and photo. Settings: all options in one place with a single save button."],
+      [
+        "Changed",
+        "Profile: your record, stats and recent cases on one page, with a panel for editing your details and photo. Settings: all options in one place with a single save button.",
+      ],
       ["Changed", "Shorter sign-up: name, email, password and an 18+ confirmation. The sign-in and sign-up pages fit on one screen."],
       ["Changed", "An AI disclaimer under every verdict and in the footer."],
       ["Fixed", "Signing in with Google takes a second or two, and the other sign-in buttons wait while it runs."],
@@ -105,7 +129,10 @@ const RELEASES: Release[] = [
     title: "4.7 · May – July 2026",
     lede: "Case memory and pictures of the evidence.",
     items: [
-      ["New", "Case memory: the AI recalls the facts, chats and record of your case when it argues and rules, with a setting to turn it off."],
+      [
+        "New",
+        "Case memory: the AI recalls the facts, chats and record of your case when it argues and rules, with a setting to turn it off.",
+      ],
       ["New", "Evidence images, generated for visual exhibits such as scenes and objects."],
       ["New", "The AI lawyer decides for itself when to call a witness."],
       ["New", "A profile photo editor with cropping and zoom."],

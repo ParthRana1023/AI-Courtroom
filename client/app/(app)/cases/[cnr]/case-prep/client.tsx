@@ -189,12 +189,21 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
     const toChat = focus === "chat";
     const open = (toChat ? chatColRef.current : listRef.current)?.querySelector("[data-full]");
     const shut = (toChat ? listRef.current : chatColRef.current)?.querySelector("[data-full]");
-    anim(open, r ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: `translateX(${toChat ? 40 : -40}px)` }, { opacity: 1, transform: "none" }], {
-      duration: 560,
-      delay: r ? 0 : 140,
-      easing: EASE,
-      fill: "backwards",
-    });
+    anim(
+      open,
+      r
+        ? [{ opacity: 0 }, { opacity: 1 }]
+        : [
+            { opacity: 0, transform: `translateX(${toChat ? 40 : -40}px)` },
+            { opacity: 1, transform: "none" },
+          ],
+      {
+        duration: 560,
+        delay: r ? 0 : 140,
+        easing: EASE,
+        fill: "backwards",
+      },
+    );
     anim(shut, [{ opacity: 1 }, { opacity: 0 }], { duration: r ? 0 : 520, easing: "ease-in", fill: "forwards" });
     toBottom();
   }, [focus, toBottom]);
@@ -214,10 +223,19 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
     const back = mView === "list" || (prevView.current === "chat" && mView === "person");
     prevView.current = mView;
     const el = mView === "chat" ? chatColRef.current : mView === "person" ? centerRef.current : listRef.current;
-    anim(el, reduce() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: `translateX(${back ? -36 : 36}px)` }, { opacity: 1, transform: "none" }], {
-      duration: 440,
-      easing: EASE,
-    });
+    anim(
+      el,
+      reduce()
+        ? [{ opacity: 0 }, { opacity: 1 }]
+        : [
+            { opacity: 0, transform: `translateX(${back ? -36 : 36}px)` },
+            { opacity: 1, transform: "none" },
+          ],
+      {
+        duration: 440,
+        easing: EASE,
+      },
+    );
     toBottom();
   }, [mView, toBottom]);
 
@@ -226,11 +244,29 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
     if (prevSel.current === selId) return;
     prevSel.current = selId;
     const r = reduce();
-    anim(centerRef.current, r ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: "translateY(16px)" }, { opacity: 1, transform: "none" }], { duration: 440, easing: EASE });
-    anim(chatColRef.current?.querySelector("[data-full]"), r ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], {
-      duration: 400,
-      easing: EASE,
-    });
+    anim(
+      centerRef.current,
+      r
+        ? [{ opacity: 0 }, { opacity: 1 }]
+        : [
+            { opacity: 0, transform: "translateY(16px)" },
+            { opacity: 1, transform: "none" },
+          ],
+      { duration: 440, easing: EASE },
+    );
+    anim(
+      chatColRef.current?.querySelector("[data-full]"),
+      r
+        ? [{ opacity: 0 }, { opacity: 1 }]
+        : [
+            { opacity: 0, transform: "translateY(10px)" },
+            { opacity: 1, transform: "none" },
+          ],
+      {
+        duration: 400,
+        easing: EASE,
+      },
+    );
     setChatErr("");
     toBottom();
   }, [selId, toBottom]);
@@ -249,10 +285,19 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
   useEffect(() => {
     if (count > prevCount.current) {
       const all = chatRef.current?.querySelectorAll("[data-msg]");
-      anim(all?.[all.length - 1], reduce() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], {
-        duration: 340,
-        easing: EASE,
-      });
+      anim(
+        all?.[all.length - 1],
+        reduce()
+          ? [{ opacity: 0 }, { opacity: 1 }]
+          : [
+              { opacity: 0, transform: "translateY(10px)" },
+              { opacity: 1, transform: "none" },
+            ],
+        {
+          duration: 340,
+          easing: EASE,
+        },
+      );
       toBottom(true);
     }
     prevCount.current = count;
@@ -308,7 +353,13 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
     setChatErr("");
     const pinned = atts[pid] ?? [];
     const refs = pinned.map((id) => evidence.find((x) => x.id === id)?.exhibit_ref).filter((r): r is string => !!r);
-    const temp: ChatMessage = { id: `tmp-${Date.now()}`, sender: "user", content: txt, timestamp: new Date().toISOString(), exhibit_refs: refs };
+    const temp: ChatMessage = {
+      id: `tmp-${Date.now()}`,
+      sender: "user",
+      content: txt,
+      timestamp: new Date().toISOString(),
+      exhibit_refs: refs,
+    };
     setMsgs((m) => ({ ...m, [pid]: [...(m[pid] ?? []), temp] }));
     setDrafts((d) => ({ ...d, [pid]: "" }));
     setAtts((a) => ({ ...a, [pid]: [] }));
@@ -397,14 +448,25 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
 
   const banner =
     session === "in session"
-      ? { k: "Courtroom in session", t: "You can’t interview parties while the courtroom is in session. Adjourn or finish the hearing to continue." }
+      ? {
+          k: "Courtroom in session",
+          t: "You can’t interview parties while the courtroom is in session. Adjourn or finish the hearing to continue.",
+        }
       : session === "resolved"
         ? { k: "Case resolved", t: "This case has concluded. Interviews are read-only." }
         : null;
   const readNote =
     session === "resolved"
-      ? { k: "Read-only · case resolved", t: "This case has concluded. You can read the transcript but can’t ask new questions.", c: "text-ink-label" }
-      : { k: "Read-only · courtroom in session", t: "Return to the courtroom, or wait for the session to end, to ask new questions.", c: "text-[#7a3a06]" };
+      ? {
+          k: "Read-only · case resolved",
+          t: "This case has concluded. You can read the transcript but can’t ask new questions.",
+          c: "text-ink-label",
+        }
+      : {
+          k: "Read-only · courtroom in session",
+          t: "Return to the courtroom, or wait for the session to end, to ask new questions.",
+          c: "text-[#7a3a06]",
+        };
   const lockText = `As the ${RN} Lawyer you can only interview ${role === "plaintiff" ? "applicants" : "non-applicants"}. You’ll question ${first} in court.`;
 
   // Privileged notes from the user's interviews stay apart from the exhibits.
@@ -427,7 +489,11 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
   const monoSm = mob || short || chatOn;
 
   const groups = [
-    { mine: true, t: "Your side", d: role === "plaintiff" ? "Applicants. You can interview them." : "Non-applicants. You can interview them." },
+    {
+      mine: true,
+      t: "Your side",
+      d: role === "plaintiff" ? "Applicants. You can interview them." : "Non-applicants. You can interview them.",
+    },
     { mine: false, t: "Other side", d: "Read their background. You’ll meet them in court." },
   ];
 
@@ -435,18 +501,23 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
   const bioLoading = !!selId && bios[selId] === null;
 
   return (
-    <div className={cn("mx-auto flex min-h-0 w-full max-w-360 flex-1 flex-col", mob ? "gap-2.5 px-3 pb-3 pt-2.5" : "gap-3 px-[3vw] pb-4.5 pt-4")}>
+    <div
+      className={cn(
+        "mx-auto flex min-h-0 w-full max-w-360 flex-1 flex-col",
+        mob ? "gap-2.5 px-3 pt-2.5 pb-3" : "gap-3 px-[3vw] pt-4 pb-4.5",
+      )}
+    >
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Link
             href={`/cases/${cnr}`}
-            className="relative flex min-h-7 items-center gap-2 self-start text-xs uppercase tracking-[0.16em] text-desk-soft before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:text-desk-hover"
+            className="relative flex min-h-7 items-center gap-2 self-start text-xs tracking-[0.16em] text-desk-soft uppercase before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:text-desk-hover"
           >
             <span aria-hidden="true">←</span>
             <span>Case file</span>
           </Link>
           <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
-            <h1 className={cn("m-0 font-display font-normal leading-[1.05]", mob ? "text-[28px]" : "text-[34px]")}>Case Prep</h1>
+            <h1 className={cn("m-0 font-display leading-[1.05] font-normal", mob ? "text-[28px]" : "text-[34px]")}>Case Prep</h1>
             <span className="font-data text-xs font-medium tracking-[0.04em] text-desk-muted">{cnr}</span>
           </div>
           {kase && (
@@ -460,7 +531,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
           onClick={proceed}
           disabled={starting || load !== "loaded"}
           className={cn(
-            "h-12 cursor-pointer whitespace-nowrap px-5.5 text-xs font-bold uppercase tracking-[0.14em] text-cream light:text-ink disabled:cursor-wait",
+            "h-12 cursor-pointer px-5.5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase disabled:cursor-wait light:text-ink",
             small ? "flex-[1_1_100%]" : "flex-none",
             ctaOff ? "bg-ink-disabled" : "bg-seal hover:bg-seal-hover",
           )}
@@ -474,7 +545,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
           role="status"
           className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5 border border-[rgba(233,163,58,.5)] bg-[rgba(233,163,58,.08)] px-3.5 py-2.25 text-[13.5px] leading-[1.45] text-amber-hi light:text-amber"
         >
-          <strong className="text-[10.5px] font-bold uppercase tracking-[0.18em]">{banner.k}</strong>
+          <strong className="text-[10.5px] font-bold tracking-[0.18em] uppercase">{banner.k}</strong>
           <span className="flex-[1_1_300px]">{banner.t}</span>
         </div>
       )}
@@ -497,7 +568,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                 aria-selected={on}
                 onClick={() => setTab(k)}
                 className={cn(
-                  "flex h-10.5 cursor-pointer items-center justify-center gap-2.5 whitespace-nowrap px-5 text-xs font-bold uppercase tracking-[0.14em]",
+                  "flex h-10.5 cursor-pointer items-center justify-center gap-2.5 px-5 text-xs font-bold tracking-[0.14em] whitespace-nowrap uppercase",
                   small ? "flex-[1_1_0]" : "flex-none",
                   on ? "bg-paper text-ink" : "bg-transparent text-desk-muted hover:text-desk-hover",
                 )}
@@ -522,7 +593,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                 <button
                   type="button"
                   onClick={fetchAll}
-                  className="h-11.5 cursor-pointer whitespace-nowrap bg-seal px-5 text-xs font-bold uppercase tracking-[0.14em] text-cream hover:bg-seal-hover"
+                  className="h-11.5 cursor-pointer bg-seal px-5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase hover:bg-seal-hover"
                 >
                   Try again
                 </button>
@@ -538,22 +609,25 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
             style={{ gridTemplateColumns: cols }}
           >
             {showList && (
-              <div ref={listRef} className={cn("flex min-h-0 min-w-0 flex-col overflow-hidden bg-paper-soft", two && "border-r border-ink/20")}>
+              <div
+                ref={listRef}
+                className={cn("flex min-h-0 min-w-0 flex-col overflow-hidden bg-paper-soft", two && "border-r border-ink/20")}
+              >
                 {listFull && (
                   <div data-full="" className="flex min-h-0 flex-1 flex-col" style={{ minWidth: mob ? 0 : listW }}>
-                    <div className="flex flex-none justify-between border-b-[3px] border-double border-ink px-4 pb-2.5 pt-3.5 text-label font-bold uppercase tracking-[0.2em] text-ink-label">
+                    <div className="flex flex-none justify-between border-b-[3px] border-double border-ink px-4 pt-3.5 pb-2.5 text-label font-bold tracking-[0.2em] text-ink-label uppercase">
                       <span>Parties</span>
                       <span>{parties.length}</span>
                     </div>
-                    <Scroller className="flex-1 pb-3 pt-0.5">
-                      {parties.length === 0 && <p className="m-0 px-4 py-6 text-sm italic text-ink-hint">No parties found in this case.</p>}
+                    <Scroller className="flex-1 pt-0.5 pb-3">
+                      {parties.length === 0 && <p className="m-0 px-4 py-6 text-sm text-ink-hint italic">No parties found in this case.</p>}
                       {groups.map((g) => {
                         const items = parties.filter((p) => mine(p) === g.mine);
                         if (!items.length) return null;
                         return (
                           <div key={g.t}>
-                            <div className="flex flex-col gap-0.5 px-4 pb-1.5 pt-3.5">
-                              <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-label">{g.t}</span>
+                            <div className="flex flex-col gap-0.5 px-4 pt-3.5 pb-1.5">
+                              <span className="text-[10.5px] font-bold tracking-[0.18em] text-ink-label uppercase">{g.t}</span>
                               <span className="text-xs leading-[1.4] text-ink-meta">{g.d}</span>
                             </div>
                             {items.map((p) => {
@@ -567,23 +641,40 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                   aria-current={cur ? "true" : undefined}
                                   className={cn(
                                     "grid w-full cursor-pointer grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.25 text-left transition-colors duration-200",
-                                    cur ? "bg-ink text-paper" : g.mine ? "text-ink hover:bg-[#f3ecdd]" : "text-ink-muted hover:bg-[#f3ecdd]",
+                                    cur
+                                      ? "bg-ink text-paper"
+                                      : g.mine
+                                        ? "text-ink hover:bg-[#f3ecdd]"
+                                        : "text-ink-muted hover:bg-[#f3ecdd]",
                                   )}
                                 >
                                   <span
                                     aria-hidden="true"
                                     className={cn(
                                       "flex h-9 w-9 items-center justify-center font-display text-sm tracking-[0.04em]",
-                                      cur ? "bg-paper text-ink" : g.mine ? "bg-ink text-paper" : "border-[1.5px] border-ink-muted text-ink-muted",
+                                      cur
+                                        ? "bg-paper text-ink"
+                                        : g.mine
+                                          ? "bg-ink text-paper"
+                                          : "border-[1.5px] border-ink-muted text-ink-muted",
                                     )}
                                   >
                                     {initials(p.name)}
                                   </span>
                                   <span className="flex min-w-0 flex-col gap-0.5">
-                                    <span className="truncate text-[14.5px] font-bold leading-[1.3]">{plain(p.name)}</span>
-                                    <span className={cn("truncate text-[12.5px] leading-[1.35]", cur ? "text-[#b9ad97]" : "text-ink-meta")}>{p.occupation}</span>
+                                    <span className="truncate text-[14.5px] leading-[1.3] font-bold">{plain(p.name)}</span>
+                                    <span className={cn("truncate text-[12.5px] leading-[1.35]", cur ? "text-[#b9ad97]" : "text-ink-meta")}>
+                                      {p.occupation}
+                                    </span>
                                   </span>
-                                  <span className={cn("whitespace-nowrap font-data text-[11px] font-medium", cur ? "text-[#b9ad97]" : "text-ink-meta")}>{q ? `${q} Q` : ""}</span>
+                                  <span
+                                    className={cn(
+                                      "font-data text-[11px] font-medium whitespace-nowrap",
+                                      cur ? "text-[#b9ad97]" : "text-ink-meta",
+                                    )}
+                                  >
+                                    {q ? `${q} Q` : ""}
+                                  </span>
                                 </button>
                               );
                             })}
@@ -594,20 +685,22 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                   </div>
                 )}
                 {listStrip && (
-                  <div data-strip="" className="flex min-h-0 flex-1 flex-col items-center gap-2.5 pb-3 pt-2.5">
+                  <div data-strip="" className="flex min-h-0 flex-1 flex-col items-center gap-2.5 pt-2.5 pb-3">
                     <button
                       type="button"
                       onClick={() => setFocus("list")}
                       aria-label={`Parties · ${parties.length}: show all parties`}
                       aria-expanded="false"
-                      className="flex w-11 flex-none cursor-pointer flex-col items-center gap-3 pb-2.5 pt-2 text-ink hover:text-seal"
+                      className="flex w-11 flex-none cursor-pointer flex-col items-center gap-3 pt-2 pb-2.5 text-ink hover:text-seal"
                     >
                       <span aria-hidden="true" className="text-base leading-none">
                         »
                       </span>
-                      <span className="rotate-180 whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.18em] [writing-mode:vertical-rl]">Parties · {parties.length}</span>
+                      <span className="rotate-180 text-[10.5px] font-bold tracking-[0.18em] whitespace-nowrap uppercase [writing-mode:vertical-rl]">
+                        Parties · {parties.length}
+                      </span>
                     </button>
-                    <div className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto py-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
+                    <div className="flex min-h-0 flex-1 scrollbar-none flex-col items-center gap-2 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
                       {parties.map((p) => {
                         const cur = p.id === selId;
                         return (
@@ -636,31 +729,52 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
             )}
 
             {showDossier && P && (
-              <section ref={centerRef} aria-label={plain(P.name)} tabIndex={0} data-scroller="" className="flex min-h-0 min-w-0 flex-col overflow-y-auto overscroll-contain">
+              <section
+                ref={centerRef}
+                aria-label={plain(P.name)}
+                tabIndex={0}
+                data-scroller=""
+                className="flex min-h-0 min-w-0 flex-col overflow-y-auto overscroll-contain"
+              >
                 {mob && (
                   <button
                     type="button"
                     onClick={() => setMView("list")}
-                    className="flex min-h-11 flex-none cursor-pointer items-center gap-2 border-b border-ink/20 bg-paper-soft px-4 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-ink"
+                    className="flex min-h-11 flex-none cursor-pointer items-center gap-2 border-b border-ink/20 bg-paper-soft px-4 text-left text-[11px] font-bold tracking-[0.18em] text-ink uppercase"
                   >
                     <span aria-hidden="true">←</span>
                     <span>All parties</span>
                   </button>
                 )}
-                <div className={cn("flex-none border-b-[3px] border-double border-ink", mob ? "px-4 py-3" : short || chatOn ? "px-5.5 py-3" : "px-7 pb-4 pt-4.5")}>
+                <div
+                  className={cn(
+                    "flex-none border-b-[3px] border-double border-ink",
+                    mob ? "px-4 py-3" : short || chatOn ? "px-5.5 py-3" : "px-7 pt-4.5 pb-4",
+                  )}
+                >
                   <div className="flex items-center gap-4">
                     <span
                       aria-hidden="true"
-                      className={cn("flex flex-none items-center justify-center bg-ink font-display tracking-[0.04em] text-paper", monoSm ? "h-10 w-10 text-base" : "h-14 w-14 text-[21px]")}
+                      className={cn(
+                        "flex flex-none items-center justify-center bg-ink font-display tracking-[0.04em] text-paper",
+                        monoSm ? "h-10 w-10 text-base" : "h-14 w-14 text-[21px]",
+                      )}
                     >
                       {initials(P.name)}
                     </span>
                     <div className="flex min-w-0 flex-1 flex-col gap-1.25">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                        <h2 className={cn("m-0 font-display font-normal leading-[1.1]", mob ? "text-2xl" : chatOn ? "text-[22px]" : "text-[30px]")}>{plain(P.name)}</h2>
+                        <h2
+                          className={cn(
+                            "m-0 font-display leading-[1.1] font-normal",
+                            mob ? "text-2xl" : chatOn ? "text-[22px]" : "text-[30px]",
+                          )}
+                        >
+                          {plain(P.name)}
+                        </h2>
                         <span
                           className={cn(
-                            "whitespace-nowrap border-[1.5px] px-2 pb-0.5 pt-0.75 text-[10.5px] font-bold uppercase tracking-[0.18em]",
+                            "border-[1.5px] px-2 pt-0.75 pb-0.5 text-[10.5px] font-bold tracking-[0.18em] whitespace-nowrap uppercase",
                             can ? "border-seal text-seal" : "border-ink-muted text-ink-muted",
                           )}
                         >
@@ -676,37 +790,39 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                   className={cn(
                     "grid items-start gap-x-9 gap-y-6",
                     two && !chatOn && w >= 1100 ? "grid-cols-[minmax(0,1fr)_300px]" : "grid-cols-[minmax(0,1fr)]",
-                    mob ? "px-4 pb-6 pt-4" : chatOn ? "px-5.5 pb-6 pt-4" : "px-7 pb-7.5 pt-5",
+                    mob ? "px-4 pt-4 pb-6" : chatOn ? "px-5.5 pt-4 pb-6" : "px-7 pt-5 pb-7.5",
                   )}
                 >
                   <div className="flex min-w-0 flex-col gap-3">
-                    <h3 className="m-0 text-[11px] font-bold uppercase tracking-[0.18em] text-ink-label">Background &amp; story</h3>
+                    <h3 className="m-0 text-[11px] font-bold tracking-[0.18em] text-ink-label uppercase">Background &amp; story</h3>
                     {bioLoading ? (
-                      <p role="status" className="m-0 text-[15px] italic text-ink-meta">
+                      <p role="status" className="m-0 text-[15px] text-ink-meta italic">
                         Reading {first}’s file…
                       </p>
                     ) : bioParas.length ? (
                       bioParas.map((para, i) => (
-                        <p key={i} className="m-0 max-w-[72ch] text-pretty text-[15.5px] leading-[1.7] text-[#2a2018]">
+                        <p key={i} className="m-0 max-w-[72ch] text-[15.5px] leading-[1.7] text-pretty text-[#2a2018]">
                           {para}
                         </p>
                       ))
                     ) : (
-                      <p className="m-0 text-[15px] italic text-ink-hint">No background is on file yet.</p>
+                      <p className="m-0 text-[15px] text-ink-hint italic">No background is on file yet.</p>
                     )}
                   </div>
                   <div className="flex min-w-0 flex-col gap-4.5">
                     {can && !chatOn && (
                       <div className="flex flex-col gap-2 border border-ink/20 bg-[#f8f3e7] p-4">
-                        <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-seal">Interview</span>
-                        <span className="font-display text-xl leading-[1.2]">{qn ? `${qn} ${qn === 1 ? "question asked" : "questions asked"}` : "Not interviewed yet"}</span>
+                        <span className="text-[10.5px] font-bold tracking-[0.18em] text-seal uppercase">Interview</span>
+                        <span className="font-display text-xl leading-[1.2]">
+                          {qn ? `${qn} ${qn === 1 ? "question asked" : "questions asked"}` : "Not interviewed yet"}
+                        </span>
                         <span className="text-[13.5px] leading-normal text-ink-label">
                           {qn ? `Last answer ${stamp(list[list.length - 1]?.timestamp)}.` : `Ask ${first} what they saw, heard and kept.`}
                         </span>
                         <button
                           type="button"
                           onClick={openChat}
-                          className="mt-1.5 h-11.5 cursor-pointer whitespace-nowrap bg-ink px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-paper transition-colors duration-150 hover:bg-seal"
+                          className="mt-1.5 h-11.5 cursor-pointer bg-ink px-4.5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-paper uppercase transition-colors duration-150 hover:bg-seal"
                         >
                           {readOnly ? "Read transcript →" : qn ? "Continue interview →" : `Interview ${first} →`}
                         </button>
@@ -715,12 +831,14 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                     {!can && (
                       <div className="flex flex-col items-start gap-2.5 border border-dashed border-ink/45 p-4">
                         <NotYourClient />
-                        <span className="text-pretty text-sm leading-[1.55] text-ink-label">{lockText}</span>
+                        <span className="text-sm leading-[1.55] text-pretty text-ink-label">{lockText}</span>
                       </div>
                     )}
                     {related.length > 0 && (
                       <div className="flex flex-col">
-                        <span className="border-b border-ink/25 pb-2 text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-label">Appears in exhibits</span>
+                        <span className="border-b border-ink/25 pb-2 text-[10.5px] font-bold tracking-[0.18em] text-ink-label uppercase">
+                          Appears in exhibits
+                        </span>
                         {related.map((x) => (
                           <button
                             key={x.id}
@@ -728,8 +846,10 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                             onClick={() => setExId(x.id)}
                             className="grid cursor-pointer grid-cols-[42px_minmax(0,1fr)] items-baseline gap-3 border-b border-ink/12 py-2.5 text-left text-ink hover:text-seal"
                           >
-                            <span className="flex-none whitespace-nowrap border-[1.5px] border-seal pb-0.5 pt-0.75 text-center font-data text-[11.5px] font-bold text-seal">{x.exhibit_ref}</span>
-                            <span className="text-[13.5px] font-bold leading-[1.4]">{x.title}</span>
+                            <span className="flex-none border-[1.5px] border-seal pt-0.75 pb-0.5 text-center font-data text-[11.5px] font-bold whitespace-nowrap text-seal">
+                              {x.exhibit_ref}
+                            </span>
+                            <span className="text-[13.5px] leading-[1.4] font-bold">{x.title}</span>
                           </button>
                         ))}
                       </div>
@@ -757,15 +877,17 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                     <span aria-hidden="true" className="text-base leading-none">
                       «
                     </span>
-                    <span className="rotate-180 whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.18em] [writing-mode:vertical-rl]">
+                    <span className="rotate-180 text-[10.5px] font-bold tracking-[0.18em] whitespace-nowrap uppercase [writing-mode:vertical-rl]">
                       {can ? `Interview · ${plain(P.name)}` : "No interview · other side"}
                     </span>
-                    {can && qn > 0 && <span className="bg-seal px-1.5 pb-0.5 pt-0.75 font-data text-[11px] font-medium text-cream">{qn}</span>}
+                    {can && qn > 0 && (
+                      <span className="bg-seal px-1.5 pt-0.75 pb-0.5 font-data text-[11px] font-medium text-cream">{qn}</span>
+                    )}
                   </button>
                 )}
                 {chatFull && (
                   <div data-full="" className="flex min-h-0 flex-1 flex-col" style={{ minWidth: mob ? 0 : 380 }}>
-                    <div className="flex flex-none items-center gap-3 border-b-[3px] border-double border-ink bg-paper px-4 pb-2.5 pt-3">
+                    <div className="flex flex-none items-center gap-3 border-b-[3px] border-double border-ink bg-paper px-4 pt-3 pb-2.5">
                       <button
                         type="button"
                         onClick={() => (two ? setFocus("list") : setMView("person"))}
@@ -776,7 +898,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                         {two ? "»" : "←"}
                       </button>
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-seal">Interview · Transcript</span>
+                        <span className="text-[10.5px] font-bold tracking-[0.18em] text-seal uppercase">Interview · Transcript</span>
                         <span className="truncate font-display text-[19px] leading-[1.2]">{plain(P.name)}</span>
                       </div>
                       <span className="flex-none font-data text-[11px] font-medium text-ink-muted">{qn ? `${qn} Q` : ""}</span>
@@ -786,7 +908,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                       <div className="flex min-h-0 flex-1 flex-col items-start justify-center gap-3 p-7">
                         <NotYourClient />
                         <span className="font-display text-[22px] leading-tight">No interview with the other side</span>
-                        <span className="max-w-[46ch] text-pretty text-[15px] leading-[1.6] text-ink-label">{lockText}</span>
+                        <span className="max-w-[46ch] text-[15px] leading-[1.6] text-pretty text-ink-label">{lockText}</span>
                       </div>
                     ) : (
                       <>
@@ -797,16 +919,18 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                           aria-live="polite"
                           aria-label="Interview transcript"
                           tabIndex={0}
-                          className="flex min-h-0 flex-1 flex-col gap-4.5 overflow-y-auto overscroll-contain pb-6 pl-3 pr-6 pt-4.5 [background:linear-gradient(90deg,transparent_46px,rgba(142,31,25,.28)_46px,rgba(142,31,25,.28)_47px,transparent_47px)]"
+                          className="flex min-h-0 flex-1 flex-col gap-4.5 overflow-y-auto overscroll-contain pt-4.5 pr-6 pb-6 pl-3 [background:linear-gradient(90deg,transparent_46px,rgba(142,31,25,.28)_46px,rgba(142,31,25,.28)_47px,transparent_47px)]"
                         >
                           <Line>
-                            <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-seal">Transcript of interview</span>
+                            <span className="text-[10.5px] font-bold tracking-[0.18em] text-seal uppercase">Transcript of interview</span>
                           </Line>
                           {!list.length && sending !== selId && (
                             <Line className="my-auto">
                               <div className="flex flex-col gap-3">
                                 <span className="font-display text-[22px] leading-[1.2]">No questions yet.</span>
-                                <span className="max-w-[48ch] text-[14.5px] leading-[1.55] text-ink-label">Start with {first}. Anything useful they say can be extracted as an exhibit.</span>
+                                <span className="max-w-[48ch] text-[14.5px] leading-[1.55] text-ink-label">
+                                  Start with {first}. Anything useful they say can be extracted as an exhibit.
+                                </span>
                                 {!readOnly && (
                                   <div className="flex flex-col gap-1.5">
                                     {STARTERS.map((t) => (
@@ -834,17 +958,28 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                             const ex = logged[m.id];
                             return (
                               <div key={m.id} data-msg="" className="grid grid-cols-[26px_minmax(0,1fr)] gap-x-5">
-                                <span aria-hidden="true" className={cn("font-display text-lg leading-[1.3]", u ? "text-seal" : "text-ink-label")}>
+                                <span
+                                  aria-hidden="true"
+                                  className={cn("font-display text-lg leading-[1.3]", u ? "text-seal" : "text-ink-label")}
+                                >
                                   {u ? "Q." : "A."}
                                 </span>
                                 <div className="flex min-w-0 flex-col gap-1.5">
-                                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink-meta">
+                                  <span className="text-[10px] font-bold tracking-[0.18em] text-ink-meta uppercase">
                                     {u ? "You" : plain(P.name)} · {stamp(m.timestamp)}
                                   </span>
-                                  <p className={cn("m-0 max-w-[72ch] whitespace-pre-wrap text-pretty text-[15.5px] leading-[1.6] text-ink", u ? "font-bold" : "font-normal")}>
+                                  <p
+                                    className={cn(
+                                      "m-0 max-w-[72ch] text-[15.5px] leading-[1.6] text-pretty whitespace-pre-wrap text-ink",
+                                      u ? "font-bold" : "font-normal",
+                                    )}
+                                  >
                                     <span>{isTyping ? body.slice(0, typing.n) : body}</span>
                                     {isTyping && (
-                                      <span aria-hidden="true" className="ml-0.5 inline-block h-0.5 w-2 bg-seal align-baseline animate-[ac-cursor_1s_steps(1)_infinite]" />
+                                      <span
+                                        aria-hidden="true"
+                                        className="ml-0.5 inline-block h-0.5 w-2 animate-[ac-cursor_1s_steps(1)_infinite] bg-seal align-baseline"
+                                      />
                                     )}
                                   </p>
                                   {u && <RefChips refs={m.exhibit_refs ?? []} evidence={evidence} onExhibit={setExId} />}
@@ -853,7 +988,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                       type="button"
                                       onClick={() => extract(P.id, m)}
                                       disabled={extracting === m.id}
-                                      className="flex h-7.5 cursor-pointer items-center gap-1.5 self-start border border-ink/40 bg-transparent px-2.5 text-[10.5px] font-bold uppercase tracking-[0.14em] text-ink hover:border-ink hover:bg-[#f8f3e7] disabled:cursor-wait"
+                                      className="flex h-7.5 cursor-pointer items-center gap-1.5 self-start border border-ink/40 bg-transparent px-2.5 text-[10.5px] font-bold tracking-[0.14em] text-ink uppercase hover:border-ink hover:bg-[#f8f3e7] disabled:cursor-wait"
                                     >
                                       <span aria-hidden="true">+</span>
                                       <span>{extracting === m.id ? "Saving…" : "Save to Privileged"}</span>
@@ -863,7 +998,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                     <button
                                       type="button"
                                       onClick={() => setExId(ex.id)}
-                                      className="rotate-[-1.5deg] cursor-pointer self-start border-[1.5px] border-seal bg-transparent px-2.25 pb-0.75 pt-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-seal hover:bg-seal/8"
+                                      className="rotate-[-1.5deg] cursor-pointer self-start border-[1.5px] border-seal bg-transparent px-2.25 pt-1 pb-0.75 text-[10.5px] font-bold tracking-[0.14em] text-seal uppercase hover:bg-seal/8"
                                     >
                                       {ex.private ? `In Privileged as ${ex.exhibit_ref}` : `Logged as ${ex.exhibit_ref}`} · view
                                     </button>
@@ -877,15 +1012,18 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                               <span aria-hidden="true" className="font-display text-lg leading-[1.3] text-ink-label">
                                 A.
                               </span>
-                              <span className="flex items-center gap-2 text-sm italic leading-[1.6] text-ink-meta">
+                              <span className="flex items-center gap-2 text-sm leading-[1.6] text-ink-meta italic">
                                 <span>{first} is thinking</span>
-                                <span aria-hidden="true" className="inline-block h-0.5 w-2 bg-seal animate-[ac-cursor_1s_steps(1)_infinite]" />
+                                <span
+                                  aria-hidden="true"
+                                  className="inline-block h-0.5 w-2 animate-[ac-cursor_1s_steps(1)_infinite] bg-seal"
+                                />
                               </span>
                             </div>
                           )}
                         </div>
 
-                        <div className="flex flex-none flex-col gap-1.5 border-t-[3px] border-double border-ink bg-paper-soft px-3.5 pb-3 pt-2.5">
+                        <div className="flex flex-none flex-col gap-1.5 border-t-[3px] border-double border-ink bg-paper-soft px-3.5 pt-2.5 pb-3">
                           {!readOnly ? (
                             <>
                               {chatErr && (
@@ -893,7 +1031,12 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                   {chatErr}
                                 </span>
                               )}
-                              <PinnedChips evidence={evidence} att={atts[P.id] ?? []} onAtt={(ids) => setAtts((a) => ({ ...a, [P.id]: ids }))} onExhibit={setExId} />
+                              <PinnedChips
+                                evidence={evidence}
+                                att={atts[P.id] ?? []}
+                                onAtt={(ids) => setAtts((a) => ({ ...a, [P.id]: ids }))}
+                                onExhibit={setExId}
+                              />
                               <div className="relative flex items-end gap-2">
                                 <PinButton
                                   evidence={evidence}
@@ -926,7 +1069,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                                   onClick={() => void send(P.id)}
                                   disabled={busy}
                                   className={cn(
-                                    "h-11.5 flex-none cursor-pointer whitespace-nowrap px-5 text-xs font-bold uppercase tracking-[0.14em] text-cream transition-colors duration-150 disabled:cursor-wait",
+                                    "h-11.5 flex-none cursor-pointer px-5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase transition-colors duration-150 disabled:cursor-wait",
                                     !online || busy ? "bg-ink-disabled" : "bg-seal hover:bg-seal-hover",
                                   )}
                                 >
@@ -937,7 +1080,9 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                             </>
                           ) : (
                             <div className="flex flex-col gap-0.75 py-1 text-center">
-                              <strong className={cn("text-[10.5px] font-bold uppercase tracking-[0.18em]", readNote.c)}>{readNote.k}</strong>
+                              <strong className={cn("text-[10.5px] font-bold tracking-[0.18em] uppercase", readNote.c)}>
+                                {readNote.k}
+                              </strong>
                               <span className="text-[13px] leading-[1.45] text-ink-label">{readNote.t}</span>
                             </div>
                           )}
@@ -951,7 +1096,9 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
           </div>
         )}
 
-        {load === "loaded" && tab === "evidence" && <ExhibitGrid evidence={exhibits} small={small} mob={mob} regen={regen} onRegen={regenerate} onOpen={setExId} />}
+        {load === "loaded" && tab === "evidence" && (
+          <ExhibitGrid evidence={exhibits} small={small} mob={mob} regen={regen} onRegen={regenerate} onOpen={setExId} />
+        )}
         {load === "loaded" && tab === "privileged" && (
           <ExhibitGrid
             key="privileged"
@@ -992,7 +1139,13 @@ function Meta({ p, nowrap }: { p: PersonInvolved; nowrap: boolean }) {
   const line = [p.occupation, p.age ? `${p.age} years` : "", p.address].filter(Boolean).join(" · ");
   if (!line) return null;
   return (
-    <span title={line} className={cn("overflow-hidden text-ellipsis text-[13.5px] leading-[1.45] text-ink-label", nowrap ? "whitespace-nowrap" : "whitespace-normal")}>
+    <span
+      title={line}
+      className={cn(
+        "overflow-hidden text-[13.5px] leading-[1.45] text-ellipsis text-ink-label",
+        nowrap ? "whitespace-nowrap" : "whitespace-normal",
+      )}
+    >
       {line}
     </span>
   );
@@ -1000,7 +1153,9 @@ function Meta({ p, nowrap }: { p: PersonInvolved; nowrap: boolean }) {
 
 function NotYourClient() {
   return (
-    <span className="-rotate-2 border-[3px] border-double border-ink-muted px-3 pb-1 pt-1.5 font-display text-sm leading-none tracking-[0.08em] text-ink-muted">NOT YOUR CLIENT</span>
+    <span className="-rotate-2 border-[3px] border-double border-ink-muted px-3 pt-1.5 pb-1 font-display text-sm leading-none tracking-[0.08em] text-ink-muted">
+      NOT YOUR CLIENT
+    </span>
   );
 }
 

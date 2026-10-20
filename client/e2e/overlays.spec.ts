@@ -101,8 +101,7 @@ test.describe("install prompt", () => {
 
 test.describe("install prompt on Android", () => {
   test.use({
-    userAgent:
-      "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
+    userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
   });
 
   test("offers the APK", async ({ page }) => {

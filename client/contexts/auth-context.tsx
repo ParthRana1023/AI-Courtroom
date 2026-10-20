@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { authAPI, setAuthToken, type PhonePayload } from "@/lib/api";
 import { getLogger, Logger } from "@/lib/logger";
@@ -37,10 +30,7 @@ interface AuthContextType {
   /** Emails a sign-up code; Google sign-ups are signed in straight away (returns the user). */
   register: (data: RegisterFormData) => Promise<User | null>;
   verifyRegistration: (data: RegisterFormData, otp: string) => Promise<User>;
-  loginWithGoogle: (
-    authData: { credential?: string; code?: string; state?: string },
-    rememberMe?: boolean,
-  ) => Promise<GoogleResult>;
+  loginWithGoogle: (authData: { credential?: string; code?: string; state?: string }, rememberMe?: boolean) => Promise<GoogleResult>;
   sendPhoneCode: (data: PhonePayload) => Promise<void>;
   verifyPhone: (data: PhonePayload, otp: string, rememberMe: boolean) => Promise<User>;
   logout: () => void;

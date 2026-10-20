@@ -47,7 +47,7 @@ export function Lead({ t, d, small }: { t: string; d?: ReactNode; small?: boolea
   return (
     <span className="flex min-w-0 flex-col gap-0.75">
       <span className={cn("font-bold", small ? "text-[15px]" : "text-base")}>{t}</span>
-      {d && <span className={cn("text-pretty leading-[1.45] text-ink-muted", small ? "text-[13.5px]" : "text-sm")}>{d}</span>}
+      {d && <span className={cn("leading-[1.45] text-pretty text-ink-muted", small ? "text-[13.5px]" : "text-sm")}>{d}</span>}
     </span>
   );
 }
@@ -63,7 +63,9 @@ export function Switch({ on, onToggle, t, d }: { on: boolean; onToggle: () => vo
     >
       <Lead t={t} d={d} small />
       <span aria-hidden="true" className={cn("relative h-7 w-12.5 flex-none border-2 border-ink", on ? "bg-ink" : "bg-transparent")}>
-        <span className={cn("absolute top-0.75 h-4.5 w-4.5 transition-[left] duration-200", on ? "left-6.25 bg-paper" : "left-0.75 bg-ink")} />
+        <span
+          className={cn("absolute top-0.75 h-4.5 w-4.5 transition-[left] duration-200", on ? "left-6.25 bg-paper" : "left-0.75 bg-ink")}
+        />
       </span>
     </button>
   );

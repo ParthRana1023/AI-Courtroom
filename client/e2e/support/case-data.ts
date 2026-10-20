@@ -92,6 +92,24 @@ export const caseOf = (over: Record<string, unknown> = {}) => ({
 });
 
 export const PARTIES = [
-  { id: "p1", name: "Raghav Menon", role: "applicant", occupation: "Director, Menon Realty", age: 34, address: "Vasant Kunj, New Delhi", bio: "Raghav Menon founded the company in 2019.\n\nHe says a funding partner withdrew.", can_chat: true },
-  { id: "p2", name: "Priya Khanna", role: "non_applicant", occupation: "School teacher", age: 38, address: "Janakpuri, New Delhi", bio: null, can_chat: false },
+  {
+    id: "p1",
+    name: "Raghav Menon",
+    role: "applicant",
+    occupation: "Director, Menon Realty",
+    age: 34,
+    address: "Vasant Kunj, New Delhi",
+    bio: "Raghav Menon founded the company in 2019.\n\nHe says a funding partner withdrew.",
+    can_chat: true,
+  },
+  {
+    id: "p2",
+    name: "Priya Khanna",
+    role: "non_applicant",
+    occupation: "School teacher",
+    age: 38,
+    address: "Janakpuri, New Delhi",
+    bio: null,
+    can_chat: false,
+  },
 ];

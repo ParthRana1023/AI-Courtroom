@@ -29,8 +29,8 @@ export default function AccessibilityPage() {
     >
       <Sec id="goal" n="I." title="Our goal">
         <p className={K.p}>
-          We aim to meet the Web Content Accessibility Guidelines (WCAG) 2.2 at level AA. We haven’t had the site independently audited yet, so some
-          parts may fall short.
+          We aim to meet the Web Content Accessibility Guidelines (WCAG) 2.2 at level AA. We haven’t had the site independently audited yet,
+          so some parts may fall short.
         </p>
       </Sec>
 
@@ -90,8 +90,8 @@ export default function AccessibilityPage() {
               —
             </span>
             <span>
-              Animations across the site, including panel slides and the courtroom stamps, become simple fades or stop when your device is set to
-              reduce motion.
+              Animations across the site, including panel slides and the courtroom stamps, become simple fades or stop when your device is
+              set to reduce motion.
             </span>
           </li>{" "}
           <li className={K.bulletRow}>
@@ -99,15 +99,17 @@ export default function AccessibilityPage() {
               —
             </span>
             <span>
-              Dialogs and pop-ups, including exhibits and objections, close with Escape. The exhibit viewer in Case Prep also responds to the arrow
-              keys.
+              Dialogs and pop-ups, including exhibits and objections, close with Escape. The exhibit viewer in Case Prep also responds to
+              the arrow keys.
             </span>
           </li>{" "}
           <li className={K.bulletRow}>
             <span className={K.bullet} aria-hidden="true">
               —
             </span>
-            <span>Arguments can be dictated with the microphone button instead of typed, where the browser supports speech recognition.</span>
+            <span>
+              Arguments can be dictated with the microphone button instead of typed, where the browser supports speech recognition.
+            </span>
           </li>{" "}
           <li className={K.bulletRow}>
             <span className={K.bullet} aria-hidden="true">
@@ -125,7 +127,9 @@ export default function AccessibilityPage() {
             <span className={K.bullet} aria-hidden="true">
               —
             </span>
-            <span>The 3D courtroom on the home page needs WebGL. If your device can’t show it, we show a simpler page with the same content.</span>
+            <span>
+              The 3D courtroom on the home page needs WebGL. If your device can’t show it, we show a simpler page with the same content.
+            </span>
           </li>{" "}
           <li className={K.bulletRow}>
             <span className={K.bullet} aria-hidden="true">
@@ -143,7 +147,9 @@ export default function AccessibilityPage() {
             <span className={K.bullet} aria-hidden="true">
               —
             </span>
-            <span>Voice input is not available in browsers without speech recognition, including Firefox. You can still type your arguments.</span>
+            <span>
+              Voice input is not available in browsers without speech recognition, including Firefox. You can still type your arguments.
+            </span>
           </li>{" "}
         </ul>
       </Sec>

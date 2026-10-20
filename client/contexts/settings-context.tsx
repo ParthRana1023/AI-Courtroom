@@ -35,25 +35,14 @@ const defaultSettings = {
   devMode: false,
 };
 
-const SettingsContext = createContext<SettingsContextType | undefined>(
-  undefined,
-);
+const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [enterKeySubmits, setEnterKeySubmits] = useState<boolean>(
-    defaultSettings.enterKeySubmits,
-  );
-  const [autoExpandTextAreas, setAutoExpandTextAreas] = useState<boolean>(
-    defaultSettings.autoExpandTextAreas,
-  );
-  const [textSize, setTextSize] = useState<"small" | "medium" | "large">(
-    defaultSettings.textSize,
-  );
-  const [skipArchiveConfirmation, setSkipArchiveConfirmation] =
-    useState<boolean>(defaultSettings.skipArchiveConfirmation);
-  const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState<boolean>(
-    defaultSettings.skipDeleteConfirmation,
-  );
+  const [enterKeySubmits, setEnterKeySubmits] = useState<boolean>(defaultSettings.enterKeySubmits);
+  const [autoExpandTextAreas, setAutoExpandTextAreas] = useState<boolean>(defaultSettings.autoExpandTextAreas);
+  const [textSize, setTextSize] = useState<"small" | "medium" | "large">(defaultSettings.textSize);
+  const [skipArchiveConfirmation, setSkipArchiveConfirmation] = useState<boolean>(defaultSettings.skipArchiveConfirmation);
+  const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState<boolean>(defaultSettings.skipDeleteConfirmation);
   const [devMode, setDevMode] = useState<boolean>(defaultSettings.devMode);
 
   // Load settings from localStorage on initial render
@@ -63,22 +52,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const savedSettings = localStorage.getItem("aiCourtroom-settings");
         if (savedSettings) {
           const parsedSettings = JSON.parse(savedSettings);
-          setEnterKeySubmits(
-            parsedSettings.enterKeySubmits ?? defaultSettings.enterKeySubmits,
-          );
-          setAutoExpandTextAreas(
-            parsedSettings.autoExpandTextAreas ??
-              defaultSettings.autoExpandTextAreas,
-          );
+          setEnterKeySubmits(parsedSettings.enterKeySubmits ?? defaultSettings.enterKeySubmits);
+          setAutoExpandTextAreas(parsedSettings.autoExpandTextAreas ?? defaultSettings.autoExpandTextAreas);
           setTextSize(parsedSettings.textSize ?? defaultSettings.textSize);
-          setSkipArchiveConfirmation(
-            parsedSettings.skipArchiveConfirmation ??
-              defaultSettings.skipArchiveConfirmation,
-          );
-          setSkipDeleteConfirmation(
-            parsedSettings.skipDeleteConfirmation ??
-              defaultSettings.skipDeleteConfirmation,
-          );
+          setSkipArchiveConfirmation(parsedSettings.skipArchiveConfirmation ?? defaultSettings.skipArchiveConfirmation);
+          setSkipDeleteConfirmation(parsedSettings.skipDeleteConfirmation ?? defaultSettings.skipDeleteConfirmation);
           setDevMode(parsedSettings.devMode ?? defaultSettings.devMode);
         }
       } catch (error) {
@@ -106,14 +84,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Failed to save settings to localStorage:", error);
     }
-  }, [
-    enterKeySubmits,
-    autoExpandTextAreas,
-    textSize,
-    skipArchiveConfirmation,
-    skipDeleteConfirmation,
-    devMode,
-  ]);
+  }, [enterKeySubmits, autoExpandTextAreas, textSize, skipArchiveConfirmation, skipDeleteConfirmation, devMode]);
 
   return (
     <SettingsContext.Provider

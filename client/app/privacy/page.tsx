@@ -33,8 +33,8 @@ export default function PrivacyPage() {
     >
       <Sec id="commit" n="I." title="Our commitment to privacy">
         <p className={K.p}>
-          At AI Courtroom, we are committed to protecting your privacy. This policy explains how we collect, use, and safeguard your personal
-          information when you use our AI-powered legal simulation platform.
+          At AI Courtroom, we are committed to protecting your privacy. This policy explains how we collect, use, and safeguard your
+          personal information when you use our AI-powered legal simulation platform.
         </p>
       </Sec>
 
@@ -45,9 +45,9 @@ export default function PrivacyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Account</span>
             <span className={K.note}>
-              Your name, and either your email address and password or your mobile number. If you sign up with Google or connect Google later, we
-              receive your name and email address from Google. If you signed up with a phone number, connecting Google makes that email your account
-              email.
+              Your name, and either your email address and password or your mobile number. If you sign up with Google or connect Google
+              later, we receive your name and email address from Google. If you signed up with a phone number, connecting Google makes that
+              email your account email.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -57,8 +57,8 @@ export default function PrivacyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Optional profile details</span>
             <span className={K.note}>
-              A nickname, gender, date of birth, phone number and photo, if you add them in your profile. Your date of birth and phone number are
-              never shown to anyone.
+              A nickname, gender, date of birth, phone number and photo, if you add them in your profile. Your date of birth and phone
+              number are never shown to anyone.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -68,8 +68,8 @@ export default function PrivacyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Messages to us</span>
             <span className={K.note}>
-              What you send through the contact page, with the category you choose. If you aren’t signed in, also the name and email you give us for a
-              reply. Account recovery requests include the email or phone number on the deleted account.
+              What you send through the contact page, with the category you choose. If you aren’t signed in, also the name and email you
+              give us for a reply. Account recovery requests include the email or phone number on the deleted account.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -81,8 +81,8 @@ export default function PrivacyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Preferences</span>
             <span className={K.note}>
-              Settings saved to your account, such as case location, case memory, how partial wins count and which emails you receive. Display
-              settings such as text size and theme are stored in your browser.
+              Settings saved to your account, such as case location, case memory, how partial wins count and which emails you receive.
+              Display settings such as text size and theme are stored in your browser.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -96,15 +96,16 @@ export default function PrivacyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Usage and device</span>
             <span className={K.note}>
-              How you use the service, your browser type, operating system and IP address. We use these to list your signed-in devices in Settings, so
-              you can sign out any you don’t recognise.
+              How you use the service, your browser type, operating system and IP address. We use these to list your signed-in devices in
+              Settings, so you can sign out any you don’t recognise.
             </span>
           </li>{" "}
           <li className={K.defRow}>
             <span className={K.term}>Voice input</span>
             <span className={K.note}>
-              If you use the microphone in the courtroom, your browser’s speech service turns your speech into text. We receive only the text you
-              submit, not the audio. Some browsers process the audio on their provider’s servers, under that provider’s privacy policy.
+              If you use the microphone in the courtroom, your browser’s speech service turns your speech into text. We receive only the
+              text you submit, not the audio. Some browsers process the audio on their provider’s servers, under that provider’s privacy
+              policy.
             </span>
           </li>{" "}
         </ul>
@@ -128,9 +129,9 @@ export default function PrivacyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Communication</span>
             <span className={K.note}>
-              Sending sign-in codes by email or text message, security alerts about new sign-ins and password changes, the email notifications you
-              turn on (case ready, hearing reminders, product updates), and replies to your messages. Every optional email has a one-click
-              unsubscribe link; security alerts can’t be turned off.
+              Sending sign-in codes by email or text message, security alerts about new sign-ins and password changes, the email
+              notifications you turn on (case ready, hearing reminders, product updates), and replies to your messages. Every optional email
+              has a one-click unsubscribe link; security alerts can’t be turned off.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -140,8 +141,8 @@ export default function PrivacyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Security</span>
             <span className={K.note}>
-              Keeping the platform secure and preventing fraud and abuse. When you write to us without signing in, Cloudflare Turnstile checks
-              that you’re not a robot; Cloudflare sees your IP address and browser signals for that check only.
+              Keeping the platform secure and preventing fraud and abuse. When you write to us without signing in, Cloudflare Turnstile
+              checks that you’re not a robot; Cloudflare sees your IP address and browser signals for that check only.
             </span>
           </li>{" "}
         </ul>
@@ -149,8 +150,8 @@ export default function PrivacyPage() {
 
       <Sec id="ai" n="IV." title="How AI processes your cases">
         <p className={K.p}>
-          To run the courtroom, the content of your cases, including your arguments, is sent to third-party AI model providers that generate the
-          judge’s and the parties’ responses.
+          To run the courtroom, the content of your cases, including your arguments, is sent to third-party AI model providers that generate
+          the judge’s and the parties’ responses.
         </p>
         <p className={K.p}>
           Depending on your case memory setting in{" "}
@@ -160,8 +161,8 @@ export default function PrivacyPage() {
           , the AI receives either the most relevant parts of the case or the full case record.
         </p>
         <p className={K.p}>
-          Objections you raise, the court’s rulings, witness testimony and any exhibits you pin to an argument are part of the case record and are
-          processed the same way.
+          Objections you raise, the court’s rulings, witness testimony and any exhibits you pin to an argument are part of the case record
+          and are processed the same way.
         </p>
         <div className={K.callout}>
           <strong className={K.calloutT}>Keep real people out of your arguments.</strong>
@@ -235,14 +236,13 @@ export default function PrivacyPage() {
               <Link href="/settings" className={K.a}>
                 Settings → Account & security
               </Link>
-              . Deleting your account signs you out on every device and removes your profile and every case, including archived ones, from the
-              service. We keep the deleted account for 30 days so it can be recovered if you{" "}
+              . Deleting your account signs you out on every device and removes your profile and every case, including archived ones, from
+              the service. We keep the deleted account for 30 days so it can be recovered if you{" "}
               <Link href="/contact?cat=account_recovery" className={K.a}>
                 contact us
               </Link>
-
-              . Three days before the 30 days are up we email you a last reminder. After 30 days it’s erased for good: your profile, photos, cases
-              and their AI memory. Messages you sent us are kept for our support records with your name and contact details removed.
+              . Three days before the 30 days are up we email you a last reminder. After 30 days it’s erased for good: your profile, photos,
+              cases and their AI memory. Messages you sent us are kept for our support records with your name and contact details removed.
             </span>
           </li>{" "}
         </ul>
@@ -250,8 +250,8 @@ export default function PrivacyPage() {
 
       <Sec id="security" n="VII." title="Data security">
         <p className={K.p}>
-          We implement industry-standard security measures to protect your data, including encryption, secure servers, and regular security audits.
-          Your case data and personal information are stored securely and accessed only by authorized personnel.
+          We implement industry-standard security measures to protect your data, including encryption, secure servers, and regular security
+          audits. Your case data and personal information are stored securely and accessed only by authorized personnel.
         </p>
       </Sec>
 

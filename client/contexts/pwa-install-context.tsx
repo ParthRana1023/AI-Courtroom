@@ -1,13 +1,6 @@
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  useRef,
-} from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { APK_DOWNLOAD_URL } from "@/lib/config";
 import { isNativePlatform } from "@/lib/platform";
 
@@ -34,7 +27,6 @@ declare global {
  * - "apk": Downloads the APK file (mobile Android browsers).
  */
 type InstallMode = "pwa" | "apk";
-
 
 interface PwaInstallContextValue {
   /** Whether the browser supports the install prompt and the app is not yet installed. */
@@ -70,11 +62,7 @@ function isMobileAndroidBrowser(): boolean {
   return /Android/i.test(ua) && !isNativePlatform();
 }
 
-export function PwaInstallProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function PwaInstallProvider({ children }: { children: React.ReactNode }) {
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
   const [canInstall, setCanInstall] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);

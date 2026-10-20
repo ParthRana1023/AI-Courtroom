@@ -27,11 +27,11 @@ A useful report includes:
 
 This is a personal project maintained by one person, so the timelines below are targets, not guarantees:
 
-| Stage | Target |
-| --- | --- |
-| Acknowledge your report | within 7 days |
+| Stage                                           | Target         |
+| ----------------------------------------------- | -------------- |
+| Acknowledge your report                         | within 7 days  |
 | Confirm the issue, or explain why it is not one | within 14 days |
-| Fix a confirmed high or critical issue | within 30 days |
+| Fix a confirmed high or critical issue          | within 30 days |
 
 You will be kept informed while the fix is in progress. Once the fix is deployed, the advisory is published and you are credited by name or handle, unless you would rather stay anonymous.
 

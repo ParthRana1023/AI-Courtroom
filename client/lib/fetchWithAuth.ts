@@ -12,10 +12,7 @@ interface FetchWithAuthOptions {
  * Wraps the api instance to automatically include authentication headers.
  * Use this for making authenticated API calls.
  */
-export const fetchWithAuth = async (
-  url: string,
-  options?: FetchWithAuthOptions,
-) => {
+export const fetchWithAuth = async (url: string, options?: FetchWithAuthOptions) => {
   const response = await api({
     method: options?.method || "get",
     url,

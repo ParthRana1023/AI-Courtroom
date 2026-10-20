@@ -27,14 +27,7 @@ test.describe("header, signed out", () => {
 
   test("More menu lists the documents and marks the current one", async ({ page }, info) => {
     await page.goto("/privacy");
-    const docs = [
-      "Help & FAQ",
-      "Changelog",
-      "Privacy Policy",
-      "Cookie Policy",
-      "Terms of Service",
-      "Accessibility",
-    ];
+    const docs = ["Help & FAQ", "Changelog", "Privacy Policy", "Cookie Policy", "Terms of Service", "Accessibility"];
 
     if (isMobile(info.project.name)) {
       // No dropdown on phones: the same links sit in the mobile menu's footer strip.

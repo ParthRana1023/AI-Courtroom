@@ -95,6 +95,10 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # Prettier covers the whole repo (client, docs, workflows); Python is black's.
+      - name: Format
+        run: pnpm format:check
+
   client-e2e:
     name: Client e2e (Playwright)
     runs-on: ubuntu-latest

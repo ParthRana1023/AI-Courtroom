@@ -3,11 +3,31 @@ import { test, expect, USERS } from "./support/fixtures";
 
 const CASES = [
   { cnr: "DLND010004212026", title: "State v. Raghav Menon", user_role: "defendant", status: "active", created_at: "2026-09-28T10:00:00Z" },
-  { cnr: "KABL010093042026", title: "Ananya Rao v. Nandi Hills Housing Society", user_role: "plaintiff", status: "not started", created_at: "2026-09-30T10:00:00Z" },
-  { cnr: "TNCH030051192026", title: "Selvam v. Lakshmi Finance", user_role: "defendant", status: "resolved", outcome: "won", created_at: "2026-09-12T10:00:00Z" },
+  {
+    cnr: "KABL010093042026",
+    title: "Ananya Rao v. Nandi Hills Housing Society",
+    user_role: "plaintiff",
+    status: "not started",
+    created_at: "2026-09-30T10:00:00Z",
+  },
+  {
+    cnr: "TNCH030051192026",
+    title: "Selvam v. Lakshmi Finance",
+    user_role: "defendant",
+    status: "resolved",
+    outcome: "won",
+    created_at: "2026-09-12T10:00:00Z",
+  },
 ];
 const ARCHIVED = [
-  { cnr: "MHMM020118732026", title: "Kapoor Textiles v. Shree Ganesh Logistics", user_role: "plaintiff", status: "adjourned", created_at: "2026-09-21T10:00:00Z", deleted_at: "2026-10-01T10:00:00Z" },
+  {
+    cnr: "MHMM020118732026",
+    title: "Kapoor Textiles v. Shree Ganesh Logistics",
+    user_role: "plaintiff",
+    status: "adjourned",
+    created_at: "2026-09-21T10:00:00Z",
+    deleted_at: "2026-10-01T10:00:00Z",
+  },
 ];
 
 /** Records which mocked routes were called, in order. */
@@ -48,7 +68,11 @@ test.describe("my cases", () => {
   });
 
   test("the page stays put; only the list scrolls, with the paper scrollbar", async ({ page, signIn }) => {
-    const many = Array.from({ length: 40 }, (_, i) => ({ ...CASES[i % 3], cnr: `DLND0100${String(i).padStart(4, "0")}2026`, title: `Case ${i + 1}` }));
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      ...CASES[i % 3],
+      cnr: `DLND0100${String(i).padStart(4, "0")}2026`,
+      title: `Case ${i + 1}`,
+    }));
     await signIn(USERS.email, { "GET /cases": many, "GET /cases/deleted/list": [] });
     await page.goto("/cases");
     const list = page.getByRole("region", { name: "Cases" });
@@ -209,11 +233,7 @@ test.describe("archive", () => {
     await expect(dialog).toContainText("This can’t be undone.");
     await dialog.getByRole("button", { name: "Delete all" }).click();
     await expect(page.getByText("The archive is empty.")).toBeVisible();
-    expect(calls).toEqual([
-      "POST /cases/MHMM020118732026/restore",
-      "DELETE /cases/MHMM020118732026",
-      "DELETE /cases/deleted/all",
-    ]);
+    expect(calls).toEqual(["POST /cases/MHMM020118732026/restore", "DELETE /cases/MHMM020118732026", "DELETE /cases/deleted/all"]);
   });
 });
 

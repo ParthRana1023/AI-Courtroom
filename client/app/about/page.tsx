@@ -31,8 +31,8 @@ export default function AboutPage() {
     >
       <Sec id="what" n="I." title="What it is">
         <p className={K.p}>
-          AI Courtroom is an educational platform that simulates legal proceedings with AI. You get a case, take a side, and argue it before an AI
-          judge, with AI playing the parties.
+          AI Courtroom is an educational platform that simulates legal proceedings with AI. You get a case, take a side, and argue it before
+          an AI judge, with AI playing the parties.
         </p>
         <p className={K.p}>It is designed specifically to help law students and enthusiasts practise argumentation.</p>
       </Sec>
@@ -43,8 +43,8 @@ export default function AboutPage() {
             <span className={K.cardN}>I</span>
             <span className={K.cardT}>File a case</span>
             <span className={K.note}>
-              Pick the sections of the Bharatiya Nyaya Sanhita you want to practise. The AI uses them to decide the type of case and drafts the facts,
-              parties and summary.
+              Pick the sections of the Bharatiya Nyaya Sanhita you want to practise. The AI uses them to decide the type of case and drafts
+              the facts, parties and summary.
             </span>
           </div>
           <div className={K.card}>
@@ -58,8 +58,8 @@ export default function AboutPage() {
             <span className={K.cardN}>III</span>
             <span className={K.cardT}>Hear the verdict</span>
             <span className={K.note}>
-              The AI judge delivers a verdict with its legal reasoning and feedback on your performance. Results count toward the win rate on your
-              profile.
+              The AI judge delivers a verdict with its legal reasoning and feedback on your performance. Results count toward the win rate
+              on your profile.
             </span>
           </div>
         </div>
@@ -73,7 +73,9 @@ export default function AboutPage() {
           </div>
           <div className={K.feature}>
             <span className={K.featureT}>Verdicts without the wait</span>
-            <span className={K.note}>No waiting for weeks. The AI judge analyses your arguments against legal principles straight away.</span>
+            <span className={K.note}>
+              No waiting for weeks. The AI judge analyses your arguments against legal principles straight away.
+            </span>
           </div>
           <div className={K.feature}>
             <span className={K.featureT}>Real-time chat</span>
@@ -81,13 +83,15 @@ export default function AboutPage() {
           </div>
           <div className={K.feature}>
             <span className={K.featureT}>Case memory</span>
-            <span className={K.note}>Every case keeps a searchable memory, so the court can draw on what was said earlier in the proceedings.</span>
+            <span className={K.note}>
+              Every case keeps a searchable memory, so the court can draw on what was said earlier in the proceedings.
+            </span>
           </div>
           <div className={K.feature}>
             <span className={K.featureT}>Witnesses and objections</span>
             <span className={K.note}>
-              Call parties to the stand, cross-examine the other side’s witnesses and object to the opposing lawyer. The AI judge rules on each
-              objection.
+              Call parties to the stand, cross-examine the other side’s witnesses and object to the opposing lawyer. The AI judge rules on
+              each objection.
             </span>
           </div>
           <div className={K.feature}>
@@ -126,7 +130,9 @@ export default function AboutPage() {
           <div className={K.makerBody}>
             {" "}
             <span className={K.makerName}>Parth Rana</span> <span className={K.makerRole}>Designer and developer</span>{" "}
-            <p className={K.p}>AI Courtroom is designed and built by one person. Write a few lines here about who you are and why you made it.</p>{" "}
+            <p className={K.p}>
+              AI Courtroom is designed and built by one person. Write a few lines here about who you are and why you made it.
+            </p>{" "}
             <div className={K.makerLinks}>
               {" "}
               <a href="https://github.com/ParthRana1023" target="_blank" rel="noopener noreferrer" className={K.btnOutline}>

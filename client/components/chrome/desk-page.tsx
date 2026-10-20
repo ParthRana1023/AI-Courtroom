@@ -8,13 +8,7 @@ import SiteHeader from "./site-header";
  * itself never scrolls. Pages that fill the height (My Cases) scroll their own lists; anything
  * taller than the viewport scrolls below the header.
  */
-export default function DeskPage({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+export default function DeskPage({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(

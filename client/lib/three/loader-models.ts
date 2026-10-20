@@ -78,12 +78,7 @@ const LOADER_MODELS: LoaderModel[] = [
             if (key >= 0) TW.keys.setMatrixAt(key, TW.keyBase[key]);
             key = (Math.random() * TW.keyBase.length) | 0;
             keyT = t;
-            TW.keys.setMatrixAt(
-              key,
-              TW.keyBase[key]
-                .clone()
-                .premultiply(new THREE.Matrix4().makeTranslation(0, -0.0035, 0.0015)),
-            );
+            TW.keys.setMatrixAt(key, TW.keyBase[key].clone().premultiply(new THREE.Matrix4().makeTranslation(0, -0.0035, 0.0015)));
             TW.keys.instanceMatrix.needsUpdate = true;
             x -= 0.0045;
             next = t + 0.07 + Math.random() * 0.12;

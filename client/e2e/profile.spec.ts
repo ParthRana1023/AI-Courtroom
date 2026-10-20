@@ -30,7 +30,16 @@ const STATS = {
     { month: month(1), wins: 1, losses: 1, partials: 1 },
     { month: month(0), wins: 1, losses: 0, partials: 0 },
   ],
-  activity: { arguments: 58, witnesses_examined: 14, conferences_held: 21, evidence: 37, avg_arguments: 5.3, avg_witnesses_examined: 1.3, avg_conferences_held: 1.9, avg_evidence: 3.4 },
+  activity: {
+    arguments: 58,
+    witnesses_examined: 14,
+    conferences_held: 21,
+    evidence: 37,
+    avg_arguments: 5.3,
+    avg_witnesses_examined: 1.3,
+    avg_conferences_held: 1.9,
+    avg_evidence: 3.4,
+  },
   pending_outcomes: 1,
 };
 
@@ -47,9 +56,33 @@ const NEW_STATS = {
 };
 
 const CASES = [
-  { id: "c1", cnr: "DLND010004212026", title: "State v. Raghav Menon", status: "active", user_role: "defendant", created_at: "2026-10-02T10:00:00Z", outcome: null },
-  { id: "c2", cnr: "DLND010004082026", title: "State v. Kiran Bedi Rao", status: "resolved", user_role: "defendant", created_at: "2026-09-27T10:00:00Z", outcome: "won" },
-  { id: "c3", cnr: "DLND010003962026", title: "State v. Sunita Verma", status: "adjourned", user_role: "plaintiff", created_at: "2026-09-24T10:00:00Z", outcome: null },
+  {
+    id: "c1",
+    cnr: "DLND010004212026",
+    title: "State v. Raghav Menon",
+    status: "active",
+    user_role: "defendant",
+    created_at: "2026-10-02T10:00:00Z",
+    outcome: null,
+  },
+  {
+    id: "c2",
+    cnr: "DLND010004082026",
+    title: "State v. Kiran Bedi Rao",
+    status: "resolved",
+    user_role: "defendant",
+    created_at: "2026-09-27T10:00:00Z",
+    outcome: "won",
+  },
+  {
+    id: "c3",
+    cnr: "DLND010003962026",
+    title: "State v. Sunita Verma",
+    status: "adjourned",
+    user_role: "plaintiff",
+    created_at: "2026-09-24T10:00:00Z",
+    outcome: null,
+  },
 ];
 
 const ME = { ...USERS.email, member_since: "2026-09-04T10:00:00Z", has_password: true };
@@ -73,7 +106,10 @@ test.describe("profile", () => {
     await expect(card.getByText("Since Sep 2026")).toBeVisible();
     await expect(card.getByText("Mumbai, Maharashtra, India")).toBeVisible();
     await expect(card.getByText("0 of 4 added")).toBeVisible();
-    await expect(card.getByRole("link", { name: /Pick up where you left off.*State v\. Raghav Menon/ })).toHaveAttribute("href", "/cases/DLND010004212026");
+    await expect(card.getByRole("link", { name: /Pick up where you left off.*State v\. Raghav Menon/ })).toHaveAttribute(
+      "href",
+      "/cases/DLND010004212026",
+    );
     await expect(card.getByText("DLND010004212026 · Defence · In session")).toBeVisible();
 
     const record = page.getByRole("region", { name: "Your record" });

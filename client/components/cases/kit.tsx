@@ -64,24 +64,14 @@ export function nextSort(cur: SortState, field: SortField): SortState {
 }
 
 /** `wrap`: the actions drop under the title on phones (Archived) instead of sitting beside it. */
-export function PageHead({
-  kicker,
-  title,
-  wrap,
-  children,
-}: {
-  kicker: string;
-  title: string;
-  wrap?: boolean;
-  children?: ReactNode;
-}) {
+export function PageHead({ kicker, title, wrap, children }: { kicker: string; title: string; wrap?: boolean; children?: ReactNode }) {
   return (
     <div className={cn("flex items-end justify-between gap-x-6 gap-y-3", wrap ? "flex-wrap" : "flex-nowrap min-[560px]:flex-wrap")}>
       <div className="flex min-w-0 flex-col gap-1.5">
-        <span className="whitespace-nowrap text-[10.5px] uppercase tracking-[0.16em] text-desk-red min-[560px]:text-label min-[560px]:tracking-[0.3em]">
+        <span className="text-[10.5px] tracking-[0.16em] whitespace-nowrap text-desk-red uppercase min-[560px]:text-label min-[560px]:tracking-[0.3em]">
           {kicker}
         </span>
-        <h1 className="m-0 font-display text-[clamp(34px,11vw,54px)] font-normal leading-none min-[560px]:text-[clamp(56px,7vw,96px)]">
+        <h1 className="m-0 font-display text-[clamp(34px,11vw,54px)] leading-none font-normal min-[560px]:text-[clamp(56px,7vw,96px)]">
           {title}
         </h1>
       </div>
@@ -116,7 +106,7 @@ export function SearchBox({
         strokeWidth="1.8"
         strokeLinecap="square"
         aria-hidden="true"
-        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-desk-muted"
+        className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-desk-muted"
       >
         <circle cx="10.5" cy="10.5" r="6.5" />
         <path d="M15.5 15.5 21 21" />
@@ -128,7 +118,7 @@ export function SearchBox({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          "w-full rounded-none border border-desk-rule-mid bg-desk-ink/6 pl-10.5 pr-10 font-data text-[15px] text-desk-ink outline-none placeholder:text-desk-muted focus:border-desk-amber focus:bg-desk-ink/10 [&::-webkit-search-cancel-button]:hidden",
+          "w-full rounded-none border border-desk-rule-mid bg-desk-ink/6 pr-10 pl-10.5 font-data text-[15px] text-desk-ink outline-none placeholder:text-desk-muted focus:border-desk-amber focus:bg-desk-ink/10 [&::-webkit-search-cancel-button]:hidden",
           h,
         )}
       />
@@ -137,7 +127,7 @@ export function SearchBox({
           type="button"
           onClick={() => onChange("")}
           aria-label="Clear search"
-          className={cn("absolute right-0 top-0 w-11 cursor-pointer font-data text-xl text-desk-muted hover:text-desk-hover", h)}
+          className={cn("absolute top-0 right-0 w-11 cursor-pointer font-data text-xl text-desk-muted hover:text-desk-hover", h)}
         >
           ×
         </button>
@@ -176,7 +166,7 @@ export function SelectToggle({ selecting, onToggle, className }: { selecting: bo
       aria-pressed={selecting}
       onClick={onToggle}
       className={cn(
-        "h-9.75 w-24.25 flex-none cursor-pointer whitespace-nowrap border border-desk-ink/40 px-3.5 text-meta",
+        "h-9.75 w-24.25 flex-none cursor-pointer border border-desk-ink/40 px-3.5 text-meta whitespace-nowrap",
         selecting ? "bg-paper text-ink" : "bg-transparent text-desk-soft",
         className,
       )}
@@ -192,7 +182,7 @@ export function OfflineStrip({ children }: { children: ReactNode }) {
       role="status"
       className="-mt-1 flex flex-wrap items-baseline gap-2.5 border border-[rgba(233,163,58,.5)] bg-[rgba(233,163,58,.08)] px-3.5 py-2.25 text-[13.5px] leading-[1.45] text-desk-amber"
     >
-      <strong className="text-label font-bold uppercase tracking-[0.16em]">Offline</strong>
+      <strong className="text-label font-bold tracking-[0.16em] uppercase">Offline</strong>
       <span>{children}</span>
     </div>
   );
@@ -212,9 +202,9 @@ export function BulkBar({
       <div
         role="toolbar"
         aria-label="Selected cases"
-        className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 border border-paper/25 bg-ink py-2 pl-4.5 pr-2 text-sm text-paper shadow-menu"
+        className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 border border-paper/25 bg-ink py-2 pr-2 pl-4.5 text-sm text-paper shadow-menu"
       >
-        <span className="whitespace-nowrap pr-2">{count} selected</span>
+        <span className="pr-2 whitespace-nowrap">{count} selected</span>
         {actions.map((a) => (
           <button
             key={a.label}
@@ -222,7 +212,7 @@ export function BulkBar({
             onClick={a.onClick}
             disabled={!count}
             className={cn(
-              "h-10.5 cursor-pointer px-4 text-xs font-bold uppercase tracking-[0.12em] disabled:cursor-not-allowed",
+              "h-10.5 cursor-pointer px-4 text-xs font-bold tracking-[0.12em] uppercase disabled:cursor-not-allowed",
               a.danger
                 ? "bg-seal text-cream disabled:bg-[#3a2b22]"
                 : "border border-paper/35 bg-transparent text-paper disabled:text-[#6f6556]",
@@ -276,8 +266,8 @@ function StatusTag({ status, compact }: { status: string; compact?: boolean }) {
     <span
       style={{ color, borderColor: color }}
       className={cn(
-        "flex-none whitespace-nowrap border-[1.5px] font-bold uppercase",
-        compact ? "px-1.75 pb-0.5 pt-0.75 text-[10.5px] tracking-[0.12em]" : "px-2 pb-0.5 pt-0.75 text-label tracking-[0.14em]",
+        "flex-none border-[1.5px] font-bold whitespace-nowrap uppercase",
+        compact ? "px-1.75 pt-0.75 pb-0.5 text-[10.5px] tracking-[0.12em]" : "px-2 pt-0.75 pb-0.5 text-label tracking-[0.14em]",
       )}
     >
       {label}
@@ -332,9 +322,7 @@ export function CaseList({
   noMatch: ReactNode;
   error?: ReactNode;
 }) {
-  const grid = [selecting ? "22px" : "", ...columns.map((c) => COLUMN_WIDTH[c]), selecting ? "0px" : "88px"]
-    .filter(Boolean)
-    .join(" ");
+  const grid = [selecting ? "22px" : "", ...columns.map((c) => COLUMN_WIDTH[c]), selecting ? "0px" : "88px"].filter(Boolean).join(" ");
   const allOn = rows.length > 0 && rows.every((r) => selected.has(r.cnr));
   const someOn = selected.size > 0;
 
@@ -343,7 +331,7 @@ export function CaseList({
       {table && rows.length > 0 && !loading && (
         <div
           style={{ gridTemplateColumns: grid }}
-          className="grid items-center gap-x-4.5 border-b-[3px] border-double border-ink px-5.5 text-label font-bold uppercase tracking-[0.16em] text-ink-label"
+          className="grid items-center gap-x-4.5 border-b-[3px] border-double border-ink px-5.5 text-label font-bold tracking-[0.16em] text-ink-label uppercase"
         >
           {selecting && (
             <button
@@ -366,7 +354,7 @@ export function CaseList({
                 onClick={() => onSort(c)}
                 aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                 className={cn(
-                  "flex h-10 cursor-pointer items-center gap-1.5 whitespace-nowrap text-left uppercase tracking-[0.16em] hover:text-seal",
+                  "flex h-10 cursor-pointer items-center gap-1.5 text-left tracking-[0.16em] whitespace-nowrap uppercase hover:text-seal",
                   on ? "text-ink" : "text-ink-label",
                 )}
               >
@@ -409,7 +397,7 @@ export function CaseList({
                 style={table ? { gridTemplateColumns: grid } : undefined}
                 className={cn(
                   "relative cursor-pointer items-center gap-x-4.5 gap-y-1.5 border-b border-ink/16 hover:bg-paper-hi",
-                  table ? "grid px-5.5 py-2" : "flex pb-2.5 pl-4.5 pr-3 pt-2.75",
+                  table ? "grid px-5.5 py-2" : "flex pt-2.75 pr-3 pb-2.5 pl-4.5",
                   on && "bg-paper-hi",
                 )}
               >
@@ -431,27 +419,35 @@ export function CaseList({
                 {table ? (
                   columns.map((c) =>
                     c === "cnr" ? (
-                      <span key={c} className="font-data text-meta font-medium tracking-[0.04em] text-ink-label">{row.cnr}</span>
+                      <span key={c} className="font-data text-meta font-medium tracking-[0.04em] text-ink-label">
+                        {row.cnr}
+                      </span>
                     ) : c === "title" ? (
-                      <span key={c} className="min-w-0 text-pretty text-base font-bold leading-[1.35]">{row.title}</span>
+                      <span key={c} className="min-w-0 text-base leading-[1.35] font-bold text-pretty">
+                        {row.title}
+                      </span>
                     ) : c === "user_role" ? (
-                      <span key={c} className="text-sm text-ink-label">{sideLabel(row.user_role)}</span>
+                      <span key={c} className="text-sm text-ink-label">
+                        {sideLabel(row.user_role)}
+                      </span>
                     ) : c === "status" ? (
                       <span key={c} className="flex flex-col items-start gap-1 text-meta">
                         <StatusTag status={row.status} />
                         <Outcome row={row} />
                       </span>
                     ) : (
-                      <span key={c} className="whitespace-nowrap text-sm text-ink-label">{formatDate(row[c])}</span>
+                      <span key={c} className="text-sm whitespace-nowrap text-ink-label">
+                        {formatDate(row[c])}
+                      </span>
                     ),
                   )
                 ) : (
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center justify-between gap-2.5">
-                      <span className="break-all font-data text-xs font-medium text-ink-label">{row.cnr}</span>
+                      <span className="font-data text-xs font-medium break-all text-ink-label">{row.cnr}</span>
                       <StatusTag status={row.status} compact />
                     </div>
-                    <span className="text-pretty text-base font-bold leading-[1.35]">{row.title}</span>
+                    <span className="text-base leading-[1.35] font-bold text-pretty">{row.title}</span>
                     <span className="flex flex-wrap gap-x-3 gap-y-1 text-meta text-ink-label">
                       {columns.includes("user_role") && <span>{sideLabel(row.user_role)}</span>}
                       <span>Filed {formatDate(row.created_at)}</span>
@@ -460,11 +456,7 @@ export function CaseList({
                     </span>
                   </div>
                 )}
-                {!selecting && (
-                  <span className={cn("flex justify-end gap-0.5", table ? "self-center" : "self-start")}>
-                    {actions(row)}
-                  </span>
-                )}
+                {!selecting && <span className={cn("flex justify-end gap-0.5", table ? "self-center" : "self-start")}>{actions(row)}</span>}
               </div>
             );
           })
@@ -563,7 +555,7 @@ export function ListMessage({
         big ? "gap-4 px-5.5 py-9 min-[560px]:px-12 min-[560px]:py-16" : "gap-3 px-5.5 py-12",
       )}
     >
-      {kicker && <span className="text-label font-bold uppercase tracking-[0.2em] text-seal">{kicker}</span>}
+      {kicker && <span className="text-label font-bold tracking-[0.2em] text-seal uppercase">{kicker}</span>}
       <span className={cn("font-display", big ? "text-[30px] leading-[1.1] min-[560px]:text-[40px]" : "text-2xl")}>{title}</span>
       <span className={cn("max-w-115 text-balance text-ink-muted", big ? "text-base leading-[1.55]" : "text-body")}>{body}</span>
       {children}

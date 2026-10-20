@@ -4,11 +4,7 @@
  */
 
 // Cookie category types
-export type CookieCategory =
-  | "essential"
-  | "functional"
-  | "analytics"
-  | "marketing";
+export type CookieCategory = "essential" | "functional" | "analytics" | "marketing";
 
 // Cookie consent state
 export interface CookieConsent {
@@ -34,8 +30,7 @@ interface CookieOptions {
 const defaultOptions: CookieOptions = {
   path: "/",
   sameSite: "Strict",
-  secure:
-    typeof window !== "undefined" && window.location.protocol === "https:",
+  secure: typeof window !== "undefined" && window.location.protocol === "https:",
 };
 
 // Current consent version - increment when cookie policy changes
@@ -50,11 +45,7 @@ export const COOKIE_NAMES = {
 /**
  * Set a cookie with given name, value, and options
  */
-function setCookie(
-  name: string,
-  value: string,
-  options: CookieOptions = {},
-): void {
+function setCookie(name: string, value: string, options: CookieOptions = {}): void {
   if (typeof document === "undefined") return;
 
   const opts = { ...defaultOptions, ...options };
@@ -65,10 +56,7 @@ function setCookie(
   }
 
   if (opts.expires) {
-    const expiresDate =
-      opts.expires instanceof Date
-        ? opts.expires
-        : new Date(Date.now() + opts.expires * 24 * 60 * 60 * 1000);
+    const expiresDate = opts.expires instanceof Date ? opts.expires : new Date(Date.now() + opts.expires * 24 * 60 * 60 * 1000);
     cookieString += `; expires=${expiresDate.toUTCString()}`;
   }
 
@@ -113,9 +101,7 @@ export function getCookie(name: string): string | null {
 function deleteCookie(name: string, path: string = "/"): void {
   if (typeof document === "undefined") return;
 
-  document.cookie = `${encodeURIComponent(
-    name,
-  )}=; path=${path}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  document.cookie = `${encodeURIComponent(name)}=; path=${path}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
 }
 
 /**
@@ -175,8 +161,7 @@ export function saveConsent(consent: CookieConsent): void {
   setCookie(COOKIE_NAMES.CONSENT, JSON.stringify(consent), {
     expires: 365, // 1 year
     sameSite: "Strict",
-    secure:
-      typeof window !== "undefined" && window.location.protocol === "https:",
+    secure: typeof window !== "undefined" && window.location.protocol === "https:",
   });
 }
 
@@ -185,10 +170,7 @@ export function saveConsent(consent: CookieConsent): void {
  */
 export function clearNonEssentialCookies(): void {
   const allCookies = getAllCookies();
-  const essentialCookieNames: string[] = [
-    COOKIE_NAMES.CONSENT,
-    COOKIE_NAMES.AUTH_TOKEN,
-  ];
+  const essentialCookieNames: string[] = [COOKIE_NAMES.CONSENT, COOKIE_NAMES.AUTH_TOKEN];
 
   Object.keys(allCookies).forEach((name) => {
     if (!essentialCookieNames.includes(name)) {
@@ -200,16 +182,12 @@ export function clearNonEssentialCookies(): void {
 /**
  * Set auth token cookie with proper security flags
  */
-export function setAuthTokenCookie(
-  token: string,
-  rememberMe: boolean = false,
-): void {
+export function setAuthTokenCookie(token: string, rememberMe: boolean = false): void {
   const expirationDays = rememberMe ? 7 : 1;
   setCookie(COOKIE_NAMES.AUTH_TOKEN, token, {
     expires: expirationDays,
     sameSite: "Strict",
-    secure:
-      typeof window !== "undefined" && window.location.protocol === "https:",
+    secure: typeof window !== "undefined" && window.location.protocol === "https:",
   });
 }
 

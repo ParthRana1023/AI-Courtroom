@@ -28,18 +28,16 @@ export default function ConfirmDialog({
   return (
     <AlertDialog.Root open={!!copy} onOpenChange={(open) => !open && onClose()}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 z-60 bg-(--scrim) animate-[ac-fade_.2s_ease_both]" />
+        <AlertDialog.Overlay className="fixed inset-0 z-60 animate-[ac-fade_.2s_ease_both] bg-(--scrim)" />
         {copy && (
-          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-61 flex w-[calc(100%-32px)] max-w-115 -translate-x-1/2 -translate-y-1/2 flex-col gap-4 bg-paper px-6.5 pb-5.5 pt-6.5 font-type text-ink shadow-dialog outline-none">
-            <div className="flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 text-label font-bold uppercase tracking-[0.2em] text-ink-label">
+          <AlertDialog.Content className="fixed top-1/2 left-1/2 z-61 flex w-[calc(100%-32px)] max-w-115 -translate-x-1/2 -translate-y-1/2 flex-col gap-4 bg-paper px-6.5 pt-6.5 pb-5.5 font-type text-ink shadow-dialog outline-none">
+            <div className="flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 text-label font-bold tracking-[0.2em] text-ink-label uppercase">
               <span>{copy.kicker}</span>
               <span>{copy.count}</span>
             </div>
-            <AlertDialog.Title className="m-0 font-display text-h2 font-normal leading-[1.15]">
-              {copy.title}
-            </AlertDialog.Title>
+            <AlertDialog.Title className="m-0 font-display text-h2 leading-[1.15] font-normal">{copy.title}</AlertDialog.Title>
             {copy.warn && <span className="text-body font-bold text-seal">{copy.warn}</span>}
-            <AlertDialog.Description className="m-0 text-pretty text-body leading-[1.55] text-ink-label">
+            <AlertDialog.Description className="m-0 text-body leading-[1.55] text-pretty text-ink-label">
               {copy.body}
             </AlertDialog.Description>
             <div className="flex flex-wrap justify-end gap-2.5 pt-1">

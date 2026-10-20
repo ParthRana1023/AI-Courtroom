@@ -65,19 +65,19 @@ function Shell({
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-(--scrim) animate-[ac-fade_.24s_ease_both]" style={{ zIndex: z }} />
+        <Dialog.Overlay className="fixed inset-0 animate-[ac-fade_.24s_ease_both] bg-(--scrim)" style={{ zIndex: z }} />
         <Dialog.Content
           aria-describedby={undefined}
           {...focus}
           className={cn(
-            "fixed inset-0 m-auto flex h-fit w-full flex-col bg-paper font-type text-ink shadow-dialog outline-none animate-[ac-rise_.42s_cubic-bezier(.2,.8,.2,1)_both]",
+            "fixed inset-0 m-auto flex h-fit w-full animate-[ac-rise_.42s_cubic-bezier(.2,.8,.2,1)_both] flex-col bg-paper font-type text-ink shadow-dialog outline-none",
             max,
             small ? "max-h-dvh" : "max-h-[calc(100dvh-48px)] w-[calc(100%-48px)]",
           )}
           style={{ zIndex: z + 1 }}
         >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
-          <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-5.5 pr-3.5 pt-3">
+          <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pt-3 pr-3.5 pb-2.5 pl-5.5">
             <span className={cn(LABEL, "text-ink-label")}>{label}</span>
             <div className="flex items-center gap-2.5">
               {extra}
@@ -86,7 +86,7 @@ function Shell({
               </Dialog.Close>
             </div>
           </div>
-          <Scroller tabIndex={0} className={cn("flex flex-1 flex-col gap-4.5", small ? "px-4 pb-5.5 pt-4.5" : "px-8 pb-7 pt-6")}>
+          <Scroller tabIndex={0} className={cn("flex flex-1 flex-col gap-4.5", small ? "px-4 pt-4.5 pb-5.5" : "px-8 pt-6 pb-7")}>
             {children}
           </Scroller>
           {footer}
@@ -119,25 +119,25 @@ export function CaseFilePanel({
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-63 bg-(--scrim) animate-[ac-fade_.24s_ease_both]" />
+        <Dialog.Overlay className="fixed inset-0 z-63 animate-[ac-fade_.24s_ease_both] bg-(--scrim)" />
         <Dialog.Content
           aria-describedby={undefined}
           {...focus}
           className="fixed inset-y-0 right-0 z-64 flex w-[min(720px,100%)] animate-[ac-panel_.44s_cubic-bezier(.2,.8,.2,1)_both] flex-col bg-paper font-type text-ink shadow-[-30px_0_80px_rgba(0,0,0,.6)] outline-none light:shadow-[-30px_0_80px_rgba(60,44,28,.25)]"
         >
-          <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-5.5 pr-3.5 pt-3">
+          <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pt-3 pr-3.5 pb-2.5 pl-5.5">
             <span className={cn(LABEL, "text-ink-label")}>Case file · {cnr}</span>
             <Dialog.Close aria-label="Close" className={CLOSE}>
               ×
             </Dialog.Close>
           </div>
-          <Scroller tabIndex={0} className={cn("flex flex-1 flex-col gap-7", small ? "px-4 pb-6.5 pt-4.5" : "px-8.5 pb-8 pt-6")}>
-            <Dialog.Title className="m-0 font-display text-[28px] font-normal leading-[1.15]">{title}</Dialog.Title>
+          <Scroller tabIndex={0} className={cn("flex flex-1 flex-col gap-7", small ? "px-4 pt-4.5 pb-6.5" : "px-8.5 pt-6 pb-8")}>
+            <Dialog.Title className="m-0 font-display text-[28px] leading-[1.15] font-normal">{title}</Dialog.Title>
             {meta && <span className="-mt-4.5 text-[13.5px] text-ink-muted">{meta}</span>}
             <CaseFileBody file={file} mob={small} />
             <Link
               href={`/cases/${cnr}`}
-              className="self-start border-b border-ink pb-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-ink hover:border-seal hover:text-seal"
+              className="self-start border-b border-ink pb-0.5 text-[11px] font-bold tracking-[0.16em] text-ink uppercase hover:border-seal hover:text-seal"
             >
               Open the full case file →
             </Link>
@@ -166,7 +166,12 @@ export function Stamp({ kind, small }: { kind: StampKind | null; small: boolean 
   if (!kind) return null;
   const s = STAMPS[kind];
   return (
-    <div className={cn("fixed inset-0 z-66 flex animate-[ac-fade_.24s_ease_both] items-center justify-center bg-[rgba(7,5,4,.82)]", small ? "p-0" : "p-6")}>
+    <div
+      className={cn(
+        "fixed inset-0 z-66 flex animate-[ac-fade_.24s_ease_both] items-center justify-center bg-[rgba(7,5,4,.82)]",
+        small ? "p-0" : "p-6",
+      )}
+    >
       <div
         key={kind}
         role="status"
@@ -174,12 +179,15 @@ export function Stamp({ kind, small }: { kind: StampKind | null; small: boolean 
         className="flex max-w-130 animate-[ac-pop_.52s_cubic-bezier(.3,1.4,.5,1)_both] flex-col items-center gap-4.5 px-4 text-center"
       >
         <span
-          className={cn("-rotate-4 border-[5px] border-double bg-[rgba(7,5,4,.4)] px-6 pb-2.5 pt-3.5 font-display leading-none tracking-[0.08em]", small ? "text-[30px]" : "text-[46px]")}
+          className={cn(
+            "-rotate-4 border-[5px] border-double bg-[rgba(7,5,4,.4)] px-6 pt-3.5 pb-2.5 font-display leading-none tracking-[0.08em]",
+            small ? "text-[30px]" : "text-[46px]",
+          )}
           style={{ borderColor: s.c, color: s.c }}
         >
           {s.k}
         </span>
-        <span className="text-balance text-[15px] leading-[1.55] text-[#d8ccb4]">{s.t}</span>
+        <span className="text-[15px] leading-[1.55] text-balance text-[#d8ccb4]">{s.t}</span>
         {s.wait && <span aria-hidden="true" className="inline-block h-0.5 w-2.5 animate-[ac-cursor_1s_steps(1)_infinite] bg-cursor" />}
       </div>
     </div>
@@ -190,11 +198,16 @@ export function Stamp({ kind, small }: { kind: StampKind | null; small: boolean 
 export function CallAlert({ alert, small }: { alert: { by: string; name: string } | null; small: boolean }) {
   if (!alert) return null;
   return (
-    <div className={cn("fixed inset-0 z-65 flex animate-[ac-fade_.24s_ease_both] items-center justify-center bg-(--scrim)", small ? "p-0" : "p-6")}>
+    <div
+      className={cn(
+        "fixed inset-0 z-65 flex animate-[ac-fade_.24s_ease_both] items-center justify-center bg-(--scrim)",
+        small ? "p-0" : "p-6",
+      )}
+    >
       <div
         role="alertdialog"
         aria-labelledby="al-t"
-        className="flex w-full max-w-120 animate-[ac-rise_.42s_cubic-bezier(.2,.8,.2,1)_both] flex-col items-center gap-2.5 bg-paper px-7 pb-6 pt-6.5 text-center font-type text-ink shadow-dialog"
+        className="flex w-full max-w-120 animate-[ac-rise_.42s_cubic-bezier(.2,.8,.2,1)_both] flex-col items-center gap-2.5 bg-paper px-7 pt-6.5 pb-6 text-center font-type text-ink shadow-dialog"
       >
         <span className={cn(LABEL, "text-seal")}>{alert.by} calls</span>
         <span id="al-t" className="font-display text-[32px] leading-[1.1]">
@@ -245,11 +258,11 @@ export function ObjectionDialog({
       max="max-w-150"
       small={small}
       footer={
-        <div className="flex flex-none flex-wrap justify-end gap-2 border-t-[3px] border-double border-ink px-4.5 pb-3.5 pt-3">
+        <div className="flex flex-none flex-wrap justify-end gap-2 border-t-[3px] border-double border-ink px-4.5 pt-3 pb-3.5">
           <button
             type="button"
             onClick={close}
-            className="h-11.5 cursor-pointer whitespace-nowrap border-[1.5px] border-ink bg-transparent px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-ink hover:bg-[#f8f3e7]"
+            className="h-11.5 cursor-pointer border-[1.5px] border-ink bg-transparent px-4.5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-ink uppercase hover:bg-[#f8f3e7]"
           >
             Withdraw
           </button>
@@ -264,7 +277,7 @@ export function ObjectionDialog({
             }}
             aria-disabled={!g}
             className={cn(
-              "h-11.5 cursor-pointer whitespace-nowrap border-0 px-5 text-xs font-bold uppercase tracking-[0.14em] text-cream",
+              "h-11.5 cursor-pointer border-0 px-5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase",
               g ? "bg-seal hover:bg-seal-hover" : "bg-ink-disabled",
             )}
           >
@@ -302,7 +315,7 @@ export function ObjectionDialog({
       </div>
       <label className="flex flex-col gap-2">
         <span className={cn(LABEL, "text-ink-label")}>
-          Reason <span className="font-normal normal-case tracking-[0.08em] text-ink-meta">· optional · tell the court why</span>
+          Reason <span className="font-normal tracking-[0.08em] text-ink-meta normal-case">· optional · tell the court why</span>
         </span>
         <textarea
           value={reason}
@@ -350,7 +363,7 @@ export function ReportDialog({
   return (
     <Dialog.Root open={!!target} onOpenChange={(o) => !o && !busy && close()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-68 bg-(--scrim) animate-[ac-fade_.24s_ease_both]" />
+        <Dialog.Overlay className="fixed inset-0 z-68 animate-[ac-fade_.24s_ease_both] bg-(--scrim)" />
         <Dialog.Content
           aria-describedby={undefined}
           onCloseAutoFocus={focus.onCloseAutoFocus}
@@ -360,7 +373,7 @@ export function ReportDialog({
             (e.currentTarget as HTMLElement).querySelector<HTMLElement>("[role=radio]")?.focus();
           }}
           className={cn(
-            "fixed inset-0 z-69 m-auto flex h-fit w-full max-w-140 flex-col bg-paper font-type text-ink shadow-dialog outline-none animate-[ac-rise_.42s_cubic-bezier(.2,.8,.2,1)_both]",
+            "fixed inset-0 z-69 m-auto flex h-fit w-full max-w-140 animate-[ac-rise_.42s_cubic-bezier(.2,.8,.2,1)_both] flex-col bg-paper font-type text-ink shadow-dialog outline-none",
             small ? "max-h-dvh" : "max-h-[calc(100dvh-48px)] w-[calc(100%-48px)]",
           )}
         >
@@ -376,16 +389,18 @@ export function ReportDialog({
               if (ok) close();
             }}
           >
-            <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-5.5 pr-3.5 pt-3">
+            <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pt-3 pr-3.5 pb-2.5 pl-5.5">
               <span className={cn(LABEL, "text-ink-label")}>Form F-1 · Report a response</span>
               <Dialog.Close aria-label="Close" className={CLOSE}>
                 ×
               </Dialog.Close>
             </div>
-            <Scroller tabIndex={0} className={cn("flex flex-1 flex-col gap-4.5", small ? "px-4 pb-5.5 pt-4.5" : "px-8 pb-7 pt-6")}>
+            <Scroller tabIndex={0} className={cn("flex flex-1 flex-col gap-4.5", small ? "px-4 pt-4.5 pb-5.5" : "px-8 pt-6 pb-7")}>
               <div className="flex flex-col gap-1.5">
                 <Dialog.Title className={cn(H2(small), "leading-[1.05]")}>What’s wrong with this response?</Dialog.Title>
-                <p className="m-0 text-pretty text-sm leading-normal text-ink-muted">Reports go to the maker himself, not the court. The hearing isn’t affected.</p>
+                <p className="m-0 text-sm leading-normal text-pretty text-ink-muted">
+                  Reports go to the maker himself, not the court. The hearing isn’t affected.
+                </p>
               </div>
               <div className="flex flex-col gap-1.5 border-l-[3px] border-ink py-1 pl-3.5">
                 <span className={cn(LABEL, "text-ink-meta")}>{target?.who}</span>
@@ -404,7 +419,10 @@ export function ReportDialog({
                     onClick={() => setR(k)}
                     className="flex cursor-pointer items-start gap-3 border-0 border-t border-ink/12 bg-transparent py-2.5 text-left text-ink"
                   >
-                    <span aria-hidden="true" className="mt-0.5 flex h-4.5 w-4.5 flex-none items-center justify-center rounded-full border-2 border-ink">
+                    <span
+                      aria-hidden="true"
+                      className="mt-0.5 flex h-4.5 w-4.5 flex-none items-center justify-center rounded-full border-2 border-ink"
+                    >
                       <span className={cn("h-2 w-2 rounded-full", r === k ? "bg-seal" : "bg-transparent")} />
                     </span>
                     <span className="flex min-w-0 flex-col gap-0.5">
@@ -432,15 +450,15 @@ export function ReportDialog({
                 </span>
               </div>
             </Scroller>
-            <div className="flex flex-none flex-wrap gap-2 border-t-[3px] border-double border-ink px-5.5 pb-4 pt-3">
-              <Dialog.Close className="h-11.5 cursor-pointer border-[1.5px] border-ink bg-transparent px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-ink hover:bg-[#f8f3e7]">
+            <div className="flex flex-none flex-wrap gap-2 border-t-[3px] border-double border-ink px-5.5 pt-3 pb-4">
+              <Dialog.Close className="h-11.5 cursor-pointer border-[1.5px] border-ink bg-transparent px-4.5 text-xs font-bold tracking-[0.14em] text-ink uppercase hover:bg-[#f8f3e7]">
                 Cancel
               </Dialog.Close>
               <button
                 type="submit"
                 aria-disabled={!r}
                 className={cn(
-                  "h-11.5 flex-[1_1_200px] cursor-pointer border-0 px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-cream",
+                  "h-11.5 flex-[1_1_200px] cursor-pointer border-0 px-4.5 text-xs font-bold tracking-[0.14em] text-cream uppercase",
                   r ? "bg-seal" : "bg-ink-disabled",
                 )}
               >
@@ -487,8 +505,8 @@ export function VerdictDialog({
       max="max-w-195"
       small={small}
       footer={
-        <div className="flex flex-none flex-wrap items-center justify-between gap-x-4 gap-y-2.5 border-t-[3px] border-double border-ink px-4.5 pb-3.5 pt-3">
-          <span className="flex flex-[1_1_220px] flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-pretty text-[12.5px] leading-[1.45] text-ink-muted">
+        <div className="flex flex-none flex-wrap items-center justify-between gap-x-4 gap-y-2.5 border-t-[3px] border-double border-ink px-4.5 pt-3 pb-3.5">
+          <span className="flex flex-[1_1_220px] flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-[12.5px] leading-[1.45] text-pretty text-ink-muted">
             <span>An AI-generated ruling for practice. It is not legal advice.</span>
             <button
               type="button"
@@ -502,7 +520,7 @@ export function VerdictDialog({
           <button
             type="button"
             onClick={onAnalyse}
-            className="h-11.5 cursor-pointer whitespace-nowrap border-0 bg-seal px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-cream hover:bg-seal-hover"
+            className="h-11.5 cursor-pointer border-0 bg-seal px-4.5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase hover:bg-seal-hover"
           >
             Analyse my case →
           </button>
@@ -515,7 +533,10 @@ export function VerdictDialog({
           {meta && <span className="text-[13.5px] text-ink-muted">{meta}</span>}
         </div>
         {out && (
-          <span className="-rotate-3 border-[3px] border-double px-3.5 pb-1.25 pt-1.75 font-display text-[17px] leading-none tracking-[0.06em]" style={{ borderColor: out[1], color: out[1] }}>
+          <span
+            className="-rotate-3 border-[3px] border-double px-3.5 pt-1.75 pb-1.25 font-display text-[17px] leading-none tracking-[0.06em]"
+            style={{ borderColor: out[1], color: out[1] }}
+          >
             {out[0]}
           </span>
         )}
@@ -532,7 +553,11 @@ function analysisGroups(md: string) {
   if (parts[0].trim()) groups.push({ t: "", body: parts[0] });
   for (let i = 1; i < parts.length; i += 2) groups.push({ t: parts[i].replace(/\*/g, "").trim(), body: parts[i + 1] ?? "" });
   return groups.map((g) => {
-    const [mark, c] = /mistake|didn|weak/i.test(g.t) ? ["−", "#8e1f19"] : /suggest|worked|strength/i.test(g.t) ? ["+", "#3f6b3a"] : ["→", "#120d09"];
+    const [mark, c] = /mistake|didn|weak/i.test(g.t)
+      ? ["−", "#8e1f19"]
+      : /suggest|worked|strength/i.test(g.t)
+        ? ["+", "#3f6b3a"]
+        : ["→", "#120d09"];
     return { ...g, mark, c };
   });
 }
@@ -567,13 +592,16 @@ export function AnalysisDialog({
       small={small}
       extra={
         out && (
-          <span className={cn(LABEL, "border-[1.5px] px-2.25 pb-0.75 pt-1 tracking-[0.16em]")} style={{ borderColor: out[1], color: out[1] }}>
+          <span
+            className={cn(LABEL, "border-[1.5px] px-2.25 pt-1 pb-0.75 tracking-[0.16em]")}
+            style={{ borderColor: out[1], color: out[1] }}
+          >
             {out[0]}
           </span>
         )
       }
       footer={
-        <div className="flex flex-none flex-wrap justify-between gap-2.5 border-t-[3px] border-double border-ink px-5.5 pb-3.5 pt-3 text-[12.5px] text-ink-muted">
+        <div className="flex flex-none flex-wrap justify-between gap-2.5 border-t-[3px] border-double border-ink px-5.5 pt-3 pb-3.5 text-[12.5px] text-ink-muted">
           <span>{foot[0]}</span>
           <span>{foot[1]}</span>
         </div>
@@ -594,7 +622,7 @@ export function AnalysisDialog({
           <button
             type="button"
             onClick={onRetry}
-            className="h-11.5 cursor-pointer border-0 bg-seal px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-cream hover:bg-seal-hover"
+            className="h-11.5 cursor-pointer border-0 bg-seal px-4.5 text-xs font-bold tracking-[0.14em] text-cream uppercase hover:bg-seal-hover"
           >
             Try again
           </button>
@@ -604,14 +632,14 @@ export function AnalysisDialog({
         analysisGroups(state.text).map((g, i) => (
           <div key={i} className="flex flex-col gap-2.5">
             {g.t && (
-              <h3 className="m-0 border-b border-ink/25 pb-2 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: g.c }}>
+              <h3 className="m-0 border-b border-ink/25 pb-2 text-[11px] font-bold tracking-[0.18em] uppercase" style={{ color: g.c }}>
                 {g.t}
               </h3>
             )}
             <PaperMarkdown text={g.body} mark={g.mark} markColor={g.c} />
           </div>
         ))}
-      {typeof state === "object" && !state.text.trim() && <p className="m-0 italic text-ink-hint">No analysis was generated.</p>}
+      {typeof state === "object" && !state.text.trim() && <p className="m-0 text-ink-hint italic">No analysis was generated.</p>}
     </Shell>
   );
 }

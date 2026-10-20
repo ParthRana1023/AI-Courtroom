@@ -164,7 +164,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
 
   const meta = [file.court, data && `Filed ${formatDate(data.created_at)}`].filter(Boolean).join(" · ");
   const chip = (
-    <span className="whitespace-nowrap border-[1.5px] border-desk-soft px-2 pb-0.5 pt-0.75 text-[10.5px] font-bold uppercase tracking-[0.14em] text-desk-soft">
+    <span className="border-[1.5px] border-desk-soft px-2 pt-0.75 pb-0.5 text-[10.5px] font-bold tracking-[0.14em] whitespace-nowrap text-desk-soft uppercase">
       {status}
     </span>
   );
@@ -172,7 +172,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
     <Link
       href="/cases"
       className={cn(
-        "flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-desk-soft hover:text-desk-hover",
+        "flex items-center gap-2 text-xs tracking-[0.16em] text-desk-soft uppercase hover:text-desk-hover",
         wide ? "min-h-8 self-start border-b border-desk-strip-rule" : "min-h-9",
       )}
     >
@@ -182,7 +182,12 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
   );
 
   return (
-    <div className={cn("mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col", mob ? "gap-2.5 px-3 pb-2.5 pt-3" : "gap-3.5 px-[4vw] pb-4.5 pt-5")}>
+    <div
+      className={cn(
+        "mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col",
+        mob ? "gap-2.5 px-3 pt-3 pb-2.5" : "gap-3.5 px-[4vw] pt-5 pb-4.5",
+      )}
+    >
       {!wide && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2.5">
@@ -190,7 +195,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
             {chip}
           </div>
           <span className="font-data text-xs font-medium tracking-[0.04em] text-desk-muted">{cnr}</span>
-          {data && <h1 className="m-0 text-balance font-display text-[clamp(22px,6.4vw,30px)] font-normal leading-[1.12]">{data.title}</h1>}
+          {data && <h1 className="m-0 font-display text-[clamp(22px,6.4vw,30px)] leading-[1.12] font-normal text-balance">{data.title}</h1>}
           {load === "loaded" && (
             <select
               aria-label="Jump to section"
@@ -217,7 +222,9 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
                 <span className="font-data text-xs font-medium tracking-[0.04em] text-desk-muted">{cnr}</span>
                 {chip}
               </div>
-              {data && <h1 className="m-0 text-balance font-display text-[clamp(24px,2.4vw,32px)] font-normal leading-[1.12]">{data.title}</h1>}
+              {data && (
+                <h1 className="m-0 font-display text-[clamp(24px,2.4vw,32px)] leading-[1.12] font-normal text-balance">{data.title}</h1>
+              )}
               {load === "loaded" && (
                 <div className="flex flex-col gap-1 text-[13px] leading-normal text-desk-muted">
                   {meta && <span>{meta}</span>}
@@ -229,7 +236,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
               <nav
                 ref={navRef}
                 aria-label="Case file contents"
-                className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain border-t border-desk-rule pb-6 mask-[linear-gradient(#000_calc(100%-32px),transparent)] scrollbar-none [&::-webkit-scrollbar]:hidden"
+                className="relative flex min-h-0 flex-1 scrollbar-none flex-col overflow-y-auto overscroll-contain border-t border-desk-rule mask-[linear-gradient(#000_calc(100%-32px),transparent)] pb-6 [&::-webkit-scrollbar]:hidden"
               >
                 {SECTIONS.map(([id, t], i) => (
                   <button
@@ -252,7 +259,12 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
         )}
 
         <article aria-label="Case file" className="flex min-h-0 flex-col bg-paper text-ink shadow-sheet">
-          <div className={cn("flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pt-3.5 text-label font-bold uppercase tracking-[0.2em] text-ink-label", mob ? "px-4" : "px-8")}>
+          <div
+            className={cn(
+              "flex justify-between gap-3 border-b-[3px] border-double border-ink pt-3.5 pb-2.5 text-label font-bold tracking-[0.2em] text-ink-label uppercase",
+              mob ? "px-4" : "px-8",
+            )}
+          >
             <span className="whitespace-nowrap">Case file</span>
             <span className="min-w-0 truncate">{cnr}</span>
           </div>
@@ -266,7 +278,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
           {(load === "error" || load === "notfound") && (
             <div role="alert" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-5 py-8 text-center">
               <span className="font-display text-[26px]">{load === "notfound" ? "Case Not Found" : "Couldn’t open the case file"}</span>
-              <span className="max-w-105 text-balance text-body leading-[1.55] text-ink-label">
+              <span className="max-w-105 text-body leading-[1.55] text-balance text-ink-label">
                 {load === "notfound"
                   ? "The case you’re looking for doesn’t exist or you don’t have permission to view it."
                   : "Failed to load case details. Please try again later."}
@@ -286,23 +298,33 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
 
           {load === "loaded" && (
             <>
-              <Scroller ref={scRef} onScroll={onScroll} tabIndex={0} role="region" aria-label="Case file text" className={cn("relative flex flex-1 flex-col gap-8.5", mob ? "px-4 pb-5.5 pt-4.5" : "px-10 pb-7.5 pt-6.5")}>
+              <Scroller
+                ref={scRef}
+                onScroll={onScroll}
+                tabIndex={0}
+                role="region"
+                aria-label="Case file text"
+                className={cn("relative flex flex-1 flex-col gap-8.5", mob ? "px-4 pt-4.5 pb-5.5" : "px-10 pt-6.5 pb-7.5")}
+              >
                 <CaseFileBody file={file} mob={mob} />
               </Scroller>
 
               <div
                 className={cn(
                   "flex items-center gap-x-4 gap-y-2.5 border-t-[3px] border-double border-ink",
-                  mob ? "flex-wrap px-2.5 pb-2.5 pt-2" : "flex-nowrap px-8 pb-2.5 pt-2.25",
+                  mob ? "flex-wrap px-2.5 pt-2 pb-2.5" : "flex-nowrap px-8 pt-2.25 pb-2.5",
                 )}
               >
                 {!role ? (
                   <>
-                    <span className={cn("flex-none whitespace-nowrap font-display", mob ? "text-[15px]" : "text-[17px]")}>Choose your side</span>
+                    <span className={cn("flex-none font-display whitespace-nowrap", mob ? "text-[15px]" : "text-[17px]")}>
+                      Choose your side
+                    </span>
                     <div className={cn("ml-auto flex min-w-0 gap-1.5", mob ? "flex-[1_1_100%]" : "max-w-105 flex-[1_1_auto]")}>
                       {(["plaintiff", "defendant"] as const).map((side) => {
                         const label = side === "plaintiff" ? "Plaintiff Lawyer" : "Defendant Lawyer";
-                        const tip = side === "plaintiff" ? "Represent the plaintiff/applicant side" : "Represent the defendant/respondent side";
+                        const tip =
+                          side === "plaintiff" ? "Represent the plaintiff/applicant side" : "Represent the defendant/respondent side";
                         return (
                           <button
                             key={side}
@@ -311,7 +333,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
                             title={tip}
                             aria-label={`${label}: ${tip}`}
                             className={cn(
-                              "h-10.5 min-w-0 flex-[1_1_0] cursor-pointer whitespace-nowrap px-3.5 text-xs font-bold uppercase tracking-[0.12em]",
+                              "h-10.5 min-w-0 flex-[1_1_0] cursor-pointer px-3.5 text-xs font-bold tracking-[0.12em] whitespace-nowrap uppercase",
                               side === "defendant" && "border-[1.5px] border-ink",
                               !online
                                 ? "bg-[#cfc4ad] text-[#6f6556]"
@@ -328,7 +350,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
                   </>
                 ) : (
                   <>
-                    <span className="flex-none -rotate-2 whitespace-nowrap border-[3px] border-double border-seal px-2.5 pb-0.75 pt-1 font-display text-[13px] leading-none tracking-[0.06em] text-seal">
+                    <span className="flex-none -rotate-2 border-[3px] border-double border-seal px-2.5 pt-1 pb-0.75 font-display text-[13px] leading-none tracking-[0.06em] whitespace-nowrap text-seal">
                       {role === "plaintiff" ? "FOR THE PLAINTIFF" : "FOR THE DEFENCE"}
                     </span>
                     <span className="min-w-0 flex-[1_1_auto] truncate text-sm leading-[1.3] text-ink-label">
@@ -347,7 +369,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
 
       <AlertDialog.Root open={!!dialog} onOpenChange={(open) => !open && !busy && setDialog(null)}>
         <AlertDialog.Portal>
-          <AlertDialog.Overlay className="fixed inset-0 z-60 bg-(--scrim) animate-[ac-fade_.2s_ease_both]" />
+          <AlertDialog.Overlay className="fixed inset-0 z-60 animate-[ac-fade_.2s_ease_both] bg-(--scrim)" />
           {dialog && (
             <AlertDialog.Content
               onEscapeKeyDown={(e) => busy && e.preventDefault()}
@@ -355,16 +377,18 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
                 e.preventDefault();
                 (e.currentTarget as HTMLElement).querySelector<HTMLElement>("[data-confirm]")?.focus();
               }}
-              className="fixed left-1/2 top-1/2 z-61 flex w-[calc(100%-32px)] max-w-120 -translate-x-1/2 -translate-y-1/2 flex-col gap-4 bg-paper px-6.5 pb-5.5 pt-6.5 font-type text-ink shadow-dialog outline-none"
+              className="fixed top-1/2 left-1/2 z-61 flex w-[calc(100%-32px)] max-w-120 -translate-x-1/2 -translate-y-1/2 flex-col gap-4 bg-paper px-6.5 pt-6.5 pb-5.5 font-type text-ink shadow-dialog outline-none"
             >
-              <div className="flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 text-label font-bold uppercase tracking-[0.2em] text-ink-label">
+              <div className="flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 text-label font-bold tracking-[0.2em] text-ink-label uppercase">
                 <span>Appearance</span>
                 <span>{cnr}</span>
               </div>
               {!busy ? (
                 <>
-                  <AlertDialog.Title className="m-0 font-display text-[26px] font-normal leading-[1.15]">{copy.title}</AlertDialog.Title>
-                  <AlertDialog.Description className="m-0 text-pretty text-body leading-[1.55] text-ink-label">{copy.body}</AlertDialog.Description>
+                  <AlertDialog.Title className="m-0 font-display text-[26px] leading-[1.15] font-normal">{copy.title}</AlertDialog.Title>
+                  <AlertDialog.Description className="m-0 text-body leading-[1.55] text-pretty text-ink-label">
+                    {copy.body}
+                  </AlertDialog.Description>
                   <span className="text-sm font-bold text-seal">You can’t switch sides later.</span>
                   <div className="flex flex-wrap justify-end gap-2.5 pt-1">
                     <AlertDialog.Cancel className={buttonClass("paper", "md", "px-4.5")}>Cancel</AlertDialog.Cancel>
@@ -374,8 +398,10 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
                   </div>
                 </>
               ) : (
-                <div role="status" aria-live="polite" className="flex flex-col gap-3.5 pb-1 pt-1.5">
-                  <AlertDialog.Title className="m-0 font-display text-2xl font-normal leading-[1.15]">Preparing your case file</AlertDialog.Title>
+                <div role="status" aria-live="polite" className="flex flex-col gap-3.5 pt-1.5 pb-1">
+                  <AlertDialog.Title className="m-0 font-display text-2xl leading-[1.15] font-normal">
+                    Preparing your case file
+                  </AlertDialog.Title>
                   <AlertDialog.Description className="m-0 text-sm leading-normal text-ink-label">{BUSY[step]}</AlertDialog.Description>
                   <div aria-hidden="true" className="h-0.75 bg-ink/15">
                     <div className="h-full bg-seal transition-[width] duration-800 ease-out" style={{ width: BUSY_PCT[step] }} />
@@ -389,4 +415,3 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
     </div>
   );
 }
-

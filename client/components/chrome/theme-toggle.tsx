@@ -22,9 +22,7 @@ export function ThemeColorSync() {
   const { resolvedTheme } = useTheme();
   useEffect(() => {
     const color = THEME_COLOR[resolvedTheme === "light" ? "light" : "dark"];
-    document
-      .querySelectorAll('meta[name="theme-color"]')
-      .forEach((m) => m.setAttribute("content", color));
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", color));
   }, [resolvedTheme]);
   return null;
 }

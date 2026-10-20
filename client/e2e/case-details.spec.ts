@@ -3,7 +3,13 @@ import { test, expect, USERS } from "./support/fixtures";
 import { CNR, PARTIES, caseOf } from "./support/case-data";
 
 const prepRoutes = (c: ReturnType<typeof caseOf>) => ({
-  "GET /cases/DLND010004212026/parties": { parties: PARTIES, user_role: c.user_role, can_access_courtroom: false, is_in_courtroom: false, case_status: c.status },
+  "GET /cases/DLND010004212026/parties": {
+    parties: PARTIES,
+    user_role: c.user_role,
+    can_access_courtroom: false,
+    is_in_courtroom: false,
+    case_status: c.status,
+  },
   "GET /cases/DLND010004212026/evidence": { evidence: c.evidence },
   "GET /cases/DLND010004212026/parties/p1/chat-history": { messages: [] },
 });
@@ -28,8 +34,14 @@ test.describe("case details", () => {
     if (info.project.name === "desktop") {
       await expect(page.getByText("High Court of Delhi · Filed 28 Sep 2026")).toBeVisible();
       await expect(page.getByText("§ 318 Cheating · § 316 Criminal breach of trust")).toBeVisible();
-      await page.getByRole("navigation", { name: "Case file contents" }).getByRole("button", { name: /Prayer/ }).click();
-      await expect(page.getByRole("navigation", { name: "Case file contents" }).getByRole("button", { name: /Prayer/ })).toHaveAttribute("aria-current", "true");
+      await page
+        .getByRole("navigation", { name: "Case file contents" })
+        .getByRole("button", { name: /Prayer/ })
+        .click();
+      await expect(page.getByRole("navigation", { name: "Case file contents" }).getByRole("button", { name: /Prayer/ })).toHaveAttribute(
+        "aria-current",
+        "true",
+      );
     } else {
       await page.getByLabel("Jump to section").selectOption("charges");
       await expect(file.getByText("§ 336 BNS · Forgery")).toBeInViewport();

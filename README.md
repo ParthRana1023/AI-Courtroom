@@ -111,16 +111,16 @@ For the codemap, sequence diagrams of every flow (case generation, the hearing, 
 
 ## Tech stack
 
-| Area | Technology |
-| --- | --- |
-| Frontend | Next.js 16 (App Router), React 19, TypeScript 6, Tailwind CSS 4, Radix UI, three.js |
-| Mobile and offline | Capacitor 8 (Android), Serwist (service worker / PWA) |
-| Backend | FastAPI, Pydantic 2, Beanie ODM on PyMongo's async client |
-| Database | MongoDB 8 (Atlas in production) |
-| AI | LangChain with per-task model chains on Groq, OpenRouter and Cloudflare Workers AI; fastembed (ONNX) embeddings for case memory |
-| Services | Google OAuth, Cloudinary, Cloudflare Turnstile, Gmail SMTP |
-| Testing | pytest (mongomock and real MongoDB), Playwright (desktop, mobile, WebKit) with axe, ruff, black, pyrefly, ESLint |
-| Hosting | Vercel (client), Render (server, native Python), GitHub Actions (CI and daily jobs) |
+| Area               | Technology                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend           | Next.js 16 (App Router), React 19, TypeScript 6, Tailwind CSS 4, Radix UI, three.js                                             |
+| Mobile and offline | Capacitor 8 (Android), Serwist (service worker / PWA)                                                                           |
+| Backend            | FastAPI, Pydantic 2, Beanie ODM on PyMongo's async client                                                                       |
+| Database           | MongoDB 8 (Atlas in production)                                                                                                 |
+| AI                 | LangChain with per-task model chains on Groq, OpenRouter and Cloudflare Workers AI; fastembed (ONNX) embeddings for case memory |
+| Services           | Google OAuth, Cloudinary, Cloudflare Turnstile, Gmail SMTP                                                                      |
+| Testing            | pytest (mongomock and real MongoDB), Playwright (desktop, mobile, WebKit) with axe, ruff, black, pyrefly, ESLint                |
+| Hosting            | Vercel (client), Render (server, native Python), GitHub Actions (CI and daily jobs)                                             |
 
 ## Getting started
 
@@ -159,19 +159,19 @@ It also needs `MONGODB_URL` (it defaults to `mongodb://localhost:27017`) and at 
 <details>
 <summary><b>Server environment variables</b></summary>
 
-| Variable | Needed for |
-| --- | --- |
-| `MONGODB_URL`, `MONGODB_DB_NAME` | Database |
-| `SECRET_KEY`, `OAUTH_STATE_SECRET` | Signing sign-in tokens and the Google sign-in state (required, 32+ characters) |
-| `email_username`, `email_password` (required); `email_sender`, `smtp_server`, `smtp_port` | Sign-in codes, password reset and reminder emails |
-| `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` | The AI; at least one provider |
-| `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS` | Links in emails, and which sites may call the API |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in |
-| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Profile photos and evidence images |
-| `CSC_API_KEY` | Country, state and city lists for profile locations |
-| `TURNSTILE_SECRET_KEY` | Robot check on the signed-out contact form |
-| `JOBS_TOKEN`, `PUBLIC_API_URL` | The daily jobs endpoint and unsubscribe links |
-| `*_MODEL`, `*_FALLBACK_MODEL` | Override the model chain for each task (drafter, lawyer, judge, witness, party, analyzer, outcome) |
+| Variable                                                                                  | Needed for                                                                                         |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `MONGODB_URL`, `MONGODB_DB_NAME`                                                          | Database                                                                                           |
+| `SECRET_KEY`, `OAUTH_STATE_SECRET`                                                        | Signing sign-in tokens and the Google sign-in state (required, 32+ characters)                     |
+| `email_username`, `email_password` (required); `email_sender`, `smtp_server`, `smtp_port` | Sign-in codes, password reset and reminder emails                                                  |
+| `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`    | The AI; at least one provider                                                                      |
+| `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`                                                    | Links in emails, and which sites may call the API                                                  |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                | Google sign-in                                                                                     |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`                    | Profile photos and evidence images                                                                 |
+| `CSC_API_KEY`                                                                             | Country, state and city lists for profile locations                                                |
+| `TURNSTILE_SECRET_KEY`                                                                    | Robot check on the signed-out contact form                                                         |
+| `JOBS_TOKEN`, `PUBLIC_API_URL`                                                            | The daily jobs endpoint and unsubscribe links                                                      |
+| `*_MODEL`, `*_FALLBACK_MODEL`                                                             | Override the model chain for each task (drafter, lawyer, judge, witness, party, analyzer, outcome) |
 
 Rate limits, RAG tuning and courtroom pacing are also configurable; see the comments in `.env.example`.
 
@@ -189,14 +189,14 @@ pnpm dev                          # http://localhost:3000
 <details>
 <summary><b>Client environment variables</b></summary>
 
-| Variable | Purpose |
-| --- | --- |
-| `NEXT_PUBLIC_API_URL` | The server's URL (required) |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google sign-in (the server's Web client ID) |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Turnstile widget on the contact form |
-| `NEXT_PUBLIC_PHONE_AUTH_ENABLED` | Phone sign-in; development only |
-| `CAP_SERVER_URL` | The site the Android app loads (`.env` for dev, `.env.production` for release builds) |
-| `NEXT_PUBLIC_APK_DOWNLOAD_URL` | Override the Android download link |
+| Variable                         | Purpose                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_URL`            | The server's URL (required)                                                           |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID`   | Google sign-in (the server's Web client ID)                                           |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Turnstile widget on the contact form                                                  |
+| `NEXT_PUBLIC_PHONE_AUTH_ENABLED` | Phone sign-in; development only                                                       |
+| `CAP_SERVER_URL`                 | The site the Android app loads (`.env` for dev, `.env.production` for release builds) |
+| `NEXT_PUBLIC_APK_DOWNLOAD_URL`   | Override the Android download link                                                    |
 
 </details>
 
@@ -242,11 +242,11 @@ Google sign-in in the app needs an **Android** OAuth client for `com.aicourtroom
 
 ## Deployment
 
-| Part | Where | Notes |
-| --- | --- | --- |
-| Client | Vercel | Deploys `client/` from `main`; set the `NEXT_PUBLIC_*` variables |
-| Server | Render | Native Python service connected to this repo; redeploys when files under `server/` change on `main`. Build: `pip install -r requirements.txt`; start: Uvicorn. Set the server variables in Render |
-| Daily jobs | GitHub Actions | [`daily-jobs.yml`](.github/workflows/daily-jobs.yml) calls the API once a day; needs the `API_URL` and `JOBS_TOKEN` repository secrets |
+| Part       | Where          | Notes                                                                                                                                                                                             |
+| ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client     | Vercel         | Deploys `client/` from `main`; set the `NEXT_PUBLIC_*` variables                                                                                                                                  |
+| Server     | Render         | Native Python service connected to this repo; redeploys when files under `server/` change on `main`. Build: `pip install -r requirements.txt`; start: Uvicorn. Set the server variables in Render |
+| Daily jobs | GitHub Actions | [`daily-jobs.yml`](.github/workflows/daily-jobs.yml) calls the API once a day; needs the `API_URL` and `JOBS_TOKEN` repository secrets                                                            |
 
 ## Project structure
 

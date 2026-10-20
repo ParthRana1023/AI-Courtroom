@@ -9,11 +9,7 @@ import { buttonClass } from "@/components/court/button";
 import { notificationsAPI, type UnsubscribeState } from "@/lib/api";
 import { getErrorDetail } from "@/lib/error-utils";
 
-type View =
-  | { k: "loading" }
-  | { k: "ask"; s: UnsubscribeState }
-  | { k: "done"; s: UnsubscribeState }
-  | { k: "bad"; why: string };
+type View = { k: "loading" } | { k: "ask"; s: UnsubscribeState } | { k: "done"; s: UnsubscribeState } | { k: "bad"; why: string };
 
 const BAD = "This unsubscribe link is invalid or has expired. You can change your emails in Settings.";
 
@@ -75,13 +71,7 @@ export default function UnsubscribePage() {
           You’ll stop getting “{view.s.label}” emails. Other emails, and security alerts, carry on.
         </NoticeSheet>
       ) : view.k === "done" ? (
-        <NoticeSheet
-          form={["Notice", "Correspondence"]}
-          word="MAIL"
-          stamp="STRUCK OFF"
-          title="You’re unsubscribed"
-          actions={settings}
-        >
+        <NoticeSheet form={["Notice", "Correspondence"]} word="MAIL" stamp="STRUCK OFF" title="You’re unsubscribed" actions={settings}>
           You won’t get “{view.s.label}” emails any more. You can turn them back on in Settings.
         </NoticeSheet>
       ) : view.k === "bad" ? (

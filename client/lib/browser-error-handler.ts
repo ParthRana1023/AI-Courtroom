@@ -30,37 +30,19 @@ export function initBrowserErrorHandlers(): void {
    * Capture uncaught JavaScript errors
    * Example: undefined.foo() outside of React
    */
-  window.onerror = (
-    message: string | Event,
-    source?: string,
-    lineno?: number,
-    colno?: number,
-    error?: Error,
-  ): boolean => {
-    const errorMessage =
-      typeof message === "string" ? message : "Unknown error";
+  window.onerror = (message: string | Event, source?: string, lineno?: number, colno?: number, error?: Error): boolean => {
+    const errorMessage = typeof message === "string" ? message : "Unknown error";
 
-    logger.error(
-      "Uncaught JavaScript error",
-      error || new Error(errorMessage),
-      {
-        type: "window.onerror",
-        source: source || "unknown",
-        line: lineno,
-        column: colno,
-      },
-    );
+    logger.error("Uncaught JavaScript error", error || new Error(errorMessage), {
+      type: "window.onerror",
+      source: source || "unknown",
+      line: lineno,
+      column: colno,
+    });
 
     // Call original handler if it exists
     if (originalOnError) {
-      return originalOnError.call(
-        window,
-        message,
-        source,
-        lineno,
-        colno,
-        error,
-      );
+      return originalOnError.call(window, message, source, lineno, colno, error);
     }
 
     // Don't prevent default error handling
@@ -72,17 +54,11 @@ export function initBrowserErrorHandlers(): void {
    * Example: fetch().then() without .catch()
    */
   window.onunhandledrejection = (event: PromiseRejectionEvent): void => {
-    const error =
-      event.reason instanceof Error
-        ? event.reason
-        : new Error(String(event.reason));
+    const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
 
     logger.error("Unhandled promise rejection", error, {
       type: "unhandledrejection",
-      reason:
-        event.reason instanceof Error
-          ? event.reason.message
-          : String(event.reason),
+      reason: event.reason instanceof Error ? event.reason.message : String(event.reason),
     });
 
     // Call original handler if it exists
@@ -104,11 +80,7 @@ export function initBrowserErrorHandlers(): void {
 
       if (target && "tagName" in target && target.tagName) {
         const tagName = target.tagName.toLowerCase();
-        const src =
-          (target as HTMLImageElement).src ||
-          (target as HTMLScriptElement).src ||
-          (target as HTMLLinkElement).href ||
-          "unknown";
+        const src = (target as HTMLImageElement).src || (target as HTMLScriptElement).src || (target as HTMLLinkElement).href || "unknown";
 
         // Don't log favicon errors (common and noisy)
         if (src.includes("favicon")) return;

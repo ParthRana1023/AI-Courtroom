@@ -83,7 +83,9 @@ export interface RecordCtx {
 const LABEL = "text-[10.5px] font-bold uppercase tracking-[0.18em]";
 
 export function Caret() {
-  return <span aria-hidden="true" className="ml-0.75 inline-block h-0.5 w-2 animate-[ac-cursor_1s_steps(1)_infinite] bg-seal align-baseline" />;
+  return (
+    <span aria-hidden="true" className="ml-0.75 inline-block h-0.5 w-2 animate-[ac-cursor_1s_steps(1)_infinite] bg-seal align-baseline" />
+  );
 }
 
 const sideOf = (role?: string): Side => (role === "defendant" ? "defendant" : "plaintiff");
@@ -101,7 +103,10 @@ function ObjectButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className={cn(LABEL, "ml-auto h-7 cursor-pointer border-[1.5px] border-seal bg-transparent px-2.5 tracking-[0.16em] text-seal transition-colors hover:bg-seal hover:text-cream")}
+      className={cn(
+        LABEL,
+        "ml-auto h-7 cursor-pointer border-[1.5px] border-seal bg-transparent px-2.5 tracking-[0.16em] text-seal transition-colors hover:bg-seal hover:text-cream",
+      )}
     >
       Object
     </button>
@@ -117,7 +122,10 @@ function ReportButton({ done, onClick }: { done: boolean; onClick: () => void })
       aria-label={done ? "Response reported" : "Report this AI response"}
       className="flex min-h-8 cursor-pointer items-center gap-1.5 self-start border-0 bg-transparent p-0 text-xs tracking-[0.06em] text-ink-meta hover:text-seal disabled:cursor-default disabled:hover:text-ink-meta"
     >
-      <span aria-hidden="true" className="h-2.5 w-2 border-l-[1.5px] border-current bg-[linear-gradient(currentColor,currentColor)] bg-size-[6px_5px] bg-position-[1.5px_0] bg-no-repeat" />
+      <span
+        aria-hidden="true"
+        className="h-2.5 w-2 border-l-[1.5px] border-current bg-[linear-gradient(currentColor,currentColor)] bg-size-[6px_5px] bg-position-[1.5px_0] bg-no-repeat"
+      />
       <span>{done ? "Reported" : "Report"}</span>
     </button>
   );
@@ -126,7 +134,12 @@ function ReportButton({ done, onClick }: { done: boolean; onClick: () => void })
 function Struck({ e }: { e: Ev }) {
   if (!e.struck) return null;
   return (
-    <span className={cn(LABEL, "rotate-[-1.5deg] self-start border-[1.5px] border-ink-label px-2 pb-0.5 pt-0.75 tracking-[0.14em] text-ink-label")}>
+    <span
+      className={cn(
+        LABEL,
+        "rotate-[-1.5deg] self-start border-[1.5px] border-ink-label px-2 pt-0.75 pb-0.5 tracking-[0.14em] text-ink-label",
+      )}
+    >
       {e.struck === "withdrawn" ? "Question withdrawn" : "Struck from the record"}
     </span>
   );
@@ -158,7 +171,7 @@ function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
             <span className={cn(LABEL, "text-ink-meta")}>{mine ? `You · ${SIDE[me]}` : `${SIDE[ai]} · AI`}</span>
             {canObject && <ObjectButton onClick={() => ctx.onObject(e)} />}
           </div>
-          <p className={cn("m-0 max-w-[72ch] text-pretty italic leading-[1.6] text-ink", fs)} style={{ opacity: op }}>
+          <p className={cn("m-0 max-w-[72ch] leading-[1.6] text-pretty text-ink italic", fs)} style={{ opacity: op }}>
             {text}
             {isTyping && <Caret />}
           </p>
@@ -172,16 +185,26 @@ function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
     const logged = ctx.evidence.find((x) => x.origin_id === e.id);
     const busy = ctx.extracting === e.id;
     body = (
-      <div className={cn("grid min-w-0 grid-cols-[28px_minmax(0,1fr)] gap-x-2 border border-[rgba(154,91,18,.3)] bg-[#f3e6c6] py-3 pl-2.5 pr-4", !mob && "ml-6")}>
+      <div
+        className={cn(
+          "grid min-w-0 grid-cols-[28px_minmax(0,1fr)] gap-x-2 border border-[rgba(154,91,18,.3)] bg-[#f3e6c6] py-3 pr-4 pl-2.5",
+          !mob && "ml-6",
+        )}
+      >
         <span className="font-display text-lg leading-[1.35] text-amber">A.</span>
         <div className="flex min-w-0 flex-col gap-1.5">
           <span className={cn(LABEL, "text-amber")}>Testimony · {ctx.names[e.witness_id ?? ""] || e.speaker_name || "Witness"}</span>
-          <p className={cn("m-0 max-w-[72ch] whitespace-pre-wrap text-pretty leading-[1.65] text-ink", fs)} style={{ opacity: op }}>
+          <p className={cn("m-0 max-w-[72ch] leading-[1.65] text-pretty whitespace-pre-wrap text-ink", fs)} style={{ opacity: op }}>
             <span>{text}</span>
             {isTyping && <Caret />}
           </p>
           {logged ? (
-            <span className={cn(LABEL, "rotate-[-1.5deg] self-start whitespace-nowrap border-[1.5px] border-seal px-2.25 pb-0.75 pt-1 tracking-[0.14em] text-seal")}>
+            <span
+              className={cn(
+                LABEL,
+                "rotate-[-1.5deg] self-start border-[1.5px] border-seal px-2.25 pt-1 pb-0.75 tracking-[0.14em] whitespace-nowrap text-seal",
+              )}
+            >
               {logged.extracted_by === ai ? `Logged by ${THE[ai].replace("The ", "the ")} as` : "Logged as"} {logged.exhibit_ref}
             </span>
           ) : (
@@ -192,7 +215,10 @@ function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
                 type="button"
                 onClick={() => ctx.onExtract(e)}
                 disabled={busy}
-                className={cn(LABEL, "flex h-7.5 cursor-pointer items-center gap-1.5 self-start border border-[rgba(122,74,12,.5)] bg-transparent px-2.5 tracking-[0.14em] text-[#5a3608] hover:border-[#5a3608] hover:bg-[#f8efd9]")}
+                className={cn(
+                  LABEL,
+                  "flex h-7.5 cursor-pointer items-center gap-1.5 self-start border border-[rgba(122,74,12,.5)] bg-transparent px-2.5 tracking-[0.14em] text-[#5a3608] hover:border-[#5a3608] hover:bg-[#f8efd9]",
+                )}
               >
                 <span aria-hidden="true">+</span>
                 <span>{busy ? "Extracting…" : "Extract as evidence"}</span>
@@ -228,34 +254,38 @@ function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
             {ruling ? "The Court" : mine ? `You · ${SIDE[me]}` : `${SIDE[ai]} · AI`}
           </span>
           {tag && (
-            <span className={cn(LABEL, "border px-1.5 pb-px pt-0.5 tracking-[0.16em]")} style={{ borderColor: tagC, color: tagC }}>
+            <span className={cn(LABEL, "border px-1.5 pt-0.5 pb-px tracking-[0.16em]")} style={{ borderColor: tagC, color: tagC }}>
               {tag}
             </span>
           )}
           {canObject && <ObjectButton onClick={() => ctx.onObject(e)} />}
         </div>
-        <p className={cn("m-0 max-w-[76ch] whitespace-pre-wrap text-pretty leading-[1.7] text-ink", fs)} style={{ opacity: op }}>
+        <p className={cn("m-0 max-w-[76ch] leading-[1.7] text-pretty whitespace-pre-wrap text-ink", fs)} style={{ opacity: op }}>
           <span>{text}</span>
           {isTyping && <Caret />}
         </p>
         {leaveOpen && (
-          <div role="group" aria-labelledby={`lv-${no}`} className="flex max-w-[76ch] flex-col gap-2.5 border-[1.5px] border-amber bg-[#f6e3b8] px-3.5 py-3">
+          <div
+            role="group"
+            aria-labelledby={`lv-${no}`}
+            className="flex max-w-[76ch] flex-col gap-2.5 border-[1.5px] border-amber bg-[#f6e3b8] px-3.5 py-3"
+          >
             <span id={`lv-${no}`} className={cn(LABEL, "text-amber")}>
               The court awaits your response
             </span>
-            <span className="text-pretty text-sm leading-normal text-ink-label">The hearing is paused until you answer.</span>
+            <span className="text-sm leading-normal text-pretty text-ink-label">The hearing is paused until you answer.</span>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={ctx.onNoObjection}
-                className="h-10 cursor-pointer bg-ink px-4 text-[11.5px] font-bold uppercase tracking-[0.14em] text-paper hover:bg-ink-label"
+                className="h-10 cursor-pointer bg-ink px-4 text-[11.5px] font-bold tracking-[0.14em] text-paper uppercase hover:bg-ink-label"
               >
                 No objection
               </button>
               <button
                 type="button"
                 onClick={() => ctx.onObject(e)}
-                className="h-10 cursor-pointer border-[1.5px] border-seal bg-transparent px-4 text-[11.5px] font-bold uppercase tracking-[0.14em] text-seal hover:bg-seal hover:text-cream"
+                className="h-10 cursor-pointer border-[1.5px] border-seal bg-transparent px-4 text-[11.5px] font-bold tracking-[0.14em] text-seal uppercase hover:bg-seal hover:text-cream"
               >
                 Object
               </button>
@@ -271,7 +301,7 @@ function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
     body = (
       <div className="flex min-w-0 items-center gap-3.5 py-0.5">
         <span className="flex-1 border-t border-ink/30" />
-        <span className={cn(LABEL, "max-w-3/4 text-balance text-center text-ink-label")}>{sysText(e, ctx.names)}</span>
+        <span className={cn(LABEL, "max-w-3/4 text-center text-balance text-ink-label")}>{sysText(e, ctx.names)}</span>
         <span className="flex-1 border-t border-ink/30" />
       </div>
     );
@@ -300,9 +330,13 @@ function GroupEntry({ row, ctx, open, onToggle }: { row: Group; ctx: RecordCtx; 
   const qs = row.items.filter((x) => x.e.type === T.WITNESS_EXAMINED_Q).length;
   const sub = `${qs} ${qs === 1 ? "question" : "questions"} · called by ${by.replace("The ", "the ")} · ${clock(first.e.timestamp)}${row.done ? `–${clock(last.e.timestamp)}` : ""}`;
   return (
-    <div data-ev="" className={cn("grid", ctx.fresh(first.e.id) && "animate-[ac-enter_.38s_cubic-bezier(.2,.8,.2,1)_both]")} style={gutter(ctx.mob)}>
+    <div
+      data-ev=""
+      className={cn("grid", ctx.fresh(first.e.id) && "animate-[ac-enter_.38s_cubic-bezier(.2,.8,.2,1)_both]")}
+      style={gutter(ctx.mob)}
+    >
       <div className="flex flex-col items-end gap-0.5 pt-3.5">
-        <span className="whitespace-nowrap font-data text-[11.5px] font-medium text-ink-meta">
+        <span className="font-data text-[11.5px] font-medium whitespace-nowrap text-ink-meta">
           {pad(first.i + 1)}
           {row.items.length > 1 && `–${pad(last.i + 1)}`}
         </span>
@@ -324,13 +358,19 @@ function GroupEntry({ row, ctx, open, onToggle }: { row: Group; ctx: RecordCtx; 
           </span>
           <span className={cn(LABEL, "flex items-center gap-2 whitespace-nowrap text-[#5a3608]")}>
             <span>{open ? "Hide" : "Show"}</span>
-            <span aria-hidden="true" className={cn("inline-block text-[13px] transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)]", open && "rotate-180")}>
+            <span
+              aria-hidden="true"
+              className={cn(
+                "inline-block text-[13px] transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)]",
+                open && "rotate-180",
+              )}
+            >
               ▾
             </span>
           </span>
         </button>
         {open && (
-          <div className="flex animate-[ac-enter_.36s_cubic-bezier(.2,.8,.2,1)_both] flex-col gap-4.5 border-t border-[rgba(154,91,18,.25)] bg-paper pb-4 pr-3.5 pt-3.5">
+          <div className="flex animate-[ac-enter_.36s_cubic-bezier(.2,.8,.2,1)_both] flex-col gap-4.5 border-t border-[rgba(154,91,18,.25)] bg-paper pt-3.5 pr-3.5 pb-4">
             {row.items.map(({ e, i }) => (
               <Entry key={e.id} e={e} i={i} ctx={ctx} />
             ))}
@@ -363,7 +403,13 @@ export function Proceedings({
   const mob = ctx.mob;
   return (
     <>
-      <div className={cn(LABEL, "flex flex-none justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pt-3 text-[11px] tracking-[0.2em] text-ink-label", mob ? "px-3.5" : "px-6.5")}>
+      <div
+        className={cn(
+          LABEL,
+          "flex flex-none justify-between gap-3 border-b-[3px] border-double border-ink pt-3 pb-2.5 text-[11px] tracking-[0.2em] text-ink-label",
+          mob ? "px-3.5" : "px-6.5",
+        )}
+      >
         <span className="truncate">Record of proceedings</span>
         <span className="whitespace-nowrap">{count} entries</span>
       </div>
@@ -373,7 +419,7 @@ export function Proceedings({
         aria-live="polite"
         aria-label="Record of proceedings"
         tabIndex={0}
-        className={cn("flex flex-1 flex-col gap-5.5", mob ? "px-3.5 pb-5 pt-4" : "px-7.5 pb-6.5 pt-5.5")}
+        className={cn("flex flex-1 flex-col gap-5.5", mob ? "px-3.5 pt-4 pb-5" : "px-7.5 pt-5.5 pb-6.5")}
       >
         {rows.map((r) => {
           if (r.kind === "entry") return <Entry key={r.e.id} e={r.e} i={r.i} ctx={ctx} />;
@@ -385,7 +431,7 @@ export function Proceedings({
             <span />
             <div className="flex flex-col gap-1.5 border-l-[3px] border-ink pl-3.5">
               <span className={cn(LABEL, "text-ink")}>{thinking} · AI</span>
-              <span className="flex items-center gap-1.5 text-[14.5px] italic text-ink-meta">
+              <span className="flex items-center gap-1.5 text-[14.5px] text-ink-meta italic">
                 <span>Preparing a reply</span>
                 <Caret />
               </span>

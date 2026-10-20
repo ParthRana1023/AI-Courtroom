@@ -32,8 +32,8 @@ export default function CookiePolicyPage() {
     >
       <Sec id="what" n="I." title="What cookies are">
         <p className={K.p}>
-          Cookies are small text files a website stores in your browser. We also use your browser’s local storage for display settings. This policy
-          covers both.
+          Cookies are small text files a website stores in your browser. We also use your browser’s local storage for display settings. This
+          policy covers both.
         </p>
       </Sec>
 
@@ -44,8 +44,8 @@ export default function CookiePolicyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Essential · always on</span>
             <span className={K.note}>
-              Necessary for the website to function properly. They enable core functionality such as authentication, security, and accessibility.
-              These cookies cannot be disabled.
+              Necessary for the website to function properly. They enable core functionality such as authentication, security, and
+              accessibility. These cookies cannot be disabled.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -62,7 +62,9 @@ export default function CookiePolicyPage() {
           </li>{" "}
           <li className={K.defRow}>
             <span className={K.term}>Marketing</span>
-            <span className={K.note}>Used to measure the effectiveness of our marketing campaigns. They are only set if you allow them.</span>
+            <span className={K.note}>
+              Used to measure the effectiveness of our marketing campaigns. They are only set if you allow them.
+            </span>
           </li>{" "}
         </ul>
       </Sec>
@@ -79,18 +81,20 @@ export default function CookiePolicyPage() {
             <span className={K.note}>Remembers your cookie choices. Lasts 1 year.</span>
           </li>{" "}
         </ul>
-        <p className={K.p}>Both are limited to this site (SameSite=Strict) and are only sent over secure connections when the site uses HTTPS.</p>
+        <p className={K.p}>
+          Both are limited to this site (SameSite=Strict) and are only sent over secure connections when the site uses HTTPS.
+        </p>
       </Sec>
 
       <Sec id="storage" n="IV." title="Settings stored in your browser">
         <p className={K.p}>
-          Display and writing settings, such as text size, theme, Enter key behaviour and confirmation dialogs, are saved in your browser’s local
-          storage so they apply on this device. Local storage also remembers whether you’ve installed or dismissed the app prompt. Settings like case
-          location, case memory and how partial wins count are saved to your account instead.
+          Display and writing settings, such as text size, theme, Enter key behaviour and confirmation dialogs, are saved in your browser’s
+          local storage so they apply on this device. Local storage also remembers whether you’ve installed or dismissed the app prompt.
+          Settings like case location, case memory and how partial wins count are saved to your account instead.
         </p>
         <p className={K.p}>
-          When you write to us without signing in, the contact page loads Cloudflare Turnstile from challenges.cloudflare.com to check you’re
-          not a robot. It runs in Cloudflare’s own frame and sets no cookies on our site.
+          When you write to us without signing in, the contact page loads Cloudflare Turnstile from challenges.cloudflare.com to check
+          you’re not a robot. It runs in Cloudflare’s own frame and sets no cookies on our site.
         </p>
       </Sec>
 

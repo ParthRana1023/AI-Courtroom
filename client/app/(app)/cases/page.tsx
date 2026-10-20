@@ -214,12 +214,12 @@ export default function MyCasesPage() {
       : `Status (${filters.length})`;
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-4.5 min-[560px]:pt-5">
+    <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pt-3 pb-2.5 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pt-5 min-[560px]:pb-4.5">
       <PageHead kicker={`Cause list · ${formatDate(new Date().toISOString())}`} title="MY CASES">
         <div className="flex flex-col items-stretch gap-0.5 min-[560px]:flex-row min-[560px]:flex-wrap min-[560px]:items-center min-[560px]:gap-x-5 min-[560px]:gap-y-2.5">
           <Link
             href="/cases/archived"
-            className="flex min-h-8.5 items-center gap-2 border-b border-desk-ink/30 text-xs uppercase tracking-[0.16em] text-desk-soft hover:text-desk-hover min-[560px]:min-h-11"
+            className="flex min-h-8.5 items-center gap-2 border-b border-desk-ink/30 text-xs tracking-[0.16em] text-desk-soft uppercase hover:text-desk-hover min-[560px]:min-h-11"
           >
             <ArchiveIcon />
             <span>Archived{archived ? ` (${archived})` : ""}</span>
@@ -252,7 +252,7 @@ export default function MyCasesPage() {
                   aria-pressed={on}
                   onClick={() => (c.k ? toggleFilter(c.k) : setFilters([]))}
                   className={cn(
-                    "flex h-9.5 min-w-0 cursor-pointer items-center justify-center whitespace-nowrap border text-meta leading-none",
+                    "flex h-9.5 min-w-0 cursor-pointer items-center justify-center border text-meta leading-none whitespace-nowrap",
                     table ? "flex-none px-3" : "flex-auto px-2.5",
                     on ? "border-paper bg-paper text-ink" : "border-desk-rule-mid bg-transparent text-desk-soft",
                   )}
@@ -271,12 +271,14 @@ export default function MyCasesPage() {
             <DropdownMenu.Root>
               <DropdownMenu.Trigger
                 className={cn(
-                  "flex h-9.5 flex-none cursor-pointer items-center gap-2 whitespace-nowrap border px-2.5 text-meta",
+                  "flex h-9.5 flex-none cursor-pointer items-center gap-2 border px-2.5 text-meta whitespace-nowrap",
                   filters.length ? "border-paper bg-paper text-ink" : "border-desk-ink/35 bg-transparent text-desk-ink",
                 )}
               >
                 <span>{filterLabel}</span>
-                <span aria-hidden="true" className="text-[10.5px]">▾</span>
+                <span aria-hidden="true" className="text-[10.5px]">
+                  ▾
+                </span>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content

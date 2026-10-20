@@ -1,13 +1,6 @@
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  type ReactNode,
-} from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import {
   type CookieCategory,
   type CookieConsent,
@@ -34,9 +27,7 @@ interface CookieConsentContextType {
   // Accept specific categories
   acceptCategories: (categories: CookieCategory[]) => void;
   // Update consent for all categories at once
-  updateConsent: (
-    updates: Partial<Omit<CookieConsent, "timestamp" | "version">>,
-  ) => void;
+  updateConsent: (updates: Partial<Omit<CookieConsent, "timestamp" | "version">>) => void;
   // Open settings modal
   openSettings: () => void;
   // Close settings modal
@@ -47,9 +38,7 @@ interface CookieConsentContextType {
   resetConsent: () => void;
 }
 
-const CookieConsentContext = createContext<
-  CookieConsentContextType | undefined
->(undefined);
+const CookieConsentContext = createContext<CookieConsentContextType | undefined>(undefined);
 
 export function CookieConsentProvider({ children }: { children: ReactNode }) {
   const [consent, setConsent] = useState<CookieConsent>(getDefaultConsent);
@@ -126,11 +115,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
     saveConsent(newConsent);
 
     // Clear cookies for categories that are not consented
-    if (
-      !newConsent.functional ||
-      !newConsent.analytics ||
-      !newConsent.marketing
-    ) {
+    if (!newConsent.functional || !newConsent.analytics || !newConsent.marketing) {
       clearNonEssentialCookies();
     }
 
@@ -152,11 +137,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
       saveConsent(newConsent);
 
       // Clear non-essential cookies that are no longer consented
-      if (
-        !newConsent.functional ||
-        !newConsent.analytics ||
-        !newConsent.marketing
-      ) {
+      if (!newConsent.functional || !newConsent.analytics || !newConsent.marketing) {
         clearNonEssentialCookies();
       }
 
@@ -188,8 +169,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
     clearNonEssentialCookies();
     // Clear the consent cookie itself
     if (typeof document !== "undefined") {
-      document.cookie =
-        "ai_courtroom_consent=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      document.cookie = "ai_courtroom_consent=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     }
     setShowBanner(true);
   }, []);
@@ -224,9 +204,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
 export function useCookieConsent() {
   const context = useContext(CookieConsentContext);
   if (context === undefined) {
-    throw new Error(
-      "useCookieConsent must be used within a CookieConsentProvider",
-    );
+    throw new Error("useCookieConsent must be used within a CookieConsentProvider");
   }
   return context;
 }

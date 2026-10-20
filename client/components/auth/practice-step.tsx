@@ -16,15 +16,7 @@ interface Place {
  * first case. Country and state come from /location so "my location" case
  * generation gets the ISO codes it needs; the city is typed.
  */
-export default function PracticeStep({
-  note,
-  journey,
-  onDone,
-}: {
-  note?: string;
-  journey?: JourneyProps;
-  onDone: () => void;
-}) {
+export default function PracticeStep({ note, journey, onDone }: { note?: string; journey?: JourneyProps; onDone: () => void }) {
   const [countries, setCountries] = useState<Place[]>([]);
   const [states, setStates] = useState<Place[] | null>(null);
   const [country, setCountry] = useState("");
@@ -52,7 +44,7 @@ export default function PracticeStep({
       .catch(() => setStates([])); // fall back to typing the state
   };
 
-  const stateName = states?.length ? states.find((s) => s.iso2 === state)?.name ?? "" : stateText.trim();
+  const stateName = states?.length ? (states.find((s) => s.iso2 === state)?.name ?? "") : stateText.trim();
   const errors = {
     country: !country ? "Country is required" : "",
     state: !stateName ? "State is required" : "",

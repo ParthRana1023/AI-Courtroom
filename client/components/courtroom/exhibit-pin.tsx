@@ -19,9 +19,11 @@ export function RefChips({ refs, evidence, onExhibit }: { refs: string[]; eviden
           type="button"
           onClick={() => onExhibit(x.id)}
           title={x.title}
-          className="flex h-7 max-w-full cursor-pointer items-center gap-1.75 border border-ink/30 bg-[#f8f3e7] pl-1 pr-2.5 text-[12.5px] text-ink hover:border-seal"
+          className="flex h-7 max-w-full cursor-pointer items-center gap-1.75 border border-ink/30 bg-[#f8f3e7] pr-2.5 pl-1 text-[12.5px] text-ink hover:border-seal"
         >
-          <span className="flex-none whitespace-nowrap border-[1.5px] border-seal px-1.25 pb-px pt-0.5 font-data text-[10.5px] font-bold text-seal">{x.exhibit_ref}</span>
+          <span className="flex-none border-[1.5px] border-seal px-1.25 pt-0.5 pb-px font-data text-[10.5px] font-bold whitespace-nowrap text-seal">
+            {x.exhibit_ref}
+          </span>
           <span className="truncate">{x.title}</span>
         </button>
       ))}
@@ -52,9 +54,11 @@ export function PinnedChips({
             type="button"
             onClick={() => onExhibit(x.id)}
             title={x.title}
-            className="flex h-full max-w-60 cursor-pointer items-center gap-1.75 border-0 bg-transparent pl-1 pr-1.5 text-[12.5px] text-ink"
+            className="flex h-full max-w-60 cursor-pointer items-center gap-1.75 border-0 bg-transparent pr-1.5 pl-1 text-[12.5px] text-ink"
           >
-            <span className="flex-none whitespace-nowrap border-[1.5px] border-seal px-1.25 pb-px pt-0.5 font-data text-[10.5px] font-bold text-seal">{x.exhibit_ref}</span>
+            <span className="flex-none border-[1.5px] border-seal px-1.25 pt-0.5 pb-px font-data text-[10.5px] font-bold whitespace-nowrap text-seal">
+              {x.exhibit_ref}
+            </span>
             <span className="truncate">{x.title}</span>
           </button>
           <button
@@ -114,7 +118,16 @@ export function PinButton({
           pick !== null || att.length ? "bg-ink text-paper" : "bg-transparent text-ink",
         )}
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true" className="rotate-45">
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          aria-hidden="true"
+          className="rotate-45"
+        >
           <path d="M8.5 7v9.5a3.5 3.5 0 0 0 7 0V5.5a2.5 2.5 0 0 0-5 0V16a1 1 0 0 0 2 0V7" />
         </svg>
       </button>
@@ -129,14 +142,20 @@ export function PinButton({
             className="absolute bottom-[calc(100%+8px)] left-0 z-30 flex w-[min(380px,calc(100vw-40px))] animate-[ac-enter_.26s_cubic-bezier(.2,.8,.2,1)_both] flex-col border-[1.5px] border-ink bg-paper shadow-[0_24px_60px_-10px_rgba(18,13,9,.55)]"
             style={{ maxHeight: pick }}
           >
-            <div className="flex flex-none items-center justify-between border-b-[3px] border-double border-ink pb-2 pl-3.5 pr-3 pt-2.5">
+            <div className="flex flex-none items-center justify-between border-b-[3px] border-double border-ink pt-2.5 pr-3 pb-2 pl-3.5">
               <span className={cn(LABEL, "text-ink-label")}>Refer to an exhibit</span>
-              <button type="button" onClick={() => setPick(null)} className={cn(LABEL, "h-7.5 cursor-pointer border-0 bg-ink px-2.5 tracking-[0.14em] text-paper")}>
+              <button
+                type="button"
+                onClick={() => setPick(null)}
+                className={cn(LABEL, "h-7.5 cursor-pointer border-0 bg-ink px-2.5 tracking-[0.14em] text-paper")}
+              >
                 Done
               </button>
             </div>
             <Scroller className="flex-1">
-              {evidence.length === 0 && <p className="m-0 px-3.5 py-3 text-[13.5px] italic text-ink-hint">No exhibits are before the court yet.</p>}
+              {evidence.length === 0 && (
+                <p className="m-0 px-3.5 py-3 text-[13.5px] text-ink-hint italic">No exhibits are before the court yet.</p>
+              )}
               {evidence.map((x) => {
                 const on = att.includes(x.id);
                 return (
@@ -152,13 +171,18 @@ export function PinButton({
                   >
                     <span
                       aria-hidden="true"
-                      className={cn("mt-0.5 flex h-4.5 w-4.5 items-center justify-center border-[1.5px] border-ink text-xs font-bold leading-none text-paper", on ? "bg-seal" : "bg-transparent")}
+                      className={cn(
+                        "mt-0.5 flex h-4.5 w-4.5 items-center justify-center border-[1.5px] border-ink text-xs leading-none font-bold text-paper",
+                        on ? "bg-seal" : "bg-transparent",
+                      )}
                     >
                       {on ? "✓" : ""}
                     </span>
-                    <span className="whitespace-nowrap border-[1.5px] border-seal pb-0.5 pt-0.75 text-center font-data text-[11px] font-bold text-seal">{x.exhibit_ref}</span>
+                    <span className="border-[1.5px] border-seal pt-0.75 pb-0.5 text-center font-data text-[11px] font-bold whitespace-nowrap text-seal">
+                      {x.exhibit_ref}
+                    </span>
                     <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-[13.5px] font-bold leading-[1.35]">{x.title}</span>
+                      <span className="text-[13.5px] leading-[1.35] font-bold">{x.title}</span>
                       <span className="text-xs leading-[1.35] text-ink-meta">
                         {x.source || x.evidence_type}
                         {x.private && " · privileged, tendered when you cite it in court"}

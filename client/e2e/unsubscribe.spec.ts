@@ -36,7 +36,10 @@ test.describe("unsubscribe", () => {
   test("a bad or missing link explains itself", async ({ page, api }) => {
     await api({
       "GET /notifications/unsubscribe": (route: Route) =>
-        route.fulfill({ status: 400, json: { detail: "This unsubscribe link is invalid or has expired. Change your emails in Settings." } }),
+        route.fulfill({
+          status: 400,
+          json: { detail: "This unsubscribe link is invalid or has expired. Change your emails in Settings." },
+        }),
     });
     await page.goto("/unsubscribe?token=bad");
     await expect(page.getByRole("heading", { name: "This link doesn’t work" })).toBeVisible();

@@ -139,7 +139,14 @@ export default function ArchivedCasesPage() {
   const copy: ConfirmCopy | null = !confirm
     ? null
     : confirm.kind === "restore"
-      ? { kicker: "Restore", count: `${n} cases`, title: `Restore ${n} cases?`, body: "They’ll go back to My Cases.", cta: "Restore", tone: "green" }
+      ? {
+          kicker: "Restore",
+          count: `${n} cases`,
+          title: `Restore ${n} cases?`,
+          body: "They’ll go back to My Cases.",
+          cta: "Restore",
+          tone: "green",
+        }
       : confirm.kind === "delete"
         ? {
             kicker: "Delete permanently",
@@ -161,24 +168,33 @@ export default function ArchivedCasesPage() {
           };
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-4.5 min-[560px]:pt-5">
+    <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pt-3 pb-2.5 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pt-5 min-[560px]:pb-4.5">
       {/* Actions sit right of the title (under it when it wraps); search goes under them in table view, on its own row in card view. */}
       <PageHead kicker={`Archive · ${cases.length} ${cases.length === 1 ? "case" : "cases"}`} title="ARCHIVED" wrap>
-        <div className={cn("ml-auto flex min-w-0 max-w-full flex-col items-stretch gap-3", table && "w-130 min-[1200px]:w-100")}>
+        <div className={cn("ml-auto flex max-w-full min-w-0 flex-col items-stretch gap-3", table && "w-130 min-[1200px]:w-100")}>
           <div className="flex flex-nowrap items-center justify-end gap-x-3.5">
             <Link
               href="/cases"
-              className="mr-1.5 flex min-h-10 flex-none items-center gap-2 whitespace-nowrap border-b border-desk-ink/30 text-xs uppercase tracking-[0.16em] text-desk-soft hover:text-desk-hover min-[560px]:min-h-11"
+              className="mr-1.5 flex min-h-10 flex-none items-center gap-2 border-b border-desk-ink/30 text-xs tracking-[0.16em] whitespace-nowrap text-desk-soft uppercase hover:text-desk-hover min-[560px]:min-h-11"
             >
               <span aria-hidden="true">←</span>
               <span>My cases</span>
             </Link>
-            <SelectToggle selecting={selecting} onToggle={() => (selecting ? stopSelecting() : setSelecting(true))} className="h-10 w-auto min-[560px]:h-11" />
+            <SelectToggle
+              selecting={selecting}
+              onToggle={() => (selecting ? stopSelecting() : setSelecting(true))}
+              className="h-10 w-auto min-[560px]:h-11"
+            />
             {cases.length > 0 && (
               <button
                 type="button"
-                onClick={() => ask("empty", cases.map((c) => c.cnr))}
-                className="flex h-10 flex-none cursor-pointer items-center justify-center whitespace-nowrap border-[1.5px] border-seal-hover px-3.5 text-meta font-bold uppercase tracking-[0.14em] text-desk-ink hover:bg-seal hover:text-cream min-[560px]:h-11 min-[560px]:px-5.5"
+                onClick={() =>
+                  ask(
+                    "empty",
+                    cases.map((c) => c.cnr),
+                  )
+                }
+                className="flex h-10 flex-none cursor-pointer items-center justify-center border-[1.5px] border-seal-hover px-3.5 text-meta font-bold tracking-[0.14em] whitespace-nowrap text-desk-ink uppercase hover:bg-seal hover:text-cream min-[560px]:h-11 min-[560px]:px-5.5"
               >
                 Empty archive
               </button>
@@ -190,7 +206,12 @@ export default function ArchivedCasesPage() {
 
       {!table && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
-          <SearchBox value={q} onChange={setQ} placeholder={w < 560 ? "Search cases" : "Search by title or case number"} className="flex-[1_1_100%] min-[560px]:flex-[1_1_200px]" />
+          <SearchBox
+            value={q}
+            onChange={setQ}
+            placeholder={w < 560 ? "Search cases" : "Search by title or case number"}
+            className="flex-[1_1_100%] min-[560px]:flex-[1_1_200px]"
+          />
           <div className="ml-auto flex min-w-0 flex-[1_1_100%] items-center gap-2 min-[560px]:flex-none">
             <SortSelect
               sort={sort}
@@ -235,7 +256,12 @@ export default function ArchivedCasesPage() {
         onOpen={(cnr) => router.push(`/cases/${cnr}`)}
         actions={(row) => (
           <>
-            <RowAction label={`Restore ${row.title}`} title="Restore to My Cases" hover="green" onClick={() => (online ? void restore([row.cnr]) : toast(OFFLINE_TOAST, { duration: 3000 }))}>
+            <RowAction
+              label={`Restore ${row.title}`}
+              title="Restore to My Cases"
+              hover="green"
+              onClick={() => (online ? void restore([row.cnr]) : toast(OFFLINE_TOAST, { duration: 3000 }))}
+            >
               <RestoreIcon />
             </RowAction>
             <RowAction label={`Delete ${row.title}`} title="Delete permanently" hover="red" onClick={() => ask("delete", [row.cnr])}>

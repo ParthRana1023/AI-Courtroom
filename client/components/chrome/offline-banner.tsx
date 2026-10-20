@@ -27,8 +27,7 @@ export default function OfflineBanner() {
   useEffect(() => {
     if (online && !back) return;
     const header = document.querySelector("header");
-    const measure = () =>
-      setTop(header ? Math.max(0, Math.round(header.getBoundingClientRect().bottom)) : 0);
+    const measure = () => setTop(header ? Math.max(0, Math.round(header.getBoundingClientRect().bottom)) : 0);
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
@@ -38,26 +37,16 @@ export default function OfflineBanner() {
   const isBack = online && back;
 
   return (
-    <div
-      className="pointer-events-none fixed inset-x-0 z-45 overflow-hidden pb-7.5"
-      style={{ top }}
-    >
-      <div role="status" aria-live="polite" className="flex justify-center animate-[ac-slide-down_.3s_ease_both]">
+    <div className="pointer-events-none fixed inset-x-0 z-45 overflow-hidden pb-7.5" style={{ top }}>
+      <div role="status" aria-live="polite" className="flex animate-[ac-slide-down_.3s_ease_both] justify-center">
         <div
           className={cn(
             "pointer-events-auto flex w-full flex-wrap items-center justify-center gap-3 border-y px-4.5 py-2.25 text-center font-type text-[0.84375rem] leading-[1.4] shadow-[0_10px_30px_rgba(0,0,0,.45)]",
-            isBack
-              ? "border-green bg-[#1f4a28] text-[#e6f0e2]"
-              : "border-amber-hi bg-ink text-paper",
+            isBack ? "border-green bg-[#1f4a28] text-[#e6f0e2]" : "border-amber-hi bg-ink text-paper",
           )}
         >
-          <span
-            aria-hidden="true"
-            className={cn("h-2 w-2 flex-none", isBack ? "bg-[#9fd0a4]" : "bg-[#e9a33a]")}
-          />
-          <strong className="font-display text-sm font-normal tracking-[0.08em]">
-            {isBack ? "BACK ONLINE." : "YOU’RE OFFLINE."}
-          </strong>
+          <span aria-hidden="true" className={cn("h-2 w-2 flex-none", isBack ? "bg-[#9fd0a4]" : "bg-[#e9a33a]")} />
+          <strong className="font-display text-sm font-normal tracking-[0.08em]">{isBack ? "BACK ONLINE." : "YOU’RE OFFLINE."}</strong>
           <span>
             {isBack
               ? "Everything is working again."

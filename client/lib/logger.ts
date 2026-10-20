@@ -125,38 +125,21 @@ class ConsoleTransport implements LogTransport {
     if (typeof window === "undefined") return;
 
     const color = CONSOLE_COLORS[entry.level];
-    const prefix = `[${
-      entry.timestamp.split("T")[1].split(".")[0]
-    }] [${entry.level.toUpperCase()}] [${entry.category}]`;
+    const prefix = `[${entry.timestamp.split("T")[1].split(".")[0]}] [${entry.level.toUpperCase()}] [${entry.category}]`;
     const contextStr = entry.context ? entry.context : "";
 
     if (this.isDev) {
       // Colored output in development
       if (entry.level === "error") {
-        console.error(
-          `%c${prefix}`,
-          `color: ${color}; font-weight: bold`,
-          entry.message,
-          contextStr,
-        );
+        console.error(`%c${prefix}`, `color: ${color}; font-weight: bold`, entry.message, contextStr);
         if (entry.error_stack) {
           console.error(entry.error_stack);
         }
       } else if (entry.level === "warn") {
-        console.warn(
-          `%c${prefix}`,
-          `color: ${color}; font-weight: bold`,
-          entry.message,
-          contextStr,
-        );
+        console.warn(`%c${prefix}`, `color: ${color}; font-weight: bold`, entry.message, contextStr);
       } else {
         const logMethod = entry.level === "info" ? "info" : "debug";
-        globalThis.console[logMethod](
-          `%c${prefix}`,
-          `color: ${color}`,
-          entry.message,
-          contextStr,
-        );
+        globalThis.console[logMethod](`%c${prefix}`, `color: ${color}`, entry.message, contextStr);
       }
     } else {
       // Plain output in production (only warn and error should reach here)
@@ -182,9 +165,7 @@ class RemoteTransport implements LogTransport {
 
   constructor() {
     this.endpoint = `${process.env.NEXT_PUBLIC_API_URL || ""}/logs/client`;
-    this.isEnabled =
-      process.env.NEXT_PUBLIC_LOG_REMOTE_ENABLED === "true" ||
-      process.env.NODE_ENV === "production";
+    this.isEnabled = process.env.NEXT_PUBLIC_LOG_REMOTE_ENABLED === "true" || process.env.NODE_ENV === "production";
 
     // Flush on page unload
     if (typeof window !== "undefined") {
@@ -273,14 +254,10 @@ class RemoteTransport implements LogTransport {
  */
 export class Logger {
   private category: LogCategory;
-  private static level: LogLevel =
-    process.env.NODE_ENV === "development" ? LogLevel.DEBUG : LogLevel.WARN;
+  private static level: LogLevel = process.env.NODE_ENV === "development" ? LogLevel.DEBUG : LogLevel.WARN;
   private static userId: string | undefined;
   private static sessionId: string = generateSessionId();
-  private static transports: LogTransport[] = [
-    new ConsoleTransport(),
-    new RemoteTransport(),
-  ];
+  private static transports: LogTransport[] = [new ConsoleTransport(), new RemoteTransport()];
 
   constructor(category: LogCategory = "general") {
     this.category = category;
@@ -319,10 +296,7 @@ export class Logger {
     let result = text;
 
     // Mask emails: john.doe@email.com -> j***@email.com
-    result = result.replace(
-      SENSITIVE_PATTERNS.email,
-      (_, user, domain) => `${user[0]}***@${domain}`,
-    );
+    result = result.replace(SENSITIVE_PATTERNS.email, (_, user, domain) => `${user[0]}***@${domain}`);
 
     // Mask JWT tokens
     result = result.replace(SENSITIVE_PATTERNS.token, "[REDACTED_TOKEN]");
@@ -339,9 +313,7 @@ export class Logger {
   /**
    * Mask sensitive data in context object
    */
-  private maskContext(
-    context: Record<string, unknown>,
-  ): Record<string, unknown> {
+  private maskContext(context: Record<string, unknown>): Record<string, unknown> {
     const masked: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(context)) {
@@ -427,11 +399,7 @@ export class Logger {
   /**
    * Log error message with optional Error object
    */
-  error(
-    message: string,
-    error?: Error,
-    context?: Record<string, unknown>,
-  ): void {
+  error(message: string, error?: Error, context?: Record<string, unknown>): void {
     this.log(LogLevel.ERROR, "error", message, context, error);
   }
 

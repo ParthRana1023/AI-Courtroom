@@ -275,7 +275,10 @@ const CASE_POOL: LandingCase[] = [
       ],
       photo: ["Evidence Photograph", "Bag recovered at the bridge"],
       tag: ["Material Object", "M.O. 3 · Rotary telephone"],
-      witness: ["Witness Statement", "“A second man rang. He wanted twice as much and kept arguing with someone.” — Seth Dinanath, grandfather"],
+      witness: [
+        "Witness Statement",
+        "“A second man rang. He wanted twice as much and kept arguing with someone.” — Seth Dinanath, grandfather",
+      ],
       transcript: ["Examination of Accused", "Q: Why did you call the family?  A: We only wanted to pay the rent."],
       news: ["Mumbai Evening Mirror", "RANSOM ROW: THREE HELD AT BRIDGE"],
       note: ["Handwritten Note", "Accomplices, or just opportunists?"],
@@ -353,7 +356,10 @@ const CASE_POOL: LandingCase[] = [
       photo: ["Evidence Photograph", "Dean’s office window"],
       tag: ["Material Object", "M.O. 1 · Opened exam envelope"],
       witness: ["Witness Statement", "“Three boys climbing out the window at one in the morning. One kept saying sorry.” — Night watchman"],
-      transcript: ["Examination of Accused", "Q: Why did you refuse to look at the paper?  A: It felt wrong. I shut my eyes and waited outside."],
+      transcript: [
+        "Examination of Accused",
+        "Q: Why did you refuse to look at the paper?  A: It felt wrong. I shut my eyes and waited outside.",
+      ],
       news: ["Campus Times", "EXAM PAPER BREAK-IN AT INSTITUTE"],
       note: ["Handwritten Note", "Old draft or the real paper?"],
       notice: ["Charge Sheet", "Charges under s. 329 BNS (Criminal trespass)"],

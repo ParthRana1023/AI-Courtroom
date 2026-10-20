@@ -60,24 +60,14 @@ export function AuthShell({
       className="flex min-h-dvh flex-col bg-[radial-gradient(ellipse_80%_60%_at_70%_20%,var(--desk-glow)_0%,var(--desk-bg)_70%)] font-type text-desk-ink"
     >
       <header className="flex items-center justify-between gap-4 p-(--hdr-pad)">
-        <Link
-          href="/"
-          translate="no"
-          aria-label="AI Courtroom home"
-          className="-my-3.5 flex items-baseline gap-1.5 py-3.5"
-        >
-          <span className="whitespace-nowrap font-display text-[0.9375rem] tracking-[0.24em] text-desk-ink">
-            AI COURTROOM
-          </span>
-          <span
-            aria-hidden="true"
-            className="h-0.5 w-2.25 bg-cursor animate-[ac-cursor_1.6s_steps(1,end)_infinite]"
-          />
+        <Link href="/" translate="no" aria-label="AI Courtroom home" className="-my-3.5 flex items-baseline gap-1.5 py-3.5">
+          <span className="font-display text-[0.9375rem] tracking-[0.24em] whitespace-nowrap text-desk-ink">AI COURTROOM</span>
+          <span aria-hidden="true" className="h-0.5 w-2.25 animate-[ac-cursor_1.6s_steps(1,end)_infinite] bg-cursor" />
         </Link>
         {switchLink && (
           <Link
             href={switchLink.href}
-            className="whitespace-nowrap py-2.5 text-label uppercase tracking-[0.2em] text-desk-muted hover:text-desk-hover"
+            className="py-2.5 text-label tracking-[0.2em] whitespace-nowrap text-desk-muted uppercase hover:text-desk-hover"
           >
             {switchLink.label}
           </Link>
@@ -108,10 +98,10 @@ export function AuthIntro({
   return (
     <div className={cn("flex max-w-130 flex-col", compact ? "gap-6.5" : "gap-5.5 pt-12")}>
       <div className={cn("flex flex-col", compact ? "gap-3.5" : "gap-5.5")}>
-        <span className="text-label uppercase tracking-[0.3em] text-desk-red">{kicker}</span>
+        <span className="text-label tracking-[0.3em] text-desk-red uppercase">{kicker}</span>
         <h1
           className={cn(
-            "m-0 text-balance font-display font-normal",
+            "m-0 font-display font-normal text-balance",
             compact ? "text-[34px] leading-[1.05]" : "text-[clamp(44px,4.6vw,72px)] leading-[1.02]",
           )}
         >
@@ -124,9 +114,7 @@ export function AuthIntro({
 }
 
 export function IntroText({ children }: { children: ReactNode }) {
-  return (
-    <p className="m-0 max-w-110 text-pretty text-[17px] leading-[1.6] text-desk-soft">{children}</p>
-  );
+  return <p className="m-0 max-w-110 text-[17px] leading-[1.6] text-pretty text-desk-soft">{children}</p>;
 }
 
 /** The paper slip: optional scalloped top edge, header strip, then the form. */
@@ -156,7 +144,7 @@ export function Slip({
         onSubmit={onSubmit}
         className="relative flex flex-col gap-(--fg) overflow-hidden bg-paper p-(--paper-pad) text-ink shadow-dialog"
       >
-        <div className="flex flex-wrap justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 text-label font-bold uppercase tracking-[0.2em] text-ink-label">
+        <div className="flex flex-wrap justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 text-label font-bold tracking-[0.2em] text-ink-label uppercase">
           <span>{form[0]}</span>
           <span>{form[1]}</span>
         </div>
@@ -169,8 +157,8 @@ export function Slip({
 export function SlipHeading({ title, sub }: { title: string; sub?: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <h2 className="m-0 font-display text-(length:--h2) font-normal leading-[1.1]">{title}</h2>
-      {sub && <p className="m-0 text-pretty text-body leading-normal text-ink-muted">{sub}</p>}
+      <h2 className="m-0 font-display text-(length:--h2) leading-[1.1] font-normal">{title}</h2>
+      {sub && <p className="m-0 text-body leading-normal text-pretty text-ink-muted">{sub}</p>}
     </div>
   );
 }
@@ -287,7 +275,7 @@ export function Confirm({ children }: { children: ReactNode }) {
 
 export function OrDivider({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-label uppercase tracking-[0.2em] text-ink-hint">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-label tracking-[0.2em] text-ink-hint uppercase">
       <span className="h-px bg-ink/30" />
       <span className="whitespace-nowrap">{children}</span>
       <span className="h-px bg-ink/30" />
@@ -343,12 +331,10 @@ export function JourneyList(props: JourneyProps) {
           className="grid grid-cols-[34px_1fr_auto] items-baseline gap-2 border-b border-desk-rule-mid py-3.25"
         >
           <span className="font-display text-[17px] text-desk-amber">{s.n}</span>
-          <span className={cn("text-base", s.current ? "text-desk-strong" : s.done ? "text-desk-ink" : "text-[#8f8574]")}>
-            {s.title}
-          </span>
+          <span className={cn("text-base", s.current ? "text-desk-strong" : s.done ? "text-desk-ink" : "text-[#8f8574]")}>{s.title}</span>
           <span
             className={cn(
-              "text-[10.5px] uppercase tracking-[0.18em]",
+              "text-[10.5px] tracking-[0.18em] uppercase",
               s.current ? "text-desk-red" : s.done ? "text-desk-green" : "text-[#8f8574]",
             )}
           >
@@ -366,7 +352,7 @@ export function JourneyBar(props: JourneyProps) {
   const cur = steps[props.current];
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex justify-between gap-2.5 text-label font-bold uppercase tracking-[0.16em] text-ink-muted">
+      <div className="flex justify-between gap-2.5 text-label font-bold tracking-[0.16em] text-ink-muted uppercase">
         <span>Step {cur.n} of III</span>
         <span>{cur.title}</span>
       </div>
@@ -454,10 +440,16 @@ export function PhoneField({
 export function GoogleMark() {
   return (
     <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z" />
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"
+      />
       <path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17z" />
       <path fill="#FBBC05" d="M10.6 28.6A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l8-6.1z" />
-      <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.2 0-11.5-4.1-13.4-9.9l-8 6.1C6.6 42.6 14.6 48 24 48z" />
+      <path
+        fill="#34A853"
+        d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.2 0-11.5-4.1-13.4-9.9l-8 6.1C6.6 42.6 14.6 48 24 48z"
+      />
     </svg>
   );
 }

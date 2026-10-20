@@ -8,7 +8,7 @@ export default function CaseFileBody({ file, mob }: { file: CaseFile; mob: boole
     <>
       <Section id="summary">
         {file.summary.map((p, i) => (
-          <p key={i} className="m-0 text-pretty text-base leading-[1.7] text-[#2a2018]">
+          <p key={i} className="m-0 text-base leading-[1.7] text-pretty text-[#2a2018]">
             {p}
           </p>
         ))}
@@ -31,11 +31,15 @@ export default function CaseFileBody({ file, mob }: { file: CaseFile; mob: boole
           <div className="flex flex-col gap-2">
             {file.exhibits.map((x) => (
               <div key={x.ref + x.title} className="grid grid-cols-[62px_1fr] gap-3.5 border border-ink/15 bg-[#f8f3e7] px-3.5 py-3">
-                <span className="self-start border-[1.5px] border-seal pb-0.75 pt-1 text-center font-data text-xs font-bold text-seal">{x.ref}</span>
+                <span className="self-start border-[1.5px] border-seal pt-1 pb-0.75 text-center font-data text-xs font-bold text-seal">
+                  {x.ref}
+                </span>
                 <span className="flex flex-col gap-0.75">
-                  <span className="text-[15px] font-bold leading-[1.4]">{x.title}</span>
-                  <span className="text-pretty text-[14.5px] leading-[1.55] text-ink-label">{x.text}</span>
-                  {x.fromPetition && <span className="text-label font-bold uppercase tracking-[0.14em] text-ink-muted">From the petition</span>}
+                  <span className="text-[15px] leading-[1.4] font-bold">{x.title}</span>
+                  <span className="text-[14.5px] leading-[1.55] text-pretty text-ink-label">{x.text}</span>
+                  {x.fromPetition && (
+                    <span className="text-label font-bold tracking-[0.14em] text-ink-muted uppercase">From the petition</span>
+                  )}
                 </span>
               </div>
             ))}
@@ -50,7 +54,7 @@ export default function CaseFileBody({ file, mob }: { file: CaseFile; mob: boole
         {file.verification && (
           <>
             <Sub>Verification</Sub>
-            <p className="m-0 text-pretty text-[14.5px] italic leading-[1.6] text-ink-label">{file.verification}</p>
+            <p className="m-0 text-[14.5px] leading-[1.6] text-pretty text-ink-label italic">{file.verification}</p>
           </>
         )}
         {!file.relief.length && !file.verification && <Empty />}
@@ -73,20 +77,26 @@ function Section({ id, children }: { id: SectionId; children: ReactNode }) {
 }
 
 function Sub({ children }: { children: ReactNode }) {
-  return <span className="pt-1 text-label font-bold uppercase tracking-[0.16em] text-ink-muted">{children}</span>;
+  return <span className="pt-1 text-label font-bold tracking-[0.16em] text-ink-muted uppercase">{children}</span>;
 }
 
 function Empty() {
-  return <p className="m-0 text-body italic text-ink-hint">Not stated in the case file.</p>;
+  return <p className="m-0 text-body text-ink-hint italic">Not stated in the case file.</p>;
 }
 
 function Rows({ rows, mob }: { rows: Row[]; mob: boolean }) {
   return (
     <ul className="m-0 flex list-none flex-col border-t border-ink/15 p-0">
       {rows.map((r, i) => (
-        <li key={i} className={cn("grid gap-x-5 gap-y-1 border-b border-ink/15 py-3", mob ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[170px_minmax(0,1fr)]")}>
-          <span className="text-[15px] font-bold leading-[1.45] text-ink">{r.label}</span>
-          <span className="text-pretty text-[15px] leading-[1.55] text-ink-label">{r.text}</span>
+        <li
+          key={i}
+          className={cn(
+            "grid gap-x-5 gap-y-1 border-b border-ink/15 py-3",
+            mob ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[170px_minmax(0,1fr)]",
+          )}
+        >
+          <span className="text-[15px] leading-[1.45] font-bold text-ink">{r.label}</span>
+          <span className="text-[15px] leading-[1.55] text-pretty text-ink-label">{r.text}</span>
         </li>
       ))}
     </ul>
@@ -98,7 +108,7 @@ function Numbered({ items }: { items: Item[] }) {
     <ol className="m-0 flex list-none flex-col gap-3 p-0">
       {items.map((x, i) => (
         <li key={i} className="grid grid-cols-[30px_1fr] gap-2.5 text-base leading-[1.65] text-[#2a2018]">
-          <span className="font-data text-sm font-medium leading-[1.9] text-seal">{x.mark}</span>
+          <span className="font-data text-sm leading-[1.9] font-medium text-seal">{x.mark}</span>
           <span className="text-pretty">
             {x.title && <strong className="text-ink">{x.title}. </strong>}
             {x.text}

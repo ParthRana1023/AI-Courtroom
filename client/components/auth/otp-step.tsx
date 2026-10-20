@@ -101,8 +101,8 @@ export default function OtpStep({
     <Slip form={["Form S-3", "Seal of the court"]} onSubmit={submit} maxWidth={480}>
       {journey && <JourneyBar {...journey} />}
       {admittedLine ? (
-        <div className="flex flex-col items-start gap-4.5 pb-2 pt-4.5">
-          <span className="inline-block -rotate-5 border-4 border-double border-seal px-4.5 pb-1.5 pt-2 font-display text-[44px] leading-none tracking-[0.08em] text-seal">
+        <div className="flex flex-col items-start gap-4.5 pt-4.5 pb-2">
+          <span className="inline-block -rotate-5 border-4 border-double border-seal px-4.5 pt-2 pb-1.5 font-display text-[44px] leading-none tracking-[0.08em] text-seal">
             ADMITTED
           </span>
           <p role="status" className="m-0 text-base leading-[1.55] text-ink-muted">
@@ -116,13 +116,13 @@ export default function OtpStep({
             sub={
               <>
                 Enter the six-digit code we sent to{" "}
-                <strong className="break-all font-data text-sm font-medium text-ink">{destination}</strong>
+                <strong className="font-data text-sm font-medium break-all text-ink">{destination}</strong>
               </>
             }
           />
           {message && <Confirm>{message}</Confirm>}
           <div className="flex flex-col gap-2.25">
-            <span id="otp-label" className="text-label font-bold uppercase tracking-[0.16em] text-ink-muted">
+            <span id="otp-label" className="text-label font-bold tracking-[0.16em] text-ink-muted uppercase">
               Verification code
             </span>
             <div role="group" aria-labelledby="otp-label" className="flex gap-2">
@@ -168,7 +168,7 @@ export default function OtpStep({
                     if (pasted) fillFrom(i, pasted.slice(0, 6 - i));
                   }}
                   className={cn(
-                    "h-16 min-w-0 max-w-15 flex-1 rounded-none border-0 border-b-[3px] bg-paper-alt p-0 text-center font-data text-[26px] font-medium text-ink outline-none focus:border-b-seal focus:bg-paper-hi",
+                    "h-16 max-w-15 min-w-0 flex-1 rounded-none border-0 border-b-[3px] bg-paper-alt p-0 text-center font-data text-[26px] font-medium text-ink outline-none focus:border-b-seal focus:bg-paper-hi",
                     error && !d ? "border-b-error" : d ? "border-b-ink" : "border-b-[rgba(18,13,9,.55)]",
                   )}
                 />

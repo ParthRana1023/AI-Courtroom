@@ -1,9 +1,5 @@
 import CaseDetails from "./client";
 
-export default function CaseDetailsPage({
-  params,
-}: {
-  params: Promise<{ cnr: string }>;
-}) {
+export default function CaseDetailsPage({ params }: { params: Promise<{ cnr: string }> }) {
   return <CaseDetails params={params} />;
 }

@@ -43,14 +43,8 @@ function readEnvFile() {
 
 const env = readEnvFile();
 
-const googleServerClientId =
-  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ??
-  env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ??
-  "";
-const capacitorServerUrl =
-  process.env.CAP_SERVER_URL ??
-  env.CAP_SERVER_URL ??
-  "https://ai-courtroom.vercel.app";
+const googleServerClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+const capacitorServerUrl = process.env.CAP_SERVER_URL ?? env.CAP_SERVER_URL ?? "https://ai-courtroom.vercel.app";
 const isHttpDevServer = capacitorServerUrl.startsWith("http://");
 
 type ExtendedCapacitorConfig = CapacitorConfig & {

@@ -15,7 +15,8 @@ import type { CaseOutcome, OutcomeCounts, PartialScoring, User, UserStats } from
 
 const TAG = "text-[10.5px] font-bold uppercase tracking-[0.18em]";
 const SHEET = "bg-paper text-ink shadow-sheet";
-const HEAD = "flex items-baseline justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-ink-label";
+const HEAD =
+  "flex items-baseline justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-ink-label";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WIN = "#3f6b3a";
 const PART = "#b07a1a";
@@ -89,20 +90,32 @@ export default function ProfilePage() {
     if (!loaded || !root || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ease = "cubic-bezier(.2,.8,.2,1)";
     root.querySelectorAll<HTMLElement>('[data-grow="x"]').forEach((el, i) =>
-      el.animate?.([{ transform: "scaleX(0)", transformOrigin: "left" }, { transform: "none", transformOrigin: "left" }], {
-        duration: 700,
-        delay: 150 + (i % 3) * 120,
-        easing: ease,
-        fill: "backwards",
-      }),
+      el.animate?.(
+        [
+          { transform: "scaleX(0)", transformOrigin: "left" },
+          { transform: "none", transformOrigin: "left" },
+        ],
+        {
+          duration: 700,
+          delay: 150 + (i % 3) * 120,
+          easing: ease,
+          fill: "backwards",
+        },
+      ),
     );
     root.querySelectorAll<HTMLElement>('[data-grow="y"]').forEach((el, i) =>
-      el.animate?.([{ transform: "scaleY(0)", transformOrigin: "bottom" }, { transform: "none", transformOrigin: "bottom" }], {
-        duration: 600,
-        delay: 250 + i * 80,
-        easing: ease,
-        fill: "backwards",
-      }),
+      el.animate?.(
+        [
+          { transform: "scaleY(0)", transformOrigin: "bottom" },
+          { transform: "none", transformOrigin: "bottom" },
+        ],
+        {
+          duration: 600,
+          delay: 250 + i * 80,
+          easing: ease,
+          fill: "backwards",
+        },
+      ),
     );
     const el = rateRef.current;
     if (!el) return;
@@ -124,7 +137,10 @@ export default function ProfilePage() {
   const px = mob ? "px-4" : "px-6";
 
   return (
-    <div data-pscroll="" className={cn("mx-auto flex w-full max-w-7xl flex-col", mob ? "gap-3 px-3 pb-6 pt-3.5" : "gap-4.5 px-[3vw] pb-8 pt-5.5")}>
+    <div
+      data-pscroll=""
+      className={cn("mx-auto flex w-full max-w-7xl flex-col", mob ? "gap-3 px-3 pt-3.5 pb-6" : "gap-4.5 px-[3vw] pt-5.5 pb-8")}
+    >
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5">
         <div className="flex flex-col gap-1.5">
           <span className={cn(TAG, "text-desk-muted")}>Your profile</span>
@@ -135,7 +151,7 @@ export default function ProfilePage() {
         <Link
           href="/cases/new"
           className={cn(
-            "flex h-11.5 items-center justify-center whitespace-nowrap bg-seal px-5 text-xs font-bold uppercase tracking-[0.14em] text-cream hover:bg-seal-hover hover:text-white",
+            "flex h-11.5 items-center justify-center bg-seal px-5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase hover:bg-seal-hover hover:text-white",
             mob && "flex-[1_1_100%]",
           )}
         >
@@ -151,7 +167,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={load}
-                className="h-11.5 cursor-pointer border-[1.5px] border-ink bg-transparent px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-ink hover:bg-[#f8f3e7]"
+                className="h-11.5 cursor-pointer border-[1.5px] border-ink bg-transparent px-4.5 text-xs font-bold tracking-[0.14em] text-ink uppercase hover:bg-[#f8f3e7]"
               >
                 Try again
               </button>
@@ -209,9 +225,11 @@ function Identity({ user: u, cases, mob, onEdit }: { user: User; cases: CaseRow[
     <section aria-label="Your details" className={cn(SHEET, "flex flex-col")}>
       <div className={cn(HEAD, px)}>
         <span>Counsel</span>
-        {since && <span className="font-data font-medium tracking-[0.04em]">Since {`${MONTHS[since.getMonth()]} ${since.getFullYear()}`}</span>}
+        {since && (
+          <span className="font-data font-medium tracking-[0.04em]">Since {`${MONTHS[since.getMonth()]} ${since.getFullYear()}`}</span>
+        )}
       </div>
-      <div className={cn("flex flex-col items-center gap-3.5 pb-4.5 pt-5.5 text-center", px)}>
+      <div className={cn("flex flex-col items-center gap-3.5 pt-5.5 pb-4.5 text-center", px)}>
         <div className="relative h-28 w-28">
           {u.profile_photo_url ? (
             <span
@@ -221,13 +239,16 @@ function Identity({ user: u, cases, mob, onEdit }: { user: User; cases: CaseRow[
               style={{ backgroundImage: `url("${u.profile_photo_url}")` }}
             />
           ) : (
-            <span aria-hidden="true" className="flex h-28 w-28 items-center justify-center rounded-full bg-ink font-display text-[40px] tracking-[0.04em] text-paper">
+            <span
+              aria-hidden="true"
+              className="flex h-28 w-28 items-center justify-center rounded-full bg-ink font-display text-[40px] tracking-[0.04em] text-paper"
+            >
               {ini}
             </span>
           )}
           <span
             aria-hidden="true"
-            className="absolute -right-1.5 bottom-0.5 -rotate-6 border-[1.5px] border-seal bg-paper px-2 pb-0.75 pt-1 text-[10.5px] font-bold tracking-[0.14em] text-seal"
+            className="absolute -right-1.5 bottom-0.5 -rotate-6 border-[1.5px] border-seal bg-paper px-2 pt-1 pb-0.75 text-[10.5px] font-bold tracking-[0.14em] text-seal"
           >
             ENROLLED
           </span>
@@ -242,7 +263,7 @@ function Identity({ user: u, cases, mob, onEdit }: { user: User; cases: CaseRow[
           {details.map(([k, v]) => (
             <div key={k} className="grid grid-cols-[86px_minmax(0,1fr)] gap-3 border-b border-ink/15 py-2.25">
               <dt className={cn(TAG, "pt-0.5 text-ink-meta")}>{k}</dt>
-              <dd className="m-0 wrap-anywhere text-sm leading-[1.45] text-ink">{v}</dd>
+              <dd className="m-0 text-sm leading-[1.45] wrap-anywhere text-ink">{v}</dd>
             </div>
           ))}
         </dl>
@@ -251,7 +272,10 @@ function Identity({ user: u, cases, mob, onEdit }: { user: User; cases: CaseRow[
             <Link
               key={t}
               href="/cases"
-              className={cn("flex flex-col items-center gap-0.5 px-1 py-2.5 text-ink hover:bg-[#f8f3e7] hover:text-ink", i > 0 && "border-l border-ink/30")}
+              className={cn(
+                "flex flex-col items-center gap-0.5 px-1 py-2.5 text-ink hover:bg-[#f8f3e7] hover:text-ink",
+                i > 0 && "border-l border-ink/30",
+              )}
             >
               <span className="font-display text-[26px] leading-none">{n}</span>
               <span className={cn(TAG, "text-ink-muted")}>{t}</span>
@@ -262,7 +286,10 @@ function Identity({ user: u, cases, mob, onEdit }: { user: User; cases: CaseRow[
       {resume && (
         <Link
           href={`/cases/${resume.cnr}`}
-          className={cn("mb-4.5 flex items-center justify-between gap-3 border-[1.5px] border-ink px-3.5 py-3 text-left text-ink hover:bg-[#f8f3e7] hover:text-ink", mx)}
+          className={cn(
+            "mb-4.5 flex items-center justify-between gap-3 border-[1.5px] border-ink px-3.5 py-3 text-left text-ink hover:bg-[#f8f3e7] hover:text-ink",
+            mx,
+          )}
         >
           <span className="flex min-w-0 flex-col gap-0.75">
             <span className={cn(TAG, "text-seal")}>Pick up where you left off</span>
@@ -277,7 +304,7 @@ function Identity({ user: u, cases, mob, onEdit }: { user: User; cases: CaseRow[
         </Link>
       )}
       {missing.length > 0 && (
-        <div className={cn("mb-4.5 flex flex-col gap-2.5 border-[1.5px] border-dashed border-ink/45 px-3.5 pb-3 pt-3.5", mx)}>
+        <div className={cn("mb-4.5 flex flex-col gap-2.5 border-[1.5px] border-dashed border-ink/45 px-3.5 pt-3.5 pb-3", mx)}>
           <div className="flex items-baseline justify-between gap-2.5">
             <span className={cn(TAG, "text-ink-muted")}>Complete your profile</span>
             <span className="font-data text-[11.5px] font-medium text-ink-muted">{4 - missing.length} of 4 added</span>
@@ -305,13 +332,13 @@ function Identity({ user: u, cases, mob, onEdit }: { user: User; cases: CaseRow[
         <button
           type="button"
           onClick={onEdit}
-          className="h-11.5 flex-1 cursor-pointer whitespace-nowrap border-0 bg-ink text-xs font-bold uppercase tracking-[0.14em] text-paper hover:bg-seal"
+          className="h-11.5 flex-1 cursor-pointer border-0 bg-ink text-xs font-bold tracking-[0.14em] whitespace-nowrap text-paper uppercase hover:bg-seal"
         >
           Edit profile
         </button>
         <Link
           href="/settings"
-          className="flex h-11.5 flex-none items-center whitespace-nowrap border-[1.5px] border-ink px-4 text-xs font-bold uppercase tracking-[0.14em] text-ink hover:bg-[#f8f3e7] hover:text-ink"
+          className="flex h-11.5 flex-none items-center border-[1.5px] border-ink px-4 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-ink uppercase hover:bg-[#f8f3e7] hover:text-ink"
         >
           Settings
         </Link>
@@ -366,10 +393,15 @@ function Record({
     <section ref={recRef} aria-label="Your record" className={cn(SHEET, "flex min-w-0 flex-col")}>
       <div className={cn(HEAD, px)}>
         <span>Your record</span>
-        <span className="text-[12.5px] font-normal normal-case tracking-normal text-ink-muted">{SCORING[stats.partial_scoring]}</span>
+        <span className="text-[12.5px] font-normal tracking-normal text-ink-muted normal-case">{SCORING[stats.partial_scoring]}</span>
       </div>
       {pending > 0 && (
-        <div className={cn("mt-3.5 border border-[rgba(176,122,26,.5)] bg-[#f3e6c6] px-3 py-2.25 text-[13.5px] leading-[1.45] text-[#5a3608]", mob ? "mx-4" : "mx-6")}>
+        <div
+          className={cn(
+            "mt-3.5 border border-[rgba(176,122,26,.5)] bg-[#f3e6c6] px-3 py-2.25 text-[13.5px] leading-[1.45] text-[#5a3608]",
+            mob ? "mx-4" : "mx-6",
+          )}
+        >
           {pending} resolved case{pending === 1 ? " is" : "s are"} waiting for an outcome. Opening a case’s analysis decides it.
         </div>
       )}
@@ -379,14 +411,20 @@ function Record({
           <span className="max-w-[40ch] text-[15px] leading-[1.55] text-ink-label">Finish a case to start your record.</span>
           <Link
             href="/cases/new"
-            className="flex h-11.5 items-center whitespace-nowrap bg-seal px-5 text-xs font-bold uppercase tracking-[0.14em] text-cream hover:bg-seal-hover hover:text-white"
+            className="flex h-11.5 items-center bg-seal px-5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase hover:bg-seal-hover hover:text-white"
           >
             Generate your first case →
           </Link>
         </div>
       ) : (
         <>
-          <div className={cn("grid flex-1 items-center gap-x-8 gap-y-5 pb-5.5 pt-5", px, roomy ? "grid-cols-[auto_minmax(0,1fr)]" : "grid-cols-1")}>
+          <div
+            className={cn(
+              "grid flex-1 items-center gap-x-8 gap-y-5 pt-5 pb-5.5",
+              px,
+              roomy ? "grid-cols-[auto_minmax(0,1fr)]" : "grid-cols-1",
+            )}
+          >
             <div className="flex flex-col gap-1.5">
               <span className={cn(TAG, "text-ink-muted")}>Win rate</span>
               <span className="flex items-baseline gap-1">
@@ -434,10 +472,10 @@ function Record({
               </div>
             ))}
           </div>
-          <div className={cn("grid flex-1 items-center gap-x-8 gap-y-5.5 pb-5.5 pt-4.5", px, roomy ? "grid-cols-2" : "grid-cols-1")}>
+          <div className={cn("grid flex-1 items-center gap-x-8 gap-y-5.5 pt-4.5 pb-5.5", px, roomy ? "grid-cols-2" : "grid-cols-1")}>
             <div className="flex min-w-0 flex-col gap-2.5">
               <span className={cn(TAG, "text-ink-muted")}>
-                Recent form <span className="font-normal normal-case tracking-[0.06em]">· newest first</span>
+                Recent form <span className="font-normal tracking-[0.06em] normal-case">· newest first</span>
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {stats.recent_form.slice(0, 10).map((r) => {
@@ -474,7 +512,11 @@ function Record({
               <span className={cn(TAG, "text-ink-muted")}>Last 6 months</span>
               <div className="flex h-30 items-end gap-2.5 border-b-[1.5px] border-ink">
                 {months.map((m) => (
-                  <div key={m.m} title={`${m.m}: ${m.w} won, ${m.l} lost, ${m.p} partial`} className="flex h-full flex-1 flex-col items-center justify-end">
+                  <div
+                    key={m.m}
+                    title={`${m.m}: ${m.w} won, ${m.l} lost, ${m.p} partial`}
+                    className="flex h-full flex-1 flex-col items-center justify-end"
+                  >
                     <div data-grow="y" className="flex w-[min(100%,30px)] flex-col">
                       <span style={{ height: bar(m.l), background: LOSS }} />
                       <span style={{ height: bar(m.p), background: PART }} />
@@ -508,7 +550,9 @@ function RecentCases({ cases, px, mob }: { cases: CaseRow[]; px: string; mob: bo
           All cases →
         </Link>
       </div>
-      {recent.length === 0 && <p className={cn("m-0 py-6 text-[15px] italic text-ink-hint", px)}>No cases yet. Your newest five will be listed here.</p>}
+      {recent.length === 0 && (
+        <p className={cn("m-0 py-6 text-[15px] text-ink-hint italic", px)}>No cases yet. Your newest five will be listed here.</p>
+      )}
       {recent.map((c) => {
         const [label, color] = stamp(c);
         return (
@@ -527,8 +571,11 @@ function RecentCases({ cases, px, mob }: { cases: CaseRow[]; px: string; mob: bo
                 {c.cnr} · {sideLabel(c.user_role)}
               </span>
             </span>
-            {!mob && <span className="whitespace-nowrap text-[13px] text-ink-muted">{formatDate(c.created_at)}</span>}
-            <span className={cn(TAG, "justify-self-end whitespace-nowrap border-[1.5px] px-2 pb-0.5 pt-0.75")} style={{ borderColor: color, color }}>
+            {!mob && <span className="text-[13px] whitespace-nowrap text-ink-muted">{formatDate(c.created_at)}</span>}
+            <span
+              className={cn(TAG, "justify-self-end border-[1.5px] px-2 pt-0.75 pb-0.5 whitespace-nowrap")}
+              style={{ borderColor: color, color }}
+            >
               {label}
             </span>
           </Link>

@@ -143,7 +143,10 @@ export default function SettingsPage() {
     const tab = strip?.querySelector<HTMLElement>(`[data-tab="${active}"]`);
     if (!strip || !tab) return;
     const prev = tab.previousElementSibling as HTMLElement | null;
-    const target = Math.max(0, Math.min((prev ? prev.offsetLeft + prev.offsetWidth * 0.5 : tab.offsetLeft) - 8, strip.scrollWidth - strip.clientWidth));
+    const target = Math.max(
+      0,
+      Math.min((prev ? prev.offsetLeft + prev.offsetWidth * 0.5 : tab.offsetLeft) - 8, strip.scrollWidth - strip.clientWidth),
+    );
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) strip.scrollLeft = target;
     else strip.scrollTo({ left: target, behavior: "smooth" });
   }, [active]);
@@ -180,7 +183,9 @@ export default function SettingsPage() {
     if (has("rag")) jobs.push(authAPI.updateRagPreference({ rag_enabled: local.rag }));
     if (has("partial")) jobs.push(authAPI.updateStatsPreference({ partial_scoring: local.partial }));
     if (has("nCase", "nRemind", "nProduct"))
-      jobs.push(accountAPI.updateNotifications({ case_ready: local.nCase, hearing_reminders: local.nRemind, product_updates: local.nProduct }));
+      jobs.push(
+        accountAPI.updateNotifications({ case_ready: local.nCase, hearing_reminders: local.nRemind, product_updates: local.nProduct }),
+      );
     setSaving(true);
     const results = await Promise.allSettled(jobs);
     if (jobs.length) await refreshUser();
@@ -203,17 +208,29 @@ export default function SettingsPage() {
 
   const heading = (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <span className={cn("whitespace-nowrap uppercase text-desk-red", mob ? "text-[10.5px] tracking-[0.16em]" : "text-[11px] tracking-[0.3em]")}>
+      <span
+        className={cn(
+          "whitespace-nowrap text-desk-red uppercase",
+          mob ? "text-[10.5px] tracking-[0.16em]" : "text-[11px] tracking-[0.3em]",
+        )}
+      >
         Chambers · Preferences
       </span>
-      <h1 className={cn("m-0 font-display font-normal", mob ? "text-[clamp(28px,8.5vw,40px)]/none" : "text-[clamp(36px,4vw,52px)]/none")}>SETTINGS</h1>
+      <h1 className={cn("m-0 font-display font-normal", mob ? "text-[clamp(28px,8.5vw,40px)]/none" : "text-[clamp(36px,4vw,52px)]/none")}>
+        SETTINGS
+      </h1>
     </div>
   );
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_80%_0%,var(--desk-glow)_0%,var(--desk-bg)_70%)] font-type text-desk-ink">
       <SiteHeader />
-      <main className={cn("mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col", mob ? "gap-2.5 px-3 pb-2.5 pt-3" : "gap-3.5 px-[4vw] pb-4.5 pt-5")}>
+      <main
+        className={cn(
+          "mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col",
+          mob ? "gap-2.5 px-3 pt-3 pb-2.5" : "gap-3.5 px-[4vw] pt-5 pb-4.5",
+        )}
+      >
         {!wide && heading}
         <div className={cn("grid min-h-0 flex-1", wide ? "grid-cols-[240px_minmax(0,1fr)] gap-10" : "grid-cols-1")}>
           {wide && (
@@ -235,22 +252,39 @@ export default function SettingsPage() {
                     >
                       <span className="font-display text-[17px]/[1.15] text-desk-amber">{NUMS[i].slice(0, -1)}</span>
                       <span className="text-base/[1.15]">{t}</span>
-                      <span aria-hidden="true" className={cn("h-1.75 w-1.75 self-center", edited(id) ? "bg-[#e9a33a] light:bg-amber-deep" : "bg-transparent")} />
+                      <span
+                        aria-hidden="true"
+                        className={cn("h-1.75 w-1.75 self-center", edited(id) ? "bg-[#e9a33a] light:bg-amber-deep" : "bg-transparent")}
+                      />
                     </button>
                   );
                 })}
-                {!signedIn && !isLoading && <p className="m-0 mt-4 text-[13px] leading-normal text-desk-muted">Sign in to see case, writing and courtroom settings.</p>}
+                {!signedIn && !isLoading && (
+                  <p className="m-0 mt-4 text-[13px] leading-normal text-desk-muted">
+                    Sign in to see case, writing and courtroom settings.
+                  </p>
+                )}
               </nav>
             </div>
           )}
 
           <section aria-label="Settings" className="flex min-h-0 flex-col bg-paper text-ink shadow-sheet">
-            <div className={cn("flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pt-3.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ink-label", mob ? "px-4" : "px-7")}>
+            <div
+              className={cn(
+                "flex justify-between gap-3 border-b-[3px] border-double border-ink pt-3.5 pb-2.5 text-[11px] font-bold tracking-[0.2em] text-ink-label uppercase",
+                mob ? "px-4" : "px-7",
+              )}
+            >
               <span className="whitespace-nowrap">Form P-5</span>
               <span className="min-w-0 truncate">Standing orders</span>
             </div>
             {!wide && (
-              <div ref={tabsRef} role="tablist" aria-label="Settings sections" className="flex overflow-x-auto border-b border-ink/20 scrollbar-none [&::-webkit-scrollbar]:hidden">
+              <div
+                ref={tabsRef}
+                role="tablist"
+                aria-label="Settings sections"
+                className="flex scrollbar-none overflow-x-auto border-b border-ink/20 [&::-webkit-scrollbar]:hidden"
+              >
                 {secs.map(([id, , short]) => {
                   const cur = active === id;
                   return (
@@ -262,7 +296,7 @@ export default function SettingsPage() {
                       data-tab={id}
                       onClick={() => jump(id)}
                       className={cn(
-                        "h-11 flex-none cursor-pointer whitespace-nowrap border-0 border-b-2 bg-transparent px-3.5 text-[11px] font-bold uppercase tracking-[0.08em]",
+                        "h-11 flex-none cursor-pointer border-0 border-b-2 bg-transparent px-3.5 text-[11px] font-bold tracking-[0.08em] whitespace-nowrap uppercase",
                         cur ? "border-seal text-ink" : "border-transparent text-ink-hint",
                       )}
                     >
@@ -277,7 +311,10 @@ export default function SettingsPage() {
               ref={scRef}
               data-scroller=""
               onScroll={onScroll}
-              className={cn("relative flex min-h-0 flex-1 flex-col gap-9.5 overflow-y-auto overscroll-contain", mob ? "px-4 pb-5 pt-4" : "px-7 pb-6 pt-5.5")}
+              className={cn(
+                "relative flex min-h-0 flex-1 flex-col gap-9.5 overflow-y-auto overscroll-contain",
+                mob ? "px-4 pt-4 pb-5" : "px-7 pt-5.5 pb-6",
+              )}
             >
               <Section id="text" num={num.text} title="Accessibility" edited={edited("text")}>
                 <div className="flex flex-col gap-3">
@@ -298,7 +335,10 @@ export default function SettingsPage() {
                           role="radio"
                           aria-checked={on}
                           onClick={() => set("textSize", v)}
-                          className={cn("flex h-16 cursor-pointer flex-col items-center justify-center gap-1 border-[1.5px]", on ? "border-ink bg-ink text-paper" : "border-ink/30 bg-transparent text-ink")}
+                          className={cn(
+                            "flex h-16 cursor-pointer flex-col items-center justify-center gap-1 border-[1.5px]",
+                            on ? "border-ink bg-ink text-paper" : "border-ink/30 bg-transparent text-ink",
+                          )}
                         >
                           <span className="font-display leading-none" style={{ fontSize: fs }}>
                             Aa
@@ -311,17 +351,27 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex flex-col gap-2 border border-ink/15 bg-[#f8f3e7] px-4.5 py-4">
                   <span className={LABEL}>Preview · Sample argument</span>
-                  <p className="m-0 text-pretty leading-[1.6] text-ink" style={{ fontSize: { small: "14px", medium: "16px", large: "19px" }[local.textSize] }}>
-                    The plaintiff argues that the defendant breached the contract by failing to deliver the goods on time. This caused significant financial damage to the
-                    plaintiff&apos;s business operations.
+                  <p
+                    className="m-0 leading-[1.6] text-pretty text-ink"
+                    style={{ fontSize: { small: "14px", medium: "16px", large: "19px" }[local.textSize] }}
+                  >
+                    The plaintiff argues that the defendant breached the contract by failing to deliver the goods on time. This caused
+                    significant financial damage to the plaintiff&apos;s business operations.
                   </p>
                 </div>
               </Section>
 
               <Section id="look" num={num.look} title="Appearance">
                 <div className="flex flex-col gap-3">
-                  <Lead t="Theme" d="Choose a dark or light desk. Documents stay on paper either way. Applies immediately on this device." />
-                  <div role="radiogroup" aria-label="Theme" className="grid max-w-140 grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-1.5">
+                  <Lead
+                    t="Theme"
+                    d="Choose a dark or light desk. Documents stay on paper either way. Applies immediately on this device."
+                  />
+                  <div
+                    role="radiogroup"
+                    aria-label="Theme"
+                    className="grid max-w-140 grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-1.5"
+                  >
                     {(
                       [
                         ["dark", "Dark", "#070504"],
@@ -337,13 +387,20 @@ export default function SettingsPage() {
                           role="radio"
                           aria-checked={on}
                           onClick={() => setTheme(v)}
-                          className={cn("flex cursor-pointer flex-col gap-2.5 border-[1.5px] p-2.5 text-left text-ink hover:border-ink", on ? "border-ink bg-[#f8f3e7]" : "border-ink/25 bg-transparent")}
+                          className={cn(
+                            "flex cursor-pointer flex-col gap-2.5 border-[1.5px] p-2.5 text-left text-ink hover:border-ink",
+                            on ? "border-ink bg-[#f8f3e7]" : "border-ink/25 bg-transparent",
+                          )}
                         >
-                          <span aria-hidden="true" className="relative block h-15.5 overflow-hidden border border-ink/25" style={{ background: desk }}>
-                            <span className="absolute inset-x-[20%] -bottom-px top-3 bg-paper shadow-[0_6px_14px_-6px_rgba(0,0,0,.6)]" />
-                            <span className="absolute left-[28%] right-[44%] top-5.5 h-0.75 bg-ink" />
-                            <span className="absolute left-[28%] right-[32%] top-7.75 h-0.5 bg-ink/35" />
-                            <span className="absolute left-[28%] right-[38%] top-9.5 h-0.5 bg-ink/35" />
+                          <span
+                            aria-hidden="true"
+                            className="relative block h-15.5 overflow-hidden border border-ink/25"
+                            style={{ background: desk }}
+                          >
+                            <span className="absolute inset-x-[20%] top-3 -bottom-px bg-paper shadow-[0_6px_14px_-6px_rgba(0,0,0,.6)]" />
+                            <span className="absolute top-5.5 right-[44%] left-[28%] h-0.75 bg-ink" />
+                            <span className="absolute top-7.75 right-[32%] left-[28%] h-0.5 bg-ink/35" />
+                            <span className="absolute top-9.5 right-[38%] left-[28%] h-0.5 bg-ink/35" />
                           </span>
                           <span className="flex items-center gap-2.5">
                             <Box on={on} />
@@ -356,14 +413,20 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 border-t border-ink/12 pt-3.5">
                   <span className="min-w-0 flex-[1_1_260px]">
-                    <Lead small t="Install the app" d="Add AI Courtroom to your home screen for instant access, faster loading, and offline support." />
+                    <Lead
+                      small
+                      t="Install the app"
+                      d="Add AI Courtroom to your home screen for instant access, faster loading, and offline support."
+                    />
                   </span>
                   {canInstall ? (
                     <button type="button" onClick={openPrompt} className={cn(OUTLINE, "h-11.5 px-4.5")}>
                       {installLabel}
                     </button>
                   ) : (
-                    isInstalled && <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-green">Installed on this device</span>
+                    isInstalled && (
+                      <span className="text-[11px] font-bold tracking-[0.16em] text-green uppercase">Installed on this device</span>
+                    )
                   )}
                 </div>
               </Section>
@@ -384,13 +447,22 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <Switch on={local.autoExpand} onToggle={() => set("autoExpand", !local.autoExpand)} t="Auto-expand text areas" d="Text boxes grow as you type long arguments." />
+                      <Switch
+                        on={local.autoExpand}
+                        onToggle={() => set("autoExpand", !local.autoExpand)}
+                        t="Auto-expand text areas"
+                        d="Text boxes grow as you type long arguments."
+                      />
                     </div>
                   </Section>
 
                   <Section id="cases" num={num.cases} title="Case management" edited={edited("cases")}>
                     <div>
-                      <Switch on={local.skipArchive} onToggle={() => set("skipArchive", !local.skipArchive)} t="Skip confirmation when archiving cases" />
+                      <Switch
+                        on={local.skipArchive}
+                        onToggle={() => set("skipArchive", !local.skipArchive)}
+                        t="Skip confirmation when archiving cases"
+                      />
                       <Switch
                         on={local.skipDelete}
                         onToggle={() => set("skipDelete", !local.skipDelete)}
@@ -421,7 +493,7 @@ export default function SettingsPage() {
                             onChange={(e) => set("locState", e.target.value)}
                             aria-invalid={!!stateErr}
                             className={cn(
-                              "h-12 w-full max-w-105 cursor-pointer rounded-none border-0 border-b-2 bg-paper-alt px-2.5 font-data text-[15px] text-ink outline-none scheme-light",
+                              "h-12 w-full max-w-105 cursor-pointer rounded-none border-0 border-b-2 bg-paper-alt px-2.5 font-data text-[15px] text-ink scheme-light outline-none",
                               stateErr ? "border-error" : "border-ink/55",
                             )}
                           >
@@ -458,7 +530,10 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-3">
-                      <Lead t="Win rate" d="Choose how a partly successful case (for example, a petition allowed only in part) counts toward the win rate on your profile." />
+                      <Lead
+                        t="Win rate"
+                        d="Choose how a partly successful case (for example, a petition allowed only in part) counts toward the win rate on your profile."
+                      />
                       <div className="flex flex-col gap-1.75">
                         <label htmlFor="ps-sel" className={LABEL}>
                           Partial wins count as
@@ -467,7 +542,7 @@ export default function SettingsPage() {
                           id="ps-sel"
                           value={local.partial}
                           onChange={(e) => set("partial", e.target.value as PartialScoring)}
-                          className="h-12 w-full max-w-105 cursor-pointer rounded-none border-0 border-b-2 border-ink/55 bg-paper-alt px-2.5 font-data text-[15px] text-ink outline-none scheme-light"
+                          className="h-12 w-full max-w-105 cursor-pointer rounded-none border-0 border-b-2 border-ink/55 bg-paper-alt px-2.5 font-data text-[15px] text-ink scheme-light outline-none"
                         >
                           <option value="zero">A loss (not a win)</option>
                           <option value="half">Half a win</option>
@@ -496,7 +571,8 @@ export default function SettingsPage() {
                       d={
                         user.email ? (
                           <>
-                            Sent to <strong className="wrap-anywhere font-data text-[13.5px] font-medium text-ink">{user.email}</strong>. Each one links back here to turn it off.
+                            Sent to <strong className="font-data text-[13.5px] font-medium wrap-anywhere text-ink">{user.email}</strong>.
+                            Each one links back here to turn it off.
                           </>
                         ) : (
                           "Your account has no email yet. Add one in your profile to get these."
@@ -504,7 +580,12 @@ export default function SettingsPage() {
                       }
                     />
                     <div>
-                      <Switch on={local.nCase} onToggle={() => set("nCase", !local.nCase)} t="Case ready" d="When a case you asked for has finished drafting." />
+                      <Switch
+                        on={local.nCase}
+                        onToggle={() => set("nCase", !local.nCase)}
+                        t="Case ready"
+                        d="When a case you asked for has finished drafting."
+                      />
                       <Switch
                         on={local.nRemind}
                         onToggle={() => set("nRemind", !local.nRemind)}
@@ -532,7 +613,7 @@ export default function SettingsPage() {
                   {cookies.map(([t, on, always]) => (
                     <div key={t} className="flex justify-between gap-3 border-b border-ink/12 py-2.5 text-[15px]">
                       <span>{t}</span>
-                      <span className={cn("text-[11px] font-bold uppercase tracking-[0.16em]", on ? "text-green" : "text-ink-hint")}>
+                      <span className={cn("text-[11px] font-bold tracking-[0.16em] uppercase", on ? "text-green" : "text-ink-hint")}>
                         {always ? "Always on" : on ? "On" : "Off"}
                       </span>
                     </div>
@@ -547,10 +628,12 @@ export default function SettingsPage() {
 
               {!signedIn && !isLoading && (
                 <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 bg-ink px-4.5 py-4 text-paper">
-                  <span className="flex-[1_1_240px] text-sm leading-normal">Log in to access additional settings like case management preferences.</span>
+                  <span className="flex-[1_1_240px] text-sm leading-normal">
+                    Log in to access additional settings like case management preferences.
+                  </span>
                   <Link
                     href="/login?next=/settings"
-                    className="flex h-11 items-center bg-paper px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-ink hover:bg-white hover:text-ink"
+                    className="flex h-11 items-center bg-paper px-4.5 text-xs font-bold tracking-[0.14em] text-ink uppercase hover:bg-white hover:text-ink"
                   >
                     Log in
                   </Link>
@@ -558,7 +641,12 @@ export default function SettingsPage() {
               )}
             </div>
 
-            <div className={cn("flex flex-wrap items-center justify-between gap-x-5 gap-y-2.5 border-t-[3px] border-double border-ink", mob ? "px-4 pb-3.5 pt-3" : "px-7 pb-4 pt-3.5")}>
+            <div
+              className={cn(
+                "flex flex-wrap items-center justify-between gap-x-5 gap-y-2.5 border-t-[3px] border-double border-ink",
+                mob ? "px-4 pt-3 pb-3.5" : "px-7 pt-3.5 pb-4",
+              )}
+            >
               <span role="status" aria-live="polite" className={cn("flex-[1_1_180px] text-sm", statusColor)}>
                 {status}
               </span>
@@ -571,7 +659,10 @@ export default function SettingsPage() {
                     setMsg(null);
                   }}
                   disabled={!n}
-                  className={cn("h-12.5 border-[1.5px] bg-transparent px-4.5 text-xs font-bold uppercase tracking-[0.14em]", n ? "cursor-pointer border-ink text-ink" : "cursor-default border-ink/35 text-ink/35")}
+                  className={cn(
+                    "h-12.5 border-[1.5px] bg-transparent px-4.5 text-xs font-bold tracking-[0.14em] uppercase",
+                    n ? "cursor-pointer border-ink text-ink" : "cursor-default border-ink/35 text-ink/35",
+                  )}
                 >
                   Discard
                 </button>
@@ -580,7 +671,7 @@ export default function SettingsPage() {
                   onClick={() => void save()}
                   disabled={!n || saving}
                   className={cn(
-                    "h-12.5 flex-1 whitespace-nowrap border-0 px-5.5 text-[13px] font-bold uppercase tracking-[0.14em] text-cream",
+                    "h-12.5 flex-1 border-0 px-5.5 text-[13px] font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase",
                     mob ? "min-w-0" : "min-w-50",
                     n ? "cursor-pointer bg-seal hover:bg-seal-hover" : "cursor-default bg-[#a79c8b]",
                   )}

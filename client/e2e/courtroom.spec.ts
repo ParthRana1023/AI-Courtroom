@@ -11,7 +11,16 @@ type Kase = Record<string, unknown> & { courtroom_proceedings: Event[] };
 /** A courtroom event, a minute after the last one. */
 function ev(id: string, type: string, content: string, speaker_role: string | null = null, extra: Record<string, unknown> = {}): Event {
   clock += 1;
-  return { id, type, content, speaker_role, speaker_name: null, timestamp: `2026-10-02T10:${String(clock).padStart(2, "0")}:00Z`, exhibit_refs: [], ...extra };
+  return {
+    id,
+    type,
+    content,
+    speaker_role,
+    speaker_name: null,
+    timestamp: `2026-10-02T10:${String(clock).padStart(2, "0")}:00Z`,
+    exhibit_refs: [],
+    ...extra,
+  };
 }
 
 const OPENING = () => [
@@ -47,7 +56,13 @@ function hearing(over: Record<string, unknown> = {}) {
   const routes: Record<string, unknown> = {
     [`GET ${base}`]: (route: Route) => route.fulfill({ json: s.kase }),
     [`GET ${base}/witness/current`]: (route: Route) => route.fulfill({ json: s.witness }),
-    [`GET ${base}/parties`]: { parties: PARTIES, user_role: "plaintiff", can_access_courtroom: true, is_in_courtroom: true, case_status: "active" },
+    [`GET ${base}/parties`]: {
+      parties: PARTIES,
+      user_role: "plaintiff",
+      can_access_courtroom: true,
+      is_in_courtroom: true,
+      case_status: "active",
+    },
     "GET /limit/argument": { remaining_attempts: 7, max_attempts: 10, seconds_until_next: null },
     [`POST ${base}/objections/hold`]: async (route: Route) => {
       s.holds.push(route.request().postDataJSON().on);
@@ -72,7 +87,10 @@ async function open(page: Page, stamp = true) {
 test.describe("courtroom", () => {
   test("the record, an objection that is sustained, and a report", async ({ page, signIn, checkA11y }) => {
     const h = hearing();
-    h.push(ev("e4", "user_argument", "There is no evidence he drafted the letter.", "plaintiff"), ev("e5", "ai_argument", "₹50 lakh went missing from the project account.", "defendant"));
+    h.push(
+      ev("e4", "user_argument", "There is no evidence he drafted the letter.", "plaintiff"),
+      ev("e5", "ai_argument", "₹50 lakh went missing from the project account.", "defendant"),
+    );
     let objection: unknown;
     let report: unknown;
     await signIn(USERS.email, {
@@ -85,7 +103,9 @@ test.describe("courtroom", () => {
           courtroom_proceedings: [
             ...list.slice(0, -1),
             { ...list[list.length - 1], struck: "struck" },
-            ev("e6", "objection", "Objection. Facts not in evidence. No exhibit shows that figure.", "plaintiff", { objection: { target_id: "e5", grounds: "Facts not in evidence", details: "" } }),
+            ev("e6", "objection", "Objection. Facts not in evidence. No exhibit shows that figure.", "plaintiff", {
+              objection: { target_id: "e5", grounds: "Facts not in evidence", details: "" },
+            }),
             ev("e7", "ruling", "Sustained. No exhibit supports that figure. It is struck from the record.", "judge", { sustained: true }),
           ],
         };
@@ -201,7 +221,8 @@ test.describe("courtroom", () => {
   test("the record follows new text, but not once the reader scrolls up", async ({ page, signIn }, info) => {
     const mobile = info.project.name !== "desktop";
     const h = hearing();
-    for (let i = 0; i < 12; i++) h.push(ev(`p${i}`, i % 2 ? "ai_argument" : "user_argument", `Point ${i}. `.repeat(30), i % 2 ? "defendant" : "plaintiff"));
+    for (let i = 0; i < 12; i++)
+      h.push(ev(`p${i}`, i % 2 ? "ai_argument" : "user_argument", `Point ${i}. `.repeat(30), i % 2 ? "defendant" : "plaintiff"));
     let reply: () => void = () => undefined;
     await signIn(USERS.email, {
       ...h.routes,
@@ -258,11 +279,17 @@ test.describe("courtroom", () => {
         responded = true;
         h.push(
           ev("e4", "user_argument", "₹5 crore was paid in cash.", "plaintiff", { struck: "struck" }),
-          ev("e5", "objection", "Objection. Facts not in evidence. No exhibit shows that sum.", "defendant", { objection: { target_id: "e4", grounds: "Facts not in evidence", details: "No exhibit shows that sum." } }),
+          ev("e5", "objection", "Objection. Facts not in evidence. No exhibit shows that sum.", "defendant", {
+            objection: { target_id: "e4", grounds: "Facts not in evidence", details: "No exhibit shows that sum." },
+          }),
           ev("e6", "ruling", RULING, "judge", { sustained: true }),
         );
         await route.fulfill({
-          json: { ai_counter_argument: null, ai_counter_role: "defendant", ai_objection: { grounds: "Facts not in evidence", sustained: true, ruling: RULING } },
+          json: {
+            ai_counter_argument: null,
+            ai_counter_role: "defendant",
+            ai_objection: { grounds: "Facts not in evidence", sustained: true, ruling: RULING },
+          },
         });
       },
     });
@@ -290,8 +317,23 @@ test.describe("courtroom", () => {
   test("AI counsel objects to a question and it is withdrawn", async ({ page, signIn }, info) => {
     const mobile = info.project.name !== "desktop";
     const h = hearing();
-    h.push(ev("w1", "witness_called", "Raghav Menon called to the witness stand by plaintiff.", "plaintiff", { speaker_name: "Raghav Menon", witness_id: "p1" }));
-    h.s.witness = { has_witness: true, witness_id: "p1", witness_name: "Raghav Menon", witness_role: "applicant", called_by: "plaintiff", examination_history: [], is_ai_examining: false, phase: "chief", next_examiner: "plaintiff" };
+    h.push(
+      ev("w1", "witness_called", "Raghav Menon called to the witness stand by plaintiff.", "plaintiff", {
+        speaker_name: "Raghav Menon",
+        witness_id: "p1",
+      }),
+    );
+    h.s.witness = {
+      has_witness: true,
+      witness_id: "p1",
+      witness_name: "Raghav Menon",
+      witness_role: "applicant",
+      called_by: "plaintiff",
+      examination_history: [],
+      is_ai_examining: false,
+      phase: "chief",
+      next_examiner: "plaintiff",
+    };
     const RULING = "Sustained. The question asks what someone else said. It is withdrawn.";
     await signIn(USERS.email, {
       ...h.routes,
@@ -301,7 +343,13 @@ test.describe("courtroom", () => {
           ev("w3", "objection", "Objection. Hearsay.", "defendant", { objection: { target_id: "w2", grounds: "Hearsay", details: "" } }),
           ev("w4", "ruling", RULING, "judge", { sustained: true }),
         );
-        await route.fulfill({ json: { question: "What did your brother tell you?", answer: null, ai_objection: { grounds: "Hearsay", sustained: true, ruling: RULING } } });
+        await route.fulfill({
+          json: {
+            question: "What did your brother tell you?",
+            answer: null,
+            ai_objection: { grounds: "Hearsay", sustained: true, ruling: RULING },
+          },
+        });
       },
     });
     await open(page);
@@ -325,23 +373,53 @@ test.describe("courtroom", () => {
     const mobile = info.project.name !== "desktop";
     const h = hearing();
     const posted: string[] = [];
-    const exam = (examiner: string, phase: string, q: string, a: string) => ({ id: `x${q.length}`, examiner, question: q, answer: a, timestamp: "2026-10-02T10:10:00Z", phase });
+    const exam = (examiner: string, phase: string, q: string, a: string) => ({
+      id: `x${q.length}`,
+      examiner,
+      question: q,
+      answer: a,
+      timestamp: "2026-10-02T10:10:00Z",
+      phase,
+    });
     await signIn(USERS.email, {
       ...h.routes,
       [`POST ${base}/witness/call`]: async (route: Route) => {
         posted.push(`call ${route.request().postDataJSON().witness_id}`);
-        h.push(ev("w1", "witness_called", "Raghav Menon called to the witness stand by plaintiff.", "plaintiff", { speaker_name: "Raghav Menon", witness_id: "p1" }));
-        h.s.witness = { has_witness: true, witness_id: "p1", witness_name: "Raghav Menon", witness_role: "applicant", called_by: "plaintiff", examination_history: [], is_ai_examining: false, phase: "chief", next_examiner: "plaintiff" };
+        h.push(
+          ev("w1", "witness_called", "Raghav Menon called to the witness stand by plaintiff.", "plaintiff", {
+            speaker_name: "Raghav Menon",
+            witness_id: "p1",
+          }),
+        );
+        h.s.witness = {
+          has_witness: true,
+          witness_id: "p1",
+          witness_name: "Raghav Menon",
+          witness_role: "applicant",
+          called_by: "plaintiff",
+          examination_history: [],
+          is_ai_examining: false,
+          phase: "chief",
+          next_examiner: "plaintiff",
+        };
         await route.fulfill({ json: { success: true } });
       },
       [`POST ${base}/witness/examine`]: async (route: Route) => {
         const asked = route.request().postDataJSON();
         posted.push(`ask ${asked.question} [${asked.exhibit_refs}]`);
         h.push(
-          ev("w2", "witness_examined_q", "Did you ever see the sanction letter?", "plaintiff", { witness_id: "p1", exhibit_refs: ["EX-01"] }),
+          ev("w2", "witness_examined_q", "Did you ever see the sanction letter?", "plaintiff", {
+            witness_id: "p1",
+            exhibit_refs: ["EX-01"],
+          }),
           ev("w3", "witness_examined_a", "Only after the buyers showed it to me.", "applicant", { witness_id: "p1" }),
         );
-        h.s.witness = { ...h.s.witness, examination_history: [exam("plaintiff", "chief", "Did you ever see the sanction letter?", "Only after the buyers showed it to me.")] };
+        h.s.witness = {
+          ...h.s.witness,
+          examination_history: [
+            exam("plaintiff", "chief", "Did you ever see the sanction letter?", "Only after the buyers showed it to me."),
+          ],
+        };
         await route.fulfill({ json: { answer: "Only after the buyers showed it to me." } });
       },
       [`POST ${base}/witness/ai-cross-examine`]: async (route: Route) => {
@@ -349,14 +427,25 @@ test.describe("courtroom", () => {
         // The AI cross-examines in the background; a later poll sees it done.
         h.s.kase = { ...h.s.kase, is_ai_examining: true };
         h.s.witness = { ...h.s.witness, is_ai_examining: true, phase: "cross", next_examiner: "defendant" };
-        setTimeout(() => h.push(ev("w4", "witness_examined_q", "You signed every receipt, didn't you?", "defendant", { witness_id: "p1" })), 1500);
+        setTimeout(
+          () => h.push(ev("w4", "witness_examined_q", "You signed every receipt, didn't you?", "defendant", { witness_id: "p1" })),
+          1500,
+        );
         setTimeout(() => {
           h.push(
             ev("w5", "witness_examined_a", "Yes, as director.", "applicant", { witness_id: "p1" }),
             ev("w5b", "system_message", "Counsel for the Defence logs Raghav Menon's answer as EX-03"),
           );
           // The AI logs an answer as evidence, as the user can.
-          const logged = { id: "x3", exhibit_ref: "EX-03", title: "Signed as director", evidence_type: "Testimony", description: "Signed every receipt.", origin_id: "w5", extracted_by: "defendant" };
+          const logged = {
+            id: "x3",
+            exhibit_ref: "EX-03",
+            title: "Signed as director",
+            evidence_type: "Testimony",
+            description: "Signed every receipt.",
+            origin_id: "w5",
+            extracted_by: "defendant",
+          };
           h.s.kase = { ...h.s.kase, is_ai_examining: false, evidence: [...((h.s.kase.evidence as unknown[]) ?? []), logged] };
           h.s.witness = { ...h.s.witness, is_ai_examining: false, phase: "re_exam", next_examiner: "plaintiff" };
         }, 6000);
@@ -420,7 +509,11 @@ test.describe("courtroom", () => {
 
   test("the other side asks leave to call a witness; object and the court refuses", async ({ page, signIn }) => {
     const h = hearing();
-    h.push(ev("l1", "leave_request", "Your Honour, the Defence seeks leave to call Priya Khanna to the stand.", "defendant", { witness_id: "p2" }));
+    h.push(
+      ev("l1", "leave_request", "Your Honour, the Defence seeks leave to call Priya Khanna to the stand.", "defendant", {
+        witness_id: "p2",
+      }),
+    );
     h.s.kase = { ...h.s.kase, pending_leave: { event_id: "l1", witness_id: "p2", witness_name: "Priya Khanna", called_by: "defendant" } };
     let body: unknown;
     await signIn(USERS.email, {
@@ -428,8 +521,12 @@ test.describe("courtroom", () => {
       [`POST ${base}/witness/leave/respond`]: async (route: Route) => {
         body = route.request().postDataJSON();
         h.push(
-          ev("l2", "objection", "Objection. Unfair surprise.", "plaintiff", { objection: { target_id: "l1", grounds: "Unfair surprise", details: "" } }),
-          ev("l3", "ruling", "Sustained. The other side had no fair notice of this witness. Leave is refused.", "judge", { sustained: true }),
+          ev("l2", "objection", "Objection. Unfair surprise.", "plaintiff", {
+            objection: { target_id: "l1", grounds: "Unfair surprise", details: "" },
+          }),
+          ev("l3", "ruling", "Sustained. The other side had no fair notice of this witness. Leave is refused.", "judge", {
+            sustained: true,
+          }),
         );
         h.s.kase = { ...h.s.kase, pending_leave: null };
         await route.fulfill({ json: { granted: false, sustained: true, ruling: "Sustained." } });
@@ -446,7 +543,12 @@ test.describe("courtroom", () => {
     await log.getByRole("group").getByRole("button", { name: "Object", exact: true }).click();
     const dlg = page.getByRole("dialog", { name: "Objection, your honour." });
     await expect(dlg.getByText("Counsel for the Defence · request to call a witness")).toBeVisible();
-    await expect(dlg.getByRole("radio")).toHaveText(["Irrelevant to the charge", "Not on the witness list", "Repetitive evidence", "Unfair surprise"]);
+    await expect(dlg.getByRole("radio")).toHaveText([
+      "Irrelevant to the charge",
+      "Not on the witness list",
+      "Repetitive evidence",
+      "Unfair surprise",
+    ]);
     await dlg.getByRole("radio", { name: "Unfair surprise" }).click();
     await dlg.getByRole("button", { name: "Raise objection" }).click();
     await expect(page.getByText("SUSTAINED", { exact: true })).toBeVisible({ timeout: 5000 });
@@ -457,7 +559,11 @@ test.describe("courtroom", () => {
 
   test("no objection: the other side's witness takes the stand", async ({ page, signIn }) => {
     const h = hearing();
-    h.push(ev("l1", "leave_request", "Your Honour, the Defence seeks leave to call Priya Khanna to the stand.", "defendant", { witness_id: "p2" }));
+    h.push(
+      ev("l1", "leave_request", "Your Honour, the Defence seeks leave to call Priya Khanna to the stand.", "defendant", {
+        witness_id: "p2",
+      }),
+    );
     h.s.kase = { ...h.s.kase, pending_leave: { event_id: "l1", witness_id: "p2", witness_name: "Priya Khanna", called_by: "defendant" } };
     await signIn(USERS.email, {
       ...h.routes,
@@ -465,10 +571,23 @@ test.describe("courtroom", () => {
         expect(route.request().postDataJSON()).toEqual({ objection: null });
         h.push(
           ev("l2", "system_message", "No objection · Leave granted"),
-          ev("l3", "witness_called", "Priya Khanna called to the witness stand by defendant.", "defendant", { speaker_name: "Priya Khanna", witness_id: "p2" }),
+          ev("l3", "witness_called", "Priya Khanna called to the witness stand by defendant.", "defendant", {
+            speaker_name: "Priya Khanna",
+            witness_id: "p2",
+          }),
         );
         h.s.kase = { ...h.s.kase, pending_leave: null, is_ai_examining: true, current_witness_id: "p2" };
-        h.s.witness = { has_witness: true, witness_id: "p2", witness_name: "Priya Khanna", witness_role: "non_applicant", called_by: "defendant", examination_history: [], is_ai_examining: true, phase: "chief", next_examiner: "defendant" };
+        h.s.witness = {
+          has_witness: true,
+          witness_id: "p2",
+          witness_name: "Priya Khanna",
+          witness_role: "non_applicant",
+          called_by: "defendant",
+          examination_history: [],
+          is_ai_examining: true,
+          phase: "chief",
+          next_examiner: "defendant",
+        };
         await route.fulfill({ json: { granted: true, witness_name: "Priya Khanna" } });
       },
     });
@@ -551,12 +670,14 @@ test.describe("courtroom", () => {
           ...h.s.kase,
           status: "resolved",
           outcome: "partial",
-          verdict: "**FACTS**\n\n1. The applicant seeks quashing of the FIR.\n2. The petition is partly allowed.\n\n**ORDER**\n\n3. The charge of cheating stands.",
+          verdict:
+            "**FACTS**\n\n1. The applicant seeks quashing of the FIR.\n2. The petition is partly allowed.\n\n**ORDER**\n\n3. The charge of cheating stands.",
         };
         await route.fulfill({ json: { verdict: "…" } });
       },
       [`POST ${base}/analyze-case`]: {
-        analysis: "### Outcome\nPartly won.\n\n### Mistakes\n**Arguments**\n- You never explained the letter.\n\n### Suggestions\n- Call the architect.",
+        analysis:
+          "### Outcome\nPartly won.\n\n### Mistakes\n**Arguments**\n- You never explained the letter.\n\n### Suggestions\n- Call the architect.",
         outcome: "partial",
       },
     });
@@ -655,7 +776,10 @@ test.describe("courtroom", () => {
   test("a case that doesn't exist, a failed load, and the redirect before the hearing opens", async ({ page, signIn }) => {
     let fail = true;
     await signIn(USERS.email, {
-      [`GET ${base}`]: async (route: Route) => (fail ? route.fulfill({ status: 500, json: {} }) : route.fulfill({ json: caseOf({ user_role: "plaintiff", status: "not started" }) })),
+      [`GET ${base}`]: async (route: Route) =>
+        fail
+          ? route.fulfill({ status: 500, json: {} })
+          : route.fulfill({ json: caseOf({ user_role: "plaintiff", status: "not started" }) }),
       [`GET ${base}/witness/current`]: NO_WITNESS,
       "GET /cases/NOPE000000000000": async (route: Route) => route.fulfill({ status: 404, json: { detail: "Not found" } }),
       "GET /cases/NOPE000000000000/witness/current": NO_WITNESS,

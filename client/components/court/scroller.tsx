@@ -8,11 +8,7 @@ import { cn } from "@/lib/utils";
  * inset; on the desk it uses the theme thumb. The bar styles live in globals.css; on touch screens
  * `TouchScrollbars` draws the same bar over it.
  */
-export default function Scroller({
-  tone = "paper",
-  className,
-  ...props
-}: ComponentProps<"div"> & { tone?: "paper" | "desk" }) {
+export default function Scroller({ tone = "paper", className, ...props }: ComponentProps<"div"> & { tone?: "paper" | "desk" }) {
   return (
     <div
       data-scroller={tone === "paper" ? "" : undefined}
@@ -164,12 +160,7 @@ export function TouchScrollbars() {
     const scan = () => {
       scanT = 0;
       const se = document.scrollingElement as HTMLElement | null;
-      if (
-        se &&
-        !bars.has(se) &&
-        getComputedStyle(document.body).overflowY !== "hidden" &&
-        getComputedStyle(html).overflowY !== "hidden"
-      )
+      if (se && !bars.has(se) && getComputedStyle(document.body).overflowY !== "hidden" && getComputedStyle(html).overflowY !== "hidden")
         make(se);
       for (const el of document.body.getElementsByTagName("*")) {
         if (!(el instanceof HTMLElement) || bars.has(el) || layer.contains(el) || el.tagName === "SELECT") continue;

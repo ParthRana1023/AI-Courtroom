@@ -25,10 +25,8 @@ function rotateSize(width: number, height: number, rotation: number) {
   const rotRad = getRadianAngle(rotation);
 
   return {
-    width:
-      Math.abs(Math.cos(rotRad) * width) + Math.abs(Math.sin(rotRad) * height),
-    height:
-      Math.abs(Math.sin(rotRad) * width) + Math.abs(Math.cos(rotRad) * height),
+    width: Math.abs(Math.cos(rotRad) * width) + Math.abs(Math.sin(rotRad) * height),
+    height: Math.abs(Math.sin(rotRad) * width) + Math.abs(Math.cos(rotRad) * height),
   };
 }
 
@@ -41,7 +39,7 @@ export async function getCroppedImg(
   rotation = 0,
   flip = { horizontal: false, vertical: false },
   /** square output size in px; the crop's own size when left out */
-  outSize?: number
+  outSize?: number,
 ): Promise<Blob | null> {
   const image = await createImage(imageSrc);
   const canvas = document.createElement("canvas");
@@ -54,11 +52,7 @@ export async function getCroppedImg(
   const rotRad = getRadianAngle(rotation);
 
   // Calculate bounding box of the rotated image
-  const { width: bBoxWidth, height: bBoxHeight } = rotateSize(
-    image.width,
-    image.height,
-    rotation
-  );
+  const { width: bBoxWidth, height: bBoxHeight } = rotateSize(image.width, image.height, rotation);
 
   // Set canvas size to match the bounding box
   canvas.width = bBoxWidth;
@@ -94,7 +88,7 @@ export async function getCroppedImg(
     0,
     0,
     croppedCanvas.width,
-    croppedCanvas.height
+    croppedCanvas.height,
   );
 
   // Export as JPEG blob with 90% quality as requested
@@ -104,7 +98,7 @@ export async function getCroppedImg(
         resolve(blob);
       },
       "image/jpeg",
-      0.90
+      0.9,
     );
   });
 }

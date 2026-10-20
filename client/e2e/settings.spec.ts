@@ -13,7 +13,14 @@ const ME = {
 };
 
 const SESSIONS = [
-  { id: "s1", user_agent: "Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36", ip: "1.2.3.4", created_at: "2026-10-01T10:00:00Z", last_active: new Date().toISOString(), current: true },
+  {
+    id: "s1",
+    user_agent: "Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36",
+    ip: "1.2.3.4",
+    created_at: "2026-10-01T10:00:00Z",
+    last_active: new Date().toISOString(),
+    current: true,
+  },
   {
     id: "s2",
     user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Version/17.0 Mobile/15E148 Safari/604.1",
@@ -31,7 +38,9 @@ function routes(over: Record<string, unknown> = {}) {
       { state_iso2: "DL", state_name: "Delhi", high_court: "High Court of Delhi" },
       { state_iso2: "MH", state_name: "Maharashtra", high_court: "Bombay High Court" },
     ],
-    "GET /cases": [{ id: "c1", cnr: "DLND010004212026", title: "State v. Raghav Menon", status: "active", created_at: "2026-10-02T10:00:00Z" }],
+    "GET /cases": [
+      { id: "c1", cnr: "DLND010004212026", title: "State v. Raghav Menon", status: "active", created_at: "2026-10-02T10:00:00Z" },
+    ],
     "GET /cases/deleted/list": [],
     ...over,
   };
@@ -235,7 +244,9 @@ test.describe("settings", () => {
     await page.goto("/settings");
     await goTo(page, info.project.name !== "desktop", "Account & security", "Account");
     const account = page.locator("#s-account");
-    await expect(account.getByText("Connected as aanya.g@gmail.com. You can sign in with Google or your email and password.")).toBeVisible();
+    await expect(
+      account.getByText("Connected as aanya.g@gmail.com. You can sign in with Google or your email and password."),
+    ).toBeVisible();
     await account.getByRole("button", { name: "Disconnect" }).click();
     await expect(account.getByText("Google disconnected. Sign in with your email and password from now on.")).toBeVisible();
     await expect(account.getByRole("button", { name: "Connect Google" })).toBeVisible();
@@ -253,7 +264,9 @@ test.describe("settings", () => {
     await form.getByRole("switch", { name: /Show which AI model answered/ }).click();
     await expect(form.getByText("All changes saved")).toBeVisible();
     await page.getByRole("button", { name: /No AI calls yet/ }).click();
-    await expect(page.getByRole("region", { name: "AI models" }).getByText("No AI calls yet. Responses that used a model appear here.")).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "AI models" }).getByText("No AI calls yet. Responses that used a model appear here."),
+    ).toBeVisible();
   });
 
   test("signed out: only this device's settings, and a way to log in", async ({ page }) => {

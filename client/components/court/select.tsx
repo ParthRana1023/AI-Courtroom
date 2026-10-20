@@ -27,17 +27,7 @@ interface SelectProps {
  * The paper dropdown (ac-ui.js): every <select> in the app uses this.
  * Paper popover, 46px rows, ✓ and a shaded row for the current option, full keyboard support.
  */
-export default function Select({
-  id,
-  value,
-  onChange,
-  options,
-  placeholder,
-  disabled,
-  invalid,
-  className,
-  ...aria
-}: SelectProps) {
+export default function Select({ id, value, onChange, options, placeholder, disabled, invalid, className, ...aria }: SelectProps) {
   return (
     <RadixSelect.Root value={value || undefined} onValueChange={onChange} disabled={disabled}>
       <RadixSelect.Trigger

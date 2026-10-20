@@ -8,7 +8,6 @@ import { useViewport } from "@/hooks/use-viewport";
 import { cn, roman } from "@/lib/utils";
 import { K } from "./kit";
 
-
 /**
  * An indexed paper document (About, Privacy, Terms, Cookies, Help, Changelog,
  * Accessibility): a sticky numbered index on the left that follows the scroll, or a
@@ -58,11 +57,16 @@ export default function DocPage({
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_80%_0%,var(--desk-glow)_0%,var(--desk-bg)_70%)] font-type leading-[normal] text-desk-ink">
       <SiteHeader />
-      <main className={cn("mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col", mob ? "gap-2.5 px-3 pb-2.5 pt-3" : "gap-3.5 px-[4vw] pb-4.5 pt-5")}>
+      <main
+        className={cn(
+          "mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col",
+          mob ? "gap-2.5 px-3 pt-3 pb-2.5" : "gap-3.5 px-[4vw] pt-5 pb-4.5",
+        )}
+      >
         {!wide && (
           <div className="flex flex-col gap-2.5">
             <div className="flex flex-col gap-1.5">
-              <span className="whitespace-nowrap text-[10.5px] uppercase tracking-[0.16em] text-desk-red">{kicker}</span>
+              <span className="text-[10.5px] tracking-[0.16em] whitespace-nowrap text-desk-red uppercase">{kicker}</span>
               <h1 className="m-0 font-display text-[clamp(28px,8.5vw,40px)]/none font-normal">{title}</h1>
             </div>
             <select
@@ -83,17 +87,17 @@ export default function DocPage({
           {wide && (
             <div className="flex min-h-0 flex-col gap-5 overflow-hidden">
               <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] uppercase tracking-[0.3em] text-desk-red">{kicker}</span>
-                <h1 className="m-0 font-display font-normal leading-[1.02] text-balance" style={{ fontSize: titleSize }}>
+                <span className="text-[11px] tracking-[0.3em] text-desk-red uppercase">{kicker}</span>
+                <h1 className="m-0 font-display leading-[1.02] font-normal text-balance" style={{ fontSize: titleSize }}>
                   {title}
                 </h1>
               </div>
-              <p className="m-0 text-[15px]/[1.55] text-desk-soft text-pretty">{lede}</p>
+              <p className="m-0 text-[15px]/[1.55] text-pretty text-desk-soft">{lede}</p>
               {updated && <span className="font-data text-xs font-medium text-desk-muted">Last updated: {updated}</span>}
               <nav
                 ref={navRef}
                 aria-label="Contents"
-                className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain border-t border-[rgba(239,230,211,.16)] pb-6 mask-[linear-gradient(#000_calc(100%-32px),transparent)] scrollbar-none light:border-[rgba(18,13,9,.24)] [&::-webkit-scrollbar]:hidden"
+                className="relative flex min-h-0 flex-1 scrollbar-none flex-col overflow-y-auto overscroll-contain border-t border-[rgba(239,230,211,.16)] mask-[linear-gradient(#000_calc(100%-32px),transparent)] pb-6 light:border-[rgba(18,13,9,.24)] [&::-webkit-scrollbar]:hidden"
               >
                 {index.map(([id, t], i) => {
                   const cur = active === id;
@@ -117,7 +121,12 @@ export default function DocPage({
             </div>
           )}
           <article aria-label={label} className="flex min-h-0 flex-col bg-paper text-ink shadow-sheet">
-            <div className={cn("flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pt-3.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ink-label", mob ? "px-4" : "px-8")}>
+            <div
+              className={cn(
+                "flex justify-between gap-3 border-b-[3px] border-double border-ink pt-3.5 pb-2.5 text-[11px] font-bold tracking-[0.2em] text-ink-label uppercase",
+                mob ? "px-4" : "px-8",
+              )}
+            >
               <span className="whitespace-nowrap">{form[0]}</span>
               <span className="min-w-0 truncate">{form[1]}</span>
             </div>
@@ -125,7 +134,10 @@ export default function DocPage({
               ref={scRef}
               data-scroller=""
               onScroll={follow}
-              className={cn("relative flex min-h-0 flex-1 flex-col gap-9 overflow-y-auto overscroll-contain", mob ? "px-4 pb-5.5 pt-4.5" : "px-10 pb-7.5 pt-6.5")}
+              className={cn(
+                "relative flex min-h-0 flex-1 flex-col gap-9 overflow-y-auto overscroll-contain",
+                mob ? "px-4 pt-4.5 pb-5.5" : "px-10 pt-6.5 pb-7.5",
+              )}
             >
               {!wide && (
                 <div className="flex flex-col gap-2">

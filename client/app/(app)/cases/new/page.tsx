@@ -36,13 +36,16 @@ const PICKS: [number, string][] = [
 const STEPS = ["Reading the sections", "Choosing the type of case", "Drafting the facts and parties", "Preparing the case file"];
 const HOW = [
   ["I", "Choose the sections", "Add the BNS sections the case should involve, like 103, 318 or 74."],
-  ["II", "The AI drafts the case", "It uses the sections to decide the type of case (criminal, civil or constitutional) and writes a case summary and analysis."],
+  [
+    "II",
+    "The AI drafts the case",
+    "It uses the sections to decide the type of case (criminal, civil or constitutional) and writes a case summary and analysis.",
+  ],
   ["III", "Prepare for court", "Open the case file, read the facts and build your arguments."],
 ];
 
 const nameOf = (n: number) => PICKS.find(([x]) => x === n)?.[1] ?? "";
-const hms = (t: number) =>
-  [Math.floor(t / 3600), Math.floor((t % 3600) / 60), t % 60].map((v) => String(v).padStart(2, "0")).join(":");
+const hms = (t: number) => [Math.floor(t / 3600), Math.floor((t % 3600) / 60), t % 60].map((v) => String(v).padStart(2, "0")).join(":");
 
 export default function NewCasePage() {
   const router = useRouter();
@@ -120,7 +123,17 @@ export default function NewCasePage() {
     e.preventDefault();
     if (blocked) return;
     if (input.trim() && !addFrom(input)) return;
-    const chosen = input.trim() ? [...new Set([...sections, ...input.split(/[^0-9]+/).filter(Boolean).map(Number)])] : sections;
+    const chosen = input.trim()
+      ? [
+          ...new Set([
+            ...sections,
+            ...input
+              .split(/[^0-9]+/)
+              .filter(Boolean)
+              .map(Number),
+          ]),
+        ]
+      : sections;
     if (!chosen.length) {
       setSecsErr("Add at least one section.");
       inRef.current?.focus();
@@ -164,19 +177,19 @@ export default function NewCasePage() {
         : `${quota.left} of ${quota.max} case generations left`;
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pb-2.5 pt-3 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pb-4.5 min-[560px]:pt-5">
+    <div className="mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col gap-2.5 px-3 pt-3 pb-2.5 min-[560px]:gap-3.5 min-[560px]:px-[4vw] min-[560px]:pt-5 min-[560px]:pb-4.5">
       <div className="flex flex-nowrap items-end justify-between gap-x-6 gap-y-3 min-[560px]:flex-wrap">
         <div className="flex min-w-0 flex-col gap-1.5">
-          <span className="whitespace-nowrap text-[10.5px] uppercase tracking-[0.16em] text-desk-red min-[560px]:text-label min-[560px]:tracking-[0.3em]">
+          <span className="text-[10.5px] tracking-[0.16em] whitespace-nowrap text-desk-red uppercase min-[560px]:text-label min-[560px]:tracking-[0.3em]">
             New matter · {formatDate(new Date().toISOString())}
           </span>
-          <h1 className="m-0 font-display text-[clamp(28px,8.5vw,40px)] font-normal leading-none min-[560px]:text-[clamp(36px,4vw,52px)]">
+          <h1 className="m-0 font-display text-[clamp(28px,8.5vw,40px)] leading-none font-normal min-[560px]:text-[clamp(36px,4vw,52px)]">
             NEW CASE
           </h1>
         </div>
         <Link
           href="/cases"
-          className="flex min-h-11 items-center gap-2 whitespace-nowrap border-b border-desk-ink/30 text-xs uppercase tracking-[0.16em] text-desk-soft hover:text-desk-hover"
+          className="flex min-h-11 items-center gap-2 border-b border-desk-ink/30 text-xs tracking-[0.16em] whitespace-nowrap text-desk-soft uppercase hover:text-desk-hover"
         >
           <span aria-hidden="true">←</span>
           <span>My cases</span>
@@ -190,7 +203,7 @@ export default function NewCasePage() {
           aria-label="Generate a new case"
           className={cn("flex flex-1 flex-col bg-paper text-ink shadow-sheet", wide ? "min-h-85" : "min-h-0")}
         >
-          <div className="flex justify-between gap-3 border-b-[3px] border-double border-ink px-4 pb-2.5 pt-3.5 text-label font-bold uppercase tracking-[0.2em] text-ink-label min-[560px]:px-7">
+          <div className="flex justify-between gap-3 border-b-[3px] border-double border-ink px-4 pt-3.5 pb-2.5 text-label font-bold tracking-[0.2em] text-ink-label uppercase min-[560px]:px-7">
             <span className="whitespace-nowrap">Form G-1</span>
             <span className="min-w-0 truncate">Particulars of offence</span>
           </div>
@@ -199,27 +212,33 @@ export default function NewCasePage() {
             <>
               <Scroller
                 className={cn(
-                  "grid flex-1 content-start gap-y-5 px-4 pb-5 pt-4 min-[560px]:gap-y-6 min-[560px]:px-7 min-[560px]:pb-4.5 min-[560px]:pt-5",
+                  "grid flex-1 content-start gap-y-5 px-4 pt-4 pb-5 min-[560px]:gap-y-6 min-[560px]:px-7 min-[560px]:pt-5 min-[560px]:pb-4.5",
                   wide ? "grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] grid-rows-[minmax(0,1fr)] gap-x-8 overflow-hidden" : "grid-cols-1",
                 )}
               >
                 <Scroller className={cn("flex min-w-0 flex-col gap-5 overflow-x-hidden min-[560px]:gap-6", wide && "pr-2")}>
                   {formErr && (
-                    <div role="alert" className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 bg-seal px-3.5 py-3 text-sm leading-[1.45] text-cream">
+                    <div
+                      role="alert"
+                      className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 bg-seal px-3.5 py-3 text-sm leading-[1.45] text-cream"
+                    >
                       <strong className="font-display text-body font-normal tracking-[0.06em]">OBJECTION.</strong>
                       <span>{formErr}</span>
                     </div>
                   )}
                   <div className="flex flex-col gap-2">
-                    <label htmlFor="sec-in" className="text-label font-bold uppercase tracking-[0.16em] text-ink-muted">
+                    <label htmlFor="sec-in" className="text-label font-bold tracking-[0.16em] text-ink-muted uppercase">
                       Sections of the Bharatiya Nyaya Sanhita
                     </label>
-                    <span id="sec-hint" className="text-pretty text-sm leading-[1.45] text-ink-muted">
+                    <span id="sec-hint" className="text-sm leading-[1.45] text-pretty text-ink-muted">
                       Type a section number and press Enter. You can add several at once, like 103, 318.
                     </span>
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
                       <div className="relative min-w-0">
-                        <span aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 font-data text-lg font-medium text-ink-hint">
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 font-data text-lg font-medium text-ink-hint"
+                        >
                           §
                         </span>
                         <input
@@ -242,7 +261,7 @@ export default function NewCasePage() {
                           }}
                           aria-describedby="sec-hint"
                           aria-invalid={!!inErr || undefined}
-                          className="h-12 w-full rounded-none border-0 border-b-2 border-b-[rgba(18,13,9,.55)] bg-paper-alt pl-9.5 pr-3.5 font-data text-base text-ink outline-none placeholder:text-[#857661] focus:bg-paper-hi aria-invalid:border-b-error min-[560px]:h-13"
+                          className="h-12 w-full rounded-none border-0 border-b-2 border-b-[rgba(18,13,9,.55)] bg-paper-alt pr-3.5 pl-9.5 font-data text-base text-ink outline-none placeholder:text-[#857661] focus:bg-paper-hi aria-invalid:border-b-error min-[560px]:h-13"
                         />
                       </div>
                       <button
@@ -265,7 +284,7 @@ export default function NewCasePage() {
 
                   <div className="flex flex-col gap-2.5">
                     <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-label font-bold uppercase tracking-[0.16em] text-ink-muted">On the charge sheet</span>
+                      <span className="text-label font-bold tracking-[0.16em] text-ink-muted uppercase">On the charge sheet</span>
                       <span className="font-data text-xs font-medium text-ink-muted">{n === 1 ? "1 section" : `${n} sections`}</span>
                     </div>
                     {n > 0 ? (
@@ -276,9 +295,9 @@ export default function NewCasePage() {
                               type="button"
                               onClick={() => setSections((s) => s.filter((y) => y !== x))}
                               aria-label={`Remove section ${x}${nameOf(x) ? `, ${nameOf(x)}` : ""}`}
-                              className="flex min-h-10 cursor-pointer items-center gap-2.5 bg-ink pl-3 pr-1.5 text-left text-paper hover:bg-ink-label"
+                              className="flex min-h-10 cursor-pointer items-center gap-2.5 bg-ink pr-1.5 pl-3 text-left text-paper hover:bg-ink-label"
                             >
-                              <span className="whitespace-nowrap font-data text-sm font-medium text-amber-hi">§ {x}</span>
+                              <span className="font-data text-sm font-medium whitespace-nowrap text-amber-hi">§ {x}</span>
                               {nameOf(x) && <span className="text-sm">{nameOf(x)}</span>}
                               <span aria-hidden="true" className="w-7 text-center font-data text-lg text-desk-muted">
                                 ×
@@ -288,7 +307,12 @@ export default function NewCasePage() {
                         ))}
                       </ul>
                     ) : (
-                      <span className={cn("block border-[1.5px] border-dashed px-4 py-3.5 text-sm leading-[1.45] text-ink-hint", secsErr ? "border-error" : "border-ink/35")}>
+                      <span
+                        className={cn(
+                          "block border-[1.5px] border-dashed px-4 py-3.5 text-sm leading-[1.45] text-ink-hint",
+                          secsErr ? "border-error" : "border-ink/35",
+                        )}
+                      >
                         No sections yet. Add one above or pick from the list below.
                       </span>
                     )}
@@ -301,7 +325,7 @@ export default function NewCasePage() {
                 </Scroller>
 
                 <div className={cn("flex min-h-0 min-w-0 flex-col gap-2.5", wide && "border-l border-ink/18 pl-8")}>
-                  <span id="picks-label" className="text-label font-bold uppercase tracking-[0.16em] text-ink-muted">
+                  <span id="picks-label" className="text-label font-bold tracking-[0.16em] text-ink-muted uppercase">
                     Common sections
                   </span>
                   <Scroller
@@ -335,7 +359,7 @@ export default function NewCasePage() {
                         >
                           <span
                             className={cn(
-                              "min-w-12 flex-none whitespace-nowrap font-data text-sm font-medium",
+                              "min-w-12 flex-none font-data text-sm font-medium whitespace-nowrap",
                               mob && "leading-none",
                               on ? "text-amber-hi" : "text-seal",
                             )}
@@ -351,14 +375,18 @@ export default function NewCasePage() {
                 </div>
               </Scroller>
 
-              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-[3px] border-double border-ink px-4 pb-3.5 pt-3 min-[560px]:px-7 min-[560px]:pb-4.5 min-[560px]:pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-[3px] border-double border-ink px-4 pt-3 pb-3.5 min-[560px]:px-7 min-[560px]:pt-4 min-[560px]:pb-4.5">
                 <div className="flex min-w-0 flex-col gap-1.5">
                   {quota && (
                     <div aria-hidden="true" className="flex gap-1">
                       {Array.from({ length: quota.max }, (_, i) => (
                         <span
                           key={i}
-                          className={cn("h-3.5 w-3.5 border-[1.5px]", noLeft ? "border-error/60" : "border-ink", i < quota.left ? "bg-ink" : "bg-transparent")}
+                          className={cn(
+                            "h-3.5 w-3.5 border-[1.5px]",
+                            noLeft ? "border-error/60" : "border-ink",
+                            i < quota.left ? "bg-ink" : "bg-transparent",
+                          )}
                         />
                       ))}
                     </div>
@@ -371,11 +399,7 @@ export default function NewCasePage() {
                   <Link href="/cases" className={buttonClass("paper", "lg", "h-13 px-4.5 text-xs")}>
                     Cancel
                   </Link>
-                  <button
-                    type="submit"
-                    disabled={blocked}
-                    className={buttonClass("seal", "lg", cn("h-13 flex-1", !mob && "min-w-60"))}
-                  >
+                  <button type="submit" disabled={blocked} className={buttonClass("seal", "lg", cn("h-13 flex-1", !mob && "min-w-60"))}>
                     {!online ? "You’re offline" : noLeft ? "Limit reached" : "Generate case →"}
                   </button>
                 </div>
@@ -385,12 +409,17 @@ export default function NewCasePage() {
 
           {phase === "drafting" && (
             <div role="status" aria-live="polite" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 px-5 py-8">
-              <span className="text-center font-display text-2xl leading-[1.1] min-[560px]:text-[30px]">The clerk is drafting your case</span>
+              <span className="text-center font-display text-2xl leading-[1.1] min-[560px]:text-[30px]">
+                The clerk is drafting your case
+              </span>
               <ol className="m-0 flex min-w-[min(280px,100%)] list-none flex-col gap-3 p-0">
                 {STEPS.map((t, i) => (
                   <li
                     key={t}
-                    className={cn("flex items-baseline gap-3 text-base", i < step ? "text-green" : i === step ? "text-ink" : "text-ink-hint")}
+                    className={cn(
+                      "flex items-baseline gap-3 text-base",
+                      i < step ? "text-green" : i === step ? "text-ink" : "text-ink-hint",
+                    )}
                   >
                     <span aria-hidden="true" className="w-4.5 flex-none font-data text-body font-bold">
                       {i < step ? "✓" : i === step ? "›" : "·"}
@@ -405,7 +434,7 @@ export default function NewCasePage() {
                   style={{ width: `${Math.round((Math.min(step + 0.5, STEPS.length) / STEPS.length) * 100)}%` }}
                 />
               </div>
-              <span className="break-all text-center font-data text-meta font-medium text-ink-hint">
+              <span className="text-center font-data text-meta font-medium break-all text-ink-hint">
                 {sections.map((x) => `§ ${x}`).join("  ·  ")}
               </span>
             </div>
@@ -413,7 +442,7 @@ export default function NewCasePage() {
 
           {phase === "filed" && (
             <div role="status" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-5 py-8 text-center">
-              <span className="inline-block -rotate-5 border-4 border-double border-seal px-5 pb-1.5 pt-2 font-display text-5xl leading-none tracking-[0.08em] text-seal animate-[ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both]">
+              <span className="inline-block -rotate-5 animate-[ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both] border-4 border-double border-seal px-5 pt-2 pb-1.5 font-display text-5xl leading-none tracking-[0.08em] text-seal">
                 FILED
               </span>
               <span className="text-base leading-normal text-ink-label">
@@ -433,7 +462,7 @@ export default function NewCasePage() {
                 <span className="font-display text-base text-desk-amber">{num}</span>
                 <span className="font-display text-base leading-tight text-desk-ink">{title}</span>
                 <span />
-                <span className="text-pretty text-meta leading-[1.45] text-desk-muted">{body}</span>
+                <span className="text-meta leading-[1.45] text-pretty text-desk-muted">{body}</span>
               </li>
             ))}
           </ol>

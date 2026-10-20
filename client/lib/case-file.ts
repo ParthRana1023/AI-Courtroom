@@ -46,12 +46,7 @@ export const NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII"];
  * `**bold**` markers removed and whitespace collapsed; the petition uses no other markdown inline.
  * Non-breaking hyphens ("NON‑APPLICANT", "B‑12") become plain ones so labels match.
  */
-export const plain = (s: string) =>
-  s
-    .replace(/\*\*/g, "")
-    .replace(/[‐‑]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim();
+export const plain = (s: string) => s.replace(/\*\*/g, "").replace(/[‐‑]/g, "-").replace(/\s+/g, " ").trim();
 
 const sentence = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -257,7 +252,10 @@ export function readCaseFile(text: string, evidence: EvidenceItem[] = []): CaseF
     court,
     charges: main.map((r) => shortCharge(r.label)),
     summary: !recognised
-      ? (text || "").split(/\n{2,}/).map(plain).filter(Boolean)
+      ? (text || "")
+          .split(/\n{2,}/)
+          .map(plain)
+          .filter(Boolean)
       : summary.length
         ? summary
         : petition

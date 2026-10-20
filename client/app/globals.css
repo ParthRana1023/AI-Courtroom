@@ -151,13 +151,7 @@ body {
   height: 12px;
 }
 *::-webkit-scrollbar-track {
-  background: linear-gradient(
-    90deg,
-    transparent 5.5px,
-    var(--scrollbar-line) 5.5px,
-    var(--scrollbar-line) 6.5px,
-    transparent 6.5px
-  );
+  background: linear-gradient(90deg, transparent 5.5px, var(--scrollbar-line) 5.5px, var(--scrollbar-line) 6.5px, transparent 6.5px);
 }
 *::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb);
@@ -182,13 +176,7 @@ body {
 }
 /* Scrollers on paper always use the dark thumb on a paper inset. */
 [data-scroller]::-webkit-scrollbar-track {
-  background: linear-gradient(
-    90deg,
-    transparent 5.5px,
-    rgba(18, 13, 9, 0.22) 5.5px,
-    rgba(18, 13, 9, 0.22) 6.5px,
-    transparent 6.5px
-  );
+  background: linear-gradient(90deg, transparent 5.5px, rgba(18, 13, 9, 0.22) 5.5px, rgba(18, 13, 9, 0.22) 6.5px, transparent 6.5px);
 }
 [data-scroller]::-webkit-scrollbar-thumb {
   background: #3e3326;
@@ -386,13 +374,13 @@ html.ac-touch *::-webkit-scrollbar {
   .dark input,
   .dark textarea,
   .dark select {
-    @apply text-zinc-100 border-zinc-700;
+    @apply border-zinc-700 text-zinc-100;
   }
 
   input,
   textarea,
   select {
-    @apply text-zinc-900 border-zinc-300;
+    @apply border-zinc-300 text-zinc-900;
   }
 
   /* Improve button contrast */

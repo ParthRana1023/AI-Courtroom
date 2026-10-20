@@ -10,8 +10,7 @@ const variants = {
   // dark ink on paper
   ink: "bg-ink text-paper hover:bg-ink-label",
   // outlined, on paper
-  paper:
-    "border-[1.5px] border-ink bg-transparent text-ink hover:bg-paper-hi hover:text-ink",
+  paper: "border-[1.5px] border-ink bg-transparent text-ink hover:bg-paper-hi hover:text-ink",
   // outlined, on the desk
   desk: "border border-desk-rule-mid bg-transparent text-desk-ink hover:text-desk-hover",
 } as const;
@@ -21,10 +20,6 @@ const sizes = {
   lg: "h-12.5 text-meta tracking-[0.14em]",
 } as const;
 
-export function buttonClass(
-  variant: keyof typeof variants = "seal",
-  size: keyof typeof sizes = "lg",
-  className?: string,
-) {
+export function buttonClass(variant: keyof typeof variants = "seal", size: keyof typeof sizes = "lg", className?: string) {
   return cn(base, variants[variant], sizes[size], className);
 }

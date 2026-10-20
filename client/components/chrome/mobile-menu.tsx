@@ -11,8 +11,7 @@ type Edge = "top" | "bottom";
 const EASE = "transform .9s cubic-bezier(.19,1,.22,1)";
 const REPEATS = Array.from({ length: 12 }, (_, i) => i);
 
-const reducedMotion = () =>
-  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 interface Tile {
   label: string;
@@ -81,7 +80,7 @@ function MenuTile({ tile, index }: { tile: Tile; index: number }) {
       onMouseLeave={(e) => play("out", edgeOf(e))}
       style={{ flex: tile.kind ? "0.7 1 0" : "1 1 0" }}
       className={cn(
-        "relative flex min-h-13 items-center justify-center gap-3 overflow-hidden font-display text-[clamp(24px,4.2vh,38px)] uppercase leading-none tracking-[0.06em] [-webkit-tap-highlight-color:transparent]",
+        "relative flex min-h-13 items-center justify-center gap-3 overflow-hidden font-display text-[clamp(24px,4.2vh,38px)] leading-none tracking-[0.06em] uppercase [-webkit-tap-highlight-color:transparent]",
         index === 0
           ? ""
           : tile.kind === "account"
@@ -94,25 +93,14 @@ function MenuTile({ tile, index }: { tile: Tile; index: number }) {
       <span
         aria-hidden="true"
         data-ov=""
-        className={cn(
-          "pointer-events-none absolute inset-0 translate-y-[101%] overflow-hidden",
-          logout ? "bg-seal" : "bg-desk-ink",
-        )}
+        className={cn("pointer-events-none absolute inset-0 translate-y-[101%] overflow-hidden", logout ? "bg-seal" : "bg-desk-ink")}
       >
         <span data-in="" className="absolute inset-0 flex translate-y-[-101%] items-center">
           <span className="flex w-max animate-[ac-marquee_14s_linear_infinite]">
             {REPEATS.map((k) => (
-              <span
-                key={k}
-                className={cn(
-                  "flex items-center gap-[.6em] whitespace-nowrap pr-[.6em]",
-                  logout ? "text-cream" : "text-desk",
-                )}
-              >
+              <span key={k} className={cn("flex items-center gap-[.6em] pr-[.6em] whitespace-nowrap", logout ? "text-cream" : "text-desk")}>
                 <span>{tile.label}</span>
-                <span
-                  className={cn("h-[.32em] w-[.32em] flex-none", logout ? "bg-cream" : "bg-seal")}
-                />
+                <span className={cn("h-[.32em] w-[.32em] flex-none", logout ? "bg-cream" : "bg-seal")} />
               </span>
             ))}
           </span>
@@ -133,16 +121,7 @@ interface MobileMenuProps {
   theme: { label: string; name: string; toggle: () => void };
 }
 
-export default function MobileMenu({
-  top,
-  pathname,
-  navItems,
-  signedIn,
-  installLabel,
-  onInstall,
-  onLogout,
-  theme,
-}: MobileMenuProps) {
+export default function MobileMenu({ top, pathname, navItems, signedIn, installLabel, onInstall, onLogout, theme }: MobileMenuProps) {
   const tiles: Tile[] = [
     ...navItems.map((n) => ({
       label: n.label,
@@ -181,7 +160,7 @@ export default function MobileMenu({
       {tiles.map((tile, i) => (
         <MenuTile key={tile.label} tile={tile} index={i} />
       ))}
-      <div className="flex flex-none flex-wrap gap-x-4.5 gap-y-0.5 border-t-[3px] border-double border-desk-strip-rule px-4.5 pb-3.5 pt-2.5">
+      <div className="flex flex-none flex-wrap gap-x-4.5 gap-y-0.5 border-t-[3px] border-double border-desk-strip-rule px-4.5 pt-2.5 pb-3.5">
         {moreNavItems.map((m) => {
           const current = isCurrentPath(pathname, m.href);
           return (
@@ -190,7 +169,7 @@ export default function MobileMenu({
               href={m.href}
               aria-current={current ? "page" : undefined}
               className={cn(
-                "py-2 font-type text-xs uppercase tracking-[0.12em] hover:text-desk-hover",
+                "py-2 font-type text-xs tracking-[0.12em] uppercase hover:text-desk-hover",
                 current ? "text-desk-red" : "text-desk-muted",
               )}
             >
@@ -202,7 +181,7 @@ export default function MobileMenu({
           type="button"
           onClick={theme.toggle}
           aria-label={theme.label}
-          className="ml-auto flex cursor-pointer items-center gap-2 py-2 font-type text-xs uppercase tracking-[0.12em] text-desk-ink"
+          className="ml-auto flex cursor-pointer items-center gap-2 py-2 font-type text-xs tracking-[0.12em] text-desk-ink uppercase"
         >
           <ThemeGlyph size={12} />
           <span>{theme.name}</span>

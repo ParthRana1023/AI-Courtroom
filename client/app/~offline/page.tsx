@@ -35,8 +35,7 @@ export default function OfflinePage() {
           </>
         }
       >
-        The court is in recess until your connection returns. Check your Wi-Fi or mobile data, then
-        try again.
+        The court is in recess until your connection returns. Check your Wi-Fi or mobile data, then try again.
       </NoticeSheet>
     </DeskPage>
   );

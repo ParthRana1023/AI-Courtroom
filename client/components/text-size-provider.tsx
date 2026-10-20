@@ -5,25 +5,13 @@ import { useSettings } from "@/contexts/settings-context";
 
 // This component applies the text size setting to the body element
 // and ensures proper theme compatibility
-export default function TextSizeProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function TextSizeProvider({ children }: { children: React.ReactNode }) {
   const { textSize } = useSettings();
 
   useEffect(() => {
     // Remove any existing text size classes from both html and body
-    document.documentElement.classList.remove(
-      "text-size-small",
-      "text-size-medium",
-      "text-size-large",
-    );
-    document.body.classList.remove(
-      "text-size-small",
-      "text-size-medium",
-      "text-size-large",
-    );
+    document.documentElement.classList.remove("text-size-small", "text-size-medium", "text-size-large");
+    document.body.classList.remove("text-size-small", "text-size-medium", "text-size-large");
 
     // Add the appropriate class based on the current setting to both html and body
     document.documentElement.classList.add(`text-size-${textSize}`);
@@ -35,16 +23,10 @@ export default function TextSizeProvider({
       const isDarkMode = document.documentElement.classList.contains("dark");
       if (isDarkMode) {
         document.body.classList.add("theme-dark");
-        document.documentElement.style.setProperty(
-          "--foreground-rgb",
-          "255, 255, 255",
-        );
+        document.documentElement.style.setProperty("--foreground-rgb", "255, 255, 255");
       } else {
         document.body.classList.remove("theme-dark");
-        document.documentElement.style.setProperty(
-          "--foreground-rgb",
-          "0, 0, 0",
-        );
+        document.documentElement.style.setProperty("--foreground-rgb", "0, 0, 0");
       }
     };
 

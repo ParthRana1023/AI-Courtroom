@@ -6,22 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
 import { useAuth } from "@/contexts/auth-context";
 import { usePwaInstall } from "@/contexts/pwa-install-context";
-import {
-  authenticatedPrimaryNavItems,
-  isCurrentPath,
-  moreNavItems,
-  publicPrimaryNavItems,
-} from "@/lib/navigation";
+import { authenticatedPrimaryNavItems, isCurrentPath, moreNavItems, publicPrimaryNavItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import MobileMenu from "./mobile-menu";
 import { ThemeGlyph, useThemeToggle } from "./theme-toggle";
 
-const navText =
-  "font-type text-label uppercase tracking-[0.2em] transition-colors";
-const menuPanel =
-  "z-56 flex min-w-55 flex-col bg-paper py-1.5 text-ink shadow-menu outline-none";
-const menuItem =
-  "block px-4.5 py-3 font-type text-sm text-ink outline-none data-highlighted:bg-paper-hi data-highlighted:text-seal";
+const navText = "font-type text-label uppercase tracking-[0.2em] transition-colors";
+const menuPanel = "z-56 flex min-w-55 flex-col bg-paper py-1.5 text-ink shadow-menu outline-none";
+const menuItem = "block px-4.5 py-3 font-type text-sm text-ink outline-none data-highlighted:bg-paper-hi data-highlighted:text-seal";
 
 function initialsOf(first?: string, last?: string) {
   return `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
@@ -40,7 +32,7 @@ export function AccountMenu({ size = 36, withSettings = false }: { size?: 36 | 3
         // The visible initials must be part of the name (WCAG 2.5.3, label in name).
         aria-label={user.profile_photo_url ? "Account menu" : `Account menu, ${initialsOf(user.first_name, user.last_name)}`}
         className={cn(
-          "cursor-pointer rounded-full bg-paper bg-cover bg-center font-display text-sm normal-case tracking-normal text-ink transition-shadow hover:shadow-[0_0_0_2px_#e0453a] data-[state=open]:shadow-[0_0_0_2px_#e0453a]",
+          "cursor-pointer rounded-full bg-paper bg-cover bg-center font-display text-sm tracking-normal text-ink normal-case transition-shadow hover:shadow-[0_0_0_2px_#e0453a] data-[state=open]:shadow-[0_0_0_2px_#e0453a]",
           size === 38 ? "size-9.5" : "size-9",
         )}
         style={user.profile_photo_url ? { backgroundImage: `url("${user.profile_photo_url}")` } : undefined}
@@ -49,7 +41,7 @@ export function AccountMenu({ size = 36, withSettings = false }: { size?: 36 | 3
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="end" sideOffset={10} className={cn(menuPanel, "min-w-57.5")}>
-          <div className="flex flex-col gap-0.5 border-b-[3px] border-double border-ink px-4.5 pb-3 pt-2.5">
+          <div className="flex flex-col gap-0.5 border-b-[3px] border-double border-ink px-4.5 pt-2.5 pb-3">
             <span className="font-display text-[1.0625rem] leading-[1.2]">
               {user.first_name} {user.last_name}
             </span>
@@ -69,7 +61,7 @@ export function AccountMenu({ size = 36, withSettings = false }: { size?: 36 | 3
           )}
           <DropdownMenu.Item
             onSelect={logout}
-            className="cursor-pointer border-t border-ink/20 px-4.5 py-3 font-type text-meta font-bold uppercase tracking-[0.12em] text-seal outline-none data-highlighted:bg-paper-hi"
+            className="cursor-pointer border-t border-ink/20 px-4.5 py-3 font-type text-meta font-bold tracking-[0.12em] text-seal uppercase outline-none data-highlighted:bg-paper-hi"
           >
             Log out
           </DropdownMenu.Item>
@@ -92,9 +84,7 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
   const [menuTop, setMenuTop] = useState(77);
   const headerRef = useRef<HTMLElement>(null);
   const installLabel = installMode === "apk" ? "Download" : "Install";
-  const navItems = isAuthenticated
-    ? authenticatedPrimaryNavItems
-    : publicPrimaryNavItems;
+  const navItems = isAuthenticated ? authenticatedPrimaryNavItems : publicPrimaryNavItems;
 
   // Close the mobile menu on navigation and on Escape.
   useEffect(() => setMenuOpen(false), [pathname]);
@@ -120,25 +110,12 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
           className,
         )}
       >
-        <Link
-          href="/"
-          translate="no"
-          aria-label="AI Courtroom home"
-          className="-my-3.5 flex items-baseline gap-1.5 py-3.5"
-        >
-          <span className="whitespace-nowrap font-display text-[0.9375rem] tracking-[0.24em] text-desk-ink">
-            AI COURTROOM
-          </span>
-          <span
-            aria-hidden="true"
-            className="h-0.5 w-2.25 bg-cursor animate-[ac-cursor_1.6s_steps(1,end)_infinite]"
-          />
+        <Link href="/" translate="no" aria-label="AI Courtroom home" className="-my-3.5 flex items-baseline gap-1.5 py-3.5">
+          <span className="font-display text-[0.9375rem] tracking-[0.24em] whitespace-nowrap text-desk-ink">AI COURTROOM</span>
+          <span aria-hidden="true" className="h-0.5 w-2.25 animate-[ac-cursor_1.6s_steps(1,end)_infinite] bg-cursor" />
         </Link>
 
-        <nav
-          aria-label="Main"
-          className={cn("hidden items-center gap-6.5 min-[860px]:flex", navText)}
-        >
+        <nav aria-label="Main" className={cn("hidden items-center gap-6.5 min-[860px]:flex", navText)}>
           {navItems.map((item) => {
             const current = isCurrentPath(pathname, item.href);
             return (
@@ -148,9 +125,7 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
                 aria-current={current ? "page" : undefined}
                 className={cn(
                   "border-b py-2.5 hover:text-desk-hover",
-                  current
-                    ? "border-cursor text-desk-strong"
-                    : "border-transparent text-desk-muted",
+                  current ? "border-cursor text-desk-strong" : "border-transparent text-desk-muted",
                 )}
               >
                 {item.label}
@@ -215,15 +190,12 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
               <AccountMenu />
             ) : (
               <>
-                <Link
-                  href="/login"
-                  className="border-b border-cursor py-2.5 text-desk-ink hover:text-desk-hover"
-                >
+                <Link href="/login" className="border-b border-cursor py-2.5 text-desk-ink hover:text-desk-hover">
                   Login
                 </Link>
                 <Link
                   href="/register"
-                  className="flex h-9 items-center whitespace-nowrap border border-desk-rule-mid px-3.5 font-bold tracking-[0.16em] text-desk-ink hover:text-desk-hover"
+                  className="flex h-9 items-center border border-desk-rule-mid px-3.5 font-bold tracking-[0.16em] whitespace-nowrap text-desk-ink hover:text-desk-hover"
                 >
                   Take a Side
                 </Link>
@@ -236,10 +208,7 @@ export default function SiteHeader({ className }: SiteHeaderProps) {
           onClick={toggleMenu}
           aria-expanded={menuOpen}
           aria-controls="mobile-menu"
-          className={cn(
-            "min-h-11 cursor-pointer px-1 text-desk-ink min-[860px]:hidden",
-            navText,
-          )}
+          className={cn("min-h-11 cursor-pointer px-1 text-desk-ink min-[860px]:hidden", navText)}
         >
           {menuOpen ? "Close" : "Menu"}
         </button>

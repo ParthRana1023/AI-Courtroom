@@ -14,12 +14,7 @@ import type {
   WitnessExaminationResponse,
 } from "@/types";
 
-import {
-  getCookie,
-  setAuthTokenCookie,
-  clearAuthTokenCookie,
-  COOKIE_NAMES,
-} from "./cookies";
+import { getCookie, setAuthTokenCookie, clearAuthTokenCookie, COOKIE_NAMES } from "./cookies";
 import { getLogger } from "./logger";
 import { LLM_TRACE_HEADER, recordLLMTrace } from "./llm-trace";
 
@@ -72,8 +67,7 @@ function logApiError(error: unknown, context?: string): void {
 }
 
 // Create axios instance with base URL from environment variables
-const apiBaseUrl =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 logger.info("API initialized", { baseUrl: apiBaseUrl });
 
 const api = axios.create({
@@ -88,8 +82,7 @@ api.interceptors.request.use(
   (config) => {
     // Try to get token from localStorage first, then from cookie
     if (typeof window !== "undefined") {
-      const token =
-        localStorage.getItem("token") ?? getCookie(COOKIE_NAMES.AUTH_TOKEN);
+      const token = localStorage.getItem("token") ?? getCookie(COOKIE_NAMES.AUTH_TOKEN);
 
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -104,30 +97,17 @@ api.interceptors.request.use(
 // Add response interceptor to handle common errors
 api.interceptors.response.use(
   (response) => {
-    recordLLMTrace(
-      response.headers[LLM_TRACE_HEADER],
-      response.config.method,
-      response.config.url,
-      response.status,
-    );
+    recordLLMTrace(response.headers[LLM_TRACE_HEADER], response.config.method, response.config.url, response.status);
     return response;
   },
   (error: AxiosError) => {
     if (error.response) {
-      recordLLMTrace(
-        error.response.headers[LLM_TRACE_HEADER],
-        error.config?.method,
-        error.config?.url,
-        error.response.status,
-      );
+      recordLLMTrace(error.response.headers[LLM_TRACE_HEADER], error.config?.method, error.config?.url, error.response.status);
     }
     // Handle unauthorized errors (401)
     if (error.response?.status === 401) {
       // Check if the error is from the login initiation endpoint
-      if (
-        error.config?.url?.includes("/auth/login/initiate") ||
-        error.config?.url?.includes("/auth/logout")
-      ) {
+      if (error.config?.url?.includes("/auth/login/initiate") || error.config?.url?.includes("/auth/logout")) {
         // Do not redirect for login initiation 401 errors, let the component handle it
         return Promise.reject(error);
       }
@@ -159,11 +139,7 @@ export const authAPI = {
       if (axios.isAxiosError(error)) {
         const serverError = error;
         if (serverError.response?.status === 429) {
-          throw new Error(
-            serverError.response.data.detail ||
-              "Too many codes requested. Please try again later.",
-            { cause: error },
-          );
+          throw new Error(serverError.response.data.detail || "Too many codes requested. Please try again later.", { cause: error });
         }
       }
       logApiError(error, "Registration initiation failed");
@@ -234,12 +210,7 @@ export const authAPI = {
   },
 
   // Google OAuth login
-  googleLogin: async (data: {
-    credential?: string;
-    code?: string;
-    state?: string;
-    rememberMe?: boolean;
-  }) => {
+  googleLogin: async (data: { credential?: string; code?: string; state?: string; rememberMe?: boolean }) => {
     try {
       const { credential, code, state, rememberMe = false } = data;
       const response = await api.post("/auth/google", {
@@ -264,9 +235,7 @@ export const authAPI = {
     return response.data;
   },
 
-  verifyPhoneCode: async (
-    data: PhonePayload & { otp: string; remember_me: boolean },
-  ) => {
+  verifyPhoneCode: async (data: PhonePayload & { otp: string; remember_me: boolean }) => {
     const response = await api.post("/auth/phone/verify", data);
     setAuthToken(response.data.access_token, data.remember_me);
     return response.data;
@@ -302,9 +271,7 @@ export const authAPI = {
 
       // Check cookies as fallback
       const cookies = document.cookie.split(";");
-      const tokenCookie = cookies.find((cookie) =>
-        cookie.trim().startsWith("token="),
-      );
+      const tokenCookie = cookies.find((cookie) => cookie.trim().startsWith("token="));
       return !!tokenCookie;
     }
     return false;
@@ -326,10 +293,7 @@ export const authAPI = {
     } catch (error) {
       logApiError(error, "Failed to upload profile photo");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(
-          error.response.data.detail || "Failed to upload photo",
-          { cause: error },
-        );
+        throw new Error(error.response.data.detail || "Failed to upload photo", { cause: error });
       }
       throw error;
     }
@@ -344,10 +308,7 @@ export const authAPI = {
     } catch (error) {
       logApiError(error, "Failed to delete profile photo");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(
-          error.response.data.detail || "Failed to delete photo",
-          { cause: error },
-        );
+        throw new Error(error.response.data.detail || "Failed to delete photo", { cause: error });
       }
       throw error;
     }
@@ -377,10 +338,7 @@ export const authAPI = {
     } catch (error) {
       logApiError(error, "Failed to update profile");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(
-          error.response.data.detail || "Failed to update profile",
-          { cause: error },
-        );
+        throw new Error(error.response.data.detail || "Failed to update profile", { cause: error });
       }
       throw error;
     }
@@ -394,10 +352,7 @@ export const authAPI = {
     } catch (error) {
       logApiError(error, "Failed to update RAG preference");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(
-          error.response.data.detail || "Failed to update RAG preference",
-          { cause: error },
-        );
+        throw new Error(error.response.data.detail || "Failed to update RAG preference", { cause: error });
       }
       throw error;
     }
@@ -410,10 +365,7 @@ export const authAPI = {
     } catch (error) {
       logApiError(error, "Failed to update stats preference");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(
-          error.response.data.detail || "Failed to update stats preference",
-          { cause: error },
-        );
+        throw new Error(error.response.data.detail || "Failed to update stats preference", { cause: error });
       }
       throw error;
     }
@@ -443,8 +395,7 @@ export const accountAPI = {
     state?: string;
     link_token?: string;
     use_google_email?: boolean;
-  }): Promise<User | { needs_choice: true; google_email: string; link_token: string }> =>
-    (await api.post("/auth/google/link", body)).data,
+  }): Promise<User | { needs_choice: true; google_email: string; link_token: string }> => (await api.post("/auth/google/link", body)).data,
   unlinkGoogle: async (): Promise<User> => (await api.delete("/auth/google/link")).data,
   updateNotifications: async (prefs: NotificationPrefs): Promise<User> =>
     (await api.put("/auth/profile/notification-preference", prefs)).data,
@@ -463,9 +414,7 @@ export const caseAPI = {
     try {
       const response = await api.get("/cases");
       logger.debug("Cases fetched", {
-        count: Array.isArray(response.data)
-          ? response.data.length
-          : response.data?.cases?.length,
+        count: Array.isArray(response.data) ? response.data.length : response.data?.cases?.length,
       });
 
       // Make sure we're returning the actual array of cases
@@ -517,10 +466,7 @@ export const caseAPI = {
 
   // Only a party's reply or a witness's answer can become evidence; the server
   // reads the text itself from the case.
-  extractEvidence: async (
-    cnr: string,
-    target: { party_id: string; message_id: string } | { event_id: string },
-  ) => {
+  extractEvidence: async (cnr: string, target: { party_id: string; message_id: string } | { event_id: string }) => {
     try {
       const response = await api.post(`/cases/${cnr}/evidence/extract`, target);
       return response.data;
@@ -532,9 +478,7 @@ export const caseAPI = {
 
   generateMissingEvidenceImages: async (cnr: string) => {
     try {
-      const response = await api.post(
-        `/cases/${cnr}/evidence/images/generate-missing`,
-      );
+      const response = await api.post(`/cases/${cnr}/evidence/images/generate-missing`);
       return response.data;
     } catch (error) {
       logApiError(error, "Failed to generate evidence images");
@@ -544,9 +488,7 @@ export const caseAPI = {
 
   regenerateEvidenceImage: async (cnr: string, evidenceId: string) => {
     try {
-      const response = await api.post(
-        `/cases/${cnr}/evidence/${evidenceId}/image/regenerate`,
-      );
+      const response = await api.post(`/cases/${cnr}/evidence/${evidenceId}/image/regenerate`);
       logger.info("Evidence image regenerated", { cnr, evidenceId });
       return response.data;
     } catch (error) {
@@ -607,9 +549,7 @@ export const caseAPI = {
   generatePlaintiffOpening: async (cnr: string) => {
     try {
       logger.info("Generating plaintiff opening", { cnr });
-      const response = await api.post(
-        `/cases/${cnr}/generate-plaintiff-opening`,
-      );
+      const response = await api.post(`/cases/${cnr}/generate-plaintiff-opening`);
       return response.data;
     } catch (error) {
       logApiError(error, "Failed to generate plaintiff opening");
@@ -681,12 +621,7 @@ export const caseAPI = {
 
 // Argument API calls
 export const argumentAPI = {
-  submitArgument: async (
-    caseCnr: string,
-    role: "plaintiff" | "defendant",
-    argument: string,
-    exhibitRefs: string[] = [],
-  ) => {
+  submitArgument: async (caseCnr: string, role: "plaintiff" | "defendant", argument: string, exhibitRefs: string[] = []) => {
     try {
       logger.debug("Submitting argument", {
         caseCnr,
@@ -706,11 +641,7 @@ export const argumentAPI = {
     }
   },
 
-  submitClosingStatement: async (
-    caseCnr: string,
-    role: string,
-    statement: string,
-  ) => {
+  submitClosingStatement: async (caseCnr: string, role: string, statement: string) => {
     try {
       logger.debug("Submitting closing statement", { caseCnr, role });
       const response = await api.post(`/cases/${caseCnr}/closing-statement`, {
@@ -765,8 +696,7 @@ export interface UnsubscribeState {
   subscribed: boolean;
 }
 export const notificationsAPI = {
-  status: async (token: string): Promise<UnsubscribeState> =>
-    (await api.get("/notifications/unsubscribe", { params: { token } })).data,
+  status: async (token: string): Promise<UnsubscribeState> => (await api.get("/notifications/unsubscribe", { params: { token } })).data,
   unsubscribe: async (token: string): Promise<UnsubscribeState> =>
     (await api.post("/notifications/unsubscribe", null, { params: { token } })).data,
 };
@@ -821,9 +751,7 @@ export const partiesAPI = {
 
   getPartyChatHistory: async (cnr: string, partyId: string) => {
     try {
-      const response = await api.get(
-        `/cases/${cnr}/parties/${partyId}/chat-history`,
-      );
+      const response = await api.get(`/cases/${cnr}/parties/${partyId}/chat-history`);
       return response.data;
     } catch (error) {
       logApiError(error, "Failed to get party chat history");
@@ -834,7 +762,6 @@ export const partiesAPI = {
 
 // Witness API calls
 export const witnessAPI = {
-
   callWitness: async (cnr: string, witnessId: string) => {
     try {
       logger.debug("Calling witness", { cnr, witnessId });
@@ -863,7 +790,6 @@ export const witnessAPI = {
     }
   },
 
-
   aiCrossExamine: async (cnr: string) => {
     try {
       logger.debug("AI cross-examining witness", { cnr });
@@ -887,7 +813,6 @@ export const witnessAPI = {
     }
   },
 
-
   getCurrentWitness: async (cnr: string) => {
     try {
       const response = await api.get(`/cases/${cnr}/witness/current`);
@@ -897,7 +822,6 @@ export const witnessAPI = {
       throw error;
     }
   },
-
 
   // No objection (null), or object to the other side calling a witness
   respondToLeave: async (
@@ -962,9 +886,7 @@ export const locationAPI = {
   // Get cities for a state
   getCities: async (countryIso2: string, stateIso2: string) => {
     try {
-      const response = await api.get(
-        `/location/cities/${countryIso2}/${stateIso2}`,
-      );
+      const response = await api.get(`/location/cities/${countryIso2}/${stateIso2}`);
       return response.data;
     } catch (error) {
       logApiError(error, "Failed to get cities");
@@ -1000,19 +922,13 @@ export const locationAPI = {
     preferred_case_state?: string;
   }) => {
     try {
-      const response = await api.put(
-        "/auth/profile/case-location-preference",
-        data,
-      );
+      const response = await api.put("/auth/profile/case-location-preference", data);
       logger.info("Case location preference updated");
       return response.data;
     } catch (error) {
       logApiError(error, "Failed to update case location preference");
       if (axios.isAxiosError(error) && error.response) {
-        throw new Error(
-          error.response?.data?.detail || "Failed to update preference",
-          { cause: error },
-        );
+        throw new Error(error.response?.data?.detail || "Failed to update preference", { cause: error });
       }
       throw error;
     }

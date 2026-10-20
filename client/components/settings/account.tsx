@@ -16,9 +16,12 @@ import { LABEL, Lead, OUTLINE, SEAL, Section, SUNK, ago, deviceName } from "./ki
 
 const OFFLINE = "You’re offline. Try again when you’re back online.";
 const RULE = "flex flex-wrap items-start justify-between gap-x-5 gap-y-2.5 border-t border-ink/12 pt-4.5";
-const SCRIM = "fixed inset-0 z-70 grid place-items-center bg-[rgba(7,5,4,.82)] p-4 animate-[ac-fade_.2s_ease_both] light:bg-[rgba(40,30,20,.5)]";
-const CARD = "flex w-full max-w-115 flex-col bg-paper font-type text-ink shadow-dialog outline-none animate-[ac-rise_.32s_cubic-bezier(.2,.8,.2,1)_both]";
-const HEAD = "flex justify-between gap-3 border-b-[3px] border-double border-ink px-5.5 pb-2.5 pt-3 text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-label";
+const SCRIM =
+  "fixed inset-0 z-70 grid place-items-center bg-[rgba(7,5,4,.82)] p-4 animate-[ac-fade_.2s_ease_both] light:bg-[rgba(40,30,20,.5)]";
+const CARD =
+  "flex w-full max-w-115 flex-col bg-paper font-type text-ink shadow-dialog outline-none animate-[ac-rise_.32s_cubic-bezier(.2,.8,.2,1)_both]";
+const HEAD =
+  "flex justify-between gap-3 border-b-[3px] border-double border-ink px-5.5 pb-2.5 pt-3 text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-label";
 const FOOT = "flex flex-wrap justify-end gap-2 border-t-[3px] border-double border-ink px-5.5 pb-4 pt-3";
 
 const message = (e: unknown, fallback: string) => getErrorDetail(e) || fallback;
@@ -129,7 +132,10 @@ export default function AccountSection({
   return (
     <Section id="account" num={num} title="Account & security" className="gap-5.5">
       {note && (
-        <div role="status" className={cn("px-3.5 py-2.5 text-sm leading-[1.45]", note.ok ? "bg-[#dfe6d2] text-[#1f4a28]" : "bg-seal text-cream")}>
+        <div
+          role="status"
+          className={cn("px-3.5 py-2.5 text-sm leading-[1.45]", note.ok ? "bg-[#dfe6d2] text-[#1f4a28]" : "bg-seal text-cream")}
+        >
           {note.t}
         </div>
       )}
@@ -198,7 +204,7 @@ export default function AccountSection({
                   {[s.current ? deviceName(s.user_agent) : "", s.ip ? `IP ${s.ip}` : ""].filter(Boolean).join(" · ") || "Signed in"}
                 </span>
               </span>
-              <span className={cn("text-[10.5px] font-bold uppercase tracking-[0.16em]", s.current ? "text-green" : "text-ink-muted")}>
+              <span className={cn("text-[10.5px] font-bold tracking-[0.16em] uppercase", s.current ? "text-green" : "text-ink-muted")}>
                 {s.current ? "Active now" : ago(s.last_active)}
               </span>
             </li>
@@ -223,9 +229,9 @@ export default function AccountSection({
       <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-3 border-[1.5px] border-seal px-4.5 py-4">
         <span className="flex min-w-0 flex-[1_1_280px] flex-col gap-0.75">
           <span className="text-base font-bold text-seal">Delete account</span>
-          <span className="text-pretty text-sm leading-[1.45] text-ink-label">
-            Deletes your profile, every case including archived ones, all proceedings and evidence. We keep the account for 30 days, so you can contact us to recover
-            it. After that it’s erased for good.
+          <span className="text-sm leading-[1.45] text-pretty text-ink-label">
+            Deletes your profile, every case including archived ones, all proceedings and evidence. We keep the account for 30 days, so you
+            can contact us to recover it. After that it’s erased for good.
           </span>
         </span>
         <button type="button" onClick={() => setDelOpen(true)} className={cn(SEAL, "h-11 px-4")}>
@@ -285,7 +291,12 @@ function PasswordForm({ online, onClose, onDone }: { online: boolean; onClose: (
   };
 
   return (
-    <form onSubmit={submit} noValidate aria-label="Change password" className="flex max-w-130 flex-col gap-3.5 border border-ink/15 bg-[#f8f3e7] px-4.5 py-4">
+    <form
+      onSubmit={submit}
+      noValidate
+      aria-label="Change password"
+      className="flex max-w-130 flex-col gap-3.5 border border-ink/15 bg-[#f8f3e7] px-4.5 py-4"
+    >
       {fields.map(([k, id, label, ac, help]) => (
         <div key={k} className="flex flex-col gap-1.75">
           <label htmlFor={id} className={LABEL}>
@@ -406,19 +417,20 @@ function GoogleDialog({
                 <span>Connect an account</span>
               </div>
               <div className="flex flex-col gap-3.5 px-5.5 py-5">
-                <Dialog.Title className="m-0 font-display text-[26px] font-normal leading-[1.1]">
+                <Dialog.Title className="m-0 font-display text-[26px] leading-[1.1] font-normal">
                   {choice ? "Different email address" : "Connect your Google account"}
                 </Dialog.Title>
                 {!choice ? (
-                  <p className="m-0 text-pretty text-[15px] leading-[1.55] text-ink-label">
-                    Google will ask you to choose an account and allow AI Courtroom to see its name and email. After that you can sign in with Google as well as {other}.
+                  <p className="m-0 text-[15px] leading-[1.55] text-pretty text-ink-label">
+                    Google will ask you to choose an account and allow AI Courtroom to see its name and email. After that you can sign in
+                    with Google as well as {other}.
                   </p>
                 ) : (
                   <>
-                    <p className="m-0 text-pretty text-[15px] leading-[1.55] text-ink-label">
-                      This Google account uses <strong className="wrap-anywhere text-ink">{choice.email}</strong>, but your AI Courtroom account email is{" "}
-                      <strong className="wrap-anywhere text-ink">{user.email}</strong>. You can connect it either way. Which email should we use for sign-in codes and
-                      replies?
+                    <p className="m-0 text-[15px] leading-[1.55] text-pretty text-ink-label">
+                      This Google account uses <strong className="wrap-anywhere text-ink">{choice.email}</strong>, but your AI Courtroom
+                      account email is <strong className="wrap-anywhere text-ink">{user.email}</strong>. You can connect it either way.
+                      Which email should we use for sign-in codes and replies?
                     </p>
                     <div role="radiogroup" aria-label="Account email" className="flex flex-col gap-2">
                       {options.map(([v, t, d]) => {
@@ -430,14 +442,20 @@ function GoogleDialog({
                             role="radio"
                             aria-checked={on}
                             onClick={() => setSwap(v)}
-                            className={cn("flex cursor-pointer items-start gap-3 border-[1.5px] border-ink px-3.5 py-3 text-left text-ink", on ? "bg-[#f8f3e7]" : "bg-transparent")}
+                            className={cn(
+                              "flex cursor-pointer items-start gap-3 border-[1.5px] border-ink px-3.5 py-3 text-left text-ink",
+                              on ? "bg-[#f8f3e7]" : "bg-transparent",
+                            )}
                           >
                             <span
                               aria-hidden="true"
-                              className={cn("mt-0.5 h-4.5 w-4.5 flex-none rounded-full border-[1.5px] border-ink", on && "bg-ink shadow-[inset_0_0_0_3px_#f8f3e7]")}
+                              className={cn(
+                                "mt-0.5 h-4.5 w-4.5 flex-none rounded-full border-[1.5px] border-ink",
+                                on && "bg-ink shadow-[inset_0_0_0_3px_#f8f3e7]",
+                              )}
                             />
                             <span className="flex min-w-0 flex-col gap-0.5">
-                              <span className="wrap-anywhere text-[14.5px] font-bold">{t}</span>
+                              <span className="text-[14.5px] font-bold wrap-anywhere">{t}</span>
                               <span className="text-[13px] leading-[1.45] text-ink-muted">{d}</span>
                             </span>
                           </button>
@@ -557,10 +575,12 @@ function DeleteDialog({ open, user, online, onClose }: { open: boolean; user: Us
                 <span>Strike off the roll</span>
               </div>
               <div className="flex flex-col gap-3.5 px-5.5 py-5">
-                <AlertDialog.Title className="m-0 font-display text-[26px] font-normal leading-[1.1]">Delete your account?</AlertDialog.Title>
-                <AlertDialog.Description className="m-0 text-pretty text-[15px] leading-[1.55] text-ink-label">
-                  Your profile, {cases === null ? "your" : cases} case{cases === 1 ? "" : "s"}, their proceedings and evidence will be deleted and you’ll be signed out on
-                  every device. We keep the account for 30 days:{" "}
+                <AlertDialog.Title className="m-0 font-display text-[26px] leading-[1.1] font-normal">
+                  Delete your account?
+                </AlertDialog.Title>
+                <AlertDialog.Description className="m-0 text-[15px] leading-[1.55] text-pretty text-ink-label">
+                  Your profile, {cases === null ? "your" : cases} case{cases === 1 ? "" : "s"}, their proceedings and evidence will be
+                  deleted and you’ll be signed out on every device. We keep the account for 30 days:{" "}
                   <Link href="/contact?cat=account_recovery" className="border-b border-seal text-seal hover:text-ink">
                     contact us
                   </Link>{" "}
@@ -576,13 +596,13 @@ function DeleteDialog({ open, user, online, onClose }: { open: boolean; user: Us
                     <label htmlFor="del-code" className={LABEL}>
                       {phone ? "Code from your phone" : "Code from your email"}
                     </label>
-                    <span className="text-pretty text-[13.5px] leading-normal text-ink-muted">
+                    <span className="text-[13.5px] leading-normal text-pretty text-ink-muted">
                       {phone
                         ? "You sign in with your phone, so there’s no password to check. We’ll text a six-digit code to"
                         : both
                           ? "We’ll email a six-digit code to"
                           : "You sign in with Google, so there’s no password to check. We’ll email a six-digit code to"}{" "}
-                      <strong className="wrap-anywhere font-bold text-ink">{where}</strong>.
+                      <strong className="font-bold wrap-anywhere text-ink">{where}</strong>.
                     </span>
                     <div className="flex flex-wrap items-stretch gap-2">
                       <input
@@ -606,15 +626,31 @@ function DeleteDialog({ open, user, online, onClose }: { open: boolean; user: Us
                         onClick={send}
                         disabled={sending || wait > 0}
                         className={cn(
-                          "h-12 flex-none cursor-pointer whitespace-nowrap border-[1.5px] border-ink px-4 text-[11px] font-bold uppercase tracking-[0.14em] disabled:cursor-default",
+                          "h-12 flex-none cursor-pointer border-[1.5px] border-ink px-4 text-[11px] font-bold tracking-[0.14em] whitespace-nowrap uppercase disabled:cursor-default",
                           sentAt ? "bg-transparent text-ink" : "bg-ink text-paper",
                         )}
                       >
-                        {sending ? "Sending…" : wait > 0 ? `Resend in ${wait}s` : sentAt ? "Resend code" : phone ? "Text me a code" : "Email me a code"}
+                        {sending
+                          ? "Sending…"
+                          : wait > 0
+                            ? `Resend in ${wait}s`
+                            : sentAt
+                              ? "Resend code"
+                              : phone
+                                ? "Text me a code"
+                                : "Email me a code"}
                       </button>
                     </div>
-                    <span id="del-code-h" role="status" className={cn("text-[12.5px]", code.length === 6 ? "text-green" : "text-ink-muted")}>
-                      {!sentAt ? "Send the code first. It expires after 10 minutes." : code.length === 6 ? "Code entered." : "Code sent. Check your inbox and spam folder."}
+                    <span
+                      id="del-code-h"
+                      role="status"
+                      className={cn("text-[12.5px]", code.length === 6 ? "text-green" : "text-ink-muted")}
+                    >
+                      {!sentAt
+                        ? "Send the code first. It expires after 10 minutes."
+                        : code.length === 6
+                          ? "Code entered."
+                          : "Code sent. Check your inbox and spam folder."}
                     </span>
                   </div>
                 ) : (

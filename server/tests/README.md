@@ -13,44 +13,44 @@ pip install -r requirements-dev.txt   # the app plus pytest, ruff, black and pyr
 
 ## Everyday commands
 
-| What | Command |
-| --- | --- |
-| Run all tests | `python -m pytest` |
-| Quiet output | `python -m pytest -q` |
-| Stop at the first failure | `python -m pytest -x` |
+| What                              | Command                 |
+| --------------------------------- | ----------------------- |
+| Run all tests                     | `python -m pytest`      |
+| Quiet output                      | `python -m pytest -q`   |
+| Stop at the first failure         | `python -m pytest -x`   |
 | Re-run only what failed last time | `python -m pytest --lf` |
-| Show each test name | `python -m pytest -v` |
-| Show `print()` output | `python -m pytest -s` |
+| Show each test name               | `python -m pytest -v`   |
+| Show `print()` output             | `python -m pytest -s`   |
 
 ## Coverage
 
-| What | Command |
-| --- | --- |
-| Coverage in the terminal (missing lines listed) | `python -m pytest --cov` |
-| Same check CI runs (fails below 97%) | `python -m pytest -q --cov --cov-report=term --cov-fail-under=97` |
-| HTML report (open `htmlcov/index.html`) | `python -m pytest --cov --cov-report=html` |
+| What                                            | Command                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------- |
+| Coverage in the terminal (missing lines listed) | `python -m pytest --cov`                                          |
+| Same check CI runs (fails below 97%)            | `python -m pytest -q --cov --cov-report=term --cov-fail-under=97` |
+| HTML report (open `htmlcov/index.html`)         | `python -m pytest --cov --cov-report=html`                        |
 
 ## Lint, format and type check
 
 Run from `server/`; settings live in `pyproject.toml`.
 
-| What | Command |
-| --- | --- |
-| Lint | `python -m ruff check .` |
+| What                      | Command                        |
+| ------------------------- | ------------------------------ |
+| Lint                      | `python -m ruff check .`       |
 | Lint and apply safe fixes | `python -m ruff check . --fix` |
-| Format | `python -m black .` |
-| Type check | `pyrefly check` |
+| Format                    | `python -m black .`            |
+| Type check                | `pyrefly check`                |
 
 ## Running part of the suite
 
-| What | Command |
-| --- | --- |
-| Only API route tests | `python -m pytest tests/api` |
-| Only unit tests | `python -m pytest tests/unit` |
-| One file | `python -m pytest tests/api/test_auth_routes.py` |
-| One test | `python -m pytest tests/api/test_auth_routes.py::test_login_verify_issues_token` |
-| Tests whose name matches a word | `python -m pytest -k witness` |
-| The 10 slowest tests | `python -m pytest --durations=10` |
+| What                            | Command                                                                          |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| Only API route tests            | `python -m pytest tests/api`                                                     |
+| Only unit tests                 | `python -m pytest tests/unit`                                                    |
+| One file                        | `python -m pytest tests/api/test_auth_routes.py`                                 |
+| One test                        | `python -m pytest tests/api/test_auth_routes.py::test_login_verify_issues_token` |
+| Tests whose name matches a word | `python -m pytest -k witness`                                                    |
+| The 10 slowest tests            | `python -m pytest --durations=10`                                                |
 
 ## Against a real MongoDB (optional)
 

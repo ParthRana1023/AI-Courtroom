@@ -70,35 +70,35 @@ One FastAPI process serves everything; there is no queue or worker. Slow work ru
 
 ### Server (`server/app`)
 
-| Path | What it holds |
-| --- | --- |
-| `main.py` | The FastAPI app, middleware (request IDs and logging, CORS), router registration, startup (Beanie init, location cache preload) |
-| `config.py` | Every setting, read from the environment with pydantic-settings; per-task model chains and limits live here |
-| `dependencies.py` | `get_current_user` (JWT and session check), `get_owned_case`, and `courtroom_control` (one writer per hearing) |
-| `messages.py` | User-facing error strings in one place, so routes and tests use the same text |
-| `models/` | Beanie documents. `case.py` is the heart: the petition text, parties, evidence, arguments, `courtroom_proceedings` (the record), witness testimonies and hearing state |
-| `routes/` | HTTP endpoints, one file per area. Routes validate, lock, call services and save |
-| `services/llm/` | One module per AI role. Each builds a prompt, calls `get_llm(task)` and parses the reply |
-| `services/rag/` | Case memory: `chunking.py`, `embedding.py` (fastembed), `service.py` (index, retrieve, fallback) |
-| `services/` (rest) | Evidence and images, counsel conferences, outcomes and stats, email, OTP, Google, Turnstile, purge, notifications, daily jobs, health |
-| `utils/llm.py` | `get_llm(task)`: the provider fallback chain, temperatures, health recording |
-| `utils/locks.py` | Per-case `asyncio.Lock`s |
-| `utils/rate_limiter.py` | MongoDB-backed per-user rate limits |
+| Path                    | What it holds                                                                                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main.py`               | The FastAPI app, middleware (request IDs and logging, CORS), router registration, startup (Beanie init, location cache preload)                                        |
+| `config.py`             | Every setting, read from the environment with pydantic-settings; per-task model chains and limits live here                                                            |
+| `dependencies.py`       | `get_current_user` (JWT and session check), `get_owned_case`, and `courtroom_control` (one writer per hearing)                                                         |
+| `messages.py`           | User-facing error strings in one place, so routes and tests use the same text                                                                                          |
+| `models/`               | Beanie documents. `case.py` is the heart: the petition text, parties, evidence, arguments, `courtroom_proceedings` (the record), witness testimonies and hearing state |
+| `routes/`               | HTTP endpoints, one file per area. Routes validate, lock, call services and save                                                                                       |
+| `services/llm/`         | One module per AI role. Each builds a prompt, calls `get_llm(task)` and parses the reply                                                                               |
+| `services/rag/`         | Case memory: `chunking.py`, `embedding.py` (fastembed), `service.py` (index, retrieve, fallback)                                                                       |
+| `services/` (rest)      | Evidence and images, counsel conferences, outcomes and stats, email, OTP, Google, Turnstile, purge, notifications, daily jobs, health                                  |
+| `utils/llm.py`          | `get_llm(task)`: the provider fallback chain, temperatures, health recording                                                                                           |
+| `utils/locks.py`        | Per-case `asyncio.Lock`s                                                                                                                                               |
+| `utils/rate_limiter.py` | MongoDB-backed per-user rate limits                                                                                                                                    |
 
 ### Client (`client/`)
 
-| Path | What it holds |
-| --- | --- |
-| `app/` | Routes. `(app)/` shares the desk layout: `/cases`, `/cases/new`, `/cases/[cnr]` (case file), `/cases/[cnr]/case-prep`, `/cases/[cnr]/courtroom`, `/profile`. Public pages: landing, auth, documents, `/status`, `/contact`, `/unsubscribe` |
-| `proxy.ts` | Sends signed-out visitors on `/cases/*` and `/profile/*` to sign-in, and signed-in ones away from `/login` and `/register` |
-| `lib/api.ts` | Axios client: attaches the Bearer token, maps errors, signs out on 401 |
-| `lib/case-file.ts` | Reads the petition's Markdown into the seven-part case file (summary, parties, facts, charges, evidence, issues, prayer) |
-| `lib/three/` | The 3D landing scene (three.js), kept close to the design handoff |
-| `components/court/` | Shared "courtroom paper" UI: scroller, confirm dialog, select, notice sheet, Markdown on paper, loaders |
-| `components/cases/`, `components/landing/`, … | Feature components |
-| `contexts/` | Auth, settings, PWA install, cookie consent, client logger |
-| `e2e/` | Playwright specs, fixtures (`support/fixtures.ts` mocks the API) and config |
-| `capacitor.config.ts` | The Android shell: loads `CAP_SERVER_URL` |
+| Path                                          | What it holds                                                                                                                                                                                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/`                                        | Routes. `(app)/` shares the desk layout: `/cases`, `/cases/new`, `/cases/[cnr]` (case file), `/cases/[cnr]/case-prep`, `/cases/[cnr]/courtroom`, `/profile`. Public pages: landing, auth, documents, `/status`, `/contact`, `/unsubscribe` |
+| `proxy.ts`                                    | Sends signed-out visitors on `/cases/*` and `/profile/*` to sign-in, and signed-in ones away from `/login` and `/register`                                                                                                                 |
+| `lib/api.ts`                                  | Axios client: attaches the Bearer token, maps errors, signs out on 401                                                                                                                                                                     |
+| `lib/case-file.ts`                            | Reads the petition's Markdown into the seven-part case file (summary, parties, facts, charges, evidence, issues, prayer)                                                                                                                   |
+| `lib/three/`                                  | The 3D landing scene (three.js), kept close to the design handoff                                                                                                                                                                          |
+| `components/court/`                           | Shared "courtroom paper" UI: scroller, confirm dialog, select, notice sheet, Markdown on paper, loaders                                                                                                                                    |
+| `components/cases/`, `components/landing/`, … | Feature components                                                                                                                                                                                                                         |
+| `contexts/`                                   | Auth, settings, PWA install, cookie consent, client logger                                                                                                                                                                                 |
+| `e2e/`                                        | Playwright specs, fixtures (`support/fixtures.ts` mocks the API) and config                                                                                                                                                                |
+| `capacitor.config.ts`                         | The Android shell: loads `CAP_SERVER_URL`                                                                                                                                                                                                  |
 
 ## Requests, auth and sessions
 
@@ -116,15 +116,15 @@ One FastAPI process serves everything; there is no queue or worker. Slow work ru
 
 `get_llm(task)` in `utils/llm.py` returns a LangChain runnable for one of seven tasks:
 
-| Task | Used for |
-| --- | --- |
-| `drafter` | The petition; extracting parties and evidence from it; party details; evidence image prompts |
-| `lawyer` | AI counsel: openings, counter-arguments, closings, questions to its clients; witness questions; whether to call a witness |
-| `judge` | Rulings on objections, and the verdict |
-| `witness` | Witness answers on the stand |
-| `party` | Parties' replies in case prep chat |
-| `analyzer` | The case analysis, and summaries of long courtroom records |
-| `outcome` | Classifying the result for profile stats |
+| Task       | Used for                                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `drafter`  | The petition; extracting parties and evidence from it; party details; evidence image prompts                              |
+| `lawyer`   | AI counsel: openings, counter-arguments, closings, questions to its clients; witness questions; whether to call a witness |
+| `judge`    | Rulings on objections, and the verdict                                                                                    |
+| `witness`  | Witness answers on the stand                                                                                              |
+| `party`    | Parties' replies in case prep chat                                                                                        |
+| `analyzer` | The case analysis, and summaries of long courtroom records                                                                |
+| `outcome`  | Classifying the result for profile stats                                                                                  |
 
 Each task has a chain of up to four models (`*_MODEL`, `*_FALLBACK_MODEL`, `*_FALLBACK2_MODEL`, `*_FALLBACK3_MODEL`) across Groq, OpenRouter and Cloudflare Workers AI. A failure falls through to the next model with LangChain's `with_fallbacks`. Every call's success or failure is recorded in `services/health.py`, which drives the components on the public status page (generation, the courtroom, analysis).
 
@@ -267,19 +267,19 @@ GitHub Actions (`.github/workflows/daily-jobs.yml`) calls `POST /admin/jobs/dail
 1. Takes a lock in `job_locks`, so overlapping runs skip. The lock is deleted on release.
 2. Runs each step and records it in `job_runs`. One step failing does not stop the others.
 
-| Step | What it does |
-| --- | --- |
-| `purge_notices` | Emails accounts 3 days before their 30-day erasure |
-| `purge` | Erases accounts deleted over 30 days ago: photo, cases and their images, memory, outcomes, sessions, OTPs, rate-limit keys; contact messages are anonymised |
-| `image_cleanups` | Retries Cloudinary deletions that failed earlier (`delete_or_queue`) |
-| `hearing_reminders` | One email per adjournment when a case has waited 7 days |
-| `announcements` | Sends queued product-update emails in batches, with one-click unsubscribe tokens |
+| Step                | What it does                                                                                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `purge_notices`     | Emails accounts 3 days before their 30-day erasure                                                                                                          |
+| `purge`             | Erases accounts deleted over 30 days ago: photo, cases and their images, memory, outcomes, sessions, OTPs, rate-limit keys; contact messages are anonymised |
+| `image_cleanups`    | Retries Cloudinary deletions that failed earlier (`delete_or_queue`)                                                                                        |
+| `hearing_reminders` | One email per adjournment when a case has waited 7 days                                                                                                     |
+| `announcements`     | Sends queued product-update emails in batches, with one-click unsubscribe tokens                                                                            |
 
 ## Invariants
 
 Rules the code depends on. Breaking one usually passes the tests on mongomock and fails in production.
 
-- **Never `$set` an element of an array and `$push` to the same array in one update.** MongoDB rejects it (code 40); mongomock allows it. The objection route does two writes for this reason. Updates touching *different* arrays are fine.
+- **Never `$set` an element of an array and `$push` to the same array in one update.** MongoDB rejects it (code 40); mongomock allows it. The objection route does two writes for this reason. Updates touching _different_ arrays are fine.
 - **Append to `courtroom_proceedings` with `$push`, not by saving the whole case,** when background work may be writing at the same time (the AI examiner, objections). Saving a stale copy would drop the other writer's events.
 - **Indexes into `courtroom_proceedings` stay valid,** because the record is append-only. Entries are struck or withdrawn, never removed.
 - **One writer per hearing.** Use `controls_hearing` on any route that changes a hearing. The lock is in-process (`asyncio.Lock`), which is correct while the API runs as a single instance; running several instances would need a shared lock.
@@ -289,23 +289,23 @@ Rules the code depends on. Breaking one usually passes the tests on mongomock an
 
 ## Testing
 
-| Layer | How |
-| --- | --- |
-| Server unit and API | pytest with an ASGI client. `tests/conftest.py` swaps in a fake LLM (queued responses) and fake embeddings, blocks outbound HTTP, and blanks secrets from a developer `.env` |
-| Database | mongomock by default. Setting `TEST_MONGODB_URL` runs the same suite on a real MongoDB; CI does both |
-| Client end-to-end | Playwright builds the app against an API origin that never answers; every call is mocked per test with `page.route`. Runs on desktop and mobile Chromium, with the 3D specs also on WebKit, and axe accessibility checks on each page |
-| Static checks | ruff, black, pyrefly (server); TypeScript and ESLint (client); knip for unused code |
+| Layer               | How                                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server unit and API | pytest with an ASGI client. `tests/conftest.py` swaps in a fake LLM (queued responses) and fake embeddings, blocks outbound HTTP, and blanks secrets from a developer `.env`                                                          |
+| Database            | mongomock by default. Setting `TEST_MONGODB_URL` runs the same suite on a real MongoDB; CI does both                                                                                                                                  |
+| Client end-to-end   | Playwright builds the app against an API origin that never answers; every call is mocked per test with `page.route`. Runs on desktop and mobile Chromium, with the 3D specs also on WebKit, and axe accessibility checks on each page |
+| Static checks       | ruff, black, pyrefly (server); TypeScript and ESLint (client); knip for unused code                                                                                                                                                   |
 
 CI (`.github/workflows/ci.yml`) runs everything except knip on pushes to `main` and on pull requests; server coverage must stay at 97% or above. Run knip yourself with `pnpm dlx knip` in `client/`.
 
 ## Deployment
 
-| Part | Host | How it updates |
-| --- | --- | --- |
-| Client | Vercel | Builds `client/` on every push to `main` |
-| Server | Render (native Python service, no Docker) | Redeploys from GitHub when files under `server/` change on `main`; installs `requirements.txt` and runs Uvicorn |
-| Database | MongoDB Atlas | — |
-| Daily jobs | GitHub Actions cron | Calls the deployed API |
-| Android | GitHub Releases | A Capacitor shell that loads the live site; a new APK is needed only for native changes |
+| Part       | Host                                      | How it updates                                                                                                  |
+| ---------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Client     | Vercel                                    | Builds `client/` on every push to `main`                                                                        |
+| Server     | Render (native Python service, no Docker) | Redeploys from GitHub when files under `server/` change on `main`; installs `requirements.txt` and runs Uvicorn |
+| Database   | MongoDB Atlas                             | —                                                                                                               |
+| Daily jobs | GitHub Actions cron                       | Calls the deployed API                                                                                          |
+| Android    | GitHub Releases                           | A Capacitor shell that loads the live site; a new APK is needed only for native changes                         |
 
 `server/Dockerfile` and `docker-compose.yml` are for local development only; production does not use them.

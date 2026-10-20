@@ -5,10 +5,7 @@ enum Roles {
   NOT_STARTED = "not_started",
 }
 
-export type CaseLocationPreference =
-  | "user_location"
-  | "specific_state"
-  | "random";
+export type CaseLocationPreference = "user_location" | "specific_state" | "random";
 
 type AuthMethod = "email" | "phone" | "google";
 
@@ -163,11 +160,7 @@ interface PendingLeave {
   called_by: string;
 }
 
-type EvidenceMediaStatus =
-  | "not_requested"
-  | "pending"
-  | "generated"
-  | "failed";
+type EvidenceMediaStatus = "not_requested" | "pending" | "generated" | "failed";
 
 export interface EvidenceItem {
   id: string;
@@ -359,4 +352,3 @@ export interface CurrentWitnessResponse {
   phase?: "chief" | "cross" | "re_exam";
   next_examiner?: string; // whose turn it is: plaintiff or defendant
 }
-

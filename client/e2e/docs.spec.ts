@@ -12,7 +12,17 @@ const DOCS: [string, string, string, string, number, string | null][] = [
   ["/changelog", "CHANGELOG", "Changelog", "Changelog", 11, "20 October 2026"],
   ["/accessibility", "ACCESSIBILITY", "Accessibility", "Accessibility", 4, "4 October 2026"],
 ];
-const FOOTER = ["About", "Help & FAQ", "Changelog", "Privacy Policy", "Cookie Policy", "Terms of Service", "Accessibility", "Contact Us", "System status"];
+const FOOTER = [
+  "About",
+  "Help & FAQ",
+  "Changelog",
+  "Privacy Policy",
+  "Cookie Policy",
+  "Terms of Service",
+  "Accessibility",
+  "Contact Us",
+  "System status",
+];
 
 test.describe("documents, signed out", () => {
   for (const [path, h1, label, here, sections, updated] of DOCS) {
@@ -27,7 +37,8 @@ test.describe("documents, signed out", () => {
       await expect(doc.getByText("AI Courtroom is a practice simulator for learning advocacy.", { exact: false })).toBeAttached();
       await expect(doc.getByRole("navigation", { name: "Legal" }).getByRole("link")).toHaveText(FOOTER.filter((t) => t !== here));
 
-      if (isMobile(info.project.name)) await expect(page.getByRole("combobox", { name: "Jump to section" }).locator("option")).toHaveCount(sections);
+      if (isMobile(info.project.name))
+        await expect(page.getByRole("combobox", { name: "Jump to section" }).locator("option")).toHaveCount(sections);
       else await expect(page.getByRole("navigation", { name: "Contents" }).getByRole("button")).toHaveCount(sections);
     });
   }
@@ -77,7 +88,11 @@ test.describe("documents, signed out", () => {
   test("links between documents work", async ({ page, api }) => {
     await api();
     await page.goto("/privacy");
-    await page.getByRole("article", { name: "Privacy Policy" }).getByRole("navigation", { name: "Legal" }).getByRole("link", { name: "Cookie Policy" }).click();
+    await page
+      .getByRole("article", { name: "Privacy Policy" })
+      .getByRole("navigation", { name: "Legal" })
+      .getByRole("link", { name: "Cookie Policy" })
+      .click();
     await expect(page).toHaveURL(/\/cookies$/);
     await expect(page.getByRole("heading", { level: 1, name: "COOKIE POLICY" })).toBeVisible();
   });

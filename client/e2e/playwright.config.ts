@@ -36,8 +36,7 @@ export default defineConfig({
           outputDir: here("./.report/coverage"),
           reports: ["v8", "console-summary"],
           entryFilter: (entry: { url: string }) => entry.url.includes("/_next/static/chunks/"),
-          sourceFilter: (path: string) =>
-            /(^|\/)(app|components|contexts|hooks|lib)\//.test(path) && !path.includes("node_modules"),
+          sourceFilter: (path: string) => /(^|\/)(app|components|contexts|hooks|lib)\//.test(path) && !path.includes("node_modules"),
         },
       },
     ],

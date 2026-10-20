@@ -14,11 +14,7 @@ const COPY = {
     form: "Form I-1 · Installation",
     title: "Install AI Courtroom",
     body: "Add AI Courtroom to your home screen for instant access, faster loading, and offline support.",
-    feats: [
-      "Works offline — view past cases anytime",
-      "Instant launch from your home screen",
-      "No app store needed",
-    ],
+    feats: ["Works offline — view past cases anytime", "Instant launch from your home screen", "No app store needed"],
     cta: "Install",
     busy: "Installing…",
     stamp: "INSTALLED",
@@ -28,11 +24,7 @@ const COPY = {
     form: "Form D-2 · Download",
     title: "Download AI Courtroom",
     body: "Download the AI Courtroom Android app for the best mobile experience with native performance.",
-    feats: [
-      "Native Android app — smooth performance",
-      "Instant launch from your home screen",
-      "Full offline support",
-    ],
+    feats: ["Native Android app — smooth performance", "Instant launch from your home screen", "Full offline support"],
     cta: "Download APK",
     busy: "Starting download…",
     stamp: "DOWNLOADING",
@@ -50,8 +42,7 @@ function rememberDismissal() {
 
 export default function InstallPrompt() {
   const pathname = usePathname();
-  const { canInstall, installMode, promptInstall, promptOpen, openPrompt, closePrompt } =
-    usePwaInstall();
+  const { canInstall, installMode, promptInstall, promptOpen, openPrompt, closePrompt } = usePwaInstall();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const copy = COPY[installMode];
@@ -88,12 +79,12 @@ export default function InstallPrompt() {
   return (
     <Dialog.Root open={promptOpen} onOpenChange={(o) => !o && close()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-100 bg-(--scrim) animate-[ac-fade_.25s_ease_both]" />
+        <Dialog.Overlay className="fixed inset-0 z-100 animate-[ac-fade_.25s_ease_both] bg-(--scrim)" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed inset-x-4 bottom-4 z-101 mx-auto flex max-w-100 flex-col bg-paper text-ink shadow-dialog outline-none animate-[ac-rise_.32s_cubic-bezier(.2,.9,.3,1)_both] min-[560px]:bottom-auto min-[560px]:top-1/2 min-[560px]:-translate-y-1/2"
+          className="fixed inset-x-4 bottom-4 z-101 mx-auto flex max-w-100 animate-[ac-rise_.32s_cubic-bezier(.2,.9,.3,1)_both] flex-col bg-paper text-ink shadow-dialog outline-none min-[560px]:top-1/2 min-[560px]:bottom-auto min-[560px]:-translate-y-1/2"
         >
-          <div className="flex items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-5.5 pr-2.5 pt-3 font-type text-label font-bold uppercase tracking-[0.2em] text-ink-label">
+          <div className="flex items-center justify-between gap-3 border-b-[3px] border-double border-ink pt-3 pr-2.5 pb-2.5 pl-5.5 font-type text-label font-bold tracking-[0.2em] text-ink-label uppercase">
             <span>{copy.form}</span>
             <Dialog.Close
               aria-label="Dismiss install prompt"
@@ -104,11 +95,11 @@ export default function InstallPrompt() {
           </div>
 
           {done ? (
-            <div role="status" className="flex flex-col items-center gap-4.5 px-5.5 pb-5.5 pt-7.5 text-center">
-              <span className="inline-block border-4 border-double border-seal px-4.5 pb-1.5 pt-2 font-display text-[2.375rem] leading-none tracking-[0.08em] text-seal animate-[ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both] transform-[rotate(-5deg)]">
+            <div role="status" className="flex flex-col items-center gap-4.5 px-5.5 pt-7.5 pb-5.5 text-center">
+              <span className="inline-block transform-[rotate(-5deg)] animate-[ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both] border-4 border-double border-seal px-4.5 pt-2 pb-1.5 font-display text-[2.375rem] leading-none tracking-[0.08em] text-seal">
                 {copy.stamp}
               </span>
-              <Dialog.Title className="m-0 max-w-[320px] text-balance font-type text-body font-normal leading-[1.55] text-ink-label">
+              <Dialog.Title className="m-0 max-w-[320px] font-type text-body leading-[1.55] font-normal text-balance text-ink-label">
                 {copy.done}
               </Dialog.Title>
               <button type="button" autoFocus onClick={close} className={buttonClass("ink", "md", "w-full")}>
@@ -116,18 +107,12 @@ export default function InstallPrompt() {
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-4 px-5.5 pb-5.5 pt-5">
+            <div className="flex flex-col gap-4 px-5.5 pt-5 pb-5.5">
               <div className="flex flex-col gap-1.5">
-                <Dialog.Title className="m-0 font-display text-h2 font-normal leading-[1.1]">
-                  {copy.title}
-                </Dialog.Title>
-                <span className="font-type text-label font-bold uppercase tracking-[0.16em] text-seal">
-                  Get the full app experience
-                </span>
+                <Dialog.Title className="m-0 font-display text-h2 leading-[1.1] font-normal">{copy.title}</Dialog.Title>
+                <span className="font-type text-label font-bold tracking-[0.16em] text-seal uppercase">Get the full app experience</span>
               </div>
-              <p className="m-0 text-pretty font-type text-body leading-[1.55] text-ink-label">
-                {copy.body}
-              </p>
+              <p className="m-0 font-type text-body leading-[1.55] text-pretty text-ink-label">{copy.body}</p>
               <ol className="m-0 flex list-none flex-col border-t border-ink/20 p-0">
                 {copy.feats.map((f, i) => (
                   <li

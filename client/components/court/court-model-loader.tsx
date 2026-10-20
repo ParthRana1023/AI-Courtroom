@@ -47,8 +47,7 @@ export default function CourtModelLoader({
       if (disposed) return;
 
       const canvas = document.createElement("canvas");
-      canvas.style.cssText =
-        "position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .6s ease";
+      canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .6s ease";
       const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -155,10 +154,7 @@ export default function CourtModelLoader({
   }, [model]);
 
   return (
-    <div
-      role="status"
-      className="flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center gap-3.5 text-center"
-    >
+    <div role="status" className="flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center gap-3.5 text-center">
       {!failed && (
         <div
           ref={stageRef}
@@ -167,15 +163,9 @@ export default function CourtModelLoader({
         />
       )}
       <div className="flex flex-col items-center gap-1.5 px-4">
-        <span
-          className={`font-display text-xl leading-tight ${tone === "paper" ? "text-ink" : "text-desk-ink"}`}
-        >
-          {status}
-        </span>
+        <span className={`font-display text-xl leading-tight ${tone === "paper" ? "text-ink" : "text-desk-ink"}`}>{status}</span>
         {model && !failed && (
-          <span
-            className={`text-balance font-type text-meta leading-[1.45] ${tone === "paper" ? "text-ink-muted" : "text-desk-muted"}`}
-          >
+          <span className={`font-type text-meta leading-[1.45] text-balance ${tone === "paper" ? "text-ink-muted" : "text-desk-muted"}`}>
             {model.name}, from {model.where}. Drag to turn it.
           </span>
         )}

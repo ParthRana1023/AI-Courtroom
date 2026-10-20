@@ -262,7 +262,7 @@ export default function EditProfile({
     <>
       <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-63 bg-(--scrim) animate-[ac-fade_.24s_ease_both]" />
+          <Dialog.Overlay className="fixed inset-0 z-63 animate-[ac-fade_.24s_ease_both] bg-(--scrim)" />
           <Dialog.Content
             aria-describedby={undefined}
             {...focus}
@@ -278,14 +278,14 @@ export default function EditProfile({
               noValidate
               className="fixed inset-y-0 right-0 z-64 flex w-[min(460px,100%)] animate-[ac-panel_.44s_cubic-bezier(.2,.8,.2,1)_both] flex-col bg-paper font-type text-ink shadow-[-30px_0_80px_rgba(0,0,0,.6)] outline-none light:shadow-[-30px_0_80px_rgba(60,44,28,.25)]"
             >
-              <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-5.5 pr-3.5 pt-3">
+              <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pt-3 pr-3.5 pb-2.5 pl-5.5">
                 <Dialog.Title className={cn(TAG, "m-0 text-ink-label")}>Edit profile</Dialog.Title>
                 <Dialog.Close aria-label="Close" className={CLOSE}>
                   ×
                 </Dialog.Close>
               </div>
 
-              <Scroller className="flex flex-1 flex-col gap-4.5 px-6 pb-6.5 pt-5.5">
+              <Scroller className="flex flex-1 flex-col gap-4.5 px-6 pt-5.5 pb-6.5">
                 <div className="flex items-center gap-4 border-b border-ink/20 pb-4.5">
                   {photo.url ? (
                     <span
@@ -295,13 +295,16 @@ export default function EditProfile({
                       style={{ backgroundImage: `url("${photo.url}")` }}
                     />
                   ) : (
-                    <span aria-hidden="true" className="flex h-19 w-19 flex-none items-center justify-center rounded-full bg-ink font-display text-[28px] text-paper">
+                    <span
+                      aria-hidden="true"
+                      className="flex h-19 w-19 flex-none items-center justify-center rounded-full bg-ink font-display text-[28px] text-paper"
+                    >
                       {ini}
                     </span>
                   )}
                   <div className="flex flex-col gap-2">
                     <div className="flex flex-wrap gap-1.5">
-                      <label className="relative flex h-9.5 cursor-pointer items-center bg-ink px-3.5 text-[11px] font-bold uppercase tracking-[0.14em] text-paper focus-within:outline-2 focus-within:outline-gold">
+                      <label className="relative flex h-9.5 cursor-pointer items-center bg-ink px-3.5 text-[11px] font-bold tracking-[0.14em] text-paper uppercase focus-within:outline-2 focus-within:outline-gold">
                         Upload photo
                         <input type="file" accept="image/*" onChange={onPhoto} className="absolute h-px w-px opacity-0" />
                       </label>
@@ -309,7 +312,7 @@ export default function EditProfile({
                         <button
                           type="button"
                           onClick={() => setPhoto({ url: null })}
-                          className="h-9.5 cursor-pointer border-[1.5px] border-ink bg-transparent px-3.5 text-[11px] font-bold uppercase tracking-[0.14em] text-ink hover:bg-[#f8f3e7]"
+                          className="h-9.5 cursor-pointer border-[1.5px] border-ink bg-transparent px-3.5 text-[11px] font-bold tracking-[0.14em] text-ink uppercase hover:bg-[#f8f3e7]"
                         >
                           Remove
                         </button>
@@ -320,7 +323,7 @@ export default function EditProfile({
                       <button
                         type="button"
                         onClick={() => setCropSrc(photo.src ?? photo.url)}
-                        className="cursor-pointer self-start border-0 border-b border-ink bg-transparent p-0 text-[10.5px] font-bold uppercase tracking-[0.14em] text-ink hover:border-seal hover:text-seal"
+                        className="cursor-pointer self-start border-0 border-b border-ink bg-transparent p-0 text-[10.5px] font-bold tracking-[0.14em] text-ink uppercase hover:border-seal hover:text-seal"
                       >
                         Adjust crop
                       </button>
@@ -377,7 +380,10 @@ export default function EditProfile({
                           role="radio"
                           aria-checked={on}
                           onClick={() => setF((x) => ({ ...x, gender: on ? "" : v }))}
-                          className={cn("min-h-9.5 cursor-pointer border-[1.5px] border-ink px-3 text-[13.5px]", on ? "bg-ink text-paper" : "bg-transparent text-ink")}
+                          className={cn(
+                            "min-h-9.5 cursor-pointer border-[1.5px] border-ink px-3 text-[13.5px]",
+                            on ? "bg-ink text-paper" : "bg-transparent text-ink",
+                          )}
                         >
                           {t}
                         </button>
@@ -454,7 +460,10 @@ export default function EditProfile({
                           type="button"
                           onClick={() => void confirmEmail()}
                           disabled={emailCode.code.length !== 6 || saving}
-                          className={cn(BTN, "h-11.5 border-0 bg-ink text-paper hover:bg-seal disabled:cursor-default disabled:bg-ink-disabled")}
+                          className={cn(
+                            BTN,
+                            "h-11.5 border-0 bg-ink text-paper hover:bg-seal disabled:cursor-default disabled:bg-ink-disabled",
+                          )}
                         >
                           Confirm email
                         </button>
@@ -525,32 +534,56 @@ export default function EditProfile({
                     </span>
                   )}
                   <span className={HINT}>
-                    {phoneAccount ? "You signed up with this number, so it can’t be changed here." : "Only used for account recovery. Never shown to anyone."}
+                    {phoneAccount
+                      ? "You signed up with this number, so it can’t be changed here."
+                      : "Only used for account recovery. Never shown to anyone."}
                   </span>
                 </div>
 
                 <div className="flex flex-col gap-3.5 border-t border-ink/20 pt-1.5">
                   <span className={cn(LABEL, "pt-3")}>Where you practise</span>
                   <Field id="ed-city" label="City">
-                    <input id="ed-city" value={f.city} onChange={set("city")} autoComplete="address-level2" className={cn(FIELD, "border-ink")} />
+                    <input
+                      id="ed-city"
+                      value={f.city}
+                      onChange={set("city")}
+                      autoComplete="address-level2"
+                      className={cn(FIELD, "border-ink")}
+                    />
                   </Field>
                   <div className="grid grid-cols-2 gap-3.5">
                     <Field id="ed-state" label="State">
-                      <input id="ed-state" value={f.state} onChange={set("state")} autoComplete="address-level1" className={cn(FIELD, "border-ink")} />
+                      <input
+                        id="ed-state"
+                        value={f.state}
+                        onChange={set("state")}
+                        autoComplete="address-level1"
+                        className={cn(FIELD, "border-ink")}
+                      />
                     </Field>
                     <Field id="ed-country" label="Country">
-                      <input id="ed-country" value={f.country} onChange={set("country")} autoComplete="country-name" className={cn(FIELD, "border-ink")} />
+                      <input
+                        id="ed-country"
+                        value={f.country}
+                        onChange={set("country")}
+                        autoComplete="country-name"
+                        className={cn(FIELD, "border-ink")}
+                      />
                     </Field>
                   </div>
                   <span className={HINT}>New cases are set in courts near here.</span>
                 </div>
               </Scroller>
 
-              <div className="flex flex-none justify-end gap-2 border-t-[3px] border-double border-ink px-4.5 pb-3.5 pt-3">
+              <div className="flex flex-none justify-end gap-2 border-t-[3px] border-double border-ink px-4.5 pt-3 pb-3.5">
                 <Dialog.Close type="button" className={cn(BTN, "border-[1.5px] border-ink bg-transparent text-ink hover:bg-[#f8f3e7]")}>
                   Cancel
                 </Dialog.Close>
-                <button type="submit" disabled={saving} className={cn(BTN, "border-0 bg-seal px-5 text-cream hover:bg-seal-hover disabled:cursor-wait")}>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className={cn(BTN, "border-0 bg-seal px-5 text-cream hover:bg-seal-hover disabled:cursor-wait")}
+                >
                   {saving ? "Saving…" : "Save changes"}
                 </button>
               </div>
@@ -607,18 +640,18 @@ function CropDialog({ src, w, onCancel, onUse }: { src: string; w: number; onCan
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onCancel()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-66 grid place-items-center bg-[rgba(7,5,4,.85)] p-4 animate-[ac-fade_.22s_ease_both] light:bg-[rgba(40,30,20,.51)]">
+        <Dialog.Overlay className="fixed inset-0 z-66 grid animate-[ac-fade_.22s_ease_both] place-items-center bg-[rgba(7,5,4,.85)] p-4 light:bg-[rgba(40,30,20,.51)]">
           <Dialog.Content
             aria-describedby={undefined}
             className="flex w-full max-w-105 animate-[ac-rise_.38s_cubic-bezier(.2,.8,.2,1)_both] flex-col bg-paper font-type text-ink shadow-dialog outline-none"
           >
-            <div className="flex items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-5.5 pr-3.5 pt-3">
+            <div className="flex items-center justify-between gap-3 border-b-[3px] border-double border-ink pt-3 pr-3.5 pb-2.5 pl-5.5">
               <Dialog.Title className={cn(TAG, "m-0 text-ink-label")}>Crop your photo</Dialog.Title>
               <Dialog.Close aria-label="Cancel" className={CLOSE}>
                 ×
               </Dialog.Close>
             </div>
-            <div className="flex flex-col items-center gap-4 px-5.5 pb-4 pt-5.5">
+            <div className="flex flex-col items-center gap-4 px-5.5 pt-5.5 pb-4">
               <div
                 role="group"
                 aria-label="Photo crop area. Drag or use the arrow keys to move, plus and minus to zoom."
@@ -664,22 +697,29 @@ function CropDialog({ src, w, onCancel, onUse }: { src: string; w: number; onCan
               </label>
               <span className="text-center text-[12.5px] text-ink-meta">Drag to position your face inside the circle.</span>
             </div>
-            <div className="flex justify-between gap-2 border-t-[3px] border-double border-ink px-4.5 pb-3.5 pt-3">
+            <div className="flex justify-between gap-2 border-t-[3px] border-double border-ink px-4.5 pt-3 pb-3.5">
               <button
                 type="button"
                 onClick={() => {
                   setCrop({ x: 0, y: 0 });
                   setZoom(1);
                 }}
-                className="h-11 cursor-pointer border-0 border-b border-ink/40 bg-transparent px-3.5 text-[11px] font-bold uppercase tracking-[0.14em] text-ink hover:text-seal"
+                className="h-11 cursor-pointer border-0 border-b border-ink/40 bg-transparent px-3.5 text-[11px] font-bold tracking-[0.14em] text-ink uppercase hover:text-seal"
               >
                 Reset
               </button>
               <div className="flex gap-2">
-                <Dialog.Close type="button" className={cn(BTN, "h-11 border-[1.5px] border-ink bg-transparent text-ink hover:bg-[#f8f3e7]")}>
+                <Dialog.Close
+                  type="button"
+                  className={cn(BTN, "h-11 border-[1.5px] border-ink bg-transparent text-ink hover:bg-[#f8f3e7]")}
+                >
                   Cancel
                 </Dialog.Close>
-                <button type="button" onClick={() => void use()} className={cn(BTN, "h-11 border-0 bg-seal text-cream hover:bg-seal-hover")}>
+                <button
+                  type="button"
+                  onClick={() => void use()}
+                  className={cn(BTN, "h-11 border-0 bg-seal text-cream hover:bg-seal-hover")}
+                >
                   Use photo
                 </button>
               </div>

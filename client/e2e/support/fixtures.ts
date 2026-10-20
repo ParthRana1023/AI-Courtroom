@@ -95,9 +95,7 @@ export const test = base.extend<Fixtures>({
       route.fulfill({ contentType: "text/javascript", body: FAKE_TURNSTILE }),
     );
     if (consented) {
-      await context.addCookies([
-        { name: "ai_courtroom_consent", value: encodeURIComponent(JSON.stringify(CONSENT)), url: baseURL! },
-      ]);
+      await context.addCookies([{ name: "ai_courtroom_consent", value: encodeURIComponent(JSON.stringify(CONSENT)), url: baseURL! }]);
     }
     await run(page);
   },

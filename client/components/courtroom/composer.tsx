@@ -93,7 +93,12 @@ export default function Composer({
   };
 
   return (
-    <div className={cn("flex flex-none flex-col gap-2 border-t-[3px] border-double border-ink bg-paper-soft", mob ? "px-3 pb-3 pt-2.5" : "px-6.5 pb-3.5 pt-3")}>
+    <div
+      className={cn(
+        "flex flex-none flex-col gap-2 border-t-[3px] border-double border-ink bg-paper-soft",
+        mob ? "px-3 pt-2.5 pb-3" : "px-6.5 pt-3 pb-3.5",
+      )}
+    >
       {canArgue && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -113,7 +118,7 @@ export default function Composer({
                     onClick={() => onMode(k)}
                     className={cn(
                       LABEL,
-                      "h-8 cursor-pointer whitespace-nowrap border-0 px-3 tracking-[0.14em] transition-colors",
+                      "h-8 cursor-pointer border-0 px-3 tracking-[0.14em] whitespace-nowrap transition-colors",
                       mode === k ? "bg-ink text-paper" : "bg-transparent text-ink",
                     )}
                   >
@@ -127,9 +132,9 @@ export default function Composer({
             <span className="text-[12.5px] text-ink-muted">{meta}</span>
           </div>
           {closing && (
-            <span className="text-pretty text-[13px] leading-[1.45] text-seal">
-              Your closing statement ends the hearing. The court will then deliver its verdict. Sum up from the record: you can’t cite exhibits, bring new
-              evidence or call a witness.
+            <span className="text-[13px] leading-[1.45] text-pretty text-seal">
+              Your closing statement ends the hearing. The court will then deliver its verdict. Sum up from the record: you can’t cite
+              exhibits, bring new evidence or call a witness.
             </span>
           )}
           {cite && <PinnedChips evidence={evidence} att={att} onAtt={onAtt} onExhibit={onExhibit} />}
@@ -186,7 +191,7 @@ export default function Composer({
               disabled={sendOff}
               title={sendTip}
               className={cn(
-                "h-11.5 flex-none cursor-pointer whitespace-nowrap border-0 text-xs font-bold uppercase tracking-[0.14em] text-cream transition-colors disabled:cursor-not-allowed",
+                "h-11.5 flex-none cursor-pointer border-0 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase transition-colors disabled:cursor-not-allowed",
                 mob ? "px-3.5" : "px-5.5",
                 sendGrey ? "bg-ink-disabled" : "bg-seal hover:bg-seal-hover",
               )}
@@ -219,7 +224,7 @@ export default function Composer({
             <button
               type="button"
               onClick={note.go}
-              className="h-11 cursor-pointer whitespace-nowrap border-0 bg-ink px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-paper hover:bg-seal"
+              className="h-11 cursor-pointer border-0 bg-ink px-4.5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-paper uppercase hover:bg-seal"
             >
               {note.btn}
             </button>

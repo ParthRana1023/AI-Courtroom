@@ -26,12 +26,7 @@ let entries: LLMTraceEntry[] = [];
 let nextId = 1;
 const listeners = new Set<() => void>();
 
-export function recordLLMTrace(
-  headerValue: unknown,
-  method: string | undefined,
-  url: string | undefined,
-  status: number,
-) {
+export function recordLLMTrace(headerValue: unknown, method: string | undefined, url: string | undefined, status: number) {
   if (typeof headerValue !== "string" || !headerValue) return;
   let calls: LLMCall[];
   try {

@@ -146,9 +146,7 @@ export default function LoginPage() {
           onBack={() => setScreen("form")}
           onResend={() => (viaPhone ? sendPhoneCode(phoneBody) : login(email.trim(), password, remember))}
           onVerify={async (otp) => {
-            const user = viaPhone
-              ? await verifyPhone(phoneBody, otp, remember)
-              : await verifyLogin(email.trim(), otp, remember);
+            const user = viaPhone ? await verifyPhone(phoneBody, otp, remember) : await verifyLogin(email.trim(), otp, remember);
             finish(user);
           }}
           admittedLine={admitted ? "Welcome back, counsel. Taking you to your cases…" : undefined}
@@ -162,16 +160,13 @@ export default function LoginPage() {
       {layout.wide && (
         <AuthIntro kicker="Chambers · Sign in" title="THE COURT IS IN SESSION.">
           <IntroText>
-            Sign in to pick up your cases where you left them. After your password, we email you a
-            six-digit code to confirm it’s you.
+            Sign in to pick up your cases where you left them. After your password, we email you a six-digit code to confirm it’s you.
           </IntroText>
         </AuthIntro>
       )}
       <Slip form={["Form A-1", "Admission to chambers"]} onSubmit={submit}>
         <SlipHeading title="Sign the register" sub={layout.showSub ? "Welcome back, counsel." : undefined} />
-        {params.get("session") === "expired" && !formErr && (
-          <Notice>Your session has expired. Please sign in again.</Notice>
-        )}
+        {params.get("session") === "expired" && !formErr && <Notice>Your session has expired. Please sign in again.</Notice>}
         {formErr && <Objection>{formErr}</Objection>}
 
         {viaPhone ? (
@@ -218,7 +213,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPw((s) => !s)}
                   aria-label={showPw ? "Hide password" : "Show password"}
-                  className="absolute bottom-0.5 right-0 top-0 min-w-17.5 cursor-pointer bg-transparent text-label font-bold uppercase tracking-[0.14em] text-ink-muted hover:text-seal"
+                  className="absolute top-0 right-0 bottom-0.5 min-w-17.5 cursor-pointer bg-transparent text-label font-bold tracking-[0.14em] text-ink-muted uppercase hover:text-seal"
                 >
                   {showPw ? "Hide" : "Show"}
                 </button>
@@ -232,13 +227,7 @@ export default function LoginPage() {
         </Check>
 
         <button type="submit" disabled={busy || googleBusy} className={cn(primaryButton, googleBusy && "opacity-60")}>
-          {viaPhone
-            ? busy
-              ? "Sending code…"
-              : "Send code →"
-            : busy
-              ? "Checking the register…"
-              : "Enter the court →"}
+          {viaPhone ? (busy ? "Sending code…" : "Send code →") : busy ? "Checking the register…" : "Enter the court →"}
         </button>
 
         <OrDivider>or continue with</OrDivider>

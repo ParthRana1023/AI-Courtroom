@@ -45,7 +45,8 @@ const phoneOk = (v: string) => /^\+?[\d\s()-]{8,}$/.test(v.trim());
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 const LABEL = "text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted";
-const INPUT = "h-11.5 w-full min-w-0 rounded-none border-0 border-b-2 bg-paper-alt px-3 font-data text-base text-ink outline-none focus:bg-[#f8f3e7]";
+const INPUT =
+  "h-11.5 w-full min-w-0 rounded-none border-0 border-b-2 bg-paper-alt px-3 font-data text-base text-ink outline-none focus:bg-[#f8f3e7]";
 const ERR = "text-[13px] text-error";
 
 function Field({ id, label, error, children }: { id: string; label: string; error: string; children: ReactNode }) {
@@ -100,7 +101,8 @@ export default function ContactPage() {
   const len = msg.trim().length;
   const msgErr = tried ? (!rec && !len ? "Message is required" : len && len < 10 ? "Message must be at least 10 characters" : "") : "";
   const gNameErr = tried && signedOut && !gName.trim() ? "Name is required" : "";
-  const gEmailErr = tried && signedOut ? (!gEmail.trim() ? "Email is required" : !emailOk(gEmail) ? "Enter a valid email address" : "") : "";
+  const gEmailErr =
+    tried && signedOut ? (!gEmail.trim() ? "Email is required" : !emailOk(gEmail) ? "Enter a valid email address" : "") : "";
   const rAcctErr =
     tried && rec
       ? !rAcct.trim()
@@ -118,7 +120,10 @@ export default function ContactPage() {
     if (busy) return;
     if (!online) return setFormErr("You’re offline. Your message is kept, so you can send it when you’re back online.");
     const bad =
-      (signedOut && (!gName.trim() || !emailOk(gEmail))) || (rec && !(emailOk(rAcct) || phoneOk(rAcct))) || (!rec && len < 10) || (len > 0 && len < 10);
+      (signedOut && (!gName.trim() || !emailOk(gEmail))) ||
+      (rec && !(emailOk(rAcct) || phoneOk(rAcct))) ||
+      (!rec && len < 10) ||
+      (len > 0 && len < 10);
     if (bad) {
       setTried(true);
       // The first field that needs fixing takes focus.
@@ -165,7 +170,9 @@ export default function ContactPage() {
   };
 
   const kicker = (
-    <span className={cn("whitespace-nowrap uppercase text-desk-red", mob ? "text-[10.5px] tracking-[0.16em]" : "text-[11px] tracking-[0.3em]")}>
+    <span
+      className={cn("whitespace-nowrap text-desk-red uppercase", mob ? "text-[10.5px] tracking-[0.16em]" : "text-[11px] tracking-[0.3em]")}
+    >
       Correspondence · {today}
     </span>
   );
@@ -174,11 +181,23 @@ export default function ContactPage() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_80%_0%,var(--desk-glow)_0%,var(--desk-bg)_70%)] font-type leading-[normal] text-desk-ink">
       <SiteHeader />
-      <main className={cn("mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col", mob ? "gap-2.5 px-3 pb-2.5 pt-3" : "gap-3.5 px-[4vw] pb-4.5 pt-5")}>
+      <main
+        className={cn(
+          "mx-auto flex min-h-0 w-full max-w-300 flex-1 flex-col",
+          mob ? "gap-2.5 px-3 pt-3 pb-2.5" : "gap-3.5 px-[4vw] pt-5 pb-4.5",
+        )}
+      >
         {!wide && (
           <div className="flex min-w-0 flex-col gap-1.5">
             {kicker}
-            <h1 className={cn("m-0 font-display font-normal", mob ? "text-[clamp(28px,8.5vw,40px)]/none" : "text-[clamp(36px,4vw,52px)]/none")}>CONTACT</h1>
+            <h1
+              className={cn(
+                "m-0 font-display font-normal",
+                mob ? "text-[clamp(28px,8.5vw,40px)]/none" : "text-[clamp(36px,4vw,52px)]/none",
+              )}
+            >
+              CONTACT
+            </h1>
           </div>
         )}
         <div className={cn("grid min-h-0 flex-1", wide ? "grid-cols-[280px_minmax(0,1fr)] gap-10" : "grid-cols-1")}>
@@ -188,17 +207,23 @@ export default function ContactPage() {
                 {kicker}
                 <h1 className="m-0 font-display text-[clamp(36px,4vw,52px)]/none font-normal">CONTACT</h1>
               </div>
-              <p className="m-0 border-t border-[rgba(239,230,211,.16)] pt-4.5 text-base/[1.55] text-desk-soft text-pretty light:border-[rgba(18,13,9,.24)]">
+              <p className="m-0 border-t border-[rgba(239,230,211,.16)] pt-4.5 text-base/[1.55] text-pretty text-desk-soft light:border-[rgba(18,13,9,.24)]">
                 {INTRO}
               </p>
-              <p className="m-0 text-meta/normal text-desk-muted text-pretty">{REPLY}</p>
+              <p className="m-0 text-meta/normal text-pretty text-desk-muted">{REPLY}</p>
             </div>
           )}
 
-          <form ref={formRef} onSubmit={submit} noValidate aria-label="Contact form" className="flex min-h-0 w-full flex-1 flex-col bg-paper text-ink shadow-sheet">
+          <form
+            ref={formRef}
+            onSubmit={submit}
+            noValidate
+            aria-label="Contact form"
+            className="flex min-h-0 w-full flex-1 flex-col bg-paper text-ink shadow-sheet"
+          >
             <div
               className={cn(
-                "flex justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pt-3.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ink-label",
+                "flex justify-between gap-3 border-b-[3px] border-double border-ink pt-3.5 pb-2.5 text-[11px] font-bold tracking-[0.2em] text-ink-label uppercase",
                 mob ? "px-4" : "px-7",
               )}
             >
@@ -208,10 +233,10 @@ export default function ContactPage() {
 
             {sent ? (
               <div role="status" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4.5 px-5 py-8 text-center">
-                <span className="inline-block -rotate-5 border-4 border-double border-seal px-5 pb-1.5 pt-2 font-display text-[44px] leading-none tracking-[0.08em] text-seal animate-[ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both]">
+                <span className="inline-block -rotate-5 animate-[ac-stamp_.35s_cubic-bezier(.2,.9,.3,1.2)_both] border-4 border-double border-seal px-5 pt-2 pb-1.5 font-display text-[44px] leading-none tracking-[0.08em] text-seal">
                   RECEIVED
                 </span>
-                <span className="max-w-105 text-base/[1.55] text-ink-label text-balance">
+                <span className="max-w-105 text-base/[1.55] text-balance text-ink-label">
                   Your message has been sent successfully! We will get back to you soon if a reply is needed.
                 </span>
                 <span className="font-data text-xs font-medium text-ink-hint">Filed under: {catLabel}</span>
@@ -219,14 +244,14 @@ export default function ContactPage() {
                   <button
                     type="button"
                     onClick={again}
-                    className="h-12 cursor-pointer border-[1.5px] border-ink bg-transparent px-5 text-xs font-bold uppercase tracking-[0.14em] text-ink hover:bg-[#f8f3e7]"
+                    className="h-12 cursor-pointer border-[1.5px] border-ink bg-transparent px-5 text-xs font-bold tracking-[0.14em] text-ink uppercase hover:bg-[#f8f3e7]"
                   >
                     Write another
                   </button>
                   {!signedOut && (
                     <Link
                       href="/cases"
-                      className="flex h-12 items-center bg-ink px-5 text-xs font-bold uppercase tracking-[0.14em] text-paper hover:bg-ink-label hover:text-white"
+                      className="flex h-12 items-center bg-ink px-5 text-xs font-bold tracking-[0.14em] text-paper uppercase hover:bg-ink-label hover:text-white"
                     >
                       Back to my cases
                     </Link>
@@ -235,11 +260,20 @@ export default function ContactPage() {
               </div>
             ) : (
               <>
-                <div data-scroller="" className={cn("flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain", mob ? "px-4 pb-5 pt-4" : "px-7 pb-6 pt-5.5")}>
-                  {!wide && <p className="m-0 text-base/normal text-ink-label text-pretty">{INTRO}</p>}
+                <div
+                  data-scroller=""
+                  className={cn(
+                    "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain",
+                    mob ? "px-4 pt-4 pb-5" : "px-7 pt-5.5 pb-6",
+                  )}
+                >
+                  {!wide && <p className="m-0 text-base/normal text-pretty text-ink-label">{INTRO}</p>}
                   {signedOut && (
                     <>
-                      <div role="status" className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 bg-ink px-3.5 py-3 text-sm/[1.45] text-paper">
+                      <div
+                        role="status"
+                        className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 bg-ink px-3.5 py-3 text-sm/[1.45] text-paper"
+                      >
                         <strong className="font-display text-[15px] font-normal tracking-[0.06em] text-amber-hi">NOTICE.</strong>
                         <span>You’re not signed in. Leave your name and email so we can reply, or</span>
                         <Link href="/login?next=/contact" className="border-b border-paper font-bold text-paper hover:text-white">
@@ -278,7 +312,10 @@ export default function ContactPage() {
                     </>
                   )}
                   {formErr && (
-                    <div role="alert" className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 bg-seal px-3.5 py-3 text-sm/[1.45] text-cream">
+                    <div
+                      role="alert"
+                      className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 bg-seal px-3.5 py-3 text-sm/[1.45] text-cream"
+                    >
                       <strong className="font-display text-[15px] font-normal tracking-[0.06em]">OBJECTION.</strong>
                       <span>{formErr}</span>
                     </div>
@@ -298,7 +335,7 @@ export default function ContactPage() {
                             aria-checked={on}
                             onClick={() => setCat(v)}
                             className={cn(
-                              "min-h-10 cursor-pointer whitespace-nowrap border px-3.5 text-sm hover:border-ink",
+                              "min-h-10 cursor-pointer border px-3.5 text-sm whitespace-nowrap hover:border-ink",
                               on ? "border-ink bg-ink text-paper" : "border-ink/30 bg-transparent text-ink",
                             )}
                           >
@@ -310,9 +347,9 @@ export default function ContactPage() {
                   </div>
                   {rec && (
                     <div className="flex flex-col gap-3 border-[1.5px] border-ink bg-[#f8f3e7] px-4 py-3.5">
-                      <span className="text-sm/[1.55] text-[#2a2018] text-pretty">
-                        Deleted accounts are kept for 30 days before they’re erased for good. Tell us which account it was and we’ll restore it, with
-                        every case, and email you once it’s back. After 30 days it can’t be recovered.
+                      <span className="text-sm/[1.55] text-pretty text-[#2a2018]">
+                        Deleted accounts are kept for 30 days before they’re erased for good. Tell us which account it was and we’ll restore
+                        it, with every case, and email you once it’s back. After 30 days it can’t be recovered.
                       </span>
                       <div className={cn("grid gap-3.5", mob ? "grid-cols-1" : "grid-cols-2")}>
                         <Field id="c-acct" label="Email or phone on the account" error={rAcctErr}>
@@ -347,7 +384,10 @@ export default function ContactPage() {
                       <label htmlFor="msg" className={LABEL}>
                         Your message
                       </label>
-                      <span aria-live="polite" className={cn("font-data text-xs font-medium", len && len < 10 ? "text-amber-deep" : "text-ink-muted")}>
+                      <span
+                        aria-live="polite"
+                        className={cn("font-data text-xs font-medium", len && len < 10 ? "text-amber-deep" : "text-ink-muted")}
+                      >
                         {len < 10 ? `${len} / 10 characters minimum` : `${len} characters`}
                       </span>
                     </div>
@@ -391,7 +431,7 @@ export default function ContactPage() {
                 <div
                   className={cn(
                     "flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-[3px] border-double border-ink",
-                    mob ? "px-4 pb-3.5 pt-3" : "px-7 pb-4 pt-3.5",
+                    mob ? "px-4 pt-3 pb-3.5" : "px-7 pt-3.5 pb-4",
                   )}
                 >
                   {!wide && <span className="flex-[1_1_220px] text-[13px]/[1.45] text-ink-label">{REPLY}</span>}
@@ -400,7 +440,7 @@ export default function ContactPage() {
                     type="submit"
                     disabled={busy}
                     className={cn(
-                      "h-13 min-w-55 cursor-pointer whitespace-nowrap border-0 bg-seal px-6 text-[13px] font-bold uppercase tracking-[0.14em] text-cream hover:bg-seal-hover disabled:cursor-default",
+                      "h-13 min-w-55 cursor-pointer border-0 bg-seal px-6 text-[13px] font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase hover:bg-seal-hover disabled:cursor-default",
                       mob ? "flex-[1_1_100%]" : "flex-none",
                     )}
                   >

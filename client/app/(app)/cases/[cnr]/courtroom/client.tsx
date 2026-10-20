@@ -32,7 +32,14 @@ import { AI_EXAMINATION_POLL_MS, COURTROOM_POLL_MS, MIN_ARGUMENTS_BETWEEN_AI_WIT
 import { getErrorDetail } from "@/lib/error-utils";
 import { argumentRateLimitAPI, type RateLimitInfo } from "@/lib/rateLimitAPI";
 import { cn } from "@/lib/utils";
-import { CaseStatus, CourtroomProceedingsEventType as T, type AIObjection, type Case, type CurrentWitnessResponse, type PersonInvolved } from "@/types";
+import {
+  CaseStatus,
+  CourtroomProceedingsEventType as T,
+  type AIObjection,
+  type Case,
+  type CurrentWitnessResponse,
+  type PersonInvolved,
+} from "@/types";
 
 type Load = "loading" | "loaded" | "error" | "notfound";
 
@@ -344,7 +351,10 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const objected = useMemo(() => new Set(events.flatMap((e) => (e.objection ? [e.objection.target_id] : []))), [events]);
   const lastMove = useMemo(() => [...events].reverse().find((e) => MOVES_ON.has(e.type)), [events]);
   const busy = !!sending || !!typing || aiTurn || witBusy || !!asking || objBusy;
-  const objectable = lastMove && lastMove.speaker_role === ai && !objected.has(lastMove.id) && active && !view && !sending && !popup && !objBusy ? lastMove.id : null;
+  const objectable =
+    lastMove && lastMove.speaker_role === ai && !objected.has(lastMove.id) && active && !view && !sending && !popup && !objBusy
+      ? lastMove.id
+      : null;
   const leave = data?.pending_leave ?? null;
   const reported = useMemo(() => new Set([...(data?.reported ?? []), ...reportedLocal]), [data, reportedLocal]);
   const userArgs = events.filter((e) => e.type === T.ARGUMENT).length;
@@ -761,7 +771,6 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     }
   };
 
-
   const toggleMic = () => {
     if (listening) return stopMic();
     if (!online) return note("You’re offline. Voice input needs a connection.");
@@ -813,8 +822,10 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
           <CourtModelLoader status="Loading the courtroom…" />
         ) : (
           <div role="alert" className="flex max-w-115 flex-col items-center gap-4 text-center">
-            <span className="font-display text-[30px] leading-[1.15] text-desk-ink">{load === "notfound" ? "Case Not Found" : "Couldn’t open the courtroom"}</span>
-            <span className="text-balance text-[15px] leading-[1.55] text-desk-muted">
+            <span className="font-display text-[30px] leading-[1.15] text-desk-ink">
+              {load === "notfound" ? "Case Not Found" : "Couldn’t open the courtroom"}
+            </span>
+            <span className="text-[15px] leading-[1.55] text-balance text-desk-muted">
               {load === "notfound"
                 ? "The case you’re looking for doesn’t exist or you don’t have permission to view it."
                 : "Failed to load case details. Please try again later."}
@@ -822,12 +833,16 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
             <div className="flex flex-wrap justify-center gap-2">
               <Link
                 href={load === "notfound" ? "/cases" : `/cases/${cnr}/case-prep`}
-                className="flex h-11.5 items-center border border-desk-rule-mid px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-desk-ink hover:border-desk-ink"
+                className="flex h-11.5 items-center border border-desk-rule-mid px-4.5 text-xs font-bold tracking-[0.14em] text-desk-ink uppercase hover:border-desk-ink"
               >
                 {load === "notfound" ? "Back to my cases" : "Go back"}
               </Link>
               {load === "error" && (
-                <button type="button" onClick={boot} className="h-11.5 cursor-pointer bg-seal px-4.5 text-xs font-bold uppercase tracking-[0.14em] text-cream hover:bg-seal-hover">
+                <button
+                  type="button"
+                  onClick={boot}
+                  className="h-11.5 cursor-pointer bg-seal px-4.5 text-xs font-bold tracking-[0.14em] text-cream uppercase hover:bg-seal-hover"
+                >
                   Try again
                 </button>
               )}
@@ -843,10 +858,16 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const court = file.court;
   const judgment = [...events].reverse().find((e) => e.type === T.SYSTEM_MESSAGE && e.content === JUDGMENT_DELIVERED);
   const stLabel = view ? "In session · watching" : active ? "in session" : adjourned ? "adjourned" : "resolved";
-  const stC = active ? "border-desk-green text-desk-green" : adjourned ? "border-amber-hi text-amber-hi light:border-amber light:text-amber" : "border-desk-soft text-desk-soft";
+  const stC = active
+    ? "border-desk-green text-desk-green"
+    : adjourned
+      ? "border-amber-hi text-amber-hi light:border-amber light:text-amber"
+      : "border-desk-soft text-desk-soft";
 
   const witnessName = onStand?.witness_name ?? "";
-  const standCall = onStand ? [...events].reverse().find((e) => e.type === T.WITNESS_CALLED && e.witness_id === onStand.witness_id) : undefined;
+  const standCall = onStand
+    ? [...events].reverse().find((e) => e.type === T.WITNESS_CALLED && e.witness_id === onStand.witness_id)
+    : undefined;
   const hist: QA[] = [];
   // The stand types out in step with the record.
   const shown = (x: Ev) => (typing?.id === x.id ? x.content.slice(0, typing.n) : x.content);
@@ -918,9 +939,17 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
         : stage === "re"
           ? { kind: "ask", re: true }
           : stage === "cross"
-            ? choice(`${SIDE[ai]} has finished examining the witness. Would you like to cross-examine?`, "Cross-examine", "No questions · dismiss")
+            ? choice(
+                `${SIDE[ai]} has finished examining the witness. Would you like to cross-examine?`,
+                "Cross-examine",
+                "No questions · dismiss",
+              )
             : stage === "choice"
-              ? choice(`${SIDE[ai]} has finished their cross-examination. You may re-examine the witness once, on matters raised in cross.`, "Re-examine", "No re-examination · dismiss")
+              ? choice(
+                  `${SIDE[ai]} has finished their cross-examination. You may re-examine the witness once, on matters raised in cross.`,
+                  "Re-examine",
+                  "No re-examination · dismiss",
+                )
               : null;
   const busyNote =
     onStand && aiTurn
@@ -942,7 +971,12 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
       setRep({
         id: e.id,
         no,
-        who: e.type === T.RULING ? "The Court" : e.type === T.WITNESS_EXAMINED_A ? `${names[e.witness_id ?? ""] ?? "Witness"} · AI` : `${SIDE[ai]} · AI`,
+        who:
+          e.type === T.RULING
+            ? "The Court"
+            : e.type === T.WITNESS_EXAMINED_A
+              ? `${names[e.witness_id ?? ""] ?? "Witness"} · AI`
+              : `${SIDE[ai]} · AI`,
         text: e.content,
       }),
     leaveOpen: leave && active && !view && !objBusy ? leave.event_id : null,
@@ -954,35 +988,64 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   };
 
   const composerNote: ComposerNote | null = adjourned
-    ? { k: "Court adjourned", t: "The hearing is paused. Resume when you’re ready to continue.", c: "#7a4a0c", btn: "Resume hearing →", go: () => void resume() }
+    ? {
+        k: "Court adjourned",
+        t: "The hearing is paused. Resume when you’re ready to continue.",
+        c: "#7a4a0c",
+        btn: "Resume hearing →",
+        go: () => void resume(),
+      }
     : resolved
-      ? { k: "Case resolved", t: "The court has delivered its verdict. The record is now closed.", c: "#3e3326", btn: "View verdict", go: () => setVerdictOpen(true) }
+      ? {
+          k: "Case resolved",
+          t: "The court has delivered its verdict. The record is now closed.",
+          c: "#3e3326",
+          btn: "View verdict",
+          go: () => setVerdictOpen(true),
+        }
       : view
         ? { k: "Watching from this device", t: "Arguments are being submitted from another device.", c: "#3e3326" }
         : null;
 
   const btn = cn(
-    "h-10.5 min-w-0 cursor-pointer whitespace-nowrap font-bold uppercase",
+    "h-10.5 min-w-0 cursor-pointer font-bold whitespace-nowrap uppercase",
     mob ? "flex-[1_1_auto] px-1.5 text-[11px] tracking-[0.06em]" : "flex-none px-4 text-xs tracking-[0.14em]",
   );
   const outline = cn(btn, "border border-desk-rule-mid bg-transparent text-desk-ink hover:border-desk-ink hover:bg-desk-ink/6");
   const solid = cn(btn, "border-0 bg-seal text-cream hover:bg-seal-hover");
-  const adjTip = sess >= 2 ? "End this court session. You can resume later." : `Submit at least ${2 - sess} more argument${2 - sess === 1 ? "" : "s"} this session before adjourning`;
+  const adjTip =
+    sess >= 2
+      ? "End this court session. You can resume later."
+      : `Submit at least ${2 - sess} more argument${2 - sess === 1 ? "" : "s"} this session before adjourning`;
 
   return (
-    <div className={cn("relative mx-auto flex min-h-0 w-full max-w-360 flex-1 flex-col", mob ? "gap-2.5 px-3 pb-3 pt-2.5" : "gap-3 px-[3vw] pb-4.5 pt-4")}>
+    <div
+      className={cn(
+        "relative mx-auto flex min-h-0 w-full max-w-360 flex-1 flex-col",
+        mob ? "gap-2.5 px-3 pt-2.5 pb-3" : "gap-3 px-[3vw] pt-4 pb-4.5",
+      )}
+    >
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Link
             href={`/cases/${cnr}/case-prep`}
-            className="relative flex min-h-7 items-center gap-2 self-start text-xs uppercase tracking-[0.16em] text-desk-soft before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:text-desk-hover"
+            className="relative flex min-h-7 items-center gap-2 self-start text-xs tracking-[0.16em] text-desk-soft uppercase before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:text-desk-hover"
           >
             <span aria-hidden="true">←</span>
             <span>Case Prep</span>
           </Link>
           <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
-            <h1 className={cn("m-0 font-display font-normal leading-[1.05] text-desk-ink", mob ? "text-[26px]" : "text-[32px]")}>{data.title}</h1>
-            <span className={cn("whitespace-nowrap border-[1.5px] px-2.25 pb-0.75 pt-1 text-[10.5px] font-bold uppercase tracking-[0.18em]", stC)}>{stLabel}</span>
+            <h1 className={cn("m-0 font-display leading-[1.05] font-normal text-desk-ink", mob ? "text-[26px]" : "text-[32px]")}>
+              {data.title}
+            </h1>
+            <span
+              className={cn(
+                "border-[1.5px] px-2.25 pt-1 pb-0.75 text-[10.5px] font-bold tracking-[0.18em] whitespace-nowrap uppercase",
+                stC,
+              )}
+            >
+              {stLabel}
+            </span>
           </div>
           <span className="text-[13.5px] leading-[1.4] text-desk-muted">
             You are <strong className="text-desk-ink">{SIDE[me]}</strong> · <span className="font-data text-xs font-medium">{cnr}</span>
@@ -1035,14 +1098,14 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
       {view && (
         <div
           role="status"
-          className="flex flex-wrap items-center gap-x-4 gap-y-2 border border-[rgba(233,163,58,.5)] bg-[rgba(233,163,58,.08)] py-2.25 pl-3.5 pr-2.25 text-[13.5px] leading-[1.45] text-amber-hi light:text-amber"
+          className="flex flex-wrap items-center gap-x-4 gap-y-2 border border-[rgba(233,163,58,.5)] bg-[rgba(233,163,58,.08)] py-2.25 pr-2.25 pl-3.5 text-[13.5px] leading-[1.45] text-amber-hi light:text-amber"
         >
-          <strong className="text-[10.5px] font-bold uppercase tracking-[0.18em]">Watching</strong>
+          <strong className="text-[10.5px] font-bold tracking-[0.18em] uppercase">Watching</strong>
           <span className="flex-[1_1_280px]">This hearing is being run from another device. You can follow the proceedings here.</span>
           <button
             type="button"
             onClick={() => void takeOver()}
-            className="h-9 cursor-pointer whitespace-nowrap border-0 bg-amber-hi px-3.5 text-[11px] font-bold uppercase tracking-[0.14em] text-ink hover:bg-[#f2d89a]"
+            className="h-9 cursor-pointer border-0 bg-amber-hi px-3.5 text-[11px] font-bold tracking-[0.14em] whitespace-nowrap text-ink uppercase hover:bg-[#f2d89a]"
           >
             Take over the hearing
           </button>
@@ -1052,7 +1115,9 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
       <div
         ref={paperRef}
         className="relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden bg-paper text-ink shadow-sheet motion-safe:transition-[grid-template-columns] motion-safe:duration-620 motion-safe:ease-[cubic-bezier(.65,0,.35,1)]"
-        style={{ gridTemplateColumns: !two ? "minmax(0,1fr)" : witOpen ? `minmax(0,1fr) ${w >= 1320 ? 460 : 400}px` : "minmax(0,1fr) 56px" }}
+        style={{
+          gridTemplateColumns: !two ? "minmax(0,1fr)" : witOpen ? `minmax(0,1fr) ${w >= 1320 ? 460 : 400}px` : "minmax(0,1fr) 56px",
+        }}
       >
         <section aria-label="Proceedings" className="flex min-h-0 min-w-0 flex-col">
           <Proceedings

@@ -70,7 +70,7 @@ function Plate({ e, big, regen, onRegen }: { e: EvidenceItem; big?: boolean; reg
               onRegen(e.id);
             }}
             className={cn(
-              "cursor-pointer border-[1.5px] border-[#7a3a06] bg-paper text-[11px] font-bold uppercase tracking-[0.14em] text-[#7a3a06] hover:bg-[#f8f3e7] disabled:cursor-wait",
+              "cursor-pointer border-[1.5px] border-[#7a3a06] bg-paper text-[11px] font-bold tracking-[0.14em] text-[#7a3a06] uppercase hover:bg-[#f8f3e7] disabled:cursor-wait",
               big ? "h-10 px-4" : "h-9 px-3.5",
             )}
           >
@@ -78,12 +78,14 @@ function Plate({ e, big, regen, onRegen }: { e: EvidenceItem; big?: boolean; reg
           </button>
         </>
       ) : (
-        <span className={cn("font-data font-medium uppercase tracking-[0.12em] text-ink-meta", big ? "text-xs" : "text-[11px]")}>Exhibit image</span>
+        <span className={cn("font-data font-medium tracking-[0.12em] text-ink-meta uppercase", big ? "text-xs" : "text-[11px]")}>
+          Exhibit image
+        </span>
       )}
       <span
         className={cn(
-          "absolute flex-none whitespace-nowrap border-[1.5px] border-seal bg-paper font-data font-bold text-seal",
-          big ? "left-3.5 top-3.5 px-2.25 pb-0.75 pt-1 text-sm" : "left-2.5 top-2.5 px-1.75 pb-0.5 pt-0.75 text-xs",
+          "absolute flex-none border-[1.5px] border-seal bg-paper font-data font-bold whitespace-nowrap text-seal",
+          big ? "top-3.5 left-3.5 px-2.25 pt-1 pb-0.75 text-sm" : "top-2.5 left-2.5 px-1.75 pt-0.75 pb-0.5 text-xs",
         )}
       >
         {e.exhibit_ref}
@@ -124,17 +126,28 @@ export function ExhibitGrid({
     if (!root) return;
     const r = reduce();
     root.querySelectorAll<HTMLElement>("[data-card]").forEach((c, i) =>
-      c.animate?.(r ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: "translateY(16px)" }, { opacity: 1, transform: "none" }], {
-        duration: 420,
-        delay: Math.min(i, 8) * 55,
-        easing: "cubic-bezier(.2,.8,.2,1)",
-        fill: "backwards",
-      }),
+      c.animate?.(
+        r
+          ? [{ opacity: 0 }, { opacity: 1 }]
+          : [
+              { opacity: 0, transform: "translateY(16px)" },
+              { opacity: 1, transform: "none" },
+            ],
+        {
+          duration: 420,
+          delay: Math.min(i, 8) * 55,
+          easing: "cubic-bezier(.2,.8,.2,1)",
+          fill: "backwards",
+        },
+      ),
     );
     const c = arrivalFocus.current && root.querySelector<HTMLElement>(`[data-card="${arrivalFocus.current}"]`);
     if (c) {
       root.scrollTop = Math.max(0, c.offsetTop - 70);
-      c.animate?.([{ boxShadow: "0 0 0 3px #8e1f19" }, { boxShadow: "0 0 0 3px #8e1f19", offset: 0.6 }, { boxShadow: "0 0 0 0 rgba(142,31,25,0)" }], { duration: 1600, delay: 300 });
+      c.animate?.(
+        [{ boxShadow: "0 0 0 3px #8e1f19" }, { boxShadow: "0 0 0 3px #8e1f19", offset: 0.6 }, { boxShadow: "0 0 0 0 rgba(142,31,25,0)" }],
+        { duration: 1600, delay: 300 },
+      );
     }
   }, []);
 
@@ -144,17 +157,17 @@ export function ExhibitGrid({
       data-scroller=""
       className={cn(
         "relative flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain bg-paper text-ink shadow-sheet",
-        mob ? "px-3.5 pb-4.5 pt-3.5" : "px-6.5 pb-6.5 pt-5",
+        mob ? "px-3.5 pt-3.5 pb-4.5" : "px-6.5 pt-5 pb-6.5",
       )}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2.5 border-b-[3px] border-double border-ink pb-2.5">
-        <span className="text-label font-bold uppercase tracking-[0.2em] text-ink-label">
+        <span className="text-label font-bold tracking-[0.2em] text-ink-label uppercase">
           {title} · {evidence.length}
         </span>
         <span className="text-[13px] text-ink-muted">{note}</span>
       </div>
       {evidence.length === 0 ? (
-        <p className="m-0 py-6 text-body italic text-ink-hint">{empty}</p>
+        <p className="m-0 py-6 text-body text-ink-hint italic">{empty}</p>
       ) : (
         <div className={cn("grid gap-3.5", small ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[repeat(auto-fill,minmax(270px,1fr))]")}>
           {evidence.map((e) => (
@@ -174,16 +187,19 @@ export function ExhibitGrid({
               }}
               className="flex min-w-0 cursor-pointer flex-col border border-ink/20 bg-[#f8f3e7] transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.75 hover:border-ink/45 hover:shadow-[0_14px_30px_-14px_rgba(18,13,9,.45)]"
             >
-              <div className="relative flex h-37.5 flex-col items-center justify-center gap-2.5 overflow-hidden border-b border-ink/15 p-4 text-center" style={{ background: plateBg(e) }}>
+              <div
+                className="relative flex h-37.5 flex-col items-center justify-center gap-2.5 overflow-hidden border-b border-ink/15 p-4 text-center"
+                style={{ background: plateBg(e) }}
+              >
                 <Plate e={e} regen={regen} onRegen={onRegen} />
               </div>
-              <div className="flex flex-col gap-1.75 px-4 pb-4 pt-3.5">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink-meta">
+              <div className="flex flex-col gap-1.75 px-4 pt-3.5 pb-4">
+                <span className="text-[10px] font-bold tracking-[0.18em] text-ink-meta uppercase">
                   {e.evidence_type} · {statusText(e)}
                 </span>
-                <h3 className="m-0 text-balance font-display text-lg font-normal leading-tight">{e.title}</h3>
+                <h3 className="m-0 font-display text-lg leading-tight font-normal text-balance">{e.title}</h3>
                 {e.source && <span className="text-[12.5px] leading-[1.4] text-ink-muted">Source: {e.source}</span>}
-                <p className="m-0 mt-0.5 text-pretty text-[14.5px] leading-[1.6] text-[#2a2018]">{e.description}</p>
+                <p className="m-0 mt-0.5 text-[14.5px] leading-[1.6] text-pretty text-[#2a2018]">{e.description}</p>
               </div>
             </article>
           ))}
@@ -238,10 +254,18 @@ export function ExhibitViewer({
     const b = bodyRef.current;
     if (b && openId && shown.current && shown.current !== openId) {
       b.scrollTop = 0;
-      b.animate?.(reduce() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: `translateX(${dir.current * 30}px)` }, { opacity: 1, transform: "none" }], {
-        duration: 340,
-        easing: "cubic-bezier(.2,.8,.2,1)",
-      });
+      b.animate?.(
+        reduce()
+          ? [{ opacity: 0 }, { opacity: 1 }]
+          : [
+              { opacity: 0, transform: `translateX(${dir.current * 30}px)` },
+              { opacity: 1, transform: "none" },
+            ],
+        {
+          duration: 340,
+          easing: "cubic-bezier(.2,.8,.2,1)",
+        },
+      );
     }
     shown.current = openId;
   }, [openId]);
@@ -259,7 +283,7 @@ export function ExhibitViewer({
   return (
     <Dialog.Root open={!!e} onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-62 bg-(--scrim) animate-[ac-fade_.24s_ease_both]" />
+        <Dialog.Overlay className="fixed inset-0 z-62 animate-[ac-fade_.24s_ease_both] bg-(--scrim)" />
         {e && (
           <Dialog.Content
             aria-describedby={undefined}
@@ -272,12 +296,12 @@ export function ExhibitViewer({
               else if (ev.key === "ArrowLeft") step(-1);
             }}
             className={cn(
-              "fixed inset-0 z-63 m-auto flex h-fit w-full max-w-220 flex-col bg-paper text-ink shadow-dialog outline-none animate-[ac-rise_.42s_cubic-bezier(.2,.8,.2,1)_both]",
+              "fixed inset-0 z-63 m-auto flex h-fit w-full max-w-220 animate-[ac-rise_.42s_cubic-bezier(.2,.8,.2,1)_both] flex-col bg-paper text-ink shadow-dialog outline-none",
               small ? "max-h-dvh" : "max-h-[calc(100dvh-48px)] w-[calc(100%-48px)]",
             )}
           >
-            <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pb-2.5 pl-5 pr-3.5 pt-3">
-              <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-label">
+            <div className="flex flex-none items-center justify-between gap-3 border-b-[3px] border-double border-ink pt-3 pr-3.5 pb-2.5 pl-5">
+              <span className="text-[10.5px] font-bold tracking-[0.18em] text-ink-label uppercase">
                 {e.private ? "Privileged note" : "Exhibit"} {i + 1} of {evidence.length}
               </span>
               <div className="flex gap-1.5">
@@ -297,7 +321,11 @@ export function ExhibitViewer({
                 >
                   →
                 </button>
-                <Dialog.Close data-close="" aria-label="Close" className="h-10 w-10 cursor-pointer bg-ink text-[22px] leading-none text-paper hover:bg-seal">
+                <Dialog.Close
+                  data-close=""
+                  aria-label="Close"
+                  className="h-10 w-10 cursor-pointer bg-ink text-[22px] leading-none text-paper hover:bg-seal"
+                >
                   ×
                 </Dialog.Close>
               </div>
@@ -306,7 +334,10 @@ export function ExhibitViewer({
               ref={bodyRef}
               tabIndex={0}
               data-scroller=""
-              className={cn("grid min-h-0 flex-1 items-start overflow-y-auto overscroll-contain", wide ? "grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : "grid-cols-[minmax(0,1fr)]")}
+              className={cn(
+                "grid min-h-0 flex-1 items-start overflow-y-auto overscroll-contain",
+                wide ? "grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : "grid-cols-[minmax(0,1fr)]",
+              )}
             >
               <div
                 className={cn(
@@ -317,35 +348,45 @@ export function ExhibitViewer({
               >
                 <Plate e={e} big regen={regen} onRegen={onRegen} />
               </div>
-              <div className={cn("flex min-w-0 flex-col gap-4", small ? "px-4 pb-6 pt-4.5" : "px-7 pb-7 pt-6")}>
+              <div className={cn("flex min-w-0 flex-col gap-4", small ? "px-4 pt-4.5 pb-6" : "px-7 pt-6 pb-7")}>
                 <div className="flex flex-col gap-2">
-                  <span className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-meta">
+                  <span className="flex items-center gap-2 text-[10.5px] font-bold tracking-[0.18em] text-ink-meta uppercase">
                     <span aria-hidden="true" className="h-1.75 w-1.75" style={{ background: STATUS[e.media_status]?.[1] ?? "#8a7f70" }} />
                     <span>
                       {e.evidence_type} · {statusText(e)}
                     </span>
                   </span>
-                  <Dialog.Title className={cn("m-0 text-balance font-display font-normal leading-[1.15]", small ? "text-2xl" : "text-[30px]")}>{e.title}</Dialog.Title>
+                  <Dialog.Title
+                    className={cn("m-0 font-display leading-[1.15] font-normal text-balance", small ? "text-2xl" : "text-[30px]")}
+                  >
+                    {e.title}
+                  </Dialog.Title>
                 </div>
-                <p className="m-0 whitespace-pre-wrap text-pretty text-base leading-[1.7] text-[#2a2018]">{e.description}</p>
+                <p className="m-0 text-base leading-[1.7] text-pretty whitespace-pre-wrap text-[#2a2018]">{e.description}</p>
                 <dl className="m-0 flex flex-col border-t border-ink/20">
                   {rows.map(([k, v]) => (
-                    <div key={k} className={cn("grid gap-x-4 gap-y-0.5 border-b border-ink/20 py-2.5", small ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[96px_minmax(0,1fr)]")}>
-                      <dt className="pt-0.5 text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-meta">{k}</dt>
+                    <div
+                      key={k}
+                      className={cn(
+                        "grid gap-x-4 gap-y-0.5 border-b border-ink/20 py-2.5",
+                        small ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[96px_minmax(0,1fr)]",
+                      )}
+                    >
+                      <dt className="pt-0.5 text-[10.5px] font-bold tracking-[0.18em] text-ink-meta uppercase">{k}</dt>
                       <dd className="m-0 text-[14.5px] leading-normal text-ink">{v}</dd>
                     </div>
                   ))}
                 </dl>
                 {people.length > 0 && (
                   <div className="flex flex-col gap-2">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-meta">Parties mentioned</span>
+                    <span className="text-[10.5px] font-bold tracking-[0.18em] text-ink-meta uppercase">Parties mentioned</span>
                     <div className="flex flex-wrap gap-1.5">
                       {people.map((p) => (
                         <button
                           key={p.id}
                           type="button"
                           onClick={() => onParty(p.id)}
-                          className="flex h-9 cursor-pointer items-center gap-2 border border-ink/30 bg-[#f8f3e7] pl-1 pr-3 text-[13.5px] text-ink hover:border-ink"
+                          className="flex h-9 cursor-pointer items-center gap-2 border border-ink/30 bg-[#f8f3e7] pr-3 pl-1 text-[13.5px] text-ink hover:border-ink"
                         >
                           <span
                             aria-hidden="true"

@@ -164,25 +164,15 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body
-        className={`${specialElite.variable} ${courierPrime.variable} ${plexMono.variable} font-type`}
-        suppressHydrationWarning
-      >
+      <body className={`${specialElite.variable} ${courierPrime.variable} ${plexMono.variable} font-type`} suppressHydrationWarning>
         {/* data-theme drives the design tokens; the "dark" class keeps not-yet-redesigned pages working */}
-        <ThemeProvider
-          attribute={["data-theme", "class"]}
-          defaultTheme="dark"
-          enableSystem
-          storageKey="aiCourtroom-theme"
-        >
+        <ThemeProvider attribute={["data-theme", "class"]} defaultTheme="dark" enableSystem storageKey="aiCourtroom-theme">
           <ThemeColorSync />
           <TouchScrollbars />
           <CookieConsentProvider>
             <SettingsProvider>
               <TextSizeProvider>
-                <GoogleOAuthProvider
-                  clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
-                >
+                <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
                   <AuthProvider>
                     <LoggerProvider>
                       <LoggingErrorBoundary>
@@ -222,32 +212,28 @@ export default function RootLayout({
                     "@type": "SiteNavigationElement",
                     position: 1,
                     name: "Register",
-                    description:
-                      "Create your account to start simulating legal cases.",
+                    description: "Create your account to start simulating legal cases.",
                     url: "https://ai-courtroom.vercel.app/register",
                   },
                   {
                     "@type": "SiteNavigationElement",
                     position: 2,
                     name: "Login",
-                    description:
-                      "Access your cases and continue where you left off.",
+                    description: "Access your cases and continue where you left off.",
                     url: "https://ai-courtroom.vercel.app/login",
                   },
                   {
                     "@type": "SiteNavigationElement",
                     position: 3,
                     name: "Contact Us",
-                    description:
-                      "Contact us or provide feedback about the platform.",
+                    description: "Contact us or provide feedback about the platform.",
                     url: "https://ai-courtroom.vercel.app/contact",
                   },
                   {
                     "@type": "SiteNavigationElement",
                     position: 4,
                     name: "Dashboard",
-                    description:
-                      "Manage your legal cases and view simulation history.",
+                    description: "Manage your legal cases and view simulation history.",
                     url: "https://ai-courtroom.vercel.app/cases",
                   },
                 ],

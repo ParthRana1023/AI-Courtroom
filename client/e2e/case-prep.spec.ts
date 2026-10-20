@@ -7,7 +7,13 @@ const base = `/cases/${CNR}`;
 function routes(over: Record<string, unknown> = {}, kase = caseOf({ user_role: "plaintiff", ai_role: "defendant" })) {
   return {
     [`GET ${base}`]: kase,
-    [`GET ${base}/parties`]: { parties: PARTIES, user_role: kase.user_role, can_access_courtroom: false, is_in_courtroom: kase.status === "active", case_status: kase.status },
+    [`GET ${base}/parties`]: {
+      parties: PARTIES,
+      user_role: kase.user_role,
+      can_access_courtroom: false,
+      is_in_courtroom: kase.status === "active",
+      case_status: kase.status,
+    },
     [`GET ${base}/evidence`]: { evidence: EVIDENCE },
     [`GET ${base}/parties/p1/chat-history`]: { messages: [] },
     [`GET ${base}/parties/p2/chat-history`]: { messages: [] },
@@ -32,7 +38,12 @@ test.describe("case prep", () => {
       routes({
         [`POST ${base}/parties/p1/chat`]: {
           user_message: { id: "q1", sender: "user", content: "What happened, in your own words?", timestamp: "2026-10-07T10:00:00Z" },
-          party_response: { id: "a1", sender: "person", content: "Our funding partner pulled out in May.", timestamp: "2026-10-07T10:00:05Z" },
+          party_response: {
+            id: "a1",
+            sender: "person",
+            content: "Our funding partner pulled out in May.",
+            timestamp: "2026-10-07T10:00:05Z",
+          },
         },
         [`POST ${base}/evidence/extract`]: async (route: Route) => {
           extracted = true;
@@ -40,7 +51,17 @@ test.describe("case prep", () => {
           await route.fulfill({
             status: 201,
             json: {
-              evidence: { id: "e3", exhibit_ref: "PN-01", title: "Statement of Raghav Menon", evidence_type: "Witness Testimony", description: "Our funding partner pulled out in May.", source: "Raghav Menon chat", media_status: "pending", origin_id: "p1:a1", private: true },
+              evidence: {
+                id: "e3",
+                exhibit_ref: "PN-01",
+                title: "Statement of Raghav Menon",
+                evidence_type: "Witness Testimony",
+                description: "Our funding partner pulled out in May.",
+                source: "Raghav Menon chat",
+                media_status: "pending",
+                origin_id: "p1:a1",
+                private: true,
+              },
             },
           });
         },
@@ -68,7 +89,9 @@ test.describe("case prep", () => {
     await log.getByRole("button", { name: "In Privileged as PN-01 · view" }).click();
     const viewer = page.getByRole("dialog");
     await expect(viewer.getByText("Privileged note 1 of 1")).toBeVisible();
-    await expect(viewer.getByText("Saved by you from an interview. Privileged: only you can see it until you cite it in court")).toBeVisible();
+    await expect(
+      viewer.getByText("Saved by you from an interview. Privileged: only you can see it until you cite it in court"),
+    ).toBeVisible();
     await expect(viewer.getByRole("button", { name: "Close" })).toBeFocused();
     // notes are paged apart from the exhibits
     await page.keyboard.press("ArrowLeft");
@@ -93,7 +116,13 @@ test.describe("case prep", () => {
           posted = route.request().postDataJSON();
           await route.fulfill({
             json: {
-              user_message: { id: "q1", sender: "user", content: "Is this yours?", timestamp: "2026-10-07T10:00:00Z", exhibit_refs: ["EX-01"] },
+              user_message: {
+                id: "q1",
+                sender: "user",
+                content: "Is this yours?",
+                timestamp: "2026-10-07T10:00:00Z",
+                exhibit_refs: ["EX-01"],
+              },
               party_response: { id: "a1", sender: "person", content: "Yes, those are my receipts.", timestamp: "2026-10-07T10:00:05Z" },
             },
           });
@@ -124,7 +153,9 @@ test.describe("case prep", () => {
     await page.getByRole("button", { name: /Priya Khanna/ }).click();
     await expect(page.getByText("Priya Khanna teaches mathematics in Janakpuri.")).toBeVisible();
     await expect(page.getByText("NOT YOUR CLIENT").first()).toBeVisible();
-    await expect(page.getByText("As the Plaintiff Lawyer you can only interview applicants. You’ll question Priya in court.").first()).toBeVisible();
+    await expect(
+      page.getByText("As the Plaintiff Lawyer you can only interview applicants. You’ll question Priya in court.").first(),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Interview Priya →" })).toHaveCount(0);
     if (info.project.name !== "desktop") {
       await page.getByRole("button", { name: "All parties" }).click();
@@ -135,7 +166,10 @@ test.describe("case prep", () => {
   test("a rate-limited question keeps the draft and says why", async ({ page, signIn }, info) => {
     await signIn(
       USERS.email,
-      routes({ [`POST ${base}/parties/p1/chat`]: (route: Route) => route.fulfill({ status: 429, json: { detail: "You’ve asked a lot of questions. Try again in 2 minutes." } }) }),
+      routes({
+        [`POST ${base}/parties/p1/chat`]: (route: Route) =>
+          route.fulfill({ status: 429, json: { detail: "You’ve asked a lot of questions. Try again in 2 minutes." } }),
+      }),
     );
     await page.goto(`${base}/case-prep`);
     await openInterview(page, info.project.name !== "desktop");

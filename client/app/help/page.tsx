@@ -42,8 +42,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>Who can sign up?</h3>
             <div className={K.faqA}>
               <span>
-                Anyone aged 18 or older. You can sign up with an email address, a mobile number or Google. With a mobile number there’s no password:
-                we text you a six-digit code each time you sign in.
+                Anyone aged 18 or older. You can sign up with an email address, a mobile number or Google. With a mobile number there’s no
+                password: we text you a six-digit code each time you sign in.
               </span>
             </div>
           </div>{" "}
@@ -51,8 +51,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>Is this legal advice?</h3>
             <div className={K.faqA}>
               <span>
-                No. AI Courtroom is a practice tool. Cases are fictional and AI responses can be wrong. For a real legal matter, consult a qualified
-                advocate.
+                No. AI Courtroom is a practice tool. Cases are fictional and AI responses can be wrong. For a real legal matter, consult a
+                qualified advocate.
               </span>
             </div>
           </div>{" "}
@@ -106,8 +106,8 @@ export default function HelpPage() {
                 <Link href="/cases/new" className={K.a}>
                   New case
                 </Link>
-                , add the sections of the Bharatiya Nyaya Sanhita you want to practise, such as 103 or 318. The AI uses them to decide the type of
-                case and drafts the facts, the parties and a summary.
+                , add the sections of the Bharatiya Nyaya Sanhita you want to practise, such as 103 or 318. The AI uses them to decide the
+                type of case and drafts the facts, the parties and a summary.
               </span>
             </div>
           </div>{" "}
@@ -115,8 +115,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>How many cases can I generate?</h3>
             <div className={K.faqA}>
               <span>
-                Case generation is limited to a set number of cases in each period. The New case page shows how many you have left, and when the next
-                one is available if you’ve reached the limit.
+                Case generation is limited to a set number of cases in each period. The New case page shows how many you have left, and when
+                the next one is available if you’ve reached the limit.
               </span>
             </div>
           </div>{" "}
@@ -184,8 +184,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>What is case memory?</h3>
             <div className={K.faqA}>
               <span>
-                Every case keeps a searchable memory. With “Use RAG for courtroom AI” on, the AI reads the most relevant parts of it. With it off, the
-                AI reads the full case details and proceedings. Change this in{" "}
+                Every case keeps a searchable memory. With “Use RAG for courtroom AI” on, the AI reads the most relevant parts of it. With
+                it off, the AI reads the full case details and proceedings. Change this in{" "}
                 <Link href="/settings" className={K.a}>
                   Settings → Courtroom AI
                 </Link>
@@ -197,8 +197,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>How do I submit an argument?</h3>
             <div className={K.faqA}>
               <span>
-                By default, Enter submits and Shift+Enter adds a new line. You can switch this in Settings so Enter adds a new line and Ctrl+Enter
-                submits.
+                By default, Enter submits and Shift+Enter adds a new line. You can switch this in Settings so Enter adds a new line and
+                Ctrl+Enter submits.
               </span>
             </div>
           </div>{" "}
@@ -206,9 +206,9 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>How do witnesses work?</h3>
             <div className={K.faqA}>
               <span>
-                Open the witness stand on the right of the courtroom and call any party. You question them first, then choose “No more questions” and
-                the other side cross-examines. The AI can call witnesses of its own, and you can then cross-examine or dismiss them. Each examination
-                folds into a single entry in the record.
+                Open the witness stand on the right of the courtroom and call any party. You question them first, then choose “No more
+                questions” and the other side cross-examines. The AI can call witnesses of its own, and you can then cross-examine or
+                dismiss them. Each examination folds into a single entry in the record.
               </span>
             </div>
           </div>{" "}
@@ -216,9 +216,9 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>How do objections work?</h3>
             <div className={K.faqA}>
               <span>
-                When the opposing lawyer makes an argument or asks a witness a question, an Object button appears on that latest entry. Choose the
-                grounds, explain your reason, and the judge rules. A sustained objection strikes the statement from the record or withdraws the
-                question. An overruled one leaves it standing.
+                When the opposing lawyer makes an argument or asks a witness a question, an Object button appears on that latest entry.
+                Choose the grounds, explain your reason, and the judge rules. A sustained objection strikes the statement from the record or
+                withdraws the question. An overruled one leaves it standing.
               </span>
             </div>
           </div>{" "}
@@ -226,8 +226,9 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>Can I dictate instead of typing?</h3>
             <div className={K.faqA}>
               <span>
-                Yes. Tap the microphone next to the argument box and speak. Your browser turns your speech into text in the box, so you can check it
-                before you submit. Voice input needs microphone permission and a browser that supports speech recognition, such as Chrome or Edge.
+                Yes. Tap the microphone next to the argument box and speak. Your browser turns your speech into text in the box, so you can
+                check it before you submit. Voice input needs microphone permission and a browser that supports speech recognition, such as
+                Chrome or Edge.
               </span>
             </div>
           </div>{" "}
@@ -235,8 +236,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>How do I refer to evidence?</h3>
             <div className={K.faqA}>
               <span>
-                Use the paperclip next to the argument box to pin one or more exhibits to your argument. They appear under your entry in the record
-                and open when clicked. You can also turn a witness’s answer into a new exhibit with “Extract as evidence”.
+                Use the paperclip next to the argument box to pin one or more exhibits to your argument. They appear under your entry in the
+                record and open when clicked. You can also turn a witness’s answer into a new exhibit with “Extract as evidence”.
               </span>
             </div>
           </div>{" "}
@@ -244,8 +245,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>When can I adjourn or give my closing statement?</h3>
             <div className={K.faqA}>
               <span>
-                You can adjourn after two arguments in a session and resume later. After three arguments you can deliver a closing statement, which
-                ends the hearing and leads to the verdict.
+                You can adjourn after two arguments in a session and resume later. After three arguments you can deliver a closing
+                statement, which ends the hearing and leads to the verdict.
               </span>
             </div>
           </div>{" "}
@@ -259,8 +260,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>How is the verdict decided?</h3>
             <div className={K.faqA}>
               <span>
-                When proceedings end, the AI judge weighs the arguments from both sides against the relevant law. It gives a verdict with its
-                reasoning and feedback on your performance.
+                When proceedings end, the AI judge weighs the arguments from both sides against the relevant law. It gives a verdict with
+                its reasoning and feedback on your performance.
               </span>
             </div>
           </div>{" "}
@@ -339,8 +340,8 @@ export default function HelpPage() {
                 <Link href="/settings" className={K.a}>
                   Settings → Account & security
                 </Link>
-                , choose Delete account and type DELETE to confirm. Your profile and every case, including archived ones, are removed and you’re
-                signed out on every device. Download your data first if you want a copy.
+                , choose Delete account and type DELETE to confirm. Your profile and every case, including archived ones, are removed and
+                you’re signed out on every device. Download your data first if you want a copy.
               </span>
               <span>
                 Changed your mind? We keep deleted accounts for 30 days.{" "}
@@ -359,8 +360,8 @@ export default function HelpPage() {
                 <Link href="/settings" className={K.a}>
                   Settings → Account & security
                 </Link>
-                , choose Connect Google. If you signed up with a phone number, the Google email becomes your account email. If the Google email is
-                different from the one on your account, we ask which one to keep for sign-in codes and replies.
+                , choose Connect Google. If you signed up with a phone number, the Google email becomes your account email. If the Google
+                email is different from the one on your account, we ask which one to keep for sign-in codes and replies.
               </span>
             </div>
           </div>{" "}
@@ -368,8 +369,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>Can I change my email or phone number?</h3>
             <div className={K.faqA}>
               <span>
-                The email or phone number you signed up with can’t be changed in your profile. If you signed up with a phone number, you can add an
-                email in{" "}
+                The email or phone number you signed up with can’t be changed in your profile. If you signed up with a phone number, you can
+                add an email in{" "}
                 <Link href="/profile" className={K.a}>
                   your profile
                 </Link>
@@ -409,8 +410,8 @@ export default function HelpPage() {
             <h3 className={K.faqQ}>Which emails will I get?</h3>
             <div className={K.faqA}>
               <span>
-                Security alerts about new sign-ins, password changes and account deletion are always sent. Other email notifications can be turned on
-                or off in{" "}
+                Security alerts about new sign-ins, password changes and account deletion are always sent. Other email notifications can be
+                turned on or off in{" "}
                 <Link href="/settings" className={K.a}>
                   Settings → Notifications
                 </Link>

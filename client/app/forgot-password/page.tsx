@@ -53,7 +53,8 @@ export default function ForgotPasswordPage() {
   }, [timer]);
 
   const trimmed = email.trim();
-  const emailErr = tried && step === "email" ? (!trimmed ? "Email is required" : EMAIL.test(trimmed) ? "" : "Enter a valid email address") : "";
+  const emailErr =
+    tried && step === "email" ? (!trimmed ? "Email is required" : EMAIL.test(trimmed) ? "" : "Enter a valid email address") : "";
   const pwErr = tried && step === "new" && pw.length < 8 ? "Use at least 8 characters." : "";
   const cfErr = tried && step === "new" && confirm !== pw ? "Passwords don’t match." : "";
 
@@ -110,10 +111,7 @@ export default function ForgotPasswordPage() {
 
         {step === "email" && (
           <>
-            <SlipHeading
-              title="Reset your password"
-              sub="Enter the email you enrolled with. We’ll send a link to set a new password."
-            />
+            <SlipHeading title="Reset your password" sub="Enter the email you enrolled with. We’ll send a link to set a new password." />
             <Field id="f_email" label="Email address" error={emailErr}>
               <input
                 id="f_email"
@@ -136,11 +134,10 @@ export default function ForgotPasswordPage() {
         {step === "sent" && (
           <>
             <div role="status" className="flex flex-col gap-1.5">
-              <h2 className="m-0 font-display text-(length:--h2) font-normal leading-[1.1]">Check your email</h2>
-              <p className="m-0 text-pretty text-body leading-normal text-ink-muted">
-                If an account exists for{" "}
-                <strong className="break-all font-data text-sm font-medium text-ink">{trimmed}</strong>, we’ve sent a
-                link to reset your password. It expires in 30 minutes.
+              <h2 className="m-0 font-display text-(length:--h2) leading-[1.1] font-normal">Check your email</h2>
+              <p className="m-0 text-body leading-normal text-pretty text-ink-muted">
+                If an account exists for <strong className="font-data text-sm font-medium break-all text-ink">{trimmed}</strong>, we’ve sent
+                a link to reset your password. It expires in 30 minutes.
               </p>
             </div>
             <div className="flex flex-wrap justify-between gap-x-4.5 gap-y-2.5 border-t border-ink/20 pt-3.5 text-sm text-ink-muted">
@@ -175,8 +172,8 @@ export default function ForgotPasswordPage() {
               title="Set a new password"
               sub={
                 <>
-                  For <strong className="break-all font-data text-sm font-medium text-ink">{email || "your account"}</strong>.
-                  You’ll be signed out on other devices.
+                  For <strong className="font-data text-sm font-medium break-all text-ink">{email || "your account"}</strong>. You’ll be
+                  signed out on other devices.
                 </>
               }
             />
@@ -206,11 +203,11 @@ export default function ForgotPasswordPage() {
 
         {step === "done" && (
           <>
-            <div role="status" className="flex flex-col items-start gap-4.5 pb-1 pt-3">
-              <span className="inline-block -rotate-5 border-4 border-double border-green px-4.5 pb-1.5 pt-2 font-display text-[40px] leading-none tracking-[0.08em] text-green">
+            <div role="status" className="flex flex-col items-start gap-4.5 pt-3 pb-1">
+              <span className="inline-block -rotate-5 border-4 border-double border-green px-4.5 pt-2 pb-1.5 font-display text-[40px] leading-none tracking-[0.08em] text-green">
                 RESET
               </span>
-              <p className="m-0 text-pretty text-base leading-[1.55] text-ink-muted">
+              <p className="m-0 text-base leading-[1.55] text-pretty text-ink-muted">
                 Your password has been changed. Sign in with your new password.
               </p>
             </div>

@@ -124,8 +124,7 @@ export default function RegisterPage() {
     setScreen("practice");
   };
 
-  const afterSignIn = (user: User, message: string) =>
-    needsSeatOfPractice(user) ? toPractice(message) : router.replace(next);
+  const afterSignIn = (user: User, message: string) => (needsSeatOfPractice(user) ? toPractice(message) : router.replace(next));
 
   const submit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -170,9 +169,7 @@ export default function RegisterPage() {
 
   const intro = (
     <AuthIntro kicker="Enrolment" title="TAKE YOUR PLACE AT THE BAR." compact={screen !== "form"}>
-      {screen === "form" && (
-        <IntroText>Enrol in under a minute, confirm it’s you, and argue your first case before the bench.</IntroText>
-      )}
+      {screen === "form" && <IntroText>Enrol in under a minute, confirm it’s you, and argue your first case before the bench.</IntroText>}
       <JourneyList {...journey} />
     </AuthIntro>
   );
@@ -204,10 +201,7 @@ export default function RegisterPage() {
           }}
           onVerify={async (otp) => {
             const user = viaPhone ? await verifyPhone(phoneBody, otp, false) : await verifyRegistration(payload, otp);
-            afterSignIn(
-              user,
-              `${viaPhone ? "Number confirmed." : "Email confirmed."} Welcome to the bar, ${first.trim() || "counsel"}.`,
-            );
+            afterSignIn(user, `${viaPhone ? "Number confirmed." : "Email confirmed."} Welcome to the bar, ${first.trim() || "counsel"}.`);
           }}
         />
       </AuthShell>
@@ -244,7 +238,7 @@ export default function RegisterPage() {
             </span>
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="text-sm font-bold">Signed in with Google</span>
-              <span className="break-all font-data text-meta text-ink-muted">{google.email}</span>
+              <span className="font-data text-meta break-all text-ink-muted">{google.email}</span>
             </div>
           </div>
         )}
@@ -315,7 +309,7 @@ export default function RegisterPage() {
                 type="button"
                 onClick={() => setShowPw((s) => !s)}
                 aria-label={showPw ? "Hide password" : "Show password"}
-                className="absolute bottom-0.5 right-0 top-0 min-w-17.5 cursor-pointer bg-transparent text-label font-bold uppercase tracking-[0.14em] text-ink-muted hover:text-seal"
+                className="absolute top-0 right-0 bottom-0.5 min-w-17.5 cursor-pointer bg-transparent text-label font-bold tracking-[0.14em] text-ink-muted uppercase hover:text-seal"
               >
                 {showPw ? "Hide" : "Show"}
               </button>
@@ -327,12 +321,15 @@ export default function RegisterPage() {
                   tipOpen ? "visible translate-y-0 opacity-100" : "invisible translate-y-1 opacity-0",
                 )}
               >
-                <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-amber-hi">Your password needs</span>
+                <span className="text-[10.5px] font-bold tracking-[0.18em] text-amber-hi uppercase">Your password needs</span>
                 <ul className="m-0 grid list-none grid-cols-2 gap-x-3.5 gap-y-1 p-0">
                   {PASSWORD_RULES.map(([label, ok]) => {
                     const met = ok(password);
                     return (
-                      <li key={label} className={cn("flex items-baseline gap-2 text-meta leading-[1.35]", met ? "text-[#9fd0a4]" : "text-[#d8ccb4]")}>
+                      <li
+                        key={label}
+                        className={cn("flex items-baseline gap-2 text-meta leading-[1.35]", met ? "text-[#9fd0a4]" : "text-[#d8ccb4]")}
+                      >
                         <span aria-hidden="true" className="w-3 flex-none font-data text-meta font-bold">
                           {met ? "✓" : "○"}
                         </span>
@@ -343,7 +340,7 @@ export default function RegisterPage() {
                 </ul>
                 <span
                   aria-hidden="true"
-                  className="absolute left-6 top-full h-0 w-0 border-x-8 border-t-8 border-x-transparent border-t-ink"
+                  className="absolute top-full left-6 h-0 w-0 border-x-8 border-t-8 border-x-transparent border-t-ink"
                 />
               </div>
             </div>
@@ -353,11 +350,7 @@ export default function RegisterPage() {
         <div className="flex flex-col gap-1">
           <Check id="r_adult" checked={adult} onToggle={() => setAdult((a) => !a)} invalid={!!err("r_adult")}>
             I’m 18 or older and agree to the{" "}
-            <Link
-              href="/terms"
-              onClick={(e) => e.stopPropagation()}
-              className="border-b border-seal text-seal hover:text-ink"
-            >
+            <Link href="/terms" onClick={(e) => e.stopPropagation()} className="border-b border-seal text-seal hover:text-ink">
               Terms of Service
             </Link>
           </Check>

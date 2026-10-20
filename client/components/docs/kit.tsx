@@ -3,7 +3,8 @@ import { cn } from "@/lib/utils";
 
 // The document pages' building blocks, one class string per inline style in the handoff.
 
-const TAG = "min-w-19 flex-none border-[1.5px] border-current px-1.75 pb-px pt-0.5 text-center text-[10.5px] font-bold uppercase tracking-[0.12em]";
+const TAG =
+  "min-w-19 flex-none border-[1.5px] border-current px-1.75 pb-px pt-0.5 text-center text-[10.5px] font-bold uppercase tracking-[0.12em]";
 const BTN = "flex h-11.5 items-center gap-2.5 border-[1.5px] border-ink px-4.5 text-xs font-bold uppercase tracking-[0.12em]";
 
 export const K = {
