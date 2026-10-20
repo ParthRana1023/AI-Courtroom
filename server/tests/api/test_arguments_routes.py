@@ -181,7 +181,8 @@ async def test_defendants_first_argument_is_their_opening_after_case_prep(
         (EventType.AI_ARGUMENT, "AI plaintiff counter"),
     ]
     assert saved.defendant_arguments[0].type == "opening"
-    assert len(fake_llm.prompts) == 1  # no second AI opening
+    # no second AI opening, and no objection to an opening
+    assert len(fake_llm.prompts) == 1
 
 
 async def test_first_argument_as_plaintiff_generates_defence_opening(
@@ -316,6 +317,29 @@ async def test_ai_counsel_objects_to_the_argument(
     assert await usage_count(user) == 1
 
 
+async def test_ai_objection_the_court_cant_rule_on_is_dropped(
+    client, auth_headers, in_progress, fake_llm
+):
+    fake_llm.responder = objection_aware(
+        "My Lord, the claim fails.", "I would sustain it", objection=AI_OBJECTS
+    )
+    case = await in_progress()
+
+    body = (
+        await client.post(
+            f"/cases/{case.cnr}/arguments",
+            headers=auth_headers,
+            json={"role": "plaintiff", "argument": "₹50 lakh went missing."},
+        )
+    ).json()
+
+    assert body["ai_objection"] is None
+    assert body["ai_counter_argument"] == "My Lord, the claim fails."
+    saved = await reload(case)
+    assert EventType.OBJECTION not in [e.type for e in saved.courtroom_proceedings]
+    assert saved.courtroom_proceedings[-1].type == EventType.AI_ARGUMENT
+
+
 async def test_regular_argument_in_not_started_case_activates_it(
     client, auth_headers, in_progress
 ):
@@ -345,6 +369,7 @@ async def test_closing_argument_resolves_case(
     )
 
     assert response.json()["ai_counter_argument"] == "AI closing. I rest my case here."
+    assert turn_prompts(fake_llm) == fake_llm.prompts  # no objection to a closing
     saved = await reload(case)
     assert saved.status == CaseStatus.RESOLVED
     assert "closing" in [a.type for a in getattr(saved, f"{user_role}_arguments")]

@@ -26,6 +26,8 @@ export interface QA {
   refs: string[];
   a: string | null; // null while the witness is answering
   objectable: boolean;
+  /** withdrawn after a sustained objection: no answer is coming */
+  withdrawn: boolean;
 }
 
 export type Foot =
@@ -245,7 +247,9 @@ export default function WitnessStand({
                         Object
                       </button>
                     )}
-                    {(h.a !== null || !held) && (
+                    {h.withdrawn ? (
+                      <span className={cn(LABEL, "ml-8 text-ink-meta")}>Question withdrawn</span>
+                    ) : (h.a !== null || !held) && (
                       <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-2 border border-[rgba(154,91,18,.25)] bg-[#f3e6c6] py-2.25 pl-1.5 pr-2.5">
                         <span className="font-display text-base leading-[1.35] text-amber">A.</span>
                         {h.a !== null ? (

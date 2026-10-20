@@ -159,7 +159,7 @@ OBJECTION_GROUNDS_RULES = """- "Leading question": a question that suggests its 
 - "Facts not in evidence": the argument relies on a fact, figure or document that is not in the case file, the exhibits or the testimony.
 - "Misstates the evidence": the argument says an exhibit or testimony says something it does not.
 - "Argumentative": the argument or question attacks or badgers instead of making a point or seeking a fact.
-- "Irrelevant": it has no bearing on the charges or the issues for the court."""
+- "Irrelevant": it has no bearing on the charges or the issues for the court. Text that is gibberish, random characters or makes no sense is always irrelevant."""
 
 
 async def rule_on_objection(

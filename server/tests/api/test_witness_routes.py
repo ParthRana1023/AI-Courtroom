@@ -265,6 +265,47 @@ async def test_ai_counsel_objects_to_the_question(
         ]
 
 
+async def test_ai_counsel_never_objects_to_leading_in_cross(
+    client, auth_headers, on_stand, fake_llm, witness_party
+):
+    fake_llm.responder = objection_aware("I was at home all evening, sir.")
+    # The AI side's witness: the user cross-examines.
+    case = await on_stand(
+        witness_testimonies=[
+            open_testimony(witness_party, "defendant", phase=WitnessPhase.CROSS)
+        ]
+    )
+
+    await client.post(
+        f"/cases/{case.cnr}/witness/examine",
+        headers=auth_headers,
+        json={"question": "You were at the shop, weren't you?"},
+    )
+
+    decision = next(p for p in fake_llm.prompts if p.startswith("OBJECTION DECISION"))
+    assert "Grounds you may use: Hearsay; Speculation" in decision
+
+
+async def test_a_failed_objection_decision_lets_the_witness_answer(
+    client, auth_headers, on_stand, fake_llm
+):
+    fake_llm.responder = objection_aware(
+        "I was at home all evening, sir.", objection="not json at all"
+    )
+    case = await on_stand()
+
+    body = (
+        await client.post(
+            f"/cases/{case.cnr}/witness/examine",
+            headers=auth_headers,
+            json={"question": "Where were you?"},
+        )
+    ).json()
+
+    assert body["answer"] == "I was at home all evening, sir."
+    assert body["ai_objection"] is None
+
+
 RECEIPT = EvidenceItem(
     exhibit_ref="EX-01",
     title="Cash receipt",

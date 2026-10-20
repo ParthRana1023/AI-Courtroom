@@ -198,6 +198,76 @@ test.describe("courtroom", () => {
     await context.setOffline(false);
   });
 
+  test("AI counsel objects to an argument and the court strikes it", async ({ page, signIn }, info) => {
+    const mobile = info.project.name !== "desktop";
+    const h = hearing();
+    const RULING = "Sustained. No exhibit shows that sum. The remark is struck from the record.";
+    await signIn(USERS.email, {
+      ...h.routes,
+      [`POST ${base}/arguments`]: async (route: Route) => {
+        h.push(
+          ev("e4", "user_argument", "₹5 crore was paid in cash.", "plaintiff", { struck: "struck" }),
+          ev("e5", "objection", "Objection. Facts not in evidence. No exhibit shows that sum.", "defendant", { objection: { target_id: "e4", grounds: "Facts not in evidence", details: "No exhibit shows that sum." } }),
+          ev("e6", "ruling", RULING, "judge", { sustained: true }),
+        );
+        await route.fulfill({
+          json: { ai_counter_argument: null, ai_counter_role: "defendant", ai_objection: { grounds: "Facts not in evidence", sustained: true, ruling: RULING } },
+        });
+      },
+    });
+    const log = await open(page);
+
+    const box = page.getByRole("textbox", { name: "Your argument" });
+    await box.fill("₹5 crore was paid in cash.");
+    if (mobile) await page.getByRole("button", { name: "Submit", exact: true }).click();
+    else await box.press("Enter");
+
+    // The same stamps as the user's own objection, then the record.
+    await expect(page.getByText("Opposing counsel objects. The court is considering the objection.")).toBeVisible();
+    await expect(page.getByText("SUSTAINED", { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Objection sustained: your argument is struck. Make another argument.")).toBeVisible({ timeout: 6000 });
+    await expect(log.getByText("Objection. Facts not in evidence. No exhibit shows that sum.")).toBeVisible();
+    await expect(log.getByText(RULING)).toBeVisible();
+    await expect(log.getByText("Struck from the record", { exact: true })).toBeVisible();
+    // No counter: the floor is the user's again.
+    await expect(box).toHaveValue("");
+    await expect(box).toBeEditable();
+  });
+
+  test("AI counsel objects to a question and it is withdrawn", async ({ page, signIn }, info) => {
+    const mobile = info.project.name !== "desktop";
+    const h = hearing();
+    h.push(ev("w1", "witness_called", "Raghav Menon called to the witness stand by plaintiff.", "plaintiff", { speaker_name: "Raghav Menon", witness_id: "p1" }));
+    h.s.witness = { has_witness: true, witness_id: "p1", witness_name: "Raghav Menon", witness_role: "applicant", called_by: "plaintiff", examination_history: [], is_ai_examining: false, phase: "chief", next_examiner: "plaintiff" };
+    const RULING = "Sustained. The question asks what someone else said. It is withdrawn.";
+    await signIn(USERS.email, {
+      ...h.routes,
+      [`POST ${base}/witness/examine`]: async (route: Route) => {
+        h.push(
+          ev("w2", "witness_examined_q", "What did your brother tell you?", "plaintiff", { witness_id: "p1", struck: "withdrawn" }),
+          ev("w3", "objection", "Objection. Hearsay.", "defendant", { objection: { target_id: "w2", grounds: "Hearsay", details: "" } }),
+          ev("w4", "ruling", RULING, "judge", { sustained: true }),
+        );
+        await route.fulfill({ json: { question: "What did your brother tell you?", answer: null, ai_objection: { grounds: "Hearsay", sustained: true, ruling: RULING } } });
+      },
+    });
+    await open(page);
+
+    if (mobile) await page.getByRole("button", { name: "On the stand", exact: true }).click();
+    else await page.getByRole("button", { name: "Open the witness stand" }).click();
+    const stand = page.getByRole("complementary", { name: "Witness stand" });
+    await stand.getByLabel("Question for the witness").fill("What did your brother tell you?");
+    await stand.getByRole("button", { name: "Ask question" }).click();
+
+    // The same stamps as the user's own objection, then the record.
+    await expect(page.getByText("Opposing counsel objects. The court is considering the objection.")).toBeVisible();
+    await expect(page.getByText("SUSTAINED", { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Objection sustained: question withdrawn. Ask another.")).toBeVisible({ timeout: 6000 });
+    await expect(stand.getByText("Question withdrawn", { exact: true })).toBeVisible();
+    // No answer is coming, so the stand doesn't show the witness answering.
+    await expect(stand.getByText("Raghav is answering")).toHaveCount(0);
+  });
+
   test("call a witness, examine, the AI cross-examines, then dismiss", async ({ page, signIn }, info) => {
     const mobile = info.project.name !== "desktop";
     const h = hearing();

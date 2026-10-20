@@ -31,7 +31,7 @@ import { AI_EXAMINATION_POLL_MS, COURTROOM_POLL_MS, MIN_ARGUMENTS_BETWEEN_AI_WIT
 import { getErrorDetail } from "@/lib/error-utils";
 import { argumentRateLimitAPI, type RateLimitInfo } from "@/lib/rateLimitAPI";
 import { cn } from "@/lib/utils";
-import { CaseStatus, CourtroomProceedingsEventType as T, type Case, type CurrentWitnessResponse, type PersonInvolved } from "@/types";
+import { CaseStatus, CourtroomProceedingsEventType as T, type AIObjection, type Case, type CurrentWitnessResponse, type PersonInvolved } from "@/types";
 
 type Load = "loading" | "loaded" | "error" | "notfound";
 
@@ -343,6 +343,15 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const cite = !closingMode && opened;
 
   const note = useCallback((msg: string) => void toast(msg, { duration: 2800 }), []);
+  /** AI counsel objected: the same stamps as the user's own objection, before the record shows the ruling. */
+  const aiObjected = async (o?: AIObjection | null) => {
+    if (!o) return;
+    setPopup("objected");
+    await wait(1800);
+    setPopup(o.sustained ? "sustained" : "overruled");
+    await wait(1500);
+    setPopup(null);
+  };
 
   // ---- arguing ----
   const whenIdle = useCallback(
@@ -417,6 +426,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
         return;
       }
       const res = await argumentAPI.submitArgument(cnr, me, text, refs);
+      await aiObjected(res.ai_objection);
       const c = await refresh();
       setSending(null);
       fetchLimit();
@@ -547,6 +557,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     if (qRef.current) qRef.current.style.height = "46px";
     try {
       const res = await witnessAPI.examineWitness(cnr, q, refs);
+      await aiObjected(res.ai_objection);
       await refresh();
       if (res.ai_objection?.sustained) note("Objection sustained: question withdrawn. Ask another.");
       later(() => qRef.current?.focus({ preventScroll: true }), 30);
@@ -797,10 +808,11 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
         refs: e.exhibit_refs ?? [],
         a: next?.type === T.WITNESS_EXAMINED_A ? shown(next) : null,
         objectable: e.id === objectable,
+        withdrawn: e.struck === "withdrawn",
       });
     });
   }
-  if (asking) hist.push({ id: "asking", by: "You asked", mine: true, q: asking, refs: [], a: null, objectable: false });
+  if (asking) hist.push({ id: "asking", by: "You asked", mine: true, q: asking, refs: [], a: null, objectable: false, withdrawn: false });
 
   const cands: Candidate[] = parties.map((p) => {
     const ours = onSide(me, p);

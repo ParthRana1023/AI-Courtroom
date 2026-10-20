@@ -148,7 +148,7 @@ export function CaseFilePanel({
   );
 }
 
-export type StampKind = "session" | "adjourned" | "limit" | "deliberating" | "considering" | "sustained" | "overruled";
+export type StampKind = "session" | "adjourned" | "limit" | "deliberating" | "considering" | "objected" | "sustained" | "overruled";
 
 const STAMPS: Record<StampKind, { k: string; t: string; c: string; wait?: boolean }> = {
   session: { k: "COURT IS IN SESSION", t: "All rise. Counsel may address the court.", c: "#9fd0a4" },
@@ -156,6 +156,7 @@ const STAMPS: Record<StampKind, { k: string; t: string; c: string; wait?: boolea
   limit: { k: "COURT ADJOURNED", t: "That was the last argument allowed today. The court will sit again tomorrow.", c: "#e9c77e" },
   deliberating: { k: "THE COURT IS DELIBERATING", t: "Closing statements are complete. Judgment will follow.", c: "#efe6d3", wait: true },
   considering: { k: "OBJECTION", t: "The court is considering the objection.", c: "#e9c77e", wait: true },
+  objected: { k: "OBJECTION", t: "Opposing counsel objects. The court is considering the objection.", c: "#e9c77e", wait: true },
   sustained: { k: "SUSTAINED", t: "The objection is upheld.", c: "#9fd0a4" },
   overruled: { k: "OVERRULED", t: "The objection is rejected.", c: "#e0786c" },
 };
