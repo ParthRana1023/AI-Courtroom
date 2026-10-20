@@ -606,6 +606,14 @@ export default function Landing3D({ onFallback }: { onFallback: (why: FallbackRe
               <span className="text-paper">{bp ? "On" : "Off"}</span>
             </button>
           )}
+          {devMode && (
+            <Link
+              href="/blueprint"
+              className="flex items-center border border-[rgba(201,164,92,.5)] px-3 py-2 text-[11px] font-medium tracking-widest whitespace-nowrap text-gold uppercase hover:border-gold hover:text-[#f0dcaa]"
+            >
+              Asset register
+            </Link>
+          )}
           {!mob && (
             <>
               <button type="button" onClick={skip} className={BAR_BTN}>
