@@ -34,6 +34,7 @@ const OUTCOME: Record<CaseOutcome, [string, string]> = {
   won: ["WON", "#3f6b3a"],
   lost: ["LOST", "#8e1f19"],
   partial: ["PARTLY WON", "#7a4a0c"],
+  settled: ["SETTLED", "#120d09"],
 };
 
 /** A paper dialog: header strip with the close ×, a scrolling body, an optional footer. */

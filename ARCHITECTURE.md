@@ -144,6 +144,7 @@ flowchart LR
 ```
 
 - Retrieval runs **in process**: a case's chunks are loaded and ranked with NumPy (dot product of normalised embeddings). Cases are small, so no vector index is needed. It filters by `source_type`, so the judge never sees AI counsel's private conferences, and a party only sees its own chats.
+- Settlement talks are stored as `settlement` chunks, and only the case analysis retrieves them. See [Settlement](#settlement).
 - Users can turn retrieval off in Settings. Prompts then get the full case text and the courtroom record instead (`_case_fallback_context`). The newest `FULL_TEXT_PROCEEDINGS_LIMIT` entries stay word for word, and older ones are summarised by the `analyzer` task.
 - Missing or unembedded chunks are re-indexed on demand, so old cases still work.
 
@@ -260,6 +261,32 @@ sequenceDiagram
 
 `POST /cases/{cnr}/closing-statement`: the user's closing, then AI counsel's closing, then the `judge` writes a reasoned verdict from both sides' arguments, the exhibits and the testimony (RAG). The case becomes `resolved`. After the response is sent, `ensure_outcome` classifies the result once and records it in `case_outcomes` for the profile stats. `POST /cases/{cnr}/analyze-case` produces the separate case analysis.
 
+### Settlement
+
+`routes/settlement.py` and `services/llm/settlement.py`. A case can be settled out of court, the way a criminal compromise works in India: the accused and the complainant agree terms, and the High Court decides whether the law lets it act on them.
+
+```mermaid
+stateDiagram-v2
+    [*] --> negotiating: POST /settlement/offers (AI counters)
+    [*] --> agreed: offer accepted
+    [*] --> rejected: offer rejected
+    negotiating --> negotiating: new offer (AI counters again)
+    negotiating --> agreed: AI accepts, or POST /settlement/accept
+    negotiating --> rejected
+    negotiating --> withdrawn: POST /settlement/withdraw
+    agreed --> withdrawn
+    agreed --> recorded: POST /settlement/present, court accepts
+    agreed --> refused: POST /settlement/present, court refuses
+    recorded --> [*]: case resolved, outcome "settled"
+    refused --> [*]: heard on merits, no more attempts
+```
+
+1. **Talks.** Offers are allowed only while the court isn't sitting (`not started` or `adjourned`). The client adjourns with `reason: "settlement"` first. The `lawyer` task answers each offer for its client, who is the complainant on the defendant side and the accused on the plaintiff side. Limits: `MAX_OFFERS` user offers per attempt and `MAX_ATTEMPTS` attempts per case.
+2. **Before the court.** `present` sends the agreed terms to the `judge` task. Its reply is a `<ruling>` JSON block and an `<order>` Markdown block. It applies three tests: compounding under s.359 BNSS (with leave when an appeal is pending), quashing on settlement under s.528 BNSS (_Gian Singh_, _Narinder Singh_), and, in bail, the compromise as one factor only. Heinous offences are refused (_Laxmi Narayan_).
+3. **Recorded:** the order becomes `case.verdict`, the case is resolved, and `record_settlement` writes the `settled` ledger row without the classifier. Settled cases are left out of win % and don't affect streaks.
+4. **Refused:** the case goes on, and no new attempt is allowed.
+5. **Analysis.** It reads every attempt and adds a "Settlement negotiations" review with suggestions.
+
 ### Daily jobs
 
 GitHub Actions (`.github/workflows/daily-jobs.yml`) calls `POST /admin/jobs/daily` with `JOBS_TOKEN` once a day. `services/daily_jobs.py`:
@@ -285,6 +312,7 @@ Rules the code depends on. Breaking one usually passes the tests on mongomock an
 - **One writer per hearing.** Use `controls_hearing` on any route that changes a hearing. The lock is in-process (`asyncio.Lock`), which is correct while the API runs as a single instance; running several instances would need a shared lock.
 - **Function-scoped hearing lock.** It is released when the route returns, not when its background tasks finish. Otherwise Object would queue behind a running AI examination.
 - **Private memory stays private.** Retrieval filters by `source_type` and party; AI counsel's conferences never reach the judge's prompts.
+- **Settlement talks are without prejudice.** Every `retrieve_case_context` call must list its `source_types`, and only `routes/case_analysis.py` may list `settlement`. `tests/unit/test_settlement.py` parses the code to enforce this. The court's one-line ruling on a compromise goes into the record, but it never repeats the terms.
 - **Current law only.** Prompts and fixtures cite the BNS, BNSS and BSA.
 
 ## Testing

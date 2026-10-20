@@ -8,6 +8,7 @@ import type {
   NotificationPrefs,
   PartialScoring,
   RegisterFormData,
+  Settlement,
   SystemStatus,
   User,
   UserStats,
@@ -520,8 +521,9 @@ export const caseAPI = {
     }
   },
 
-  // reason "limit": adjourned because the day's last argument was used
-  updateCaseStatus: async (cnr: string, status: string, reason?: "limit") => {
+  // reason "limit": adjourned because the day's last argument was used;
+  // "settlement": adjourned at counsel's request to explore a settlement
+  updateCaseStatus: async (cnr: string, status: string, reason?: "limit" | "settlement") => {
     try {
       const response = await api.put(`/cases/${cnr}/status`, { status, reason });
       logger.info("Case status updated", { cnr, status });
@@ -685,6 +687,34 @@ export const courtroomAPI = {
       reason,
       details,
     });
+    return response.data;
+  },
+};
+
+// Settling a case out of court. Talks only while the court isn't sitting (adjourn
+// with reason "settlement" first); each call returns the current attempt.
+export const settlementAPI = {
+  /** Put terms to the other side; AI counsel accepts, counters or rejects them. */
+  makeOffer: async (cnr: string, terms: string, compensation: number | null): Promise<Settlement> => {
+    const response = await api.post(`/cases/${cnr}/settlement/offers`, { terms, compensation });
+    return response.data;
+  },
+
+  /** Accept the terms AI counsel last countered with. */
+  acceptCounter: async (cnr: string): Promise<Settlement> => {
+    const response = await api.post(`/cases/${cnr}/settlement/accept`);
+    return response.data;
+  },
+
+  /** Call off the talks, or agreed terms not yet before the court. */
+  withdraw: async (cnr: string): Promise<Settlement> => {
+    const response = await api.post(`/cases/${cnr}/settlement/withdraw`);
+    return response.data;
+  },
+
+  /** Put the agreed terms before the court: status "recorded" ends the case, "refused" doesn't. */
+  present: async (cnr: string): Promise<Settlement> => {
+    const response = await api.post(`/cases/${cnr}/settlement/present`);
     return response.data;
   },
 };

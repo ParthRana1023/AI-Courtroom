@@ -62,13 +62,15 @@ export interface DeviceSession {
 // How a partly successful case counts toward the win rate
 export type PartialScoring = "zero" | "half" | "exclude";
 
-// How the verdict went for the user, decided once after the verdict
-export type CaseOutcome = "won" | "lost" | "partial";
+// How the verdict went for the user, decided once after the verdict;
+// "settled" when the court recorded a compromise (not a win or a loss)
+export type CaseOutcome = "won" | "lost" | "partial" | "settled";
 
 export interface OutcomeCounts {
   wins: number;
   losses: number;
   partials: number;
+  settled: number; // not counted in win_rate
   total: number;
   win_rate: number; // percent, 0-100
 }
@@ -86,6 +88,7 @@ interface MonthlyOutcomes {
   wins: number;
   losses: number;
   partials: number;
+  settled: number;
 }
 
 interface ActivityStats {
@@ -133,6 +136,7 @@ export enum CourtroomProceedingsEventType {
   LEAVE_REQUEST = "leave_request",
   OBJECTION = "objection",
   RULING = "ruling",
+  SETTLEMENT = "settlement", // the court rules on a compromise put before it
 }
 
 export interface CourtroomProceedingsEvent {
@@ -181,6 +185,41 @@ export interface EvidenceItem {
   private?: boolean;
 }
 
+// Settling out of court. The talks are without prejudice: the court deciding the
+// merits never sees them, only the agreed terms once they are put before it.
+export type SettlementStatus =
+  | "negotiating" // offers going back and forth
+  | "agreed" // both sides agree; not yet before the court
+  | "recorded" // the court accepted it; the case is over
+  | "refused" // the court refused it; the case goes on to be heard on merits
+  | "rejected" // the other side walked away
+  | "withdrawn"; // the user called it off
+
+// What the court did with the compromise: compounding (s.359 BNSS),
+// quashing on settlement (s.528 BNSS), or weighed in a bail order
+export type SettlementMode = "compounding" | "quashing" | "bail";
+
+export interface SettlementOffer {
+  id: string;
+  side: Roles; // who proposed it
+  terms: string;
+  compensation: number | null; // rupees
+  response: "accepted" | "countered" | "rejected" | "withdrawn" | null;
+  reply: string; // what the other side's counsel said in answer
+  timestamp: string;
+}
+
+export interface Settlement {
+  id: string;
+  status: SettlementStatus;
+  offers: SettlementOffer[];
+  mode: SettlementMode | null;
+  ruling: string | null; // the court's ruling, as said in court
+  court_order: string | null; // Markdown
+  started_at: string;
+  ended_at: string | null;
+}
+
 interface Argument {
   id?: string; // Added optional id field
   type: string;
@@ -217,6 +256,7 @@ export interface Case {
   /** AI counsel's objection to the user's turn while it is heard: the ruling joins once the court gives it */
   ai_objection_live?: (Partial<AIObjection> & { kind: string; grounds: string }) | null;
   reported?: string[]; // AI responses this user already reported
+  settlements?: Settlement[]; // attempts to settle out of court, oldest first
 }
 
 export interface RegisterFormData {

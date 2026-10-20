@@ -12,7 +12,7 @@ export interface CaseRow {
   cnr: string;
   title: string;
   status: string;
-  outcome?: "won" | "lost" | "partial" | null;
+  outcome?: "won" | "lost" | "partial" | "settled" | null;
   user_role?: string | null;
   created_at: string;
   deleted_at?: string | null;
@@ -31,7 +31,12 @@ export const STATUSES = [
   ["resolved", "Resolved", "#120d09"],
 ] as const;
 
-const OUTCOMES = { won: ["Won", "#2f6b3a"], lost: ["Lost", "#8e1f19"], partial: ["Partly won", "#9a5b12"] } as const;
+const OUTCOMES = {
+  won: ["Won", "#2f6b3a"],
+  lost: ["Lost", "#8e1f19"],
+  partial: ["Partly won", "#9a5b12"],
+  settled: ["Settled", "#120d09"],
+} as const;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function formatDate(iso?: string | null) {

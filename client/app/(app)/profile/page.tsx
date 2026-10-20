@@ -31,6 +31,7 @@ const RESULT: Record<CaseOutcome, [string, string, string]> = {
   won: ["W", "Won", WIN],
   lost: ["L", "Lost", LOSS],
   partial: ["P", "Partly won", PART],
+  settled: ["S", "Settled", "#120d09"],
 };
 
 /** Status stamp for a case: the outcome once decided, else where the hearing stands. */
