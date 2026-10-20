@@ -12,6 +12,9 @@ from app.models.case import (
     CaseStatus,
     ExaminationItem,
     Roles,
+    Settlement,
+    SettlementOffer,
+    SettlementStatus,
     WitnessTestimony,
 )
 from app.models.case_outcome import CaseOutcomeRecord
@@ -227,7 +230,93 @@ async def test_analysis_decides_missing_outcome_and_is_cached(
     assert len(fake_llm.calls) == 2  # one outcome call, one analysis call
     assert "OUTCOME FOR THE USER: LOST" in fake_llm.prompts[1]
     assert "IMPORTANT VERDICT ANALYSIS" not in fake_llm.prompts[1]
+    # No settlement was tried, so the prompt has no settlement review.
+    assert "SETTLEMENT TALKS" not in fake_llm.prompts[1]
+    assert "### Settlement negotiations" not in fake_llm.prompts[1]
     assert (await reload(case)).analyzed_at is not None
+
+
+def settlement_attempt(status, ruling=None):
+    return Settlement(
+        status=status,
+        ruling=ruling,
+        offers=[
+            SettlementOffer(
+                side=Roles.PLAINTIFF,
+                terms="An apology and payment to the complainant.",
+                compensation=50000,
+                response="countered",
+                reply="My client wants more.",
+            ),
+            SettlementOffer(
+                side=Roles.DEFENDANT,
+                terms="An apology and Rs. 1 lakh.",
+                compensation=100000,
+                response="accepted",
+            ),
+        ],
+    )
+
+
+async def test_analysis_reviews_the_settlement_of_a_settled_case(
+    client, auth_headers, resolved_case, fake_llm
+):
+    fake_llm.responses.append("### Outcome\nSettled.")
+    case = await resolved_case(
+        outcome=CaseOutcome.SETTLED,
+        verdict="**ORDER**\n1. The FIR is quashed on the compromise.",
+        settlements=[
+            settlement_attempt(
+                SettlementStatus.RECORDED, "The FIR is quashed on the compromise."
+            )
+        ],
+    )
+
+    response = await client.post(
+        f"/cases/{case.cnr}/analyze-case", headers=auth_headers
+    )
+
+    assert response.json()["outcome"] == "settled"
+    assert len(fake_llm.calls) == 1  # no outcome classifier for a settled case
+    prompt = fake_llm.prompts[0]
+    assert "OUTCOME FOR THE USER: SETTLED" in prompt
+    assert "SETTLEMENT TALKS" in prompt and "### Settlement negotiations" in prompt
+    assert "User offered: An apology and payment" in prompt
+    assert "Opposing counsel offered: An apology and Rs. 1 lakh" in prompt
+    assert "The court: The FIR is quashed on the compromise." in prompt
+
+
+async def test_analysis_reviews_failed_talks_in_a_decided_case(
+    client, auth_headers, resolved_case, fake_llm
+):
+    fake_llm.responses.extend([outcome_reply("lost", "defendant"), "### Outcome"])
+    attempt = settlement_attempt(SettlementStatus.WITHDRAWN)
+    attempt.offers[-1].response = "withdrawn"
+    case = await resolved_case(settlements=[attempt])
+
+    await client.post(f"/cases/{case.cnr}/analyze-case", headers=auth_headers)
+
+    prompt = fake_llm.prompts[1]
+    assert "OUTCOME FOR THE USER: LOST" in prompt
+    assert "Attempt 1 (withdrawn):" in prompt
+    assert "### Settlement negotiations" in prompt
+
+
+async def test_case_settled_before_any_argument_is_still_analysed(
+    client, auth_headers, resolved_case, fake_llm
+):
+    fake_llm.responses.append("### Outcome\nSettled.")
+    case = await resolved_case(
+        outcome=CaseOutcome.SETTLED,
+        plaintiff_arguments=[],
+        settlements=[settlement_attempt(SettlementStatus.RECORDED, "Quashed.")],
+    )
+
+    response = await client.post(
+        f"/cases/{case.cnr}/analyze-case", headers=auth_headers
+    )
+
+    assert response.json()["analysis"] == "### Outcome\nSettled."
 
 
 async def test_analysis_without_outcome_says_not_decided(
@@ -262,6 +351,7 @@ async def test_stats_for_new_user_are_zero(client, auth_headers):
         "wins": 0,
         "losses": 0,
         "partials": 0,
+        "settled": 0,
         "total": 0,
         "win_rate": 0.0,
     }
@@ -297,6 +387,7 @@ async def test_stats_counts_roles_streaks_and_form(
         "wins": 5,
         "losses": 1,
         "partials": 1,
+        "settled": 0,
         "total": 7,
         "win_rate": 71.4,
     }
@@ -307,6 +398,30 @@ async def test_stats_counts_roles_streaks_and_form(
     assert stats["activity"]["arguments"] == 14
     assert stats["activity"]["avg_arguments"] == 2.0
     assert sum(m["wins"] for m in stats["monthly"]) == 5
+
+
+async def test_settled_cases_stay_out_of_win_rate_and_streaks(
+    client, auth_headers, user
+):
+    won, lost, settled = CaseOutcome.WON, CaseOutcome.LOST, CaseOutcome.SETTLED
+    # oldest first: W W S W L S -> the settled cases neither break nor extend runs
+    history = [won, won, settled, won, lost, settled]
+    for i, outcome in enumerate(history):
+        await add_record(user, outcome, days_ago=len(history) - i)
+
+    stats = await get_stats(client, auth_headers)
+
+    assert stats["overall"] == {
+        "wins": 3,
+        "losses": 1,
+        "partials": 0,
+        "settled": 2,
+        "total": 6,
+        "win_rate": 75.0,
+    }
+    assert (stats["current_streak"], stats["best_streak"]) == (0, 3)
+    assert stats["recent_form"][0]["outcome"] == "settled"
+    assert sum(m["settled"] for m in stats["monthly"]) == 2
 
 
 @pytest.mark.parametrize(

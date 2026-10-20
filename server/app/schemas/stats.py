@@ -11,6 +11,7 @@ class OutcomeCounts(BaseModel):
     wins: int = 0
     losses: int = 0
     partials: int = 0
+    settled: int = 0  # compromises the court recorded; not in win_rate
     total: int = 0
     win_rate: float = 0.0  # percent, 0-100, using the user's partial scoring
 
@@ -28,6 +29,7 @@ class MonthlyOutcomes(BaseModel):
     wins: int = 0
     losses: int = 0
     partials: int = 0
+    settled: int = 0
 
 
 class ActivityStats(BaseModel):

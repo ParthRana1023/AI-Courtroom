@@ -7,6 +7,7 @@ from app.models.case import Case, CaseOutcome, Roles
 from app.models.user import User
 from app.services.case_outcomes import ensure_outcome, user_role_in_case
 from app.services.llm.case_analysis import CaseAnalysisService
+from app.services.llm.settlement import format_negotiation
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
 from app.utils.locks import case_lock
@@ -56,6 +57,17 @@ def format_witness_examinations(case: Case, user_role: str | None) -> str:
             lines.append(f"{asker} asked: {exam.question}")
             lines.append(f"{testimony.witness_name}: {exam.answer}")
     return _newest_within_limit(lines)
+
+
+def format_settlement_talks(case: Case, user_role: str) -> str:
+    """Every settlement attempt and offer, the user's labelled "User"."""
+    if not case.settlements:
+        return ""
+    ai_role = "defendant" if user_role == "plaintiff" else "plaintiff"
+    talks = format_negotiation(
+        case.settlements, {user_role: "User", ai_role: "Opposing counsel"}
+    )
+    return _newest_within_limit(talks.splitlines())
 
 
 @router.post("/{caseId}/analyze-case")
@@ -121,6 +133,7 @@ async def _generate_analysis(
             outcome=outcome.value if outcome else None,
             party_conferences=format_party_conferences(case),
             witness_examinations=format_witness_examinations(case, user_role.value),
+            settlement_talks=format_settlement_talks(case, user_role.value),
             rag_context=await retrieve_case_context(
                 case,
                 "case analysis verdict argument mistakes suggestions evidence facts",
@@ -132,6 +145,7 @@ async def _generate_analysis(
                     "witness_testimony",
                     "verdict",
                     "party_chat",
+                    "settlement",  # the only retrieval of settlement talks
                 ],
                 always_rag=True,  # analysis reviews the whole case
             ),

@@ -37,15 +37,19 @@ def count_outcomes(
         wins=wins,
         losses=losses,
         partials=partials,
+        settled=sum(r.outcome == CaseOutcome.SETTLED for r in records),
         total=len(records),
         win_rate=win_rate(wins, losses, partials, scoring),
     )
 
 
 def win_streaks(records: list[CaseOutcomeRecord]) -> tuple[int, int]:
-    """(current, best) runs of wins, oldest record first. A partial ends a run."""
+    """(current, best) runs of wins, oldest record first. A partial ends a run;
+    a settled case neither extends nor ends one."""
     current = best = 0
     for record in records:
+        if record.outcome == CaseOutcome.SETTLED:
+            continue
         current = current + 1 if record.outcome == CaseOutcome.WON else 0
         best = max(best, current)
     return current, best
@@ -70,11 +74,12 @@ def monthly_trend(records: list[CaseOutcomeRecord]) -> list[MonthlyOutcomes]:
         CaseOutcome.WON: "wins",
         CaseOutcome.LOST: "losses",
         CaseOutcome.PARTIAL: "partials",
+        CaseOutcome.SETTLED: "settled",
     }
     for record in records:
         bucket = buckets.get(ensure_ist_timezone(record.decided_at).strftime("%Y-%m"))
-        name = field.get(record.outcome)
-        if bucket and name:
+        if bucket:
+            name = field[record.outcome]
             setattr(bucket, name, getattr(bucket, name) + 1)
     return list(buckets.values())
 
