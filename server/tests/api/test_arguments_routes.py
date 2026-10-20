@@ -16,7 +16,7 @@ from app.models.case import (
 )
 from app.models.rate_limit import RateLimitEntry
 from app.routes import arguments
-from tests.helpers import boom, reload
+from tests.helpers import boom, objection_aware, reload, turn_prompts
 
 
 async def usage_count(user) -> int:
@@ -248,7 +248,7 @@ async def test_regular_argument_gets_ai_counter(
     client, auth_headers, in_progress, user, fake_llm, user_role
 ):
     ai_role = "defendant" if user_role == "plaintiff" else "plaintiff"
-    fake_llm.responses.append("AI counter argument reply")
+    fake_llm.responder = objection_aware("AI counter argument reply")
     case = await in_progress(user_role)
 
     response = await client.post(
@@ -260,11 +260,59 @@ async def test_regular_argument_gets_ai_counter(
     assert response.json() == {
         "ai_counter_argument": "AI counter argument reply",
         "ai_counter_role": ai_role,
+        "ai_objection": None,
     }
     saved = await reload(case)
     assert getattr(saved, f"{ai_role}_arguments")[-1].type == "counter"
     assert saved.courtroom_proceedings[-1].type == EventType.AI_ARGUMENT
-    assert "Second point" in fake_llm.prompts[0]
+    assert "Second point" in turn_prompts(fake_llm)[0]
+    assert await usage_count(user) == 1
+
+
+AI_OBJECTS = (
+    '{"object": true, "grounds": "Facts not in evidence", "details": "No exhibit."}'
+)
+
+
+@pytest.mark.parametrize("sustained", [True, False])
+async def test_ai_counsel_objects_to_the_argument(
+    client, auth_headers, in_progress, user, fake_llm, sustained
+):
+    ruling = "Sustained. It is struck." if sustained else "Overruled. Fair comment."
+    fake_llm.responder = objection_aware(
+        "My Lord, the claim fails.",  # a full sentence: no continuation call
+        f'{{"sustained": {str(sustained).lower()}, "ruling": "{ruling}"}}',
+        objection=AI_OBJECTS,
+    )
+    case = await in_progress()
+
+    body = (
+        await client.post(
+            f"/cases/{case.cnr}/arguments",
+            headers=auth_headers,
+            json={"role": "plaintiff", "argument": "₹50 lakh went missing."},
+        )
+    ).json()
+
+    assert body["ai_objection"] == {
+        "grounds": "Facts not in evidence",
+        "sustained": sustained,
+        "ruling": ruling,
+    }
+    saved = await reload(case)
+    mine, objection, ruled, *rest = saved.courtroom_proceedings[-4 + sustained :]
+    assert mine.content == "₹50 lakh went missing."
+    assert objection.type == EventType.OBJECTION
+    assert objection.speaker_role == "defendant"
+    assert ruled.type == EventType.RULING
+    if sustained:
+        # Struck, and the floor goes back to the user: no counter.
+        assert mine.struck == "struck" and rest == []
+        assert body["ai_counter_argument"] is None
+        assert saved.defendant_arguments[-1].type == "opening"
+    else:
+        assert mine.struck is None and rest[0].type == EventType.AI_ARGUMENT
+        assert body["ai_counter_argument"] == "My Lord, the claim fails."
     assert await usage_count(user) == 1
 
 
@@ -383,7 +431,7 @@ async def test_last_argument_of_the_day_announces_adjournment(
 
     for _ in range(argument_rate_limiter.requests - 1):
         await argument_rate_limiter.register_usage(str(user.id))
-    fake_llm.responses.append("AI counter argument reply")
+    fake_llm.responder = objection_aware("AI counter argument reply")
     case = await in_progress()
 
     response = await client.post(
@@ -624,7 +672,7 @@ def exhibits():
 
 
 async def test_argument_cites_exhibits(client, auth_headers, in_progress, fake_llm):
-    fake_llm.responses.append("AI counter")
+    fake_llm.responder = objection_aware("AI counter")
     case = await in_progress(evidence=exhibits())
 
     response = await client.post(
@@ -642,7 +690,7 @@ async def test_argument_cites_exhibits(client, auth_headers, in_progress, fake_l
     mine = next(e for e in saved.courtroom_proceedings if e.type == EventType.ARGUMENT)
     assert mine.exhibit_refs == ["EX-01"]
     assert mine.content == "The receipts prove it"  # the record keeps the words only
-    assert "Counsel relies on EX-01 (Booking receipts)" in fake_llm.prompts[0]
+    assert "Counsel relies on EX-01 (Booking receipts)" in turn_prompts(fake_llm)[0]
 
 
 def brief():
@@ -680,7 +728,7 @@ async def test_privileged_exhibit_is_hidden_until_cited(
 async def test_citing_a_privileged_exhibit_tenders_it(
     client, auth_headers, in_progress, fake_llm
 ):
-    fake_llm.responses.append("AI counter")
+    fake_llm.responder = objection_aware("AI counter")
     case = await in_progress(evidence=brief())
 
     await client.post(
@@ -700,14 +748,16 @@ async def test_citing_a_privileged_exhibit_tenders_it(
     )
     # the argument cites the exhibit by its new number
     assert (mine.type, mine.exhibit_refs) == (EventType.ARGUMENT, ["EX-02"])
-    assert "Counsel relies on EX-02 (Sanction letter)" in fake_llm.prompts[0]
-    assert "EX-02: Sanction letter" in fake_llm.prompts[0]
+    assert "Counsel relies on EX-02 (Sanction letter)" in turn_prompts(fake_llm)[0]
+    assert "EX-02: Sanction letter" in turn_prompts(fake_llm)[0]
 
 
 async def test_ai_counter_cites_the_exhibits_it_names(
     client, auth_headers, in_progress, fake_llm
 ):
-    fake_llm.responses.append("My Lord, EX-02 and EX-02 again; EX-09 is not real.")
+    fake_llm.responder = objection_aware(
+        "My Lord, EX-02 and EX-02 again; EX-09 is not real."
+    )
     case = await in_progress(evidence=exhibits())
 
     await client.post(

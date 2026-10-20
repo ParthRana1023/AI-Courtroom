@@ -1,4 +1,5 @@
 # app/routes/arguments.py
+import asyncio
 import re
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
@@ -16,7 +17,12 @@ from app.models.case import (
     Roles,
 )
 from app.models.user import User
-from app.routes.courtroom import AI_SPEAKER
+from app.routes.courtroom import (
+    AI_SPEAKER,
+    ai_may_object,
+    ai_objection_ruling,
+    ruling_memory,
+)
 from app.services.case_outcomes import ensure_outcome
 from app.services.evidence_service import (
     format_evidence_context,
@@ -398,7 +404,7 @@ async def submit_argument(
         )
 
     argument_type = "closing" if is_closing else "user"
-    record_argument(
+    said = record_argument(
         case,
         role,
         argument_type,
@@ -409,6 +415,9 @@ async def submit_argument(
         exhibit_refs,
     )
     history = recent_history(case)
+    total = len(case.plaintiff_arguments) + len(case.defendant_arguments)
+    memories = [argument_memory(f"{role}_user_{total}", argument, role, "user")]
+    objection = None
 
     if is_closing:
         closing_context = await retrieve_case_context(
@@ -433,55 +442,68 @@ async def submit_argument(
         )
         case.status = CaseStatus.RESOLVED
     else:
-        counter_context = await retrieve_case_context(
-            case,
-            f"{ai_role} counter argument responding to: {argument}",
-            source_types=[
-                "ai_party_chat",
-                "case_details",
-                "evidence",
-                "party_bio",
-                "argument",
-                "proceeding",
-                "witness_testimony",
-            ],
+
+        async def counter() -> str:
+            counter_context = await retrieve_case_context(
+                case,
+                f"{ai_role} counter argument responding to: {argument}",
+                source_types=[
+                    "ai_party_chat",
+                    "case_details",
+                    "evidence",
+                    "party_bio",
+                    "argument",
+                    "proceeding",
+                    "witness_testimony",
+                ],
+            )
+            return await lawyer.generate_counter_argument(
+                argument + cites,
+                ai_role,
+                role,
+                case.details,
+                rag_context=counter_context,
+                history=history,
+                evidence_context=evidence_context,
+            )
+
+        # ponytail: the counter is drafted while AI counsel decides whether to
+        # object, and thrown away if the objection is sustained: tokens for speed.
+        decision, ai_reply = await asyncio.gather(
+            ai_may_object(case, "argument", said), counter()
         )
-        ai_reply = await lawyer.generate_counter_argument(
-            argument + cites,
-            ai_role,
-            role,
-            case.details,
-            rag_context=counter_context,
-            history=history,
-            evidence_context=evidence_context,
-        )
+        if decision:
+            objection = await ai_objection_ruling(case, "argument", said, *decision)
+        if objection:
+            memories.append(ruling_memory(*case.courtroom_proceedings[-2:]))
         if case.status == CaseStatus.NOT_STARTED:
             case.status = CaseStatus.ACTIVE
 
-    record_argument(
-        case,
-        ai_role,
-        "closing" if is_closing else "counter",
-        ai_reply,
-        CourtroomProceedingsEventType.AI_ARGUMENT,
-        AI_SPEAKER[ai_role],
-        exhibit_refs=[] if is_closing else refs_in(case, ai_reply),
-    )
-    total = len(case.plaintiff_arguments) + len(case.defendant_arguments)
-    await save_with_memory(
-        case,
-        [
-            argument_memory(f"{role}_user_{total}", argument, role, "user"),
-            argument_memory(f"{ai_role}_ai_{total}", ai_reply, ai_role, "counter"),
-        ],
-        "Failed to save case. Please try again.",
-    )
+    struck = bool(objection and objection["sustained"])
+    if struck:
+        # The court struck it: the floor goes back to the user for another argument.
+        memories.pop(0)
+    else:
+        record_argument(
+            case,
+            ai_role,
+            "closing" if is_closing else "counter",
+            ai_reply,
+            CourtroomProceedingsEventType.AI_ARGUMENT,
+            AI_SPEAKER[ai_role],
+            exhibit_refs=[] if is_closing else refs_in(case, ai_reply),
+        )
+        memories.append(
+            argument_memory(f"{ai_role}_ai_{total}", ai_reply, ai_role, "counter")
+        )
+    await save_with_memory(case, memories, "Failed to save case. Please try again.")
     for item in tendered:
         await index_evidence_item(case, item)
     await argument_rate_limiter.register_usage(str(current_user.id))
     return {
-        "ai_counter_argument": ai_reply,
+        "ai_counter_argument": None if struck else ai_reply,
         "ai_counter_role": ai_role,
+        "ai_objection": objection,
     } | await adjournment_notice(current_user)
 
 

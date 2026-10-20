@@ -17,7 +17,7 @@ from app.models.case import (
 )
 from app.models.report import Report, ReportReason
 from app.models.user import User
-from app.services.llm import judge
+from app.services.llm import judge, lawyer
 from app.services.rag import upsert_memory_item
 from app.utils.datetime import get_current_datetime
 from app.utils.llm import LLMGenerationError, pick_case_context
@@ -180,6 +180,34 @@ def ai_grounds(case: Case, kind: str, target: CourtroomProceedingsEvent) -> list
     return GROUNDS[kind]
 
 
+async def ai_may_object(
+    case: Case, kind: str, target: CourtroomProceedingsEvent
+) -> tuple[str, str] | None:
+    """AI counsel's (grounds, details) if it objects to the user's argument or
+    question. Runs alongside the reply, so it never adds to the wait."""
+    _, ai = sides(case)
+    return await lawyer.consider_objection(
+        kind,
+        target.content or "",
+        ai_grounds(case, kind, target),
+        ai,
+        pick_case_context(None, case.details),
+        record_lines(case),
+    )
+
+
+def ruling_memory(
+    objection: CourtroomProceedingsEvent, ruling: CourtroomProceedingsEvent
+) -> tuple:
+    """An objection and the court's ruling, as a (source_type, source_id, content, metadata) memory item."""
+    return (
+        "proceeding",
+        ruling.id,
+        f"{objection.content}\n{ruling.content}",
+        {"event_type": E.RULING.value, "speaker_role": "judge"},
+    )
+
+
 async def ai_objection_ruling(
     case: Case,
     kind: str,
@@ -312,13 +340,7 @@ async def raise_objection(
         )
     finally:
         await this_case().update_one({"$set": {"objection_pending_at": None}})
-    await upsert_memory_item(
-        case,
-        "proceeding",
-        events[1].id,
-        f"{events[0].content}\n{ruling}",
-        {"event_type": E.RULING.value, "speaker_role": "judge"},
-    )
+    await upsert_memory_item(case, *ruling_memory(*events))
     logger.info(f"Objection in {case_cnr}: {request.grounds}, sustained={sustained}")
     return {"sustained": sustained, "ruling": ruling}
 

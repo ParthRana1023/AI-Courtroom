@@ -22,7 +22,7 @@ from app.models.case import (
 )
 from app.routes import witness as witness_routes
 from app.utils.datetime import get_current_datetime
-from tests.helpers import boom, reload
+from tests.helpers import boom, objection_aware, reload, turn_prompts
 
 
 @pytest.fixture(autouse=True)
@@ -33,7 +33,9 @@ def fast_background_task(monkeypatch):
         return None
 
     monkeypatch.setattr(
-        witness_routes, "asyncio", types.SimpleNamespace(sleep=no_sleep)
+        witness_routes,
+        "asyncio",
+        types.SimpleNamespace(sleep=no_sleep, gather=asyncio.gather),
     )
 
 
@@ -197,7 +199,7 @@ async def test_examine_witness_ai_failure_is_a_503(
 async def test_examine_witness_records_question_and_answer(
     client, auth_headers, on_stand, fake_llm
 ):
-    fake_llm.responses.append("Yes, I paid in cash.")
+    fake_llm.responder = objection_aware("Yes, I paid in cash.")
     case = await on_stand()
 
     response = await client.post(
@@ -215,6 +217,54 @@ async def test_examine_witness_records_question_and_answer(
     ]
 
 
+@pytest.mark.parametrize("sustained", [True, False])
+async def test_ai_counsel_objects_to_the_question(
+    client, auth_headers, on_stand, fake_llm, sustained
+):
+    ruling = "Sustained. Withdrawn." if sustained else "Overruled. Answer."
+    fake_llm.responder = objection_aware(
+        "My brother told me he had paid the full amount in cash.",  # not short
+        f'{{"sustained": {str(sustained).lower()}, "ruling": "{ruling}"}}',
+        objection='{"object": true, "grounds": "Hearsay", "details": "Second-hand."}',
+    )
+    case = await on_stand()
+
+    body = (
+        await client.post(
+            f"/cases/{case.cnr}/witness/examine",
+            headers=auth_headers,
+            json={"question": "What did your brother say?"},
+        )
+    ).json()
+
+    assert body["ai_objection"]["sustained"] is sustained
+    saved = await reload(case)
+    types_ = [e.type for e in saved.courtroom_proceedings]
+    question = next(
+        e for e in saved.courtroom_proceedings if e.type == EventType.WITNESS_EXAMINED_Q
+    )
+    examination = saved.witness_testimonies[0].examination
+    if sustained:
+        assert body["answer"] is None and body["examination_id"] is None
+        assert question.struck == "withdrawn" and examination == []
+        assert types_[-3:] == [
+            EventType.WITNESS_EXAMINED_Q,
+            EventType.OBJECTION,
+            EventType.RULING,
+        ]
+    else:
+        assert body["answer"] == (
+            "My brother told me he had paid the full amount in cash."
+        )
+        assert question.struck is None and len(examination) == 1
+        assert types_[-4:] == [
+            EventType.WITNESS_EXAMINED_Q,
+            EventType.OBJECTION,
+            EventType.RULING,
+            EventType.WITNESS_EXAMINED_A,
+        ]
+
+
 RECEIPT = EvidenceItem(
     exhibit_ref="EX-01",
     title="Cash receipt",
@@ -226,7 +276,7 @@ RECEIPT = EvidenceItem(
 async def test_examine_witness_puts_exhibits_to_the_witness(
     client, auth_headers, on_stand, fake_llm
 ):
-    fake_llm.responses.append("Yes, that is my receipt.")
+    fake_llm.responder = objection_aware("Yes, that is my receipt.")
     case = await on_stand(evidence=[RECEIPT])
 
     response = await client.post(
@@ -238,9 +288,9 @@ async def test_examine_witness_puts_exhibits_to_the_witness(
     assert response.status_code == 200
     question = (await reload(case)).courtroom_proceedings[-2]
     assert (question.content, question.exhibit_refs) == ("Is this yours?", ["EX-01"])
-    assert "Counsel relies on EX-01 (Cash receipt)" in fake_llm.prompts[0]
+    assert "Counsel relies on EX-01 (Cash receipt)" in turn_prompts(fake_llm)[0]
     # the witness knows the exhibits before the court
-    assert "EX-01: Cash receipt" in fake_llm.prompts[0]
+    assert "EX-01: Cash receipt" in turn_prompts(fake_llm)[0]
 
     unknown = await client.post(
         f"/cases/{case.cnr}/witness/examine",
@@ -253,7 +303,7 @@ async def test_examine_witness_puts_exhibits_to_the_witness(
 async def test_putting_a_privileged_exhibit_to_the_witness_tenders_it(
     client, auth_headers, on_stand, fake_llm
 ):
-    fake_llm.responses.append("Yes, that is my receipt.")
+    fake_llm.responder = objection_aware("Yes, that is my receipt.")
     note = RECEIPT.model_copy(update={"private": True, "exhibit_ref": "PN-01"})
     case = await on_stand(evidence=[note])
 
@@ -272,7 +322,7 @@ async def test_putting_a_privileged_exhibit_to_the_witness_tenders_it(
         "Counsel for the Plaintiff tenders Cash receipt in evidence as EX-01"
     )
     assert saved.courtroom_proceedings[-2].exhibit_refs == ["EX-01"]
-    assert "EX-01: Cash receipt" in fake_llm.prompts[0]
+    assert "EX-01: Cash receipt" in turn_prompts(fake_llm)[0]
 
 
 @pytest.mark.parametrize(
@@ -861,7 +911,9 @@ async def test_objection_while_a_question_is_drafted_holds_it_back(
         witness_routes.witness_service, "generate_witness_question", draft
     )
     monkeypatch.setattr(
-        witness_routes, "asyncio", types.SimpleNamespace(sleep=court_rules)
+        witness_routes,
+        "asyncio",
+        types.SimpleNamespace(sleep=court_rules, gather=asyncio.gather),
     )
 
     await witness_routes.process_ai_examination(case.cnr)
@@ -911,7 +963,9 @@ async def test_ai_examination_waits_for_the_ruling_and_drops_a_withdrawn_questio
         witness_routes.witness_service, "examine_witness", answer_while_user_objects
     )
     monkeypatch.setattr(
-        witness_routes, "asyncio", types.SimpleNamespace(sleep=court_rules)
+        witness_routes,
+        "asyncio",
+        types.SimpleNamespace(sleep=court_rules, gather=asyncio.gather),
     )
 
     await witness_routes.process_ai_examination(case.cnr)

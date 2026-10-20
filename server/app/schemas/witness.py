@@ -48,16 +48,26 @@ class ExaminationItemResponse(BaseModel):
     phase: str | None = None  # chief, cross or re_exam
 
 
+class AIObjection(BaseModel):
+    """AI counsel's objection to the user's argument or question, and the court's ruling."""
+
+    grounds: str
+    sustained: bool
+    ruling: str
+
+
 class WitnessExaminationResponse(BaseModel):
     """Response after asking a witness a question"""
 
     witness_id: str
     witness_name: str
     question: str
-    answer: str
-    examination_id: str
+    # None when AI counsel's objection was sustained: the question is withdrawn.
+    answer: str | None
+    examination_id: str | None
     timestamp: datetime
     ai_followup: str | None = None  # If AI lawyer wants to follow up
+    ai_objection: AIObjection | None = None
 
 
 class CurrentWitnessResponse(BaseModel):

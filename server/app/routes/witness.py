@@ -28,9 +28,12 @@ from app.models.user import User
 from app.routes.arguments import cited_exhibits, exhibit_note, refs_in
 from app.routes.courtroom import (
     AI_SPEAKER,
+    ai_may_object,
+    ai_objection_ruling,
     check_grounds,
     objection_events,
     record_lines,
+    ruling_memory,
 )
 from app.schemas.witness import (
     AICrossExaminationResponse,
@@ -221,75 +224,84 @@ async def examine_witness(
         for e in testimony.examination
     ]
 
-    # Generate witness response
-    start_time = time.perf_counter()
-    try:
-        rag_context = await retrieve_case_context(
-            case,
-            f"witness {party.name} answer question: {request.question}",
-            source_types=[
-                "ai_party_chat",
-                "case_details",
-                "evidence",
-                "party_bio",
-                "party_chat",
-                "argument",
-                "proceeding",
-                "witness_testimony",
-            ],
-            party_id=party.id,  # a witness knows only its own conversations
-        )
-        answer = await witness_service.examine_witness(
-            witness_name=party.name,
-            witness_role=party.role.value,
-            witness_bio=party.bio or "",
-            examiner_role=examiner_role,
-            question=request.question + cites,
-            case_details=case.details,
-            examination_history=exam_history[-settings.witness_history_limit :],
-            rag_context=rag_context,
-            evidence_context=format_evidence_context(case.evidence),
-        )
+    question = CourtroomProceedingsEvent(
+        type=CourtroomProceedingsEventType.WITNESS_EXAMINED_Q,
+        content=request.question,
+        speaker_role=examiner_role,
+        speaker_name=f"{current_user.first_name} {current_user.last_name}",
+        witness_id=party.id,
+        question=request.question,
+        timestamp=get_current_datetime(),
+        exhibit_refs=exhibit_refs,
+    )
+
+    async def witness_answer() -> str:
+        start_time = time.perf_counter()
+        try:
+            rag_context = await retrieve_case_context(
+                case,
+                f"witness {party.name} answer question: {request.question}",
+                source_types=[
+                    "ai_party_chat",
+                    "case_details",
+                    "evidence",
+                    "party_bio",
+                    "party_chat",
+                    "argument",
+                    "proceeding",
+                    "witness_testimony",
+                ],
+                party_id=party.id,  # a witness knows only its own conversations
+            )
+            answer = await witness_service.examine_witness(
+                witness_name=party.name,
+                witness_role=party.role.value,
+                witness_bio=party.bio or "",
+                examiner_role=examiner_role,
+                question=request.question + cites,
+                case_details=case.details,
+                examination_history=exam_history[-settings.witness_history_limit :],
+                rag_context=rag_context,
+                evidence_context=format_evidence_context(case.evidence),
+            )
+        except LLMGenerationError:
+            raise
+        except Exception:
+            logger.exception("Error generating witness response")
+            raise HTTPException(
+                status_code=500, detail="Failed to generate witness response"
+            )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Witness response generated in {duration_ms:.2f}ms")
-    except LLMGenerationError:
-        raise
-    except Exception:
-        logger.exception("Error generating witness response")
-        raise HTTPException(
-            status_code=500, detail="Failed to generate witness response"
-        )
+        return answer
 
-    # Create examination item
-    exam_item = ExaminationItem(
-        examiner=examiner_role,
-        question=request.question,
-        answer=answer,
-        phase=testimony.phase,
+    # ponytail: the witness answers while AI counsel decides whether to object,
+    # and the answer is thrown away if the objection is sustained: tokens for speed.
+    decision, answer = await asyncio.gather(
+        ai_may_object(case, "question", question), witness_answer()
     )
+    case.courtroom_proceedings.append(question)
+    objection = None
+    if decision:
+        objection = await ai_objection_ruling(case, "question", question, *decision)
+    memories: list[tuple] = (
+        [ruling_memory(*case.courtroom_proceedings[-2:])] if objection else []
+    )
+    withdrawn = bool(objection and objection["sustained"])
 
-    # Add to testimony - find the right testimony in the list
-    for i, t in enumerate(case.witness_testimonies):
-        if t.id == testimony.id:
-            case.witness_testimonies[i].examination.append(exam_item)
-            break
-
-    # Add events to proceedings
-    case.courtroom_proceedings.append(
-        CourtroomProceedingsEvent(
-            type=CourtroomProceedingsEventType.WITNESS_EXAMINED_Q,
-            content=request.question,
-            speaker_role=examiner_role,
-            speaker_name=f"{current_user.first_name} {current_user.last_name}",
-            witness_id=party.id,
+    exam_item = None
+    if not withdrawn:
+        exam_item = ExaminationItem(
+            examiner=examiner_role,
             question=request.question,
-            timestamp=get_current_datetime(),
-            exhibit_refs=exhibit_refs,
+            answer=answer,
+            phase=testimony.phase,
         )
-    )
-
-    case.courtroom_proceedings.append(
-        CourtroomProceedingsEvent(
+        for t in case.witness_testimonies:
+            if t.id == testimony.id:
+                t.examination.append(exam_item)
+                break
+        answered = CourtroomProceedingsEvent(
             type=CourtroomProceedingsEventType.WITNESS_EXAMINED_A,
             content=answer,
             speaker_role=party.role.value,
@@ -298,45 +310,46 @@ async def examine_witness(
             answer=answer,
             timestamp=get_current_datetime(),
         )
-    )
+        case.courtroom_proceedings.append(answered)
+        memories += [
+            (
+                "witness_testimony",
+                exam_item.id,
+                f"Q: {request.question}\nA: {answer}",
+                {
+                    "witness_id": party.id,
+                    "witness_name": party.name,
+                    "examiner": examiner_role,
+                },
+            ),
+            (
+                "proceeding",
+                question.id,
+                request.question,
+                {
+                    "event_type": "witness_examined_q",
+                    "speaker_role": examiner_role,
+                    "witness_id": party.id,
+                },
+            ),
+            (
+                "proceeding",
+                answered.id,
+                answer,
+                {
+                    "event_type": "witness_examined_a",
+                    "speaker_role": party.role.value,
+                    "witness_id": party.id,
+                },
+            ),
+        ]
 
     try:
         await case.save()
         for item in tendered:
             await index_evidence_item(case, item)
-        await upsert_memory_item(
-            case,
-            "witness_testimony",
-            exam_item.id,
-            f"Q: {request.question}\nA: {answer}",
-            {
-                "witness_id": party.id,
-                "witness_name": party.name,
-                "examiner": examiner_role,
-            },
-        )
-        await upsert_memory_item(
-            case,
-            "proceeding",
-            case.courtroom_proceedings[-2].id,
-            request.question,
-            {
-                "event_type": "witness_examined_q",
-                "speaker_role": examiner_role,
-                "witness_id": party.id,
-            },
-        )
-        await upsert_memory_item(
-            case,
-            "proceeding",
-            case.courtroom_proceedings[-1].id,
-            answer,
-            {
-                "event_type": "witness_examined_a",
-                "speaker_role": party.role.value,
-                "witness_id": party.id,
-            },
-        )
+        for memory in memories:
+            await upsert_memory_item(case, *memory)
     except Exception:
         logger.exception("Error saving examination")
         raise HTTPException(status_code=500, detail="Failed to save examination")
@@ -347,9 +360,10 @@ async def examine_witness(
         witness_id=party.id,
         witness_name=party.name,
         question=request.question,
-        answer=answer,
-        examination_id=exam_item.id,
-        timestamp=exam_item.timestamp,
+        answer=None if withdrawn else answer,
+        examination_id=exam_item.id if exam_item else None,
+        timestamp=exam_item.timestamp if exam_item else question.timestamp,
+        ai_objection=objection,
     )
 
 

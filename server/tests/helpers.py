@@ -12,6 +12,31 @@ async def boom(*args, **kwargs):
     raise RuntimeError("boom")
 
 
+NO_OBJECTION = '{"object": false}'
+
+
+def objection_aware(*replies: str, objection: str = NO_OBJECTION):
+    """A fake_llm responder for turns where AI counsel may object.
+
+    The objection decision runs alongside the counter or the witness's answer
+    (asyncio.gather), so its order isn't fixed: it gets ``objection``, and every
+    other call gets ``replies`` in order.
+    """
+    queue = list(replies)
+
+    def respond(prompt: str) -> str:
+        if prompt.startswith("OBJECTION DECISION"):
+            return objection
+        return queue.pop(0) if queue else "Fake LLM response for tests."
+
+    return respond
+
+
+def turn_prompts(fake_llm) -> list[str]:
+    """The prompts a turn sent, without AI counsel's objection decision."""
+    return [p for p in fake_llm.prompts if not p.startswith("OBJECTION DECISION")]
+
+
 async def reload[D: Document](doc: D) -> D:
     """Re-read a document from the database; fails the test if it is gone."""
     cls: type[D] = type(doc)
