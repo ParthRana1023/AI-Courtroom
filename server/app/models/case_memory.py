@@ -21,6 +21,8 @@ class CaseMemorySourceType(str, Enum):
     ANALYSIS = "analysis"
     PARTY_CHAT = "party_chat"
     AI_PARTY_CHAT = "ai_party_chat"  # AI lawyer's private conferences
+    # Settlement talks: without prejudice, so only the case analysis retrieves them.
+    SETTLEMENT = "settlement"
 
 
 class CaseMemoryChunk(Document):

@@ -32,6 +32,7 @@ class CaseOutcome(str, Enum):
     WON = "won"
     LOST = "lost"
     PARTIAL = "partial"
+    SETTLED = "settled"  # the parties compromised and the court recorded it
 
 
 class EvidenceMediaStatus(str, Enum):
@@ -66,6 +67,7 @@ class CourtroomProceedingsEventType(str, Enum):
     LEAVE_REQUEST = "leave_request"  # a side asks the court's leave to call a witness
     OBJECTION = "objection"
     RULING = "ruling"  # the judge rules on an objection
+    SETTLEMENT = "settlement"  # the court rules on a compromise put before it
 
 
 class Objection(BaseModel):
@@ -110,6 +112,54 @@ class PendingLeave(BaseModel):
     witness_id: str
     witness_name: str
     called_by: str
+
+
+class SettlementStatus(str, Enum):
+    NEGOTIATING = "negotiating"  # offers going back and forth
+    AGREED = "agreed"  # both sides agree; not yet before the court
+    RECORDED = "recorded"  # the court accepted it; the case is over
+    REFUSED = "refused"  # the court refused it; the hearing goes on
+    REJECTED = "rejected"  # the other side walked away
+    WITHDRAWN = "withdrawn"  # the user called it off
+
+
+class SettlementMode(str, Enum):
+    """What the court did with a compromise. Civil cases will add a compromise
+    decree (Order XXIII Rule 3 CPC)."""
+
+    COMPOUNDING = "compounding"  # s.359 BNSS, with leave when an appeal is pending
+    QUASHING = "quashing"  # s.528 BNSS, on settlement
+    BAIL = "bail"  # weighed in a bail order
+
+
+class SettlementOffer(BaseModel):
+    """Terms one side put across the table, and how the other side answered."""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    side: Roles  # who proposed it
+    terms: str
+    compensation: int | None = None  # rupees
+    response: Literal["accepted", "countered", "rejected", "withdrawn"] | None = None
+    reply: str = ""  # what the other side's counsel said in answer
+    timestamp: datetime = Field(default_factory=get_current_datetime)
+
+
+class Settlement(BaseModel):
+    """One attempt to settle the case out of court. Without prejudice: the court
+    deciding the merits never sees it."""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    status: SettlementStatus = SettlementStatus.NEGOTIATING
+    offers: list[SettlementOffer] = Field(default_factory=list)
+    mode: SettlementMode | None = None  # set when the court rules
+    ruling: str | None = None  # the court's ruling as said in court
+    court_order: str | None = None
+    started_at: datetime = Field(default_factory=get_current_datetime)
+    ended_at: datetime | None = None
+
+    @property
+    def is_open(self) -> bool:
+        return self.status in (SettlementStatus.NEGOTIATING, SettlementStatus.AGREED)
 
 
 class EvidenceItem(BaseModel):
@@ -290,6 +340,8 @@ class Case(Document):
     )
     # The hearing reminder for the current adjournment went out (one per adjournment).
     reminder_sent_at: datetime | None = None
+    # Attempts to settle out of court, oldest first.
+    settlements: list[Settlement] = Field(default_factory=list)
 
     @field_validator(
         "plaintiff_arguments",
@@ -298,11 +350,17 @@ class Case(Document):
         "parties_involved",
         "evidence",
         "witness_testimonies",
+        "settlements",
         mode="before",
     )
     @classmethod
     def normalize_legacy_null_lists(cls, value):
         return [] if value is None else value
+
+    def open_settlement(self) -> Settlement | None:
+        """The attempt still under negotiation or agreed, if any."""
+        last = self.settlements[-1] if self.settlements else None
+        return last if last and last.is_open else None
 
     def get_party(self, party_id: str | None) -> PartyInvolved | None:
         return next((p for p in self.parties_involved if p.id == party_id), None)

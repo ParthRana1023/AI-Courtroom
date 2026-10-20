@@ -34,6 +34,7 @@ from app.routes import (
     notifications,
     parties,
     rate_limit,
+    settlement,
     status,
     witness,
 )
@@ -206,6 +207,7 @@ app.include_router(arguments.router, prefix="/cases", tags=["Arguments"])
 app.include_router(parties.router, prefix="/cases", tags=["Parties"])
 app.include_router(witness.router, prefix="/cases", tags=["Witness"])
 app.include_router(courtroom.router, prefix="/cases", tags=["Courtroom"])
+app.include_router(settlement.router, prefix="/cases", tags=["Settlement"])
 app.include_router(rate_limit.router, prefix="/limit", tags=["Rate Limit"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(case_analysis.router, prefix="/cases", tags=["Case Analysis"])

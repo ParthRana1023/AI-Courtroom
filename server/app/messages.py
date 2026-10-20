@@ -118,3 +118,31 @@ LEAVE_PENDING = "Respond to the request to call a witness first."
 NO_EXHIBITS_IN_STATEMENTS = (
     "Exhibits can be cited only in arguments, not in opening or closing statements."
 )
+
+# Settlement out of court
+SETTLEMENT_NEEDS_ROLE = (
+    "Choose your side in this case before you negotiate a settlement."
+)
+SETTLEMENT_COURT_SITTING = (
+    "The court is in session. Ask for an adjournment to explore a settlement, "
+    "then negotiate out of court."
+)
+SETTLEMENT_CASE_CLOSED = "This case is closed: there is nothing left to settle."
+SETTLEMENT_REFUSED = (
+    "The court has refused to record a compromise in this case. "
+    "The matter will be decided on merits."
+)
+SETTLEMENT_ATTEMPTS_USED = (
+    "Both settlement attempts in this case are used up. "
+    "The matter will be decided on merits."
+)
+SETTLEMENT_OFFERS_USED = (
+    "You have made your last offer in this round. "
+    "Accept the other side's terms or withdraw."
+)
+SETTLEMENT_AGREED = "Terms are already agreed. Put them before the court, or withdraw."
+SETTLEMENT_NONE_OPEN = "There is no settlement under negotiation."
+SETTLEMENT_NO_COUNTER = "There are no terms from the other side to accept."
+SETTLEMENT_FAILED = (
+    "Opposing counsel could not respond to your offer. Please try again."
+)

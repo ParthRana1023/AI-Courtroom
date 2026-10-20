@@ -57,6 +57,13 @@ logger = get_logger(__name__)
 
 router = APIRouter(tags=["cases"])
 
+# The record's note when counsel adjourns a running hearing, by the reason given.
+ADJOURN_NOTE = "Court adjourned by counsel"
+ADJOURN_NOTES = {
+    "limit": "Court adjourned for the day",
+    "settlement": "Hearing adjourned at the request of counsel to explore an amicable settlement",
+}
+
 
 @router.get("", response_model=list[dict])
 async def list_cases(current_user: User = Depends(get_current_user)):
@@ -125,6 +132,7 @@ async def get_case(
         "evidence": case_dict.get("evidence", []),
         "pending_leave": case_dict.get("pending_leave"),
         "ai_objection_live": case_dict.get("ai_objection_live"),
+        "settlements": case_dict.get("settlements", []),
         # AI responses this user has already reported
         "reported": [
             r.entry_id
@@ -203,13 +211,8 @@ async def update_case_status(
 
     if new_status == CaseStatus.ADJOURNED.value:
         if old_status == CaseStatus.ACTIVE:
-            case.adjourn(
-                note=(
-                    "Court adjourned for the day"
-                    if status_update.get("reason") == "limit"
-                    else "Court adjourned by counsel"
-                )
-            )
+            reason = str(status_update.get("reason") or "")
+            case.adjourn(note=ADJOURN_NOTES.get(reason, ADJOURN_NOTE))
         else:
             case.adjourn()
     else:
