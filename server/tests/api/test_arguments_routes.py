@@ -16,6 +16,7 @@ from app.models.case import (
 )
 from app.models.rate_limit import RateLimitEntry
 from app.routes import arguments
+from app.services.llm import judge
 from tests.helpers import boom, objection_aware, reload, turn_prompts
 
 
@@ -282,7 +283,7 @@ async def test_ai_counsel_objects_to_the_argument(
     ruling = "Sustained. It is struck." if sustained else "Overruled. Fair comment."
     fake_llm.responder = objection_aware(
         "My Lord, the claim fails.",  # a full sentence: no continuation call
-        f'{{"sustained": {str(sustained).lower()}, "ruling": "{ruling}"}}',
+        ruling=f'{{"sustained": {str(sustained).lower()}, "ruling": "{ruling}"}}',
         objection=AI_OBJECTS,
     )
     case = await in_progress()
@@ -317,11 +318,37 @@ async def test_ai_counsel_objects_to_the_argument(
     assert await usage_count(user) == 1
 
 
+async def test_ai_objection_is_shown_live_while_the_court_rules(
+    client, auth_headers, in_progress, fake_llm, monkeypatch
+):
+    fake_llm.responder = objection_aware(
+        "My Lord, the claim fails.", objection=AI_OBJECTS
+    )
+    case = await in_progress()
+    seen: list = []
+
+    async def judge_rules(**kwargs):
+        # The user already sees the objection while the court considers it.
+        seen.append((await reload(case)).ai_objection_live)
+        return False, "Overruled. Fair comment."
+
+    monkeypatch.setattr(judge, "rule_on_objection", judge_rules)
+
+    await client.post(
+        f"/cases/{case.cnr}/arguments",
+        headers=auth_headers,
+        json={"role": "plaintiff", "argument": "₹50 lakh went missing."},
+    )
+
+    assert seen == [{"kind": "argument", "grounds": "Facts not in evidence"}]
+    assert (await reload(case)).ai_objection_live is None  # the turn is over
+
+
 async def test_ai_objection_the_court_cant_rule_on_is_dropped(
     client, auth_headers, in_progress, fake_llm
 ):
     fake_llm.responder = objection_aware(
-        "My Lord, the claim fails.", "I would sustain it", objection=AI_OBJECTS
+        "My Lord, the claim fails.", ruling="I would sustain it", objection=AI_OBJECTS
     )
     case = await in_progress()
 

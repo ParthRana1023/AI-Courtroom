@@ -29,11 +29,13 @@ from app.routes.arguments import cited_exhibits, exhibit_note, refs_in
 from app.routes.courtroom import (
     AI_SPEAKER,
     ai_may_object,
-    ai_objection_ruling,
+    ai_objects_now,
     check_grounds,
+    drop,
     objection_events,
     record_lines,
     ruling_memory,
+    show_ai_objection,
 )
 from app.schemas.witness import (
     AICrossExaminationResponse,
@@ -275,19 +277,24 @@ async def examine_witness(
         logger.info(f"Witness response generated in {duration_ms:.2f}ms")
         return answer
 
-    # ponytail: the witness answers while AI counsel decides whether to object,
-    # and the answer is thrown away if the objection is sustained: tokens for speed.
-    decision, answer = await asyncio.gather(
-        ai_may_object(case, "question", question), witness_answer()
-    )
-    case.courtroom_proceedings.append(question)
-    objection = None
-    if decision:
-        objection = await ai_objection_ruling(case, "question", question, *decision)
+    # ponytail: the witness answers while AI counsel decides whether to object (and
+    # the court rules), and the answer is dropped if the objection is sustained.
+    replying = asyncio.create_task(witness_answer())
+    decision = objection = None
+    try:
+        decision = await ai_may_object(case, "question", question)
+        case.courtroom_proceedings.append(question)
+        if decision:
+            objection = await ai_objects_now(case, "question", question, decision)
+        withdrawn = bool(objection and objection["sustained"])
+        answer = "" if withdrawn else await replying
+    finally:
+        await drop(replying)
+        if decision:
+            await show_ai_objection(case.cnr, None)
     memories: list[tuple] = (
         [ruling_memory(*case.courtroom_proceedings[-2:])] if objection else []
     )
-    withdrawn = bool(objection and objection["sustained"])
 
     exam_item = None
     if not withdrawn:

@@ -221,6 +221,8 @@ export interface Case {
   evidence?: EvidenceItem[];
   // The other side asked leave to call a witness; the hearing waits for the user
   pending_leave?: PendingLeave | null;
+  /** AI counsel's objection to the user's turn while it is heard: the ruling joins once the court gives it */
+  ai_objection_live?: (Partial<AIObjection> & { kind: string; grounds: string }) | null;
   reported?: string[]; // AI responses this user already reported
 }
 

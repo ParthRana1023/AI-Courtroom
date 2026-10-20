@@ -1,6 +1,9 @@
 # app/routes/courtroom.py
 """Objections to the other side's arguments and questions, and reports of bad AI responses."""
 
+import asyncio
+import contextlib
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -194,6 +197,35 @@ async def ai_may_object(
         pick_case_context(None, case.details),
         record_lines(case),
     )
+
+
+async def show_ai_objection(cnr: str, live: dict | None) -> None:
+    """Set Case.ai_objection_live, which the client polls during the user's turn."""
+    await Case.find_one(Case.cnr == cnr).update_one(
+        {"$set": {"ai_objection_live": live}}
+    )
+
+
+async def ai_objects_now(
+    case: Case,
+    kind: str,
+    target: CourtroomProceedingsEvent,
+    decision: tuple[str, str],
+) -> dict | None:
+    """AI counsel objects: the user sees it at once, and the ruling once the court gives it.
+    The caller clears Case.ai_objection_live when the turn is over."""
+    grounds, details = decision
+    await show_ai_objection(case.cnr, {"kind": kind, "grounds": grounds})
+    objection = await ai_objection_ruling(case, kind, target, grounds, details)
+    await show_ai_objection(case.cnr, objection and {"kind": kind, **objection})
+    return objection
+
+
+async def drop(task: asyncio.Task) -> None:
+    """Cancel a reply no longer wanted, and let go of anything it raised."""
+    task.cancel()
+    with contextlib.suppress(BaseException):
+        await task
 
 
 def ruling_memory(

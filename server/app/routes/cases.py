@@ -124,6 +124,7 @@ async def get_case(
         "current_witness_id": case_dict.get("current_witness_id"),
         "evidence": case_dict.get("evidence", []),
         "pending_leave": case_dict.get("pending_leave"),
+        "ai_objection_live": case_dict.get("ai_objection_live"),
         # AI responses this user has already reported
         "reported": [
             r.entry_id

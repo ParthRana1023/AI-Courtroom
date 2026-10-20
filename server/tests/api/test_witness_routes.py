@@ -35,7 +35,7 @@ def fast_background_task(monkeypatch):
     monkeypatch.setattr(
         witness_routes,
         "asyncio",
-        types.SimpleNamespace(sleep=no_sleep, gather=asyncio.gather),
+        types.SimpleNamespace(sleep=no_sleep, create_task=asyncio.create_task),
     )
 
 
@@ -224,7 +224,7 @@ async def test_ai_counsel_objects_to_the_question(
     ruling = "Sustained. Withdrawn." if sustained else "Overruled. Answer."
     fake_llm.responder = objection_aware(
         "My brother told me he had paid the full amount in cash.",  # not short
-        f'{{"sustained": {str(sustained).lower()}, "ruling": "{ruling}"}}',
+        ruling=f'{{"sustained": {str(sustained).lower()}, "ruling": "{ruling}"}}',
         objection='{"object": true, "grounds": "Hearsay", "details": "Second-hand."}',
     )
     case = await on_stand()
@@ -954,7 +954,7 @@ async def test_objection_while_a_question_is_drafted_holds_it_back(
     monkeypatch.setattr(
         witness_routes,
         "asyncio",
-        types.SimpleNamespace(sleep=court_rules, gather=asyncio.gather),
+        types.SimpleNamespace(sleep=court_rules, create_task=asyncio.create_task),
     )
 
     await witness_routes.process_ai_examination(case.cnr)
@@ -1006,7 +1006,7 @@ async def test_ai_examination_waits_for_the_ruling_and_drops_a_withdrawn_questio
     monkeypatch.setattr(
         witness_routes,
         "asyncio",
-        types.SimpleNamespace(sleep=court_rules, gather=asyncio.gather),
+        types.SimpleNamespace(sleep=court_rules, create_task=asyncio.create_task),
     )
 
     await witness_routes.process_ai_examination(case.cnr)

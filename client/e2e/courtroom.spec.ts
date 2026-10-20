@@ -198,13 +198,64 @@ test.describe("courtroom", () => {
     await context.setOffline(false);
   });
 
+  test("the record follows new text, but not once the reader scrolls up", async ({ page, signIn }, info) => {
+    const mobile = info.project.name !== "desktop";
+    const h = hearing();
+    for (let i = 0; i < 12; i++) h.push(ev(`p${i}`, i % 2 ? "ai_argument" : "user_argument", `Point ${i}. `.repeat(30), i % 2 ? "defendant" : "plaintiff"));
+    let reply: () => void = () => undefined;
+    await signIn(USERS.email, {
+      ...h.routes,
+      [`POST ${base}/arguments`]: async (route: Route) => {
+        // The reply waits until the test has scrolled up to read.
+        await new Promise<void>((r) => (reply = r));
+        h.push(ev("u1", "user_argument", "One more point.", "plaintiff"), ev("a1", "ai_argument", "My Lord, ".repeat(200), "defendant"));
+        await route.fulfill({ json: { ai_counter_argument: "…", ai_counter_role: "defendant", ai_objection: null } });
+      },
+    });
+    const log = await open(page);
+    const gap = () => log.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+    await expect.poll(gap).toBeLessThan(40); // starts at the newest entry
+
+    await page.emulateMedia({ reducedMotion: "no-preference" }); // let the reply type out
+    const box = page.getByRole("textbox", { name: "Your argument" });
+    await box.fill("One more point.");
+    if (mobile) await page.getByRole("button", { name: "Submit", exact: true }).click();
+    else await box.press("Enter");
+    await expect.poll(gap).toBeLessThan(40); // what the user sent comes into view
+
+    // Scroll up while the AI prepares and types its reply: the record stays where the reader put it.
+    if (mobile) await log.evaluate((el) => el.scrollBy(0, -600));
+    else {
+      await log.hover();
+      await page.mouse.wheel(0, -600);
+    }
+    await expect.poll(gap).toBeGreaterThan(300);
+    reply();
+    await expect(log.getByText("Preparing a reply")).toBeHidden({ timeout: 8000 });
+    await page.waitForTimeout(800);
+    expect(await gap()).toBeGreaterThan(300);
+
+    // Back at the end, it follows again.
+    await log.evaluate((el) => (el.scrollTop = el.scrollHeight));
+    await expect.poll(gap).toBeLessThan(40);
+  });
+
   test("AI counsel objects to an argument and the court strikes it", async ({ page, signIn }, info) => {
     const mobile = info.project.name !== "desktop";
     const h = hearing();
     const RULING = "Sustained. No exhibit shows that sum. The remark is struck from the record.";
+    let responded = false;
     await signIn(USERS.email, {
       ...h.routes,
       [`POST ${base}/arguments`]: async (route: Route) => {
+        // While the turn is heard, the case shows the objection, then the ruling.
+        const live = { kind: "argument", grounds: "Facts not in evidence" };
+        h.s.kase = { ...h.s.kase, ai_objection_live: live };
+        await new Promise((r) => setTimeout(r, 2000));
+        h.s.kase = { ...h.s.kase, ai_objection_live: { ...live, sustained: true, ruling: RULING } };
+        await new Promise((r) => setTimeout(r, 3000));
+        h.s.kase = { ...h.s.kase, ai_objection_live: null };
+        responded = true;
         h.push(
           ev("e4", "user_argument", "₹5 crore was paid in cash.", "plaintiff", { struck: "struck" }),
           ev("e5", "objection", "Objection. Facts not in evidence. No exhibit shows that sum.", "defendant", { objection: { target_id: "e4", grounds: "Facts not in evidence", details: "No exhibit shows that sum." } }),
@@ -222,10 +273,12 @@ test.describe("courtroom", () => {
     if (mobile) await page.getByRole("button", { name: "Submit", exact: true }).click();
     else await box.press("Enter");
 
-    // The same stamps as the user's own objection, then the record.
+    // The same stamps as the user's own objection, each as it happens, then the record.
     await expect(page.getByText("Opposing counsel objects. The court is considering the objection.")).toBeVisible();
+    expect(responded).toBe(false);
     await expect(page.getByText("SUSTAINED", { exact: true })).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Objection sustained: your argument is struck. Make another argument.")).toBeVisible({ timeout: 6000 });
+    expect(responded).toBe(false);
+    await expect(page.getByText("Objection sustained: your argument is struck. Make another argument.")).toBeVisible({ timeout: 8000 });
     await expect(log.getByText("Objection. Facts not in evidence. No exhibit shows that sum.")).toBeVisible();
     await expect(log.getByText(RULING)).toBeVisible();
     await expect(log.getByText("Struck from the record", { exact: true })).toBeVisible();

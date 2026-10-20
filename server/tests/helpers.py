@@ -15,18 +15,21 @@ async def boom(*args, **kwargs):
 NO_OBJECTION = '{"object": false}'
 
 
-def objection_aware(*replies: str, objection: str = NO_OBJECTION):
+def objection_aware(*replies: str, objection: str = NO_OBJECTION, ruling: str = ""):
     """A fake_llm responder for turns where AI counsel may object.
 
-    The objection decision runs alongside the counter or the witness's answer
-    (asyncio.gather), so its order isn't fixed: it gets ``objection``, and every
-    other call gets ``replies`` in order.
+    The objection decision and the court's ruling run alongside the counter or
+    the witness's answer, so their order isn't fixed: the decision gets
+    ``objection``, the ruling gets ``ruling``, and every other call gets
+    ``replies`` in order.
     """
     queue = list(replies)
 
     def respond(prompt: str) -> str:
         if prompt.startswith("OBJECTION DECISION"):
             return objection
+        if "Rule on the objection at once" in prompt:
+            return ruling
         return queue.pop(0) if queue else "Fake LLM response for tests."
 
     return respond

@@ -23,6 +23,7 @@ import CourtModelLoader from "@/components/court/court-model-loader";
 import { ExhibitViewer } from "@/components/prep/exhibits";
 import { firstName, initials, onSide } from "@/components/prep/people";
 import { useSettings } from "@/contexts/settings-context";
+import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { useOnline } from "@/hooks/use-online";
 import { useViewport } from "@/hooks/use-viewport";
 import { argumentAPI, caseAPI, courtroomAPI, partiesAPI, witnessAPI } from "@/lib/api";
@@ -39,6 +40,10 @@ const LEAVE_FIRST = "Respond to the request to call a witness first.";
 const reduce = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
 const JUDGMENT_DELIVERED = "Judgment delivered";
+/** How often the page checks for AI counsel's objection while the user's turn is heard. */
+const OBJECTION_POLL_MS = 700;
+/** The shortest time an objection stamp stays up, so it can be read. */
+const MIN_STAMP_MS = 1500;
 
 interface SpeechRec {
   lang: string;
@@ -120,8 +125,8 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const [listening, setListening] = useState(false);
   const [micOk, setMicOk] = useState(false);
 
-  const recRef = useRef<HTMLDivElement>(null);
-  const witScRef = useRef<HTMLDivElement>(null);
+  const rec = useFollowScroll();
+  const stand = useFollowScroll();
   const argRef = useRef<HTMLTextAreaElement>(null);
   const qRef = useRef<HTMLTextAreaElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
@@ -256,18 +261,22 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     [],
   );
 
-  // Keep the newest entry in view.
+  // Keep the newest entry in view (the record and the witness stand), unless the reader has scrolled
+  // up to read; what the user just sent always comes into view.
   const count = events.length;
+  const mineLast = events[events.length - 1]?.id === "pending";
   useEffect(() => {
-    const c = recRef.current;
-    if (!c) return;
-    requestAnimationFrame(() => c.scrollTo({ top: c.scrollHeight, behavior: reduce() ? "auto" : "smooth" }));
-  }, [count, load]);
-  // Follow the text as it types, unless the reader has scrolled up to read.
+    requestAnimationFrame(() => {
+      rec.follow({ smooth: !reduce(), force: mineLast });
+      stand.follow({ smooth: !reduce(), force: !!asking });
+    });
+  }, [count, load, mineLast, asking, rec, stand]);
+  // Follow the text as it types.
   useEffect(() => {
-    const c = recRef.current;
-    if (c && typing && c.scrollHeight - c.scrollTop - c.clientHeight < 120) c.scrollTop = c.scrollHeight;
-  }, [typing]);
+    if (!typing) return;
+    rec.follow();
+    stand.follow();
+  }, [typing, rec, stand]);
 
   // Every open device follows the hearing; faster while the AI examines a witness.
   const aiTurn = !!data?.is_ai_examining;
@@ -348,14 +357,52 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const cite = !closingMode && opened;
 
   const note = useCallback((msg: string) => void toast(msg, { duration: 2800 }), []);
-  /** AI counsel objected: the same stamps as the user's own objection, before the record shows the ruling. */
-  const aiObjected = async (o?: AIObjection | null) => {
-    if (!o) return;
-    setPopup("objected");
-    await wait(1800);
-    setPopup(o.sustained ? "sustained" : "overruled");
-    await wait(1500);
-    setPopup(null);
+  /**
+   * While the user's turn is heard, show AI counsel's objection the moment it is raised and the
+   * ruling the moment the court gives it (the same stamps as the user's own objection), then let
+   * the record show them.
+   */
+  const hearObjections = async <R extends { ai_objection?: AIObjection | null }>(turn: Promise<R>): Promise<R> => {
+    // An object, not lets: the poll and the response both move the stage along.
+    const st = { stage: "none" as "none" | "objected" | "ruled", since: 0, over: false };
+    const stamp = (stage: typeof st.stage, kind: StampKind) => {
+      st.stage = stage;
+      st.since = Date.now();
+      setPopup(kind);
+    };
+    // ponytail: polls the whole case; a small endpoint if this ever weighs on the server.
+    void (async () => {
+      while (!st.over) {
+        await wait(OBJECTION_POLL_MS);
+        const c: Case | null = st.over ? null : await caseAPI.getCase(cnr).catch(() => null);
+        const live = c?.ai_objection_live;
+        if (st.over || !live) continue;
+        if (st.stage === "none") stamp("objected", "objected");
+        if (st.stage === "objected" && live.sustained !== undefined) {
+          await wait(MIN_STAMP_MS - (Date.now() - st.since));
+          if (!st.over) stamp("ruled", live.sustained ? "sustained" : "overruled");
+        }
+      }
+    })();
+    try {
+      const r = await turn;
+      st.over = true;
+      const o = r.ai_objection;
+      if (o) {
+        if (st.stage === "none") stamp("objected", "objected");
+        if (st.stage === "objected") {
+          await wait(MIN_STAMP_MS - (Date.now() - st.since));
+          stamp("ruled", o.sustained ? "sustained" : "overruled");
+        }
+        await wait(MIN_STAMP_MS - (Date.now() - st.since));
+      }
+      if (st.stage !== "none") setPopup(null);
+      return r;
+    } catch (err) {
+      st.over = true;
+      if (st.stage !== "none") setPopup(null);
+      throw err;
+    }
   };
 
   // ---- arguing ----
@@ -435,8 +482,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
         });
         return;
       }
-      const res = await argumentAPI.submitArgument(cnr, me, text, refs);
-      await aiObjected(res.ai_objection);
+      const res = await hearObjections(argumentAPI.submitArgument(cnr, me, text, refs));
       const c = await refresh();
       setSending(null);
       fetchLimit();
@@ -567,8 +613,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     setQAtt([]);
     if (qRef.current) qRef.current.style.height = "46px";
     try {
-      const res = await witnessAPI.examineWitness(cnr, q, refs);
-      await aiObjected(res.ai_objection);
+      const res = await hearObjections(witnessAPI.examineWitness(cnr, q, refs));
       await refresh();
       if (res.ai_objection?.sustained) note("Objection sustained: question withdrawn. Ask another.");
       later(() => qRef.current?.focus({ preventScroll: true }), 30);
@@ -1016,7 +1061,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
             open={og}
             onToggle={(id, open) => setOg((o) => ({ ...o, [id]: open }))}
             thinking={sending ? SIDE[ai] : null}
-            scRef={recRef}
+            scRef={rec.ref}
             count={events.length}
           />
           <Composer
@@ -1096,7 +1141,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
             askOff={!!asking || !!typing || witBusy || !online}
             enterSubmits={enterKeySubmits}
             qRef={qRef}
-            scRef={witScRef}
+            scRef={stand.ref}
             pickMax={() => roomAbove(qRef.current?.closest("aside") ?? null, qRef.current)}
             evidence={evidence}
             qAtt={qAtt}

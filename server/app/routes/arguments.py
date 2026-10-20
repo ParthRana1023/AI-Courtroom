@@ -20,8 +20,10 @@ from app.models.user import User
 from app.routes.courtroom import (
     AI_SPEAKER,
     ai_may_object,
-    ai_objection_ruling,
+    ai_objects_now,
+    drop,
     ruling_memory,
+    show_ai_objection,
 )
 from app.services.case_outcomes import ensure_outcome
 from app.services.evidence_service import (
@@ -468,21 +470,27 @@ async def submit_argument(
             )
 
         # ponytail: the counter is drafted while AI counsel decides whether to
-        # object, and thrown away if the objection is sustained: tokens for speed.
-        decision, ai_reply = await asyncio.gather(
-            ai_may_object(case, "argument", said), counter()
-        )
-        if decision:
-            objection = await ai_objection_ruling(case, "argument", said, *decision)
-        if objection:
-            memories.append(ruling_memory(*case.courtroom_proceedings[-2:]))
+        # object (and the court rules), and dropped if the objection is sustained.
+        reply = asyncio.create_task(counter())
+        decision = None
+        try:
+            decision = await ai_may_object(case, "argument", said)
+            if decision:
+                objection = await ai_objects_now(case, "argument", said, decision)
+            if objection:
+                memories.append(ruling_memory(*case.courtroom_proceedings[-2:]))
+            # Struck: no counter, the floor goes back to the user.
+            ai_reply = "" if objection and objection["sustained"] else await reply
+        finally:
+            await drop(reply)
+            if decision:
+                await show_ai_objection(case.cnr, None)
         if case.status == CaseStatus.NOT_STARTED:
             case.status = CaseStatus.ACTIVE
 
     struck = bool(objection and objection["sustained"])
     if struck:
-        # The court struck it: the floor goes back to the user for another argument.
-        memories.pop(0)
+        memories.pop(0)  # struck from the record, so not remembered either
     else:
         record_argument(
             case,

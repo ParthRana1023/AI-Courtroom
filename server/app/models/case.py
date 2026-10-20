@@ -266,6 +266,10 @@ class Case(Document):
     # Set from the moment the user starts an objection until the court rules;
     # the AI's examination waits meanwhile (see objection_pending).
     objection_pending_at: datetime | None = None
+    # AI counsel's objection to the user's turn while that turn is heard: {kind, grounds} as
+    # raised, then with {sustained, ruling} once the court rules; None once the turn is over.
+    # The client polls it to show the objection and the ruling as they happen.
+    ai_objection_live: dict | None = None
     # Set when the court was adjourned because the user's session ended (logout
     # or expiry). Party chat stays closed until the user resumes the hearing.
     adjourned_by_session_end: bool = False
