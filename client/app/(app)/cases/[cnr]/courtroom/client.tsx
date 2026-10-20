@@ -38,6 +38,7 @@ type Load = "loading" | "loaded" | "error" | "notfound";
 const LEAVE_FIRST = "Respond to the request to call a witness first.";
 const reduce = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
+const JUDGMENT_DELIVERED = "Judgment delivered";
 
 interface SpeechRec {
   lang: string;
@@ -201,10 +202,14 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
 
   useEffect(() => setMicOk(!!speechCtor()), []);
 
+  // While the court deliberates, the judgment (already on the server's record) isn't delivered yet.
+  const [deliberating, setDeliberating] = useState(false);
   const events = useMemo<Ev[]>(() => {
-    const list = (data?.courtroom_proceedings ?? []).map((e, i) => ({ ...e, id: e.id ?? `ev-${i}` }));
+    const list = (data?.courtroom_proceedings ?? [])
+      .map((e, i) => ({ ...e, id: e.id ?? `ev-${i}` }))
+      .filter((e) => !(deliberating && e.type === T.SYSTEM_MESSAGE && e.content === JUDGMENT_DELIVERED));
     return sending ? [...list, sending] : list;
-  }, [data, sending]);
+  }, [data, sending, deliberating]);
 
   const me: Side = data?.user_role === "defendant" ? "defendant" : "plaintiff";
   const ai: Side = me === "plaintiff" ? "defendant" : "plaintiff";
@@ -414,6 +419,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     if (argRef.current) argRef.current.style.height = "46px";
     try {
       if (closing) {
+        setDeliberating(true);
         await argumentAPI.submitClosingStatement(cnr, me, text);
         await refresh();
         setSending(null);
@@ -421,7 +427,11 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
         await settle();
         await wait(700);
         showPopup("deliberating", 3000, () => {
-          void refresh().then(() => setVerdictOpen(true));
+          // Judgment is delivered once the court has deliberated, then the verdict opens.
+          setDeliberating(false);
+          void refresh()
+            .then(() => wait(1200))
+            .then(() => setVerdictOpen(true));
         });
         return;
       }
@@ -453,6 +463,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
       }
     } catch (err) {
       setSending(null);
+      setDeliberating(false);
       setDraft(text);
       setAtt(pinned);
       toast.error(getErrorDetail(err) || "Couldn’t submit your argument. Please try again.");
@@ -785,7 +796,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const resolved = status === CaseStatus.RESOLVED;
   const adjourned = status === CaseStatus.ADJOURNED;
   const court = file.court;
-  const judgment = [...events].reverse().find((e) => e.type === T.SYSTEM_MESSAGE && e.content === "Judgment delivered");
+  const judgment = [...events].reverse().find((e) => e.type === T.SYSTEM_MESSAGE && e.content === JUDGMENT_DELIVERED);
   const stLabel = view ? "In session · watching" : active ? "in session" : adjourned ? "adjourned" : "resolved";
   const stC = active ? "border-desk-green text-desk-green" : adjourned ? "border-amber-hi text-amber-hi light:border-amber light:text-amber" : "border-desk-soft text-desk-soft";
 

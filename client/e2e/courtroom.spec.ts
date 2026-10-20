@@ -522,6 +522,11 @@ test.describe("courtroom", () => {
 
     await expect(page.getByText("THE COURT IS DELIBERATING")).toBeVisible({ timeout: 6000 });
     expect(closing).toEqual({ role: "plaintiff", statement: "The State has not proved intent." });
+    // Judgment is delivered only once the court has deliberated.
+    const log = page.getByRole("log", { name: "Record of proceedings" });
+    await expect(log.getByText("Judgment delivered")).toHaveCount(0);
+    await expect(page.getByText("THE COURT IS DELIBERATING")).toBeHidden({ timeout: 6000 });
+    await expect(log.getByText("Judgment delivered")).toBeVisible();
     const verdict = page.getByRole("dialog", { name: "Verdict" });
     await expect(verdict).toBeVisible({ timeout: 8000 });
     await expect(verdict.getByText("PARTLY WON")).toBeVisible();
