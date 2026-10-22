@@ -101,8 +101,15 @@ test.describe("case details", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("alertdialog")).toBeHidden();
 
+    // The applicant has signed the petition; its advocate signs once a side is chosen.
+    const file = page.getByRole("region", { name: "Case file text" });
+    await expect(file.getByRole("img", { name: "Signed: Raghav Menon" }).locator("svg")).toBeAttached();
+    await expect(file.getByText("Signs when you choose a side")).toBeAttached();
+
     await page.getByRole("button", { name: /^Plaintiff Lawyer/ }).click();
     await page.getByRole("button", { name: "Take the plaintiff’s side" }).click();
+    // Taking the applicant's brief, the user signs the petition as its counsel.
+    await expect(file.getByRole("img", { name: "Signed: Aanya Kapoor" })).toBeAttached();
     await expect(page.getByText("Preparing your case file")).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`/cases/${CNR}/case-prep$`));
     expect(body).toEqual({ user_role: "plaintiff", ai_role: "defendant" });
@@ -115,6 +122,10 @@ test.describe("case details", () => {
     await expect(page.getByText("You are the Defendant Lawyer")).toBeVisible();
     await expect(page.getByRole("link", { name: "Open Case Prep →" })).toHaveAttribute("href", `/cases/${CNR}/case-prep`);
     await expect(page.getByRole("button", { name: /^Plaintiff Lawyer/ })).toHaveCount(0);
+    // The petition stays signed by the counsel it names, now the other side's.
+    const file = page.getByRole("region", { name: "Case file text" });
+    await expect(file.getByRole("img", { name: "Signed: Vikram Sethi" }).locator("svg")).toBeAttached();
+    await expect(file.getByText("D/871/2009")).toBeAttached();
   });
 
   test("a failed load can be retried; a missing case says so", async ({ page, signIn }) => {

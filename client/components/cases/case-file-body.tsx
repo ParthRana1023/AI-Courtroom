@@ -3,7 +3,7 @@ import { NUMERALS, SECTIONS, type CaseFile, type Item, type Row, type SectionId 
 import { cn } from "@/lib/utils";
 
 /** The seven sections of the indexed case file (Case Details and the courtroom's case file panel). */
-export default function CaseFileBody({ file, mob }: { file: CaseFile; mob: boolean }) {
+export default function CaseFileBody({ file, mob, signatures }: { file: CaseFile; mob: boolean; signatures?: ReactNode }) {
   return (
     <>
       <Section id="summary">
@@ -58,6 +58,7 @@ export default function CaseFileBody({ file, mob }: { file: CaseFile; mob: boole
           </>
         )}
         {!file.relief.length && !file.verification && <Empty />}
+        {signatures}
       </Section>
     </>
   );

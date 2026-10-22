@@ -671,7 +671,7 @@ test.describe("courtroom", () => {
           status: "resolved",
           outcome: "partial",
           verdict:
-            "**FACTS**\n\n1. The applicant seeks quashing of the FIR.\n2. The petition is partly allowed.\n\n**ORDER**\n\n3. The charge of cheating stands.",
+            "**CORAM: HON'BLE R. K. MEHTA, J.**\n\n**FACTS**\n\n1. The applicant seeks quashing of the FIR.\n2. The petition is partly allowed.\n\n**ORDER**\n\n3. The charge of cheating stands.\n\n**(R. K. Mehta, J.)**\nNew Delhi\n2 October 2026",
         };
         await route.fulfill({ json: { verdict: "…" } });
       },
@@ -706,6 +706,10 @@ test.describe("courtroom", () => {
     await expect(verdict.getByText("PARTLY WON")).toBeVisible();
     await expect(verdict.getByText("Judgment · " + CNR)).toBeVisible();
     await expect(verdict.getByText("The petition is partly allowed.")).toBeVisible();
+    // The judge signs at the foot; the typed signature lines become the signature block.
+    await expect(verdict.getByRole("img", { name: "Signed: R. K. Mehta" }).locator("svg")).toBeAttached();
+    await expect(verdict.getByText("R. K. Mehta, J.")).toBeVisible();
+    await expect(verdict.getByText("2 October 2026")).toBeVisible();
     await expect(verdict.getByText("An AI-generated ruling for practice. It is not legal advice.")).toBeVisible();
     await checkA11y();
 

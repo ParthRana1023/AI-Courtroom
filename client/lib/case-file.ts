@@ -20,6 +20,8 @@ export type CaseFile = {
   summary: string[];
   relief: Item[];
   verification: string;
+  /** The advocate who signed the petition: "Through Counsel: **Name**, Advocate, Enrolment No. X". */
+  counsel: { name: string; enrolment: string } | null;
   parties: Row[];
   facts: Item[];
   chronology: Row[];
@@ -238,6 +240,9 @@ export function readCaseFile(text: string, evidence: EvidenceItem[] = []): CaseF
       .find((p) => p.trim()) ?? "",
   );
 
+  const through = (text || "").match(/Through Counsel:\s*\*{0,2}([^*,\n]+?)\*{0,2}\s*,\s*Advocate(?:,\s*Enrolment No\.?\s*([^\s,]+))?/i);
+  const counsel = through ? { name: plain(through[1]), enrolment: (through[2] ?? "").replace(/\.$/, "") } : null;
+
   // VI. Issues: the lettered grounds.
   const issues: Item[] = paragraphs(find(/^GROUNDS/i)?.lines ?? [], /^([A-Z])\.\s+/).map((g) => {
     const m = g.body.match(/^\*\*(.+?):?\*\*:?\s*(.*)$/);
@@ -263,6 +268,7 @@ export function readCaseFile(text: string, evidence: EvidenceItem[] = []): CaseF
           : [],
     relief,
     verification,
+    counsel,
     parties,
     facts,
     chronology,

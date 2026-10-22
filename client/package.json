@@ -1,6 +1,6 @@
 {
   "name": "ai-courtroom",
-  "version": "5.3.0",
+  "version": "5.3.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -42,7 +42,8 @@
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
-    "three": "0.186.1"
+    "three": "0.186.1",
+    "vara": "1.4.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

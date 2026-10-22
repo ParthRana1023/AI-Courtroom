@@ -74,6 +74,9 @@ importers:
       three:
         specifier: 0.186.1
         version: 0.186.1
+      vara:
+        specifier: 1.4.1
+        version: 1.4.1
     devDependencies:
       '@axe-core/playwright':
         specifier: ^4.14.0
@@ -3642,6 +3645,9 @@ packages:
   uuid@11.1.1:
     resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
     hasBin: true
+
+  vara@1.4.1:
+    resolution: {integrity: sha512-oX+D+jXIJTmdQb7+OeuhvxSvSJB1PG8X2mzI3u7wTbuJ4v2QskA2fNlkNnyI2883YBRmEoA6R9gJg4jHiVNvXQ==}
 
   vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
@@ -7726,6 +7732,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   uuid@11.1.1: {}
+
+  vara@1.4.1: {}
 
   vary@1.1.2: {}
 

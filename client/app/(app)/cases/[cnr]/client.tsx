@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertDialog } from "radix-ui";
@@ -11,10 +11,13 @@ import Scroller from "@/components/court/scroller";
 import { buttonClass } from "@/components/court/button";
 import CaseFileBody from "@/components/cases/case-file-body";
 import { STATUSES, formatDate } from "@/components/cases/kit";
+import Signature from "@/components/court/signature";
+import { useAuth } from "@/contexts/auth-context";
 import { useOnline } from "@/hooks/use-online";
 import { useViewport } from "@/hooks/use-viewport";
 import { caseAPI } from "@/lib/api";
 import { NUMERALS, SECTIONS, readCaseFile, sideNames, type SectionId } from "@/lib/case-file";
+import { caseFonts } from "@/lib/signature";
 import { cn } from "@/lib/utils";
 import type { Case } from "@/types";
 
@@ -24,10 +27,12 @@ type Load = "loading" | "loaded" | "error" | "notfound";
 const OFFLINE = "You’re offline. Choose a side when you’re back online.";
 const BUSY = ["Recording your appearance…", "Preparing the evidence images…", "Opening Case Prep…"];
 const BUSY_PCT = ["20%", "65%", "100%"];
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function CaseDetails({ params }: { params: Promise<{ cnr: string }> }) {
   const { cnr } = use(params);
   const router = useRouter();
+  const { user } = useAuth();
   const online = useOnline();
   const { w } = useViewport();
   const wide = w >= 860;
@@ -39,6 +44,8 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
   const [dialog, setDialog] = useState<Side | null>(null);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
+  // The side just chosen: the petition's advocate signs before Case Prep opens.
+  const [signing, setSigning] = useState<Side | null>(null);
 
   const scRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -122,6 +129,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
   };
 
   const pick = (side: Side) => {
+    if (signing) return;
     if (!online) {
       toast(OFFLINE, { duration: 2600 });
       return;
@@ -132,21 +140,83 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
   const confirmSide = async () => {
     if (!dialog) return;
     const side = dialog;
+    const saved = caseAPI.updateCaseRoles(cnr, side, side === "plaintiff" ? "defendant" : "plaintiff").then(
+      () => true,
+      () => false,
+    );
+    // The petition is signed at the foot of the file first, then the appearance is recorded.
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    setDialog(null);
+    setSigning(side);
+    const sc = scRef.current;
+    sc?.scrollTo({ top: sc.scrollHeight, behavior: reduce ? "auto" : "smooth" });
+    await wait(reduce ? 300 : 3000);
+    setDialog(side);
     setBusy(true);
     setStep(0);
     const t = setTimeout(() => setStep(1), 700);
-    try {
-      await caseAPI.updateCaseRoles(cnr, side, side === "plaintiff" ? "defendant" : "plaintiff");
+    if (await saved) {
       clearTimeout(t);
       setStep(2);
       setTimeout(() => router.push(`/cases/${cnr}/case-prep`), 700);
-    } catch {
+    } else {
       clearTimeout(t);
       setBusy(false);
       setDialog(null);
+      setSigning(null);
       toast.error("Couldn’t record your side. Please try again.");
     }
   };
+
+  // Signature block under the verification: the applicant has signed; the advocate signs when a
+  // side is chosen (the user for the applicant, else the counsel the petition names).
+  const applicant =
+    file.parties
+      .find((p) => /^Applicant/i.test(p.label))
+      ?.text.split(",")[0]
+      .trim() ?? "";
+  const signer = signing ?? role;
+  const advocate =
+    signer === "plaintiff"
+      ? [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Counsel for the applicant"
+      : signer === "defendant"
+        ? (file.counsel?.name ?? "")
+        : "";
+  const fonts = useMemo(
+    () => (applicant ? caseFonts(cnr, advocate ? [applicant, advocate] : [applicant]) : {}),
+    [cnr, applicant, advocate],
+  );
+  const enrolment = signer === "defendant" ? file.counsel?.enrolment : "";
+  const signatures = applicant ? (
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-x-10 gap-y-4.5 pt-2">
+      <SignLine name={applicant} role="Applicant">
+        {fonts[applicant] && <Signature name={applicant} font={fonts[applicant]} instant className={SIG} />}
+      </SignLine>
+      <SignLine
+        name={advocate || "Counsel for the applicant"}
+        role={
+          <>
+            Through counsel
+            {enrolment && (
+              <>
+                {" · "}
+                <span className="font-data text-[11.5px] font-medium">{enrolment}</span>
+              </>
+            )}
+          </>
+        }
+        signed={!!advocate}
+      >
+        {advocate && fonts[advocate] ? (
+          <Signature key={advocate} name={advocate} font={fonts[advocate]} instant={!signing} duration={2000} className={SIG} />
+        ) : (
+          <span className="flex h-9.5 items-end pb-1 text-[13px] text-ink-hint italic">
+            {signer ? "Not signed" : "Signs when you choose a side"}
+          </span>
+        )}
+      </SignLine>
+    </div>
+  ) : null;
 
   const names = sideNames(file.parties);
   const copy =
@@ -306,7 +376,7 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
                 aria-label="Case file text"
                 className={cn("relative flex flex-1 flex-col gap-8.5", mob ? "px-4 pt-4.5 pb-5.5" : "px-10 pt-6.5 pb-7.5")}
               >
-                <CaseFileBody file={file} mob={mob} />
+                <CaseFileBody file={file} mob={mob} signatures={signatures} />
               </Scroller>
 
               <div
@@ -330,12 +400,13 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
                             key={side}
                             type="button"
                             onClick={() => pick(side)}
+                            disabled={!!signing}
                             title={tip}
                             aria-label={`${label}: ${tip}`}
                             className={cn(
                               "h-10.5 min-w-0 flex-[1_1_0] cursor-pointer px-3.5 text-xs font-bold tracking-[0.12em] whitespace-nowrap uppercase",
                               side === "defendant" && "border-[1.5px] border-ink",
-                              !online
+                              !online || signing
                                 ? "bg-[#cfc4ad] text-[#6f6556]"
                                 : side === "plaintiff"
                                   ? "bg-ink text-paper hover:bg-ink-label"
@@ -412,6 +483,20 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
           )}
         </AlertDialog.Portal>
       </AlertDialog.Root>
+    </div>
+  );
+}
+
+const SIG = "h-9.5 w-full max-w-52.5 origin-bottom-left -rotate-2";
+
+/** One signatory at the foot of the petition: signature, rule, name and capacity. */
+function SignLine({ name, role, signed = true, children }: { name: string; role: ReactNode; signed?: boolean; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.75">
+      {children}
+      <span className={cn("border-t-[1.5px]", signed ? "border-ink" : "border-ink/35")} />
+      <span className="text-[13.5px] leading-[1.35] font-bold">{name}</span>
+      <span className="text-[12.5px] text-ink-label">{role}</span>
     </div>
   );
 }

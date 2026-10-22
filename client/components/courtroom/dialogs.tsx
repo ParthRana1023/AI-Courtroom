@@ -1,13 +1,15 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Dialog } from "radix-ui";
 import CaseFileBody from "@/components/cases/case-file-body";
 import CourtModelLoader from "@/components/court/court-model-loader";
 import PaperMarkdown from "@/components/court/paper-markdown";
 import Scroller from "@/components/court/scroller";
+import Signature from "@/components/court/signature";
 import type { CaseFile } from "@/lib/case-file";
+import { caseFonts } from "@/lib/signature";
 import { cn } from "@/lib/utils";
 import type { CaseOutcome } from "@/types";
 
@@ -497,6 +499,8 @@ export function VerdictDialog({
   small: boolean;
 }) {
   const out = outcome ? OUTCOME[outcome] : null;
+  const sig = useMemo(() => signedBy(verdict), [verdict]);
+  const font = useMemo(() => (sig.judge ? caseFonts(cnr, [sig.judge])[sig.judge] : null), [cnr, sig.judge]);
   return (
     <Shell
       open={open}
@@ -542,9 +546,55 @@ export function VerdictDialog({
           </span>
         )}
       </div>
-      <PaperMarkdown text={verdict} />
+      <PaperMarkdown text={sig.body} />
+      {sig.judge && font && (
+        <div className="flex w-[min(230px,100%)] flex-col items-end gap-0.75 self-end">
+          <Signature
+            name={sig.judge}
+            font={font}
+            color="#120d09"
+            align="right"
+            delay={600}
+            className="h-10 w-full max-w-52.5 origin-bottom-left -rotate-2"
+          />
+          <span className="self-stretch border-t-[1.5px] border-ink" />
+          <span className="text-[13px] font-bold text-ink">{sig.judge}, J.</span>
+          {sig.tail.map((t) => (
+            <span key={t} className="text-[12.5px] text-ink-label">
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
     </Shell>
   );
+}
+
+/**
+ * The judge named in the coram ("CORAM: HON'BLE R. K. Mehta, J."), and the judgment without its
+ * closing signature lines (name, seat, date), which are drawn as a signature block instead.
+ */
+function signedBy(md: string) {
+  const strip = (s: string) => s.replace(/[*_]/g, "").replace(/\s+/g, " ").trim();
+  // "R. K. MEHTA" → "R. K. Mehta": the header is often in capitals; a signature isn't.
+  const proper = (s: string) =>
+    s === s.toUpperCase() ? s.replace(/([A-Z])([A-Z']+)/g, (_, a: string, b: string) => a + b.toLowerCase()) : s;
+  const judge = strip(md.match(/CORAM:\s*\**\s*HON'?BLE\s+(?:(?:MR|MS|MRS|DR)\.?\s+)?(?:JUSTICE\s+)?(.+?),\s*J\.?/i)?.[1] ?? "");
+  if (!judge) return { body: md, judge: "", tail: [] as string[] };
+  const lines = md.trimEnd().split("\n");
+  // Only the last few lines: the coram line at the top also carries the name.
+  const at = lines.findLastIndex((l, i) => i >= lines.length - 6 && strip(l).toLowerCase().includes(judge.toLowerCase()));
+  if (at < 0) return { body: md, judge: proper(judge), tail: [] as string[] };
+  const line = strip(lines[at]);
+  const from = line.toLowerCase().indexOf(judge.toLowerCase());
+  return {
+    body: lines.slice(0, at).join("\n"),
+    judge: proper(line.slice(from, from + judge.length)),
+    tail: lines
+      .slice(at + 1)
+      .map(strip)
+      .filter(Boolean),
+  };
 }
 
 /** "### Mistakes" → its own group, with a mark for its bullets. */
