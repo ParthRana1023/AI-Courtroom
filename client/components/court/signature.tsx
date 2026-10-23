@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { SIG_SPACING, type SigFont } from "@/lib/signature";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,7 @@ type Props = {
   instant?: boolean;
   align?: "left" | "right";
   className?: string;
+  style?: CSSProperties;
 };
 
 /** `name` handwritten on one line, scaled to fit the box and sitting on its bottom edge. */
@@ -31,6 +32,7 @@ export default function Signature({
   instant = false,
   align = "left",
   className,
+  style,
 }: Props) {
   const host = useRef<HTMLSpanElement>(null);
 
@@ -88,5 +90,7 @@ export default function Signature({
     };
   }, [name, font, color, stroke, spacing, duration, delay, instant, align]);
 
-  return <span ref={host} role="img" aria-label={`Signed: ${name}`} className={cn("relative block overflow-hidden", className)} />;
+  return (
+    <span ref={host} role="img" aria-label={`Signed: ${name}`} className={cn("relative block overflow-hidden", className)} style={style} />
+  );
 }

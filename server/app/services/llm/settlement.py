@@ -173,6 +173,7 @@ WHAT TO WRITE
 - "accused": the accused person's name. "accused_side": "plaintiff" if the accused is among the applicants in this petition, else "defendant".
 - "complainants": the complainants or victims who must join the compromise, the lead complainant first. If the file gives a number larger than the names it gives (for example eleven buyers), list the names it gives and add short Indian names for the rest so the count matches.
 - "claim": the total money in dispute in rupees, as a whole number; 0 if the dispute is not about money.
+- "prosecutor" and "officer": only for "plea": the public prosecutor and the investigating officer who take part in the disposition meeting, by name (from the case file, or short Indian names if it gives none); "" otherwise.
 
 Write plain English in short sentences.
 
@@ -183,7 +184,7 @@ THE CASE FILE
 </case_file>
 
 Reply with ONLY this JSON object and nothing else:
-{{"route": "quash" | "compound" | "plea" | "none", "title": "...", "court": "...", "offences": [...], "must": "...", "must_detail": "...", "footnote": "...", "closed": [...], "conditions": [...], "accused": "...", "accused_side": "plaintiff" | "defendant", "complainants": ["..."], "claim": 0}}"""
+{{"route": "quash" | "compound" | "plea" | "none", "title": "...", "court": "...", "offences": [...], "must": "...", "must_detail": "...", "footnote": "...", "closed": [...], "conditions": [...], "accused": "...", "accused_side": "plaintiff" | "defendant", "complainants": ["..."], "claim": 0, "prosecutor": "", "officer": ""}}"""
     try:
         chain = (
             ChatPromptTemplate.from_messages([("human", template)])

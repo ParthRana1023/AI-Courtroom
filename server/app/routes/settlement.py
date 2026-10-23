@@ -35,6 +35,8 @@ from app.services.evidence_service import format_evidence_context
 from app.services.llm import settlement as counsel
 from app.services.llm.parties_service import can_lawyer_confer_with_party
 from app.services.rag import retrieve_case_context, upsert_memory_item
+from app.services.settlement_deed import deed as draw_up
+from app.services.settlement_deed import hearing_after
 from app.utils.datetime import get_current_datetime
 
 logger = get_logger(__name__)
@@ -124,10 +126,15 @@ async def profile_of(case: Case) -> SettlementProfile:
 def view(case: Case) -> dict:
     """What the settlement desk shows: the route, the latest attempt, and what is allowed."""
     attempt = case.settlements[-1] if case.settlements else None
+    profile = case.settlement_profile
     return {
-        "profile": case.settlement_profile
-        and case.settlement_profile.model_dump(mode="json"),
+        "profile": profile and profile.model_dump(mode="json"),
         "attempt": attempt and attempt.model_dump(mode="json"),
+        "deed": (
+            draw_up(case, profile, attempt.agreed)
+            if profile and profile.route != "none" and attempt and attempt.agreed
+            else None
+        ),
         "attempts": len(case.settlements),
         "closed": why_closed(case),
         "can_start": why_no_new_attempt(case) is None
@@ -282,7 +289,7 @@ async def make_offer(
         check(why_no_new_attempt(case))
         attempt = Settlement()
         case.settlements.append(attempt)  # only saved if AI counsel answers
-    elif attempt.status == SettlementStatus.AGREED:
+    elif attempt.status != SettlementStatus.NEGOTIATING:
         raise HTTPException(status_code=409, detail=messages.SETTLEMENT_AGREED)
     if attempt.user_offers() >= MAX_OFFERS:
         raise HTTPException(status_code=409, detail=messages.SETTLEMENT_OFFERS_USED)
@@ -366,16 +373,60 @@ async def end_talks(
     case_cnr: str,
     current_user: User = Depends(get_current_user),
 ):
-    """Call off the talks, or agreed terms not yet before the court."""
+    """Call off the talks, or agreed terms not yet filed."""
     case = await get_owned_case(case_cnr, current_user)
     check(why_closed(case))
     attempt = open_attempt(case)
+    if attempt.status == SettlementStatus.FILED:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_FILED)
     entry = SettlementEntry(by="user", kind="ended")
     attempt.entries.append(entry)
     attempt.status = SettlementStatus.WITHDRAWN
     attempt.ended_at = get_current_datetime()
     logger.info(f"Settlement talks ended in {case_cnr}")
     return await save_and_index(case, attempt, [entry])
+
+
+@router.post("/{case_cnr}/settlement/sign", dependencies=[controls_hearing])
+async def sign_deed(
+    case_cnr: str,
+    current_user: User = Depends(get_current_user),
+):
+    """The user signs for their client; the other side, and on a plea bargain the
+    prosecutor and the investigating officer, sign after."""
+    case = await get_owned_case(case_cnr, current_user)
+    check(why_closed(case))
+    attempt = open_attempt(case)
+    profile = case.settlement_profile
+    if attempt.status != SettlementStatus.AGREED or not attempt.agreed or not profile:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_CANT_SIGN)
+    now = get_current_datetime()
+    attempt.signatures = {
+        s["name"]: now for s in draw_up(case, profile, attempt.agreed)["signatories"]
+    }
+    attempt.status = SettlementStatus.SIGNED
+    await case.save()
+    logger.info(f"Settlement deed signed in {case_cnr}")
+    return view(case)
+
+
+@router.post("/{case_cnr}/settlement/file", dependencies=[controls_hearing])
+async def file_deed(
+    case_cnr: str,
+    current_user: User = Depends(get_current_user),
+):
+    """File the signed deed (or submit the report); the court lists the hearing."""
+    case = await get_owned_case(case_cnr, current_user)
+    check(why_closed(case))
+    attempt = open_attempt(case)
+    if attempt.status != SettlementStatus.SIGNED:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_NOT_SIGNED)
+    attempt.filed_at = get_current_datetime()
+    attempt.hearing_date = hearing_after(attempt.filed_at.date())
+    attempt.status = SettlementStatus.FILED
+    await case.save()
+    logger.info(f"Settlement filed in {case_cnr}, listed {attempt.hearing_date}")
+    return view(case)
 
 
 @router.post("/{case_cnr}/settlement/present", dependencies=[controls_hearing])

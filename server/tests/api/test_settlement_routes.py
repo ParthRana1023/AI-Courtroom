@@ -530,6 +530,141 @@ async def test_ending_talks_ends_the_attempt(client, auth_headers, adjourned, fa
 
 
 # ---------------------------------------------------------------------------
+# the deed: drafted, signed, filed
+# ---------------------------------------------------------------------------
+
+
+async def test_agreed_terms_are_drawn_up_as_a_deed(client, auth_headers, adjourned):
+    case = await adjourned(settlements=[agreed_attempt(conditions=["deposit"])])
+
+    deed = (
+        await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+    ).json()["deed"]
+
+    assert deed["title"] == "Compromise Deed"
+    assert deed["header"][0] == "In the High Court of Delhi"
+    assert deed["parties"] == (
+        "Made between Ravi Kumar (the accused) and Asha Rao (the complainant)."
+    )
+    money, deposit, quash = deed["clauses"]
+    assert money == (
+        "The accused shall pay the complainant ₹1,00,000 in 2 equal instalments "
+        "within 6 months of signing, without interest."
+    )
+    assert deposit == "The first instalment shall be deposited in court."
+    assert "section 528 BNSS" in quash
+    assert deed["signatories"] == [
+        {"name": "Ravi Kumar", "role": "Accused", "side": "user"},
+        {"name": "Asha Rao", "role": "Complainant", "side": "other"},
+    ]
+    assert deed["file_label"] == "File joint application · § 528"
+
+
+async def test_no_deed_until_terms_are_agreed(client, auth_headers, adjourned):
+    case = await adjourned()
+
+    body = (
+        await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+    ).json()
+
+    assert body["deed"] is None
+
+
+async def test_a_plea_bargain_is_a_report_signed_by_four(
+    client, auth_headers, adjourned
+):
+    plea = PROFILE.model_copy(
+        update={
+            "route": "plea",
+            "court": "§ 289 BNSS · Court of the CJM, Patiala House Courts",
+            "accused_side": "defendant",  # the user acts for the complainant
+            "prosecutor": "Neha Bhalla",
+            "officer": "Sunil Rathore",
+        }
+    )
+    case = await adjourned(settlement_profile=plea, settlements=[agreed_attempt()])
+
+    deed = (
+        await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+    ).json()["deed"]
+
+    assert deed["title"] == "Report of Mutually Satisfactory Disposition"
+    assert (
+        deed["clauses"][0]
+        == "The accused pleads guilty to the offences under § 318(4)."
+    )
+    assert "as compensation" in deed["clauses"][1]
+    assert [(s["name"], s["side"]) for s in deed["signatories"]] == [
+        ("Ravi Kumar", "other"),
+        ("Asha Rao", "user"),
+        ("Neha Bhalla", "other"),
+        ("Sunil Rathore", "other"),
+    ]
+    assert deed["file_label"] == "Submit the report · § 292"
+
+
+async def test_sign_then_file(client, auth_headers, adjourned):
+    case = await adjourned(settlements=[agreed_attempt()])
+
+    signed = (await post(client, auth_headers, case, "sign")).json()["attempt"]
+    filed = (await post(client, auth_headers, case, "file")).json()["attempt"]
+
+    assert signed["status"] == "signed"
+    assert set(signed["signatures"]) == {"Ravi Kumar", "Asha Rao"}
+    assert filed["status"] == "filed" and filed["filed_at"]
+    assert filed["hearing_date"]
+    saved = (await reload(case)).settlements[0]
+    assert saved.hearing_date and saved.hearing_date.weekday() < 5
+    assert saved.status == SettlementStatus.FILED
+
+
+async def test_the_deed_is_signed_only_once_agreed(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.append(COUNTER)
+    case = await adjourned()
+    await offer(client, auth_headers, case)
+
+    response = await post(client, auth_headers, case, "sign")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == messages.SETTLEMENT_CANT_SIGN
+
+
+async def test_the_deed_is_filed_only_once_signed(client, auth_headers, adjourned):
+    case = await adjourned(settlements=[agreed_attempt()])
+
+    response = await post(client, auth_headers, case, "file")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == messages.SETTLEMENT_NOT_SIGNED
+
+
+async def test_a_signed_deed_takes_no_offers_and_a_filed_one_stays(
+    client, auth_headers, adjourned, fake_llm
+):
+    case = await adjourned(settlements=[agreed_attempt()])
+    await post(client, auth_headers, case, "sign")
+
+    again = await offer(client, auth_headers, case)
+    await post(client, auth_headers, case, "file")
+    ended = await post(client, auth_headers, case, "end")
+
+    assert again.status_code == 409
+    assert ended.status_code == 409
+    assert ended.json()["detail"] == messages.SETTLEMENT_FILED
+    assert fake_llm.calls == []
+
+
+async def test_no_signing_while_the_court_sits(client, auth_headers, adjourned):
+    case = await adjourned(status=CaseStatus.ACTIVE, settlements=[agreed_attempt()])
+
+    response = await post(client, auth_headers, case, "sign")
+
+    assert response.status_code == 409
+
+
+# ---------------------------------------------------------------------------
 # before the court
 # ---------------------------------------------------------------------------
 

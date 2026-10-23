@@ -148,6 +148,9 @@ SETTLEMENT_BAD_CONDITION = "One of the conditions isn't open in this case."
 SETTLEMENT_ROUTE_FAILED = (
     "Couldn't work out how this case can be settled. Please try again."
 )
+SETTLEMENT_CANT_SIGN = "The deed can be signed only once both sides agree the terms."
+SETTLEMENT_NOT_SIGNED = "Every signatory must sign the deed before it is filed."
+SETTLEMENT_FILED = "The deed is filed. The court takes it up at the hearing."
 SETTLEMENT_NONE_OPEN = "There is no settlement under negotiation."
 SETTLEMENT_NO_COUNTER = "There are no terms from the other side to accept."
 SETTLEMENT_FAILED = (

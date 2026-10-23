@@ -710,6 +710,12 @@ export const settlementAPI = {
 
   /** Call off the talks. */
   end: async (cnr: string): Promise<SettlementView> => (await api.post(`/cases/${cnr}/settlement/end`)).data,
+
+  /** Sign the deed for the user's client; the other side signs after. */
+  sign: async (cnr: string): Promise<SettlementView> => (await api.post(`/cases/${cnr}/settlement/sign`)).data,
+
+  /** File the signed deed; the court lists the hearing. */
+  file: async (cnr: string): Promise<SettlementView> => (await api.post(`/cases/${cnr}/settlement/file`)).data,
 };
 
 // Optional-email unsubscribe links (no sign-in; the token is in the link).

@@ -1,11 +1,12 @@
 "use client";
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import CourtModelLoader from "@/components/court/court-model-loader";
 import Scroller from "@/components/court/scroller";
+import Deed, { DRAW_MS, type SignStage } from "@/components/settlement/deed";
 import Negotiation, { type Note } from "@/components/settlement/negotiation";
 import OfferPanel, { type Draft } from "@/components/settlement/offer-panel";
 import { ClosedRoutes, RouteCard } from "@/components/settlement/route-card";
@@ -14,23 +15,29 @@ import { useProceed } from "@/hooks/use-proceed";
 import { useViewport } from "@/hooks/use-viewport";
 import { caseAPI, settlementAPI } from "@/lib/api";
 import { getErrorDetail } from "@/lib/error-utils";
-import { ROUTE_COPY, lastTerms, phaseOf, sameTerms, sideNames, startingDraft, userOffers } from "@/lib/settlement";
+import { DEAL, ROUTE_COPY, lastTerms, phaseOf, sameTerms, sideNames, startingDraft, userOffers } from "@/lib/settlement";
 import { cn } from "@/lib/utils";
 import { CaseStatus, type Case, type SettlementEntry, type SettlementView } from "@/types";
 
-type Busy = "start" | "send" | "accept" | "end" | null;
+type Busy = "start" | "send" | "accept" | "end" | "sign" | "file" | null;
 
 const OFFLINE = {
   send: "You’re offline. Your offer is kept, so you can send it when you’re back online.",
   accept: "You’re offline. Accept their terms when you’re back online.",
   end: "You’re offline. End talks when you’re back online.",
+  sign: "You’re offline. Sign when you’re back online.",
+  file: "You’re offline. File when you’re back online.",
 };
 const FAILED = {
   start: "Couldn’t open talks. Please try again.",
   send: "Couldn’t send your offer. Please try again.",
   accept: "Couldn’t accept their terms. Please try again.",
   end: "Couldn’t end talks. Please try again.",
+  sign: "Couldn’t sign the deed. Please try again.",
+  file: "Couldn’t file the deed. Please try again.",
 };
+const reduced = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const TALKS_CLOSED = "The case continues at its current stage. You can propose again after the next hearing.";
 
 export default function SettlementPage({ params }: { params: Promise<{ cnr: string }> }) {
@@ -48,6 +55,10 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
   const [busy, setBusy] = useState<Busy>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [startErr, setStartErr] = useState<string | null>(null);
+  const [stage, setStage] = useState<SignStage>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const rects = useRef(new Map<Element, { x: number; y: number }>());
+  const lastAreas = useRef("");
   const started = useRef(false);
   // Every load or move takes a number; a reply that comes back after a newer one is dropped,
   // so a slow page load can't overwrite talks that have just opened.
@@ -82,11 +93,11 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
     void fetchAll();
   }, [fetchAll]);
 
-  const act = async (kind: Exclude<Busy, null>, call: () => Promise<SettlementView>) => {
-    if (busy) return;
+  const act = async (kind: Exclude<Busy, null>, call: () => Promise<SettlementView>): Promise<SettlementView | null> => {
+    if (busy) return null;
     if (!online && kind !== "start") {
       toast(OFFLINE[kind], { duration: 2800 });
-      return;
+      return null;
     }
     const id = ++seq.current;
     setBusy(kind);
@@ -94,15 +105,36 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
     try {
       const v = await call();
       if (id === seq.current) show(v);
+      return v;
     } catch (e) {
       const msg = getErrorDetail(e) || FAILED[kind];
       toast.error(msg);
       if (kind === "start") setStartErr(msg);
+      return null;
     } finally {
       setBusy(null);
     }
   };
   const openTalks = () => void act("start", () => settlementAPI.start(cnr));
+
+  // Your client's signature draws first; once it is down the other side signs, and File appears
+  // only after the last signature has finished drawing.
+  const sign = async () => {
+    if (!online) return void act("sign", () => settlementAPI.sign(cnr));
+    const draw = reduced() ? 300 : DRAW_MS + 300;
+    setStage("you");
+    const t0 = Date.now();
+    const v = await act("sign", () => settlementAPI.sign(cnr));
+    if (!v) return setStage(null);
+    await wait(Math.max(0, draw - (Date.now() - t0)));
+    setStage("them");
+    await wait(draw);
+    setStage("done");
+  };
+  const file = async () => {
+    const v = await act("file", () => settlementAPI.file(cnr));
+    if (v && copy) toast(copy.fileToast, { duration: 2800 });
+  };
 
   // Talks open on the first visit (and again after the next hearing); when the user acts for
   // the complainants, AI counsel opens with its client's terms.
@@ -158,9 +190,10 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
           }
         : { k: "Settlement closed", t: view?.closed ?? "" };
 
+  const deal = DEAL.includes(phase);
   const note: Note =
-    phase === "agreed"
-      ? { k: "Terms agreed", t: "Both sides agree. The deed is drafted from these terms.", c: "#3f6b3a" }
+    deal && copy
+      ? { k: "Terms agreed", t: copy.agreedT, c: "#3f6b3a" }
       : phase === "refused" && !readOnly
         ? {
             k: "Talks closed",
@@ -184,7 +217,7 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
           : { t: "With the other side", d: "Your offer has been sent. You can make another once they reply." }
         : phase === "refused"
           ? { t: "Talks closed", d: note?.t ?? TALKS_CLOSED }
-          : phase === "agreed"
+          : deal
             ? { t: "Terms agreed", d: "No more offers. The compromise deed is drafted from the agreed terms." }
             : // Talks didn't open on their own (offline, or the request failed): open them by hand.
               {
@@ -196,9 +229,10 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
   const ctaNote =
     !readOnly && ["compose", "waiting", "final"].includes(phase) && used > 0
       ? "Your offer stays open. Talks continue after the hearing."
-      : null;
+      : !readOnly && phase === "signed"
+        ? "The deed is signed but not filed. The hearing goes ahead as normal until the court acts on it."
+        : null;
 
-  const deal = phase === "agreed";
   const cols = three ? "300px minmax(0,1fr) minmax(300px,.85fr)" : !one ? "minmax(0,1.3fr) minmax(280px,1fr)" : "minmax(0,1fr)";
   const areas = deal
     ? three
@@ -212,7 +246,40 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
         ? '"e o" "n o" "d o"'
         : '"n" "o" "d" "e"';
 
-  const stepAt = copy ? (deal ? copy.at.agreed : copy.at.negotiate) : 0;
+  const stepAt = !copy
+    ? 0
+    : phase === "filed"
+      ? copy.at.filed
+      : phase === "signed"
+        ? copy.at.signed
+        : phase === "agreed"
+          ? copy.at.agreed
+          : copy.at.negotiate;
+
+  // When terms are agreed the panels change places: each slides from where it was (FLIP).
+  useLayoutEffect(() => {
+    const g = gridRef.current;
+    if (!g) return;
+    const gr = g.getBoundingClientRect();
+    const now = new Map(
+      [...g.children].map((el) => {
+        const r = el.getBoundingClientRect();
+        return [el, { x: r.left - gr.left, y: r.top - gr.top }] as const;
+      }),
+    );
+    if (lastAreas.current && lastAreas.current !== areas && !reduced()) {
+      now.forEach((p, el) => {
+        const q = rects.current.get(el);
+        if (!q || (Math.abs(q.x - p.x) < 2 && Math.abs(q.y - p.y) < 2)) return;
+        el.animate([{ transform: `translate(${q.x - p.x}px,${q.y - p.y}px)` }, { transform: "none" }], {
+          duration: 380,
+          easing: "cubic-bezier(.2,.7,.2,1)",
+        });
+      });
+    }
+    rects.current = now;
+    lastAreas.current = areas;
+  });
   const steps = (copy?.steps ?? []).map(([t, d], i) => {
     const done = i < stepAt;
     const cur = i === stepAt;
@@ -276,6 +343,7 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
             )}
 
             <div
+              ref={gridRef}
               className="grid items-start gap-x-8 gap-y-7"
               style={{
                 gridTemplateColumns: cols,
@@ -295,18 +363,19 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
                 lock={lock}
               />
               <RouteCard profile={profile} sticky={three} />
-              <section aria-labelledby="sd-deed" className="flex min-w-0 flex-col gap-3.5 [grid-area:d]">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3.5 gap-y-2 border-b-[3px] border-double border-ink pb-2.5">
-                  <h2 id="sd-deed" className="m-0 font-display text-[22px] leading-[1.1] font-normal">
-                    {copy.deedH}
-                  </h2>
-                  <span className="text-[10px] font-bold tracking-[0.18em] text-ink-meta uppercase">Not drafted</span>
-                </div>
-                <div className="flex flex-col gap-1.5 border border-dashed border-ink/45 px-4 py-4.5">
-                  <span className="font-display text-lg leading-[1.25]">Drafted once both sides agree</span>
-                  <span className="text-[13.5px] leading-[1.55] text-pretty text-ink-label">{copy.noDeedT}</span>
-                </div>
-              </section>
+              <Deed
+                cnr={cnr}
+                deed={view?.deed ?? null}
+                copy={copy}
+                phase={phase}
+                stage={stage}
+                signedBefore={Object.keys(attempt?.signatures ?? {}).length > 0}
+                hearingDate={attempt?.hearing_date ?? null}
+                readOnly={readOnly}
+                filing={busy === "file"}
+                onSign={() => void sign()}
+                onFile={() => void file()}
+              />
               <OfferPanel
                 conditions={profile.conditions}
                 draft={draft}

@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from enum import Enum
 from typing import ClassVar, Literal
 
@@ -116,7 +116,9 @@ class PendingLeave(BaseModel):
 
 class SettlementStatus(str, Enum):
     NEGOTIATING = "negotiating"  # offers going back and forth
-    AGREED = "agreed"  # both sides agree; not yet before the court
+    AGREED = "agreed"  # both sides agree; the deed is drafted
+    SIGNED = "signed"  # every signatory has signed the deed
+    FILED = "filed"  # the deed is filed and the hearing listed
     RECORDED = "recorded"  # the court accepted it; the case is over
     REFUSED = "refused"  # the court refused it; the hearing goes on
     REJECTED = "rejected"  # the other side walked away
@@ -165,6 +167,9 @@ class SettlementProfile(BaseModel):
     accused_side: Literal["plaintiff", "defendant"] = "plaintiff"
     complainants: list[str] = Field(default_factory=list)  # the lead first
     claim: int = 0  # the sum in dispute, in rupees
+    # Plea bargaining only: they take part in the disposition meeting and sign its report.
+    prosecutor: str = ""
+    officer: str = ""
 
 
 class SettlementTerms(BaseModel):
@@ -194,6 +199,9 @@ class Settlement(BaseModel):
     status: SettlementStatus = SettlementStatus.NEGOTIATING
     entries: list[SettlementEntry] = Field(default_factory=list)
     agreed: SettlementTerms | None = None
+    signatures: dict[str, datetime] = Field(default_factory=dict)  # signer -> signed at
+    filed_at: datetime | None = None
+    hearing_date: date | None = None  # the hearing listed on filing
     ruling: str | None = None  # the court's ruling as said in court
     court_order: str | None = None
     started_at: datetime = Field(default_factory=get_current_datetime)
@@ -201,7 +209,12 @@ class Settlement(BaseModel):
 
     @property
     def is_open(self) -> bool:
-        return self.status in (SettlementStatus.NEGOTIATING, SettlementStatus.AGREED)
+        return self.status in (
+            SettlementStatus.NEGOTIATING,
+            SettlementStatus.AGREED,
+            SettlementStatus.SIGNED,
+            SettlementStatus.FILED,
+        )
 
     def user_offers(self) -> int:
         return sum(e.by == "user" and e.terms is not None for e in self.entries)

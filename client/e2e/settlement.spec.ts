@@ -51,6 +51,9 @@ const attempt = (entries: object[], over: Record<string, unknown> = {}) => ({
   status: "negotiating",
   entries,
   agreed: null,
+  signatures: {},
+  filed_at: null,
+  hearing_date: null,
   ruling: null,
   court_order: null,
   started_at: AT,
@@ -65,8 +68,29 @@ const view = (over: Record<string, unknown> = {}) => ({
   can_start: true,
   start_blocked: null,
   max_offers: 3,
+  deed: null,
   ...over,
 });
+
+const DEED = {
+  title: "Compromise Deed",
+  header: ["In the High Court of Delhi", "CRL.M.C. No. 1234/2026 · FIR No. 41/2025"],
+  parties: "Made between Raghav Menon (the accused) and Priya Khanna and Amit Sehgal (the complainants).",
+  clauses: [
+    "The accused shall pay the complainants ₹42,00,000 in 3 equal instalments within 6 months of signing, with interest at 9% a year.",
+    "The accused shall give each complainant a written apology.",
+    "The parties shall jointly ask this Court, under section 528 BNSS, to quash the FIR and all proceedings arising from it on the basis of this compromise.",
+  ],
+  signatories: [
+    { name: "Raghav Menon", role: "Accused", side: "user" },
+    { name: "Priya Khanna", role: "Complainant 1 of 3", side: "other" },
+    { name: "Amit Sehgal", role: "Complainant 2 of 3", side: "other" },
+    { name: "Neha Bhalla", role: "Complainant 3 of 3", side: "other" },
+  ],
+  file_label: "File joint application · § 528",
+};
+const agreedTalks = [entry("user", "offer", T1), entry("ai", "counter", T2), entry("user", "accept")];
+const SIGNED_BY = { "Raghav Menon": AT, "Priya Khanna": AT, "Amit Sehgal": AT, "Neha Bhalla": AT };
 
 const routes = (
   over: Record<string, unknown> = {},
@@ -252,6 +276,87 @@ test.describe("settlement", () => {
 
     await expect(page.getByText("You’re offline. Your offer is kept, so you can send it when you’re back online.")).toBeVisible();
     expect(posted).toBe(false);
+  });
+
+  test("agreed terms become a deed: sign it, then file it", async ({ page, signIn, checkA11y }) => {
+    const at = (status: string, over: Record<string, unknown> = {}) =>
+      view({ attempt: attempt(agreedTalks, { status, agreed: T2, ...over }), attempts: 1, can_start: false, deed: DEED });
+    await signIn(
+      USERS.email,
+      routes({
+        [`GET ${base}/settlement`]: at("agreed"),
+        [`POST ${base}/settlement/sign`]: at("signed", { signatures: SIGNED_BY }),
+        [`POST ${base}/settlement/file`]: at("filed", { signatures: SIGNED_BY, filed_at: AT, hearing_date: "2026-11-04" }),
+      }),
+    );
+    await page.goto(`${base}/settlement`);
+
+    const deed = page.getByRole("article", { name: "Compromise deed" });
+    await expect(deed.getByRole("heading", { name: "Compromise Deed" })).toBeVisible();
+    await expect(deed.getByText("CRL.M.C. No. 1234/2026 · FIR No. 41/2025")).toBeVisible();
+    await expect(deed.getByText("The accused shall give each complainant a written apology.")).toBeVisible();
+    await expect(page.getByText("Draft · not signed")).toBeVisible();
+    await expect(deed.getByText("Accused · Not signed")).toBeVisible();
+    await expect(page.getByText("2 other complainants")).toBeVisible();
+    await checkA11y();
+
+    await page.getByRole("button", { name: "Sign for your client" }).click();
+    await expect(deed.getByRole("img", { name: "Signed: Raghav Menon" })).toBeAttached();
+    await expect(deed.getByRole("img", { name: "Signed: Priya Khanna" })).toBeAttached();
+    await expect(page.getByText("Signed by both sides")).toBeVisible();
+    await expect(page.getByText("The deed is signed but not filed.", { exact: false })).toBeVisible();
+
+    await page.getByRole("button", { name: "2 other complainants" }).click();
+    await expect(deed.getByRole("img", { name: "Signed: Neha Bhalla" })).toBeAttached();
+    await expect(page.getByText("Signed 2 of 2")).toBeVisible();
+
+    await page.getByRole("button", { name: "File joint application · § 528" }).click();
+    await expect(page.getByText("Joint application filed under § 528 BNSS.")).toBeVisible();
+    await expect(page.getByText("Joint application filed · § 528 BNSS")).toBeVisible();
+    await expect(page.getByText(/listed for 4 November 2026/)).toBeVisible();
+    await expect(page.getByRole("link", { name: "Go to the verification hearing" })).toHaveAttribute("href", `${base}/settlement/hearing`);
+  });
+
+  test("a plea bargain is a report signed by everyone at the meeting", async ({ page, signIn }) => {
+    const plea = { ...PROFILE, route: "plea", court: "§ 289 BNSS · Court of the CJM, Patiala House Courts" };
+    const report = {
+      ...DEED,
+      title: "Report of Mutually Satisfactory Disposition",
+      clauses: ["The accused pleads guilty to the offences under § 318(4), § 316(2).", ...DEED.clauses.slice(0, 2)],
+      signatories: [
+        { name: "Raghav Menon", role: "Accused", side: "user" },
+        { name: "Priya Khanna", role: "Complainant", side: "other" },
+        { name: "Neha Bhalla", role: "Public prosecutor", side: "other" },
+        { name: "Sunil Rathore", role: "Investigating officer", side: "other" },
+      ],
+      file_label: "Submit the report · § 292",
+    };
+    await signIn(
+      USERS.email,
+      routes({
+        [`GET ${base}/settlement`]: view({
+          profile: plea,
+          attempt: attempt(agreedTalks, {
+            status: "signed",
+            agreed: T2,
+            signatures: { "Raghav Menon": AT, "Priya Khanna": AT, "Neha Bhalla": AT, "Sunil Rathore": AT },
+          }),
+          attempts: 1,
+          can_start: false,
+          deed: report,
+        }),
+      }),
+    );
+    await page.goto(`${base}/settlement`);
+
+    const deed = page.getByRole("article", { name: "Disposition report" });
+    await expect(deed.getByRole("heading", { name: "Report of Mutually Satisfactory Disposition" })).toBeVisible();
+    await expect(deed.getByText("The accused pleads guilty to the offences under § 318(4), § 316(2).")).toBeVisible();
+    for (const who of ["Raghav Menon", "Priya Khanna", "Neha Bhalla", "Sunil Rathore"]) {
+      await expect(deed.getByRole("img", { name: `Signed: ${who}` })).toBeAttached();
+    }
+    await expect(deed.getByText("Investigating officer · Signed")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Submit the report · § 292" })).toBeVisible();
   });
 
   test("no route: each one is closed, and Case Prep's link says so", async ({ page, signIn }) => {

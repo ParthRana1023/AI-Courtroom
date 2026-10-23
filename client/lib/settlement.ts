@@ -5,15 +5,27 @@ export const inr = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Math.max(0, n));
 
 /** Where the desk stands. waiting = our offer is with the other side. */
-export type Phase = "start" | "compose" | "waiting" | "final" | "agreed" | "refused";
+export type Phase = "start" | "compose" | "waiting" | "final" | "agreed" | "signed" | "filed" | "refused";
+
+/** Terms are agreed: the deed is on the table, and the panels move round it. */
+export const DEAL: Phase[] = ["agreed", "signed", "filed"];
 
 type OpenRoute = Exclude<SettlementRoute, "none">;
 
-/** Per-route copy: the five steps, and the step each phase sits on. */
-export const ROUTE_COPY: Record<
-  OpenRoute,
-  { steps: [string, string][]; at: { negotiate: number; agreed: number }; deedH: string; noDeedT: string; agreedT: string }
-> = {
+type Copy = {
+  steps: [string, string][];
+  at: Record<"negotiate" | "agreed" | "signed" | "filed", number>; // the step each phase sits on
+  deedH: string;
+  noDeedT: string;
+  agreedT: string;
+  filedK: string;
+  filedT: (date: string) => string;
+  hearL: string;
+  fileToast: string;
+};
+
+/** Per-route copy: the five steps, the deed, and filing. */
+export const ROUTE_COPY: Record<OpenRoute, Copy> = {
   quash: {
     steps: [
       ["Negotiate", "Up to three offers each"],
@@ -22,10 +34,15 @@ export const ROUTE_COPY: Record<
       ["Verification", "The judge questions the complainants"],
       ["Order", "Quashed, or refused"],
     ],
-    at: { negotiate: 0, agreed: 1 },
+    at: { negotiate: 0, agreed: 1, signed: 2, filed: 3 },
     deedH: "Compromise deed",
     noDeedT: "The AI drafts the deed from the agreed terms. You read it before your client signs.",
     agreedT: "The AI has drafted the compromise deed from the agreed terms. Read it before your client signs.",
+    filedK: "Joint application filed · § 528 BNSS",
+    filedT: (d) =>
+      `The verification hearing is listed for ${d}. The judge will question the complainants directly to confirm they agreed freely.`,
+    hearL: "Go to the verification hearing",
+    fileToast: "Joint application filed under § 528 BNSS.",
   },
   compound: {
     steps: [
@@ -35,10 +52,15 @@ export const ROUTE_COPY: Record<
       ["Recording", "The court records each complainant’s consent"],
       ["Order", "Acquitted, or refused"],
     ],
-    at: { negotiate: 0, agreed: 1 },
+    at: { negotiate: 0, agreed: 1, signed: 2, filed: 3 },
     deedH: "Compromise deed",
     noDeedT: "The AI drafts the deed from the agreed terms. You read it before your client signs.",
     agreedT: "The AI has drafted the compromise deed from the agreed terms. Read it before your client signs.",
+    filedK: "Compounding application filed · § 359 BNSS",
+    filedT: (d) =>
+      `The matter is listed for ${d}. The court will record each complainant’s consent and decide whether to permit compounding.`,
+    hearL: "Go to the compounding hearing",
+    fileToast: "Compounding application filed under § 359 BNSS.",
   },
   plea: {
     steps: [
@@ -48,10 +70,15 @@ export const ROUTE_COPY: Record<
       ["Report", "Signed by everyone at the meeting · § 292"],
       ["Sentence", "Compensation and a reduced sentence · § 293"],
     ],
-    at: { negotiate: 2, agreed: 3 },
+    at: { negotiate: 2, agreed: 3, signed: 3, filed: 4 },
     deedH: "Disposition report",
     noDeedT: "The AI drafts the report from the agreed terms. Everyone who took part in the meeting signs it.",
     agreedT: "The AI has drafted the disposition report from the agreed terms. Read it before it is signed.",
+    filedK: "Report submitted · § 292 BNSS",
+    filedT: (d) =>
+      `The case is listed for sentence on ${d}. The court confirms the plea once more, then passes sentence under section 293.`,
+    hearL: "Go to the sentencing hearing",
+    fileToast: "Report submitted to the court under § 292 BNSS.",
   },
 };
 
@@ -59,7 +86,9 @@ export function phaseOf(view: SettlementView, sending: boolean): Phase {
   const a = view.attempt;
   if (sending) return "waiting";
   if (!a) return "start";
-  if (a.status === "agreed" || a.status === "recorded") return "agreed";
+  if (a.status === "agreed") return "agreed";
+  if (a.status === "signed") return "signed";
+  if (a.status === "filed" || a.status === "recorded") return "filed";
   if (a.status !== "negotiating") return "refused";
   const last = a.entries[a.entries.length - 1];
   return userOffers(a) >= view.max_offers && last?.by === "ai" ? "final" : "compose";
@@ -109,3 +138,7 @@ export function stamp(ts: string) {
   const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   return d.toDateString() === new Date().toDateString() ? `Today, ${hm}` : `${d.getDate()} ${MON[d.getMonth()]}, ${hm}`;
 }
+
+/** "2026-11-04" → "4 November 2026". */
+export const longDate = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });

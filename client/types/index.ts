@@ -189,7 +189,9 @@ export interface EvidenceItem {
 // merits never sees them, only the agreed terms once they are put before it.
 export type SettlementStatus =
   | "negotiating" // offers going back and forth
-  | "agreed" // both sides agree; not yet before the court
+  | "agreed" // both sides agree; the deed is drafted
+  | "signed" // every signatory has signed the deed
+  | "filed" // filed; the hearing is listed
   | "recorded" // the court accepted it; the case is over
   | "refused" // the court refused it; the case goes on to be heard on merits
   | "rejected" // the other side walked away
@@ -250,6 +252,17 @@ export interface SettlementView {
   can_start: boolean;
   start_blocked: string | null; // why talks can't open now
   max_offers: number;
+  deed: SettlementDeed | null; // once terms are agreed
+}
+
+/** The compromise deed (or plea-bargaining report) drawn up from the agreed terms. */
+export interface SettlementDeed {
+  title: string;
+  header: string[]; // court, then case and FIR numbers
+  parties: string;
+  clauses: string[];
+  signatories: { name: string; role: string; side: "user" | "other" }[];
+  file_label: string;
 }
 
 export interface SettlementEntry {
@@ -266,6 +279,9 @@ export interface Settlement {
   status: SettlementStatus;
   entries: SettlementEntry[];
   agreed: SettlementTerms | null;
+  signatures: Record<string, string>; // signer → signed at
+  filed_at: string | null;
+  hearing_date: string | null; // YYYY-MM-DD
   ruling: string | null; // the court's ruling, as said in court
   court_order: string | null; // Markdown
   started_at: string;

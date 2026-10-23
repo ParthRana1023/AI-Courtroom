@@ -55,3 +55,13 @@ export function caseFonts(cnr: string, names: string[]): Record<string, SigFont>
   }
   return out;
 }
+
+/**
+ * A stable slant, stroke and letter spacing for a name, so signers who share a font (cases with
+ * more than four signers) still sign differently.
+ */
+export function handOf(name: string) {
+  let h = 2166136261;
+  for (const ch of name) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return { tilt: -1 - (h % 5), stroke: 0.9 + ((h >>> 3) % 6) / 10, spacing: ((h >>> 7) % 3) - 1 };
+}
