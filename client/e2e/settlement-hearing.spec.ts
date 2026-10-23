@@ -1,7 +1,7 @@
 import type { Route } from "@playwright/test";
 import { test, expect, USERS } from "./support/fixtures";
 import { CNR, caseOf } from "./support/case-data";
-import { AT, DEED, PROFILE, SIGNED_BY, T2, agreedTalks, attempt, view } from "./support/settlement-data";
+import { AT, DEED, NEGOTIATION, PROFILE, SIGNED_BY, T2, agreedTalks, attempt, view } from "./support/settlement-data";
 
 const base = `/cases/${CNR}`;
 const hearingAt = `${base}/settlement/hearing`;
@@ -40,26 +40,6 @@ const HEARING = {
   next_date: null,
   held_at: "2026-11-04T05:00:00Z",
 };
-const SCORE = {
-  score: 82,
-  tier: "Strong",
-  factors: [
-    { key: "terms", label: "Terms won", weight: 50, value: 78, text: "The complainants opened at ₹42,00,000." },
-    { key: "closed", label: "Deal closed", weight: 25, value: 100, text: "The court accepted the settlement." },
-    { key: "offers", label: "Offers used", weight: 15, value: 70, text: "Terms were agreed on your second offer." },
-    {
-      key: "conditions",
-      label: "Conditions",
-      weight: 10,
-      value: 50,
-      text: "1 of the 2 conditions that favour your client are in the terms.",
-    },
-  ],
-  notes: [
-    { kind: "worked", text: "Offering a deposit in court moved talks to agreement." },
-    { kind: "improve", text: "Smaller moves on interest would have kept more for your client." },
-  ],
-};
 const PAYMENTS = [
   { amount: 1400000, due: "2026-11-18", paid_at: null, remedy: null, remedy_at: null, status: "upcoming" },
   { amount: 1400000, due: "2027-02-04", paid_at: null, remedy: null, remedy_at: null, status: "upcoming" },
@@ -85,6 +65,7 @@ const filed = (over: Record<string, unknown> = {}) =>
 const routes = (over: Record<string, unknown> = {}, status = "adjourned") => ({
   [`GET ${base}`]: caseOf({ user_role: "plaintiff", ai_role: "defendant", status }),
   [`GET ${base}/settlement`]: filed(),
+  [`POST ${base}/analyze-negotiation`]: { negotiation: NEGOTIATION },
   ...over,
 });
 
@@ -97,7 +78,7 @@ test.describe("settlement hearing", () => {
       routes({
         [`POST ${base}/settlement/hearing`]: async (route: Route) => {
           said = route.request().postDataJSON().submission;
-          await route.fulfill({ json: filed({ status: "recorded", hearing: HEARING, payments: PAYMENTS, score: SCORE }) });
+          await route.fulfill({ json: filed({ status: "recorded", hearing: HEARING, payments: PAYMENTS }) });
         },
       }),
     );
@@ -131,10 +112,16 @@ test.describe("settlement hearing", () => {
     await expect(rail.getByRole("heading", { name: "Payments" })).toBeVisible();
     await expect(rail.getByText("₹15,89,000")).toBeVisible();
     await expect(rail.getByRole("button", { name: "Confirm first deposit" })).toBeVisible();
-    await expect(rail.getByText("82", { exact: true })).toBeVisible();
+    await expect(rail.getByText("78", { exact: true })).toBeVisible();
     await expect(rail.getByText("Strong", { exact: true })).toBeVisible();
+    await expect(rail.getByText("Settling was the right call")).toBeVisible();
+    await expect(rail.getByText("₹39,00,000 · 4 instalments · 12 mo · 6% interest")).toBeVisible();
     await expect(rail.getByText("Offering a deposit in court moved talks to agreement.")).toBeVisible();
     await expect(rail.getByText("Priya Khanna confirmed in court.")).toBeVisible();
+    await rail.getByRole("button", { name: "Read the full review" }).click();
+    const review = page.getByRole("dialog", { name: "How you negotiated" });
+    await expect(review.getByText("You anchored at ₹42,00,000 over a year.")).toBeVisible();
+    await expect(review.getByText("78 · Strong")).toBeVisible();
   });
 
   test("a refused compromise sends the case back to its merits", async ({ page, signIn }, info) => {
@@ -154,7 +141,7 @@ test.describe("settlement hearing", () => {
     const missed = [{ ...PAYMENTS[0], status: "paid" }, { ...PAYMENTS[1], status: "missed" }, PAYMENTS[2]];
     const complainants = { ...PROFILE, accused_side: "defendant" };
     const recorded = (payments: object[]) => ({
-      ...filed({ status: "recorded", hearing: HEARING, payments, score: SCORE, user_pays: false }),
+      ...filed({ status: "recorded", hearing: HEARING, payments, user_pays: false }),
       profile: complainants,
     });
     let action = "";

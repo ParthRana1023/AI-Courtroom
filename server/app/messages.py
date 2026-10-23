@@ -153,6 +153,13 @@ SETTLEMENT_NOT_SIGNED = "Every signatory must sign the deed before it is filed."
 SETTLEMENT_FILED = "The deed is filed. The court takes it up at the hearing."
 SETTLEMENT_NOT_FILED = "The deed must be filed before the court can hear it."
 SETTLEMENT_PAYMENT = "That can't be done for this instalment."
+SETTLEMENT_NOT_SITTING = "The court isn't in session: there is no hearing to adjourn."
+NEGOTIATION_NOT_READY = (
+    "The negotiation is analysed once you've negotiated and the case is decided."
+)
+NEGOTIATION_FAILED = (
+    "The negotiation analysis couldn't be prepared just now. Please try again."
+)
 SETTLEMENT_NONE_OPEN = "There is no settlement under negotiation."
 SETTLEMENT_NO_COUNTER = "There are no terms from the other side to accept."
 SETTLEMENT_FAILED = (

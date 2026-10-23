@@ -61,6 +61,17 @@ class Settings(BaseSettings):
     judge_fallback3_model: str = "@cf/openai/gpt-oss-120b"
     judge_fallback3_provider: str = "cloudflare"
 
+    # The judge in a settlement hearing, which the user waits on: Groq first, as the
+    # free OpenRouter judge (with reasoning) takes a minute or more.
+    hearing_model: str = "openai/gpt-oss-120b"
+    hearing_provider: str = "groq"
+    hearing_fallback_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    hearing_fallback_provider: str = "openrouter"
+    hearing_fallback2_model: str = "inclusionai/ling-3.0-flash-sante:free"
+    hearing_fallback2_provider: str = "openrouter"
+    hearing_fallback3_model: str = "@cf/openai/gpt-oss-120b"
+    hearing_fallback3_provider: str = "cloudflare"
+
     analyzer_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     analyzer_provider: str = "openrouter"
     analyzer_fallback_model: str = "openai/gpt-oss-120b"

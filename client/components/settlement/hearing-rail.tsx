@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { HEARING_COPY, inr, longDate, type Next } from "@/lib/settlement";
 import { cn } from "@/lib/utils";
-import type { NegotiationScore, SettlementPayment, SettlementProfile, SettlementTerms } from "@/types";
+import type { NegotiationAnalysis, SettlementPayment, SettlementProfile, SettlementTerms } from "@/types";
 
 const H2 = "m-0 font-display text-xl leading-[1.1] font-normal";
 const HEAD = "flex items-baseline justify-between gap-2.5 border-b-[3px] border-double border-ink pb-2.5";
@@ -25,6 +25,13 @@ const PAY = {
 } as const;
 const short = (iso: string) => longDate(iso).replace(/ (\w{3})\w* /, " $1 ");
 const scoreColour = (n: number) => (n >= 70 ? "#3f6b3a" : n >= 40 ? "#7a4a0c" : "#8e1f19");
+const CALL = {
+  right: ["Settling was the right call", "#3f6b3a"],
+  mixed: ["Settling was a close call", "#7a4a0c"],
+  wrong: ["Fighting it out was the better call", "#8e1f19"],
+} as const;
+const deal = (t: SettlementTerms) =>
+  `${inr(t.amount)} · ${t.instalments === 1 ? "one payment" : `${t.instalments} instalments`} · ${t.months} mo · ${t.interest ? `${t.interest}% interest` : "no interest"}`;
 
 export type Check = { label: string; state: keyof typeof MARK; text: string };
 
@@ -40,7 +47,9 @@ export default function HearingRail({
   userPays,
   busy,
   onPay,
-  score,
+  negotiation,
+  onRetry,
+  onReview,
   cnr,
   show,
 }: {
@@ -53,7 +62,9 @@ export default function HearingRail({
   userPays: boolean;
   busy: number | null; // the instalment being acted on
   onPay: (index: number) => void;
-  score: NegotiationScore | null;
+  negotiation: NegotiationAnalysis | "loading" | "error" | null; // once the case is decided
+  onRetry: () => void;
+  onReview: () => void;
   cnr: string;
   show: boolean;
 }) {
@@ -159,71 +170,115 @@ export default function HearingRail({
         </section>
       )}
 
-      {next && score && (
-        <section aria-labelledby="vh-neg" className="flex flex-col gap-3">
+      {negotiation && (
+        <section aria-labelledby="vh-neg" aria-busy={negotiation === "loading"} className="flex flex-col gap-3">
           <div className={HEAD}>
             <h2 id="vh-neg" className={H2}>
               Negotiation analysis
             </h2>
-            <span className="flex items-baseline gap-1">
-              <span className="font-display text-[26px] leading-none" style={{ color: scoreColour(score.score) }}>
-                {score.score}
+            {typeof negotiation === "object" && (
+              <span className="flex items-baseline gap-1">
+                <span className="font-display text-[26px] leading-none" style={{ color: scoreColour(negotiation.score) }}>
+                  {negotiation.score}
+                </span>
+                <span className="font-data text-[11px] font-medium text-ink-meta">/100</span>
               </span>
-              <span className="font-data text-[11px] font-medium text-ink-meta">/100</span>
-            </span>
+            )}
           </div>
-          <span
-            className="-rotate-2 self-start border-[3px] border-double px-2.25 pt-0.75 pb-0.5 font-display text-xs leading-none tracking-[0.08em] uppercase"
-            style={{ borderColor: scoreColour(score.score), color: scoreColour(score.score) }}
-          >
-            {score.tier}
-          </span>
-          <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
-            {score.factors.map((f) => (
-              <li key={f.key} className="flex flex-col gap-1.25">
-                <span className="flex justify-between gap-2.5">
-                  <span className="text-[13.5px] font-bold">
-                    {f.label} <span className="font-data text-[11px] font-medium text-ink-meta">· {f.weight}%</span>
-                  </span>
-                  <span className="font-data text-[13px] font-medium" style={{ color: scoreColour(f.value) }}>
-                    {f.value}
-                  </span>
-                </span>
-                <span aria-hidden="true" className="h-1.5 bg-ink/12">
-                  <span className="block h-full" style={{ width: `${f.value}%`, background: scoreColour(f.value) }} />
-                </span>
-                <span className="text-[12.5px] leading-[1.45] text-pretty text-ink-label">{f.text}</span>
-              </li>
-            ))}
-          </ul>
-          {score.notes.length > 0 && (
-            <div className="flex flex-col gap-2 pt-1">
-              {score.notes.map((n) => {
-                const good = n.kind === "worked";
-                const c = good ? "#3f6b3a" : "#8e1f19";
-                return (
-                  <div key={n.kind} className="grid grid-cols-[18px_minmax(0,1fr)] gap-2">
-                    <span aria-hidden="true" className="font-data text-sm leading-[1.45] font-medium" style={{ color: c }}>
-                      {good ? "+" : "−"}
-                    </span>
-                    <span className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold tracking-[0.18em] uppercase" style={{ color: c }}>
-                        {good ? "What worked" : "To improve"}
-                      </span>
-                      <span className="text-[13px] leading-normal text-pretty text-[#2a2018]">{n.text}</span>
-                    </span>
-                  </div>
-                );
-              })}
+          {negotiation === "loading" && (
+            <p role="status" className="m-0 text-[13px] leading-normal text-ink-label italic">
+              Reviewing how you negotiated…
+            </p>
+          )}
+          {negotiation === "error" && (
+            <div role="alert" className="flex flex-col items-start gap-2">
+              <span className="text-[13px] leading-normal text-ink-label">The analysis couldn’t be prepared just now.</span>
+              <button type="button" onClick={onRetry} className={cn(BTN, "h-10 bg-ink text-paper hover:bg-seal")}>
+                Try again
+              </button>
             </div>
           )}
-          <Link
-            href="/profile"
-            className="flex min-h-9 items-center gap-2 self-start text-[11px] font-bold tracking-[0.14em] text-ink uppercase underline underline-offset-4 hover:text-seal"
-          >
-            <span>See your negotiator rating</span>
-            <span aria-hidden="true">→</span>
-          </Link>
+          {typeof negotiation === "object" && (
+            <>
+              <span
+                className="-rotate-2 self-start border-[3px] border-double px-2.25 pt-0.75 pb-0.5 font-display text-xs leading-none tracking-[0.08em] uppercase"
+                style={{ borderColor: scoreColour(negotiation.score), color: scoreColour(negotiation.score) }}
+              >
+                {negotiation.tier}
+              </span>
+              <div className="flex flex-col gap-1 border-l-[3px] pl-3" style={{ borderLeftColor: CALL[negotiation.call][1] }}>
+                <strong className="text-[10.5px] font-bold tracking-[0.16em] uppercase" style={{ color: CALL[negotiation.call][1] }}>
+                  {CALL[negotiation.call][0]}
+                </strong>
+                <span className="text-[13px] leading-normal text-pretty text-[#2a2018]">{negotiation.call_text}</span>
+              </div>
+              <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+                {negotiation.factors.map((f) => (
+                  <li key={f.key} className="flex flex-col gap-1.25">
+                    <span className="flex justify-between gap-2.5">
+                      <span className="text-[13.5px] font-bold">
+                        {f.label} <span className="font-data text-[11px] font-medium text-ink-meta">· {f.weight}%</span>
+                      </span>
+                      <span className="font-data text-[13px] font-medium" style={{ color: scoreColour(f.value) }}>
+                        {f.value}
+                      </span>
+                    </span>
+                    <span aria-hidden="true" className="h-1.5 bg-ink/12">
+                      <span className="block h-full" style={{ width: `${f.value}%`, background: scoreColour(f.value) }} />
+                    </span>
+                    <span className="text-[12.5px] leading-[1.45] text-pretty text-ink-label">{f.text}</span>
+                  </li>
+                ))}
+              </ul>
+              {negotiation.best && (
+                <div className="flex flex-col gap-1 border-[1.5px] border-dashed border-ink/35 px-3.5 py-3">
+                  <span className="text-[10px] font-bold tracking-[0.18em] text-ink-meta uppercase">The best deal on offer</span>
+                  <span className="font-data text-[13px] font-medium">{deal(negotiation.best)}</span>
+                  {negotiation.best_text && (
+                    <span className="text-[12.5px] leading-[1.45] text-pretty text-ink-label">{negotiation.best_text}</span>
+                  )}
+                </div>
+              )}
+              {negotiation.notes.length > 0 && (
+                <div className="flex flex-col gap-2 pt-1">
+                  {negotiation.notes.map((n) => {
+                    const good = n.kind === "worked";
+                    const c = good ? "#3f6b3a" : "#8e1f19";
+                    return (
+                      <div key={n.kind} className="grid grid-cols-[18px_minmax(0,1fr)] gap-2">
+                        <span aria-hidden="true" className="font-data text-sm leading-[1.45] font-medium" style={{ color: c }}>
+                          {good ? "+" : "−"}
+                        </span>
+                        <span className="flex flex-col gap-0.5">
+                          <span className="text-[10px] font-bold tracking-[0.18em] uppercase" style={{ color: c }}>
+                            {good ? "What worked" : "To improve"}
+                          </span>
+                          <span className="text-[13px] leading-normal text-pretty text-[#2a2018]">{n.text}</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-x-5">
+                <button
+                  type="button"
+                  onClick={onReview}
+                  className="flex min-h-9 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-[11px] font-bold tracking-[0.14em] text-ink uppercase underline underline-offset-4 hover:text-seal"
+                >
+                  <span>Read the full review</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+                <Link
+                  href="/profile"
+                  className="flex min-h-9 items-center gap-2 text-[11px] font-bold tracking-[0.14em] text-ink uppercase underline underline-offset-4 hover:text-seal"
+                >
+                  <span>Your negotiator rating</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+            </>
+          )}
         </section>
       )}
 

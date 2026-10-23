@@ -53,7 +53,6 @@ export const attempt = (entries: object[], over: Record<string, unknown> = {}) =
   hearing_date: null,
   hearing: null,
   payments: [],
-  score: null,
   ruling: null,
   court_order: null,
   started_at: AT,
@@ -91,3 +90,26 @@ export const DEED = {
 };
 export const agreedTalks = [entry("user", "offer", T1), entry("ai", "counter", T2), entry("user", "accept")];
 export const SIGNED_BY = { "Raghav Menon": AT, "Priya Khanna": AT, "Amit Sehgal": AT, "Neha Bhalla": AT };
+
+/** The negotiation analysis, once the case is decided. */
+export const NEGOTIATION = {
+  score: 78,
+  tier: "Strong",
+  factors: [
+    { key: "terms", label: "Terms won", weight: 50, value: 80, text: "Close to the best deal on offer." },
+    { key: "closed", label: "Deal closed", weight: 25, value: 100, text: "The court quashed the FIR." },
+    { key: "offers", label: "Offers used", weight: 15, value: 60, text: "Two moves where one would do." },
+    { key: "conditions", label: "Conditions", weight: 10, value: 40, text: "The deposit went in." },
+  ],
+  best: { amount: 3900000, instalments: 4, months: 12, interest: 6, conditions: ["apology"] },
+  best_text: "The complainants wanted the money more than the trial.",
+  call: "right",
+  call_text: "The sanction letter was hard to explain away; settling spared your client a likely conviction.",
+  notes: [
+    { kind: "worked", text: "Offering a deposit in court moved talks to agreement." },
+    { kind: "improve", text: "Smaller moves on interest would have kept more for your client." },
+  ],
+  review:
+    "### How you negotiated\nYou anchored at ₹42,00,000 over a year.\n\n### What to do differently\n1. Trade the deposit for a lower rate.",
+  analyzed_at: "2026-11-04T06:00:00Z",
+};

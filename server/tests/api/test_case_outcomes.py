@@ -231,7 +231,7 @@ async def test_analysis_decides_missing_outcome_and_is_cached(
     assert len(fake_llm.calls) == 2  # one outcome call, one analysis call
     assert "OUTCOME FOR THE USER: LOST" in fake_llm.prompts[1]
     assert "IMPORTANT VERDICT ANALYSIS" not in fake_llm.prompts[1]
-    # No settlement was tried, so the prompt has no settlement review.
+    # Settlement talks have their own analysis.
     assert "SETTLEMENT TALKS" not in fake_llm.prompts[1]
     assert "### Settlement negotiations" not in fake_llm.prompts[1]
     assert (await reload(case)).analyzed_at is not None
@@ -262,7 +262,7 @@ def settlement_attempt(status, ruling=None):
     )
 
 
-async def test_analysis_reviews_the_settlement_of_a_settled_case(
+async def test_courtroom_analysis_of_a_settled_case_leaves_the_talks_out(
     client, auth_headers, resolved_case, fake_llm
 ):
     fake_llm.responses.append("### Outcome\nSettled.")
@@ -284,33 +284,13 @@ async def test_analysis_reviews_the_settlement_of_a_settled_case(
     assert len(fake_llm.calls) == 1  # no outcome classifier for a settled case
     prompt = fake_llm.prompts[0]
     assert "OUTCOME FOR THE USER: SETTLED" in prompt
-    assert "SETTLEMENT TALKS" in prompt and "### Settlement negotiations" in prompt
-    assert "User offered: Rs. 50,000 in one payment within 3 months" in prompt
-    assert '"An apology and payment to the complainant."' in prompt
-    assert "Opposing counsel countered: Rs. 1,00,000 in 2 instalments" in prompt
-    assert "The court: The FIR is quashed on the compromise." in prompt
+    # The talks are reviewed by the negotiation analysis, not here.
+    assert "Rs. 50,000" not in prompt and "Settlement negotiations" not in prompt
 
 
-async def test_analysis_reviews_failed_talks_in_a_decided_case(
+async def test_case_settled_before_any_argument_has_no_courtroom_analysis(
     client, auth_headers, resolved_case, fake_llm
 ):
-    fake_llm.responses.extend([outcome_reply("lost", "defendant"), "### Outcome"])
-    attempt = settlement_attempt(SettlementStatus.WITHDRAWN)
-    attempt.entries.append(SettlementEntry(by="user", kind="ended"))
-    case = await resolved_case(settlements=[attempt])
-
-    await client.post(f"/cases/{case.cnr}/analyze-case", headers=auth_headers)
-
-    prompt = fake_llm.prompts[1]
-    assert "OUTCOME FOR THE USER: LOST" in prompt
-    assert "Attempt 1 (withdrawn):" in prompt
-    assert "### Settlement negotiations" in prompt
-
-
-async def test_case_settled_before_any_argument_is_still_analysed(
-    client, auth_headers, resolved_case, fake_llm
-):
-    fake_llm.responses.append("### Outcome\nSettled.")
     case = await resolved_case(
         outcome=CaseOutcome.SETTLED,
         plaintiff_arguments=[],
@@ -321,7 +301,9 @@ async def test_case_settled_before_any_argument_is_still_analysed(
         f"/cases/{case.cnr}/analyze-case", headers=auth_headers
     )
 
-    assert response.json()["analysis"] == "### Outcome\nSettled."
+    # Nothing was argued in court; the negotiation has its own analysis.
+    assert response.json()["analysis"] == "No analysis generated."
+    assert fake_llm.calls == []
 
 
 async def test_analysis_without_outcome_says_not_decided(

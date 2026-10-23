@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import CourtModelLoader from "@/components/court/court-model-loader";
 import Scroller from "@/components/court/scroller";
 import Signature from "@/components/court/signature";
+import { AnalysisDialog } from "@/components/courtroom/dialogs";
 import HearingRail, { type Check } from "@/components/settlement/hearing-rail";
 import { useOnline } from "@/hooks/use-online";
 import { useViewport } from "@/hooks/use-viewport";
@@ -14,7 +15,7 @@ import { getErrorDetail } from "@/lib/error-utils";
 import { HEARING_COPY, draftSubmission, longDate, nextAfter } from "@/lib/settlement";
 import { caseFonts } from "@/lib/signature";
 import { cn } from "@/lib/utils";
-import type { Case, HearingLine, SettlementView } from "@/types";
+import type { Case, HearingLine, NegotiationAnalysis, SettlementView } from "@/types";
 
 type Stage = "listed" | "submit" | "hearing" | "order";
 type Row =
@@ -62,6 +63,8 @@ export default function HearingPage({ params }: { params: Promise<{ cnr: string 
   const [draft, setDraft] = useState("");
   const [pane, setPane] = useState<"record" | "checks">("record");
   const [paying, setPaying] = useState<number | null>(null);
+  const [negotiation, setNegotiation] = useState<NegotiationAnalysis | "error" | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const recRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
@@ -100,6 +103,20 @@ export default function HearingPage({ params }: { params: Promise<{ cnr: string 
   const judge = hearing?.judge ?? "";
   const judgeFont = useMemo(() => (judge ? caseFonts(cnr, [judge])[judge] : null), [cnr, judge]);
   const judgeTitle = /high court/i.test(court) ? `${judge}, J.` : /cjm|chief judicial/i.test(court) ? `${judge}, CJM` : judge;
+
+  // Once the order disposes of the case, the negotiation is analysed (generated once, then kept).
+  const decided = stage === "order" && attempt?.status === "recorded";
+  useEffect(() => {
+    if (!decided || negotiation !== null) return;
+    let live = true;
+    settlementAPI
+      .analysis(cnr)
+      .then((a) => live && setNegotiation(a))
+      .catch(() => live && setNegotiation("error"));
+    return () => {
+      live = false;
+    };
+  }, [decided, negotiation, cnr]);
 
   // Follow the record as it grows.
   useEffect(() => {
@@ -346,7 +363,7 @@ export default function HearingPage({ params }: { params: Promise<{ cnr: string 
                 aria-selected={pane === k}
                 onClick={() => setPane(k)}
                 className={cn(
-                  "-mb-[1.5px] flex h-11.5 flex-[1_1_0] cursor-pointer items-center justify-center border-0 border-b-[3px] bg-transparent text-[11.5px] font-bold tracking-[0.12em] uppercase",
+                  "mb-[-1.5px] flex h-11.5 flex-[1_1_0] cursor-pointer items-center justify-center border-0 border-b-[3px] bg-transparent text-[11.5px] font-bold tracking-[0.12em] uppercase",
                   pane === k ? "border-seal text-ink" : "border-transparent text-ink-meta",
                 )}
               >
@@ -499,7 +516,7 @@ export default function HearingPage({ params }: { params: Promise<{ cnr: string 
 
             <div
               className={cn(
-                "flex flex-none flex-col gap-2.5 border-t-[3px] border-double border-ink bg-[#e9dfcb]",
+                "flex flex-none flex-col gap-2.5 border-t-[3px] border-double border-ink bg-paper-soft",
                 mob ? "px-3.5 pt-3 pb-3.5" : "px-6 pt-3.5 pb-4",
               )}
             >
@@ -579,12 +596,31 @@ export default function HearingPage({ params }: { params: Promise<{ cnr: string 
             userPays={!!attempt.user_pays}
             busy={paying}
             onPay={(i) => void pay(i)}
-            score={attempt.score}
+            negotiation={decided ? (negotiation ?? "loading") : null}
+            onRetry={() => setNegotiation(null)}
+            onReview={() => setReviewOpen(true)}
             cnr={cnr}
             show={!mob || pane === "checks"}
           />
         </div>
       </div>
+      <AnalysisDialog
+        open={reviewOpen && typeof negotiation === "object" && negotiation !== null}
+        onClose={() => setReviewOpen(false)}
+        state={typeof negotiation === "object" && negotiation ? { text: negotiation.review } : "loading"}
+        onRetry={() => setNegotiation(null)}
+        outcome={null}
+        badge={typeof negotiation === "object" && negotiation ? [`${negotiation.score} · ${negotiation.tier}`, "#120d09"] : undefined}
+        label="Negotiation analysis"
+        title="How you negotiated"
+        loading="Reviewing how you negotiated…"
+        sub={`${forAccused ? "Counsel for the accused" : "Counsel for the complainants"} · ${kase.title}`}
+        foot={[
+          typeof negotiation === "object" && negotiation ? `Analysis generated on ${longDate(negotiation.analyzed_at.slice(0, 10))}` : "",
+          court,
+        ]}
+        small={w < 560}
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import type {
   RegisterFormData,
   SettlementTerms,
   SettlementView,
+  NegotiationAnalysis,
   SystemStatus,
   User,
   UserStats,
@@ -724,6 +725,12 @@ export const settlementAPI = {
   /** Pay an instalment, or answer a missed one with the route's remedy. */
   payment: async (cnr: string, index: number, action: "pay" | "recall" | "notice" | "recover"): Promise<SettlementView> =>
     (await api.post(`/cases/${cnr}/settlement/payments/${index}`, { action })).data,
+
+  /** Ask the court in session for an adjournment to settle; the ruling goes on the record. */
+  adjourn: async (cnr: string): Promise<{ granted: boolean; ruling: string }> => (await api.post(`/cases/${cnr}/settlement/adjourn`)).data,
+
+  /** How the user negotiated, with their negotiator score; generated once the case is decided. */
+  analysis: async (cnr: string): Promise<NegotiationAnalysis> => (await api.post(`/cases/${cnr}/analyze-negotiation`)).data.negotiation,
 };
 
 // Optional-email unsubscribe links (no sign-in; the token is in the link).

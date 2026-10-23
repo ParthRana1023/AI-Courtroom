@@ -182,7 +182,10 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
   const lock = !readOnly
     ? null
     : kase?.status === CaseStatus.ACTIVE
-      ? { k: "Read-only · courtroom in session", t: "You can’t negotiate while the court is sitting. Adjourn the hearing to continue." }
+      ? {
+          k: "Read-only · courtroom in session",
+          t: "You can’t negotiate while the court is sitting. In the courtroom, ask for an adjournment to settle (take the hearing over first if it’s running on another device), then negotiate here.",
+        }
       : kase?.status === CaseStatus.RESOLVED
         ? {
             k: "Settlement closed · judgment delivered",
@@ -210,7 +213,14 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
   const idle: { t: string; d: string; action?: { label: string; go: () => void } } | null = canAct
     ? null
     : lock
-      ? { t: kase?.status === CaseStatus.RESOLVED ? "Settlement closed" : "Read-only", d: lock.t }
+      ? {
+          t: kase?.status === CaseStatus.RESOLVED ? "Settlement closed" : "Read-only",
+          d: lock.t,
+          action:
+            kase?.status === CaseStatus.ACTIVE
+              ? { label: "Go to the courtroom", go: () => router.push(`/cases/${cnr}/courtroom`) }
+              : undefined,
+        }
       : phase === "waiting"
         ? busy === "start"
           ? { t: "Opening talks", d: opening }

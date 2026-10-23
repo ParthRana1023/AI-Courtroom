@@ -151,7 +151,8 @@ export function CaseFilePanel({
   );
 }
 
-export type StampKind = "session" | "adjourned" | "limit" | "deliberating" | "considering" | "objected" | "sustained" | "overruled";
+export type StampKind =
+  "session" | "adjourned" | "limit" | "deliberating" | "considering" | "seeking" | "objected" | "sustained" | "overruled";
 
 const STAMPS: Record<StampKind, { k: string; t: string; c: string; wait?: boolean }> = {
   session: { k: "COURT IS IN SESSION", t: "All rise. Counsel may address the court.", c: "#9fd0a4" },
@@ -159,6 +160,7 @@ const STAMPS: Record<StampKind, { k: string; t: string; c: string; wait?: boolea
   limit: { k: "COURT ADJOURNED", t: "That was the last argument allowed today. The court will sit again tomorrow.", c: "#e9c77e" },
   deliberating: { k: "THE COURT IS DELIBERATING", t: "Closing statements are complete. Judgment will follow.", c: "#efe6d3", wait: true },
   considering: { k: "OBJECTION", t: "The court is considering the objection.", c: "#e9c77e", wait: true },
+  seeking: { k: "TIME TO SETTLE", t: "The court is considering counsel’s request for an adjournment.", c: "#e9c77e", wait: true },
   objected: { k: "OBJECTION", t: "Opposing counsel objects. The court is considering the objection.", c: "#e9c77e", wait: true },
   sustained: { k: "SUSTAINED", t: "The objection is upheld.", c: "#9fd0a4" },
   overruled: { k: "OVERRULED", t: "The objection is rejected.", c: "#e0786c" },
@@ -622,6 +624,10 @@ export function AnalysisDialog({
   sub,
   foot,
   small,
+  label = "Case analysis",
+  title = "How you argued",
+  loading = "Reviewing how you argued…",
+  badge,
 }: {
   open: boolean;
   onClose: () => void;
@@ -631,14 +637,18 @@ export function AnalysisDialog({
   sub: string;
   foot: [string, string];
   small: boolean;
+  label?: string;
+  title?: string;
+  loading?: string;
+  badge?: [string, string]; // [text, colour] in place of the outcome
 }) {
-  const out = outcome ? OUTCOME[outcome] : null;
+  const out = badge ?? (outcome ? OUTCOME[outcome] : null);
   return (
     <Shell
       open={open}
       onClose={onClose}
-      label="Case analysis"
-      title="How you argued"
+      label={label}
+      title={title}
       max="max-w-195"
       small={small}
       extra={
@@ -659,12 +669,12 @@ export function AnalysisDialog({
       }
     >
       <div className="flex flex-col gap-1">
-        <h2 className={cn(H2(small), "leading-[1.1]")}>How you argued</h2>
+        <h2 className={cn(H2(small), "leading-[1.1]")}>{title}</h2>
         <span className="text-[13.5px] text-ink-muted">{sub}</span>
       </div>
       {state === "loading" && (
         <div className="flex flex-col items-center gap-3 py-6">
-          <CourtModelLoader status="Reviewing how you argued…" tone="paper" />
+          <CourtModelLoader status={loading} tone="paper" />
         </div>
       )}
       {state === "error" && (

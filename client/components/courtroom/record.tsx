@@ -26,7 +26,7 @@ function clock(ts: string) {
 
 /** The AI said it: the other side's arguments, questions and leave requests, every answer and ruling. */
 export function aiMade(e: Ev, ai: Side) {
-  if (e.type === T.WITNESS_EXAMINED_A || e.type === T.RULING) return true;
+  if (e.type === T.WITNESS_EXAMINED_A || e.type === T.RULING || e.type === T.SETTLEMENT) return true;
   return e.speaker_role === ai && (MOVES_ON.has(e.type) || e.type === T.LEAVE_REQUEST);
 }
 
@@ -156,7 +156,7 @@ function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
   const mine = e.speaker_role === me;
   const isTyping = typing?.id === e.id;
   const text = isTyping ? e.content.slice(0, typing.n) : e.content;
-  const canReport = aiMade(e, ai) && !isTyping && e.type !== T.WITNESS_EXAMINED_A;
+  const canReport = aiMade(e, ai) && !isTyping && e.type !== T.WITNESS_EXAMINED_A && e.type !== T.SETTLEMENT;
   const canObject = ctx.objectable === e.id && !isTyping;
   const fs = mob ? "text-[15px]" : "text-base";
   const op = e.struck ? 0.5 : 1;
@@ -229,22 +229,40 @@ function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
         </div>
       </div>
     );
-  } else if (SPOKEN.has(e.type) || e.type === T.LEAVE_REQUEST || e.type === T.OBJECTION || e.type === T.RULING) {
-    const ruling = e.type === T.RULING;
-    const tag = ruling
+  } else if (SPOKEN.has(e.type) || e.type === T.LEAVE_REQUEST || e.type === T.OBJECTION || e.type === T.RULING || e.type === T.SETTLEMENT) {
+    // The court rules on an objection, or on settling: counsel's request for time, or the compromise itself.
+    const settling = e.type === T.SETTLEMENT;
+    const ruling = e.type === T.RULING || settling;
+    const tag = settling
+      ? e.sustained == null
+        ? "Compromise"
+        : e.sustained
+          ? "Granted"
+          : "Refused"
+      : ruling
+        ? e.sustained
+          ? "Sustained"
+          : "Overruled"
+        : e.type === T.OBJECTION
+          ? "Objection"
+          : e.type === T.OPENING_STATEMENT
+            ? "Opening"
+            : e.type === T.CLOSING_STATEMENT
+              ? "Closing"
+              : e.type === T.LEAVE_REQUEST
+                ? "Seeks leave"
+                : null;
+    const tagC = ruling
       ? e.sustained
-        ? "Sustained"
-        : "Overruled"
-      : e.type === T.OBJECTION
-        ? "Objection"
-        : e.type === T.OPENING_STATEMENT
-          ? "Opening"
-          : e.type === T.CLOSING_STATEMENT
-            ? "Closing"
-            : e.type === T.LEAVE_REQUEST
-              ? "Seeks leave"
-              : null;
-    const tagC = ruling ? (e.sustained ? "#3f6b3a" : "#8e1f19") : e.type === T.LEAVE_REQUEST ? "#7a4a0c" : mine ? "#8e1f19" : "#120d09";
+        ? "#3f6b3a"
+        : e.sustained == null
+          ? "#7a4a0c"
+          : "#8e1f19"
+      : e.type === T.LEAVE_REQUEST
+        ? "#7a4a0c"
+        : mine
+          ? "#8e1f19"
+          : "#120d09";
     const ink = ruling ? "#7a4a0c" : mine ? "#8e1f19" : "#120d09";
     const leaveOpen = ctx.leaveOpen === e.id && !isTyping;
     body = (

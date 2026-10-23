@@ -286,11 +286,18 @@ export interface SettlementPayment {
   status: "paid" | "late" | "due" | "upcoming" | "missed"; // as of today
 }
 
-export interface NegotiationScore {
-  score: number;
+/** How the user negotiated, judged once the case is decided. */
+export interface NegotiationAnalysis {
+  score: number; // 0-100, the factors weighted
   tier: string;
   factors: { key: "terms" | "closed" | "offers" | "conditions"; label: string; weight: number; value: number; text: string }[];
+  best: SettlementTerms | null; // the best terms the other side would likely have taken
+  best_text: string;
+  call: "right" | "mixed" | "wrong"; // settling rather than fighting it out
+  call_text: string;
   notes: { kind: "worked" | "improve"; text: string }[];
+  review: string; // Markdown
+  analyzed_at: string;
 }
 
 /** The compromise deed (or plea-bargaining report) drawn up from the agreed terms. */
@@ -323,7 +330,6 @@ export interface Settlement {
   hearing: SettlementHearing | null;
   payments: SettlementPayment[];
   user_pays?: boolean; // the user acts for the accused, who pays
-  score: NegotiationScore | null; // once talks end or the court rules
   ruling: string | null; // the court's ruling, as said in court
   court_order: string | null; // Markdown
   started_at: string;

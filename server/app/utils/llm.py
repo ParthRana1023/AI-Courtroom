@@ -104,6 +104,7 @@ def task_temperature(task: str) -> float:
     """Low for the judge and analyser (consistent, faithful to the record)."""
     return {
         "judge": settings.judge_temperature,
+        "hearing": settings.judge_temperature,
         "analyzer": settings.analyzer_temperature,
         "outcome": settings.outcome_temperature,
         "drafter": settings.drafter_temperature,
@@ -119,6 +120,7 @@ def task_max_tokens(task: str) -> int | None:
     return {
         "drafter": settings.long_output_max_tokens,
         "judge": settings.long_output_max_tokens,
+        "hearing": settings.long_output_max_tokens,
         "analyzer": settings.long_output_max_tokens,
     }.get(task)
 
@@ -128,11 +130,21 @@ def task_max_tokens(task: str) -> int | None:
 # <task>_fallback_model/_provider, <task>_fallback2_... and <task>_fallback3_...
 # from settings; an empty fallback model is skipped.
 # ---------------------------------------------------------------------------
-LLM_TASKS = ("drafter", "lawyer", "judge", "analyzer", "outcome", "party", "witness")
+LLM_TASKS = (
+    "drafter",
+    "lawyer",
+    "judge",
+    "hearing",
+    "analyzer",
+    "outcome",
+    "party",
+    "witness",
+)
 _CHAIN_PREFIXES = ("", "fallback_", "fallback2_", "fallback3_")
 
 
-# Status-page component per task; the rest (lawyer, judge, party, witness) are "court".
+# Status-page component per task; the rest (lawyer, judge, hearing, party, witness) are
+# "court".
 TASK_COMPONENT = {"drafter": "gen", "analyzer": "analysis", "outcome": "analysis"}
 _PROVIDER_KEYS = {
     "groq": ("groq_api_key",),

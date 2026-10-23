@@ -30,23 +30,6 @@ NO_OUTCOME_TEXT = (
     "calling it a win or a loss."
 )
 
-# Added to the prompt only when the user tried to settle the case.
-SETTLEMENT_TALKS = """
-            SETTLEMENT TALKS (out of court and without prejudice: the judge deciding
-            the merits never saw them; "User" is the user, "Opposing counsel" is the AI):
-            {talks}
-"""
-SETTLEMENT_REVIEW = """
-            ### Settlement negotiations
-            The user tried to settle this case out of court (see SETTLEMENT TALKS). Review how they negotiated, as a senior advocate would, quoting their offers:
-            - Timing: did they open talks too early or too late, given how the hearing was going?
-            - Opening offer and concessions: was the first offer well anchored; how big was each move; did they concede too fast, or give something without getting something back?
-            - Value: was the deal good for their client against the strength of the case? If the case settled, compare the terms with how the merits looked. If the talks failed, compare what was on the table with the outcome they actually got.
-            - Terms: did the compensation, apology and undertakings fit the offence; did they propose anything a court would refuse?
-            - Legal fit: could these offences in this proceeding be settled at all (compounding under Section 359 BNSS, quashing on settlement under Section 528 BNSS, or only a factor in bail)? Did they spend effort on a compromise the court could never record?
-            End with three to five concrete, numbered things to do differently in their next negotiation.
-"""
-
 
 class CaseAnalysisService:
     @staticmethod
@@ -63,7 +46,6 @@ class CaseAnalysisService:
         party_conferences: str | None = None,
         witness_examinations: str | None = None,
         outcome: str | None = None,
-        settlement_talks: str | None = None,
     ) -> str:
         """Uses LLM to analyze the user's arguments and provides suggestions for improvement.
         :param defendant_args: List of arguments presented by the user.
@@ -73,9 +55,8 @@ class CaseAnalysisService:
         :param judges_verdict: The verdict given by the judge.
         :param outcome: "won", "lost" or "partial", already decided by the
             outcome classifier; "settled" for a compromise the court recorded;
-            None when it could not be decided.
-        :param settlement_talks: every settlement attempt and offer, if any;
-            adds a Settlement negotiations section.
+            None when it could not be decided. How the user negotiated a settlement
+            is a separate analysis (llm.settlement.analyze_negotiation).
         :return: Markdown with Outcome, Reasoning, Mistakes and Suggestions sections.
         """
         logger.debug(
@@ -93,7 +74,6 @@ class CaseAnalysisService:
             or plaintiff_args
             or party_conferences
             or witness_examinations
-            or settlement_talks
         ):
             logger.warning("No arguments provided for analysis")
             return "No analysis generated."
@@ -124,7 +104,6 @@ class CaseAnalysisService:
 
             WITNESS EXAMINATIONS (every question is labelled with who asked it):
             {witness_examinations}
-            {settlement_talks}
 
             JUDGE'S VERDICT: {judges_verdict}
 
@@ -160,7 +139,6 @@ class CaseAnalysisService:
             Use the same three sub-headings. Under each, give concrete, actionable
             improvements as bullets, including better questions or arguments the user
             could have used.
-            {settlement_review}
         """
         analysis_prompt = ChatPromptTemplate.from_messages([("human", prompt)])
 
@@ -191,14 +169,6 @@ class CaseAnalysisService:
                     "sides_rule": SIDES_RULE,
                     "judges_verdict": judges_verdict,
                     "outcome": OUTCOME_TEXT.get(outcome or "", NO_OUTCOME_TEXT),
-                    "settlement_talks": (
-                        SETTLEMENT_TALKS.format(
-                            talks=tagged(settlement_talks, "history")
-                        )
-                        if settlement_talks
-                        else ""
-                    ),
-                    "settlement_review": SETTLEMENT_REVIEW if settlement_talks else "",
                 }
             )
 

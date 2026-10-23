@@ -8,11 +8,16 @@ case analysis retrieves: the court deciding the merits never sees them.
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, StringConstraints
 
 from app import messages
-from app.dependencies import controls_hearing, get_current_user, get_owned_case
+from app.dependencies import (
+    controls_hearing,
+    get_current_user,
+    get_owned_case,
+    one_at_a_time,
+)
 from app.logging_config import get_logger
 from app.models.case import (
     Case,
@@ -29,6 +34,7 @@ from app.models.case import (
     SettlementTerms,
 )
 from app.models.user import User
+from app.routes.cases import ADJOURN_NOTES, start_recess
 from app.routes.courtroom import record_lines, sides
 from app.services import settlement_payments as payments
 from app.services.case_outcomes import record_settlement
@@ -38,7 +44,6 @@ from app.services.llm.parties_service import can_lawyer_confer_with_party
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.services.settlement_deed import case_numbers, hearing_after
 from app.services.settlement_deed import deed as draw_up
-from app.services.settlement_score import score as score_talks
 from app.utils.datetime import get_current_datetime
 
 logger = get_logger(__name__)
@@ -159,16 +164,6 @@ def attempt_out(case: Case, attempt: Settlement) -> dict:
     return data
 
 
-def score_ended(case: Case, attempt: Settlement) -> None:
-    """Talks that end without a court ruling still count toward the negotiator rating,
-    once the user has made an offer."""
-    profile = case.settlement_profile
-    if profile and attempt.user_offers():
-        attempt.score = score_talks(
-            attempt, profile, user_is_accused(case, profile), None
-        )
-
-
 def open_attempt(case: Case) -> Settlement:
     attempt = case.open_settlement()
     if attempt is None:
@@ -270,7 +265,7 @@ async def get_settlement(
     return view(case)
 
 
-@router.post("/{case_cnr}/settlement/start", dependencies=[controls_hearing])
+@router.post("/{case_cnr}/settlement/start", dependencies=[one_at_a_time])
 async def start_talks(
     case_cnr: str,
     current_user: User = Depends(get_current_user),
@@ -298,7 +293,7 @@ async def start_talks(
     return await save_and_index(case, attempt, entries)
 
 
-@router.post("/{case_cnr}/settlement/offers", dependencies=[controls_hearing])
+@router.post("/{case_cnr}/settlement/offers", dependencies=[one_at_a_time])
 async def make_offer(
     case_cnr: str,
     request: OfferRequest,
@@ -351,8 +346,6 @@ async def make_offer(
         attempt.status = SettlementStatus.REJECTED
         attempt.ended_at = get_current_datetime()
     attempt.entries.append(answer)
-    if attempt.status == SettlementStatus.REJECTED:
-        score_ended(case, attempt)
     changed.append(answer)
 
     logger.info(f"Settlement offer in {case_cnr}: AI counsel replied {answer.kind}")
@@ -374,7 +367,7 @@ async def accept_terms(case: Case, attempt: Settlement, terms: SettlementTerms) 
     return await save_and_index(case, attempt, [entry])
 
 
-@router.post("/{case_cnr}/settlement/accept", dependencies=[controls_hearing])
+@router.post("/{case_cnr}/settlement/accept", dependencies=[one_at_a_time])
 async def accept_their_terms(
     case_cnr: str,
     current_user: User = Depends(get_current_user),
@@ -395,7 +388,7 @@ async def accept_their_terms(
     return await accept_terms(case, attempt, theirs)
 
 
-@router.post("/{case_cnr}/settlement/end", dependencies=[controls_hearing])
+@router.post("/{case_cnr}/settlement/end", dependencies=[one_at_a_time])
 async def end_talks(
     case_cnr: str,
     current_user: User = Depends(get_current_user),
@@ -410,12 +403,11 @@ async def end_talks(
     attempt.entries.append(entry)
     attempt.status = SettlementStatus.WITHDRAWN
     attempt.ended_at = get_current_datetime()
-    score_ended(case, attempt)
     logger.info(f"Settlement talks ended in {case_cnr}")
     return await save_and_index(case, attempt, [entry])
 
 
-@router.post("/{case_cnr}/settlement/sign", dependencies=[controls_hearing])
+@router.post("/{case_cnr}/settlement/sign", dependencies=[one_at_a_time])
 async def sign_deed(
     case_cnr: str,
     current_user: User = Depends(get_current_user),
@@ -438,7 +430,7 @@ async def sign_deed(
     return view(case)
 
 
-@router.post("/{case_cnr}/settlement/file", dependencies=[controls_hearing])
+@router.post("/{case_cnr}/settlement/file", dependencies=[one_at_a_time])
 async def file_deed(
     case_cnr: str,
     current_user: User = Depends(get_current_user),
@@ -489,7 +481,7 @@ def order_markdown(
     )
 
 
-@router.post("/{case_cnr}/settlement/hearing", dependencies=[controls_hearing])
+@router.post("/{case_cnr}/settlement/hearing", dependencies=[one_at_a_time])
 async def hold_hearing(
     case_cnr: str,
     request: HearingRequest,
@@ -510,7 +502,6 @@ async def hold_hearing(
     ):
         raise HTTPException(status_code=409, detail=messages.SETTLEMENT_NOT_FILED)
     user_side, _ = sides(case)
-    accused = user_is_accused(case, profile)
 
     try:
         case_context = await retrieve_case_context(
@@ -573,16 +564,6 @@ async def hold_hearing(
         attempt.status = SettlementStatus.ADJOURNED
         attempt.hearing_date = record.next_date
 
-    scored = score_talks(attempt, profile, accused, record.outcome)
-    scored.notes = await counsel.coach_negotiation(
-        counsel.format_negotiation(
-            [attempt], {"user": "You", "ai": "Opposing counsel"}, profile.conditions
-        ),
-        "\n".join(f"{f.label}: {f.value}/100. {f.text}" for f in scored.factors),
-        "accused" if accused else "complainants",
-    )
-    attempt.score = scored
-
     await case.save()
     await upsert_memory_item(
         case,
@@ -604,7 +585,7 @@ class PaymentRequest(BaseModel):
     action: Literal["pay", "recall", "notice", "recover"]
 
 
-@router.post("/{case_cnr}/settlement/payments/{index}", dependencies=[controls_hearing])
+@router.post("/{case_cnr}/settlement/payments/{index}", dependencies=[one_at_a_time])
 async def answer_payment(
     case_cnr: str,
     index: int,
@@ -643,3 +624,98 @@ async def answer_payment(
     await case.save()
     logger.info(f"Settlement payment {index} in {case_cnr}: {request.action}")
     return view(case)
+
+
+COUNSEL = {
+    "plaintiff": "Counsel for the Plaintiff",
+    "defendant": "Counsel for the Defence",
+}
+ADJOURN_FOR = {
+    "quash": "file the joint application to quash the FIR",
+    "compound": "file the application to compound the offences",
+    "plea": "submit the report of the disposition",
+}
+
+
+def deed_signed(case: Case) -> bool:
+    attempt = case.open_settlement()
+    return attempt is not None and attempt.status in (
+        SettlementStatus.SIGNED,
+        SettlementStatus.FILED,
+        SettlementStatus.ADJOURNED,
+    )
+
+
+def adjournment_ruling(case: Case, route: str) -> tuple[bool, str]:
+    """The court's answer to counsel asking, in session, for time to settle: always
+    granted once a deed is signed; otherwise granted once, while talks can go on."""
+    attempt = case.open_settlement()
+    if deed_signed(case):
+        return True, (
+            "Granted. A signed compromise is on record. The matter is adjourned so the "
+            f"parties can {ADJOURN_FOR[route]}. Counsel will place the outcome before "
+            "this court when it resumes."
+        )
+    if case.settlement_adjourn_asks:
+        return False, (
+            "Refused. The court has already given the parties time to settle. Talks "
+            "can continue alongside the hearing, which proceeds."
+        )
+    if attempt is None and (
+        len(case.settlements) >= MAX_ATTEMPTS
+        or any(s.status == SettlementStatus.REFUSED for s in case.settlements)
+    ):
+        return False, (
+            "Refused. The parties have already tried to settle and could not. The "
+            "hearing proceeds."
+        )
+    return True, (
+        "Granted. The parties say they are in talks. The court will give them time. "
+        "The matter is adjourned, and counsel will report on the settlement when it "
+        "resumes."
+    )
+
+
+@router.post("/{case_cnr}/settlement/adjourn", dependencies=[controls_hearing])
+async def ask_to_settle(
+    case_cnr: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    """Counsel asks the court in session for an adjournment to settle. The request
+    and the ruling go on the record; if granted, the court adjourns."""
+    case = await get_owned_case(case_cnr, current_user)
+    if case.status != CaseStatus.ACTIVE:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_NOT_SITTING)
+    profile = await profile_of(case)
+    if profile.route == "none":
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_NO_ROUTE)
+
+    signed = deed_signed(case)
+    granted, ruling = adjournment_ruling(case, profile.route)
+    counsel_for = COUNSEL[sides(case)[0]]
+    case.settlement_adjourn_asks += 1
+    case.log(
+        f"{counsel_for} reports a signed compromise and asks for time to place it "
+        "before the court"
+        if signed
+        else f"{counsel_for} asks for an adjournment to explore a settlement"
+    )
+    case.courtroom_proceedings.append(
+        CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.SETTLEMENT,
+            content=ruling,
+            speaker_role="judge",
+            speaker_name="Judge",
+            sustained=granted,
+        )
+    )
+    if granted:
+        case.adjourn(note=ADJOURN_NOTES["settlement"])
+    await case.save()
+    if granted:
+        await start_recess(case, background_tasks)
+    logger.info(
+        f"Adjournment to settle in {case_cnr}: {'granted' if granted else 'refused'}"
+    )
+    return {"granted": granted, "ruling": ruling}

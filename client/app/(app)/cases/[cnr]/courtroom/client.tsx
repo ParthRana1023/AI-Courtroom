@@ -26,7 +26,7 @@ import { useSettings } from "@/contexts/settings-context";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { useOnline } from "@/hooks/use-online";
 import { useViewport } from "@/hooks/use-viewport";
-import { argumentAPI, caseAPI, courtroomAPI, partiesAPI, witnessAPI } from "@/lib/api";
+import { argumentAPI, caseAPI, courtroomAPI, partiesAPI, settlementAPI, witnessAPI } from "@/lib/api";
 import { readCaseFile } from "@/lib/case-file";
 import { AI_EXAMINATION_POLL_MS, COURTROOM_POLL_MS, MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS } from "@/lib/config";
 import { getErrorDetail } from "@/lib/error-utils";
@@ -40,6 +40,7 @@ import {
   type CurrentWitnessResponse,
   type PersonInvolved,
 } from "@/types";
+import type { NegotiationAnalysis } from "@/types";
 
 type Load = "loading" | "loaded" | "error" | "notfound";
 
@@ -126,6 +127,9 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const [verdictOpen, setVerdictOpen] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [analysis, setAnalysis] = useState<{ text: string } | "loading" | "error">("loading");
+  const [negOpen, setNegOpen] = useState(false);
+  const [negotiation, setNegotiation] = useState<NegotiationAnalysis | "loading" | "error">("loading");
+  const [seeking, setSeeking] = useState(false);
   const [extracting, setExtracting] = useState<string | null>(null);
   const [og, setOg] = useState<Record<string, boolean>>({});
   const [qAtt, setQAtt] = useState<string[]>([]);
@@ -746,6 +750,41 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     if (typeof analysis !== "object") void fetchAnalysis();
   };
 
+  const fetchNegotiation = useCallback(async () => {
+    setNegotiation("loading");
+    try {
+      setNegotiation(await settlementAPI.analysis(cnr));
+    } catch {
+      setNegotiation("error");
+    }
+  }, [cnr]);
+
+  const openNegotiation = () => {
+    setNegOpen(true);
+    if (typeof negotiation !== "object") void fetchNegotiation();
+  };
+
+  /** Counsel asks the court for time to settle; the court considers it, rules, and adjourns if it grants it. */
+  const seekSettle = async () => {
+    if (busy || seeking) return;
+    if (!online) return note("You’re offline. You can ask for an adjournment when you’re back online.");
+    setSeeking(true);
+    setPopup("seeking");
+    try {
+      const [r] = await Promise.all([settlementAPI.adjourn(cnr), new Promise<void>((done) => later(done, 1800))]);
+      setPopup(null);
+      if (r.granted) setWit(false);
+      await refresh(); // the ruling types itself out
+      await settle();
+      if (r.granted) showPopup("adjourned", 2400);
+    } catch (err) {
+      setPopup(null);
+      toast.error(getErrorDetail(err) || "Couldn’t put the request to the court. Please try again.");
+    } finally {
+      setSeeking(false);
+    }
+  };
+
   const sendReport = async (reason: string, details: string) => {
     if (!rep) return false;
     if (!reason) {
@@ -1007,6 +1046,14 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
         ? { k: "Watching from this device", t: "Arguments are being submitted from another device.", c: "#3e3326" }
         : null;
 
+  // Settling: open unless the case's route is known to be closed; the court sees a signed deed.
+  const routeOpen = data.settlement_profile?.route !== "none";
+  const lastTalks = data.settlements?.[data.settlements.length - 1];
+  const deedSigned = !!lastTalks && ["signed", "filed", "adjourned"].includes(lastTalks.status);
+  const negotiated = (data.settlements ?? []).some((a) => a.entries.some((e) => e.by === "user"));
+  const canSeek = active && !view && routeOpen;
+  const grid = mob && (canSeek || (resolved && negotiated));
+
   const btn = cn(
     "h-10.5 min-w-0 cursor-pointer font-bold whitespace-nowrap uppercase",
     mob ? "flex-[1_1_auto] px-1.5 text-[11px] tracking-[0.06em]" : "flex-none px-4 text-xs tracking-[0.14em]",
@@ -1051,13 +1098,30 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
             You are <strong className="text-desk-ink">{SIDE[me]}</strong> · <span className="font-data text-xs font-medium">{cnr}</span>
           </span>
         </div>
-        <div className={cn("flex min-w-0", mob ? "flex-nowrap gap-1.5" : "flex-wrap gap-2", small ? "flex-[1_1_100%]" : "flex-none")}>
+        <div
+          className={cn(
+            "min-w-0",
+            grid ? "grid grid-cols-2 gap-1.5" : mob ? "flex flex-nowrap gap-1.5" : "flex flex-wrap gap-2",
+            small ? "flex-[1_1_100%]" : "flex-none",
+          )}
+        >
           <button type="button" onClick={() => setCaseOpen(true)} className={outline}>
             Case file
           </button>
           {mob && (
             <button type="button" onClick={() => setWit(!witOpen)} className={outline}>
               {onStand ? "On the stand" : "Witness stand"}
+            </button>
+          )}
+          {canSeek && (
+            <button
+              type="button"
+              onClick={() => void seekSettle()}
+              aria-disabled={seeking}
+              title="Ask the judge to adjourn so the parties can try to settle"
+              className={outline}
+            >
+              {mob ? "Time to settle" : deedSigned ? "Deed signed · ask for time" : "Ask for an adjournment to settle"}
             </button>
           )}
           {active && !view && (
@@ -1076,9 +1140,28 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
             </button>
           )}
           {adjourned && (
-            <button type="button" onClick={() => void resume()} className={solid}>
-              Resume hearing →
-            </button>
+            <>
+              <Link
+                href={`/cases/${cnr}/settlement`}
+                aria-disabled={!routeOpen}
+                title={routeOpen ? "Negotiate a settlement while the court is adjourned" : "No settlement route is open for this case"}
+                onClick={(e) => {
+                  if (routeOpen) return;
+                  e.preventDefault();
+                  note("No settlement route is open for this case. At least one charge can’t be compounded or quashed on compromise.");
+                }}
+                className={cn(
+                  outline,
+                  "flex items-center justify-center",
+                  !routeOpen && "cursor-not-allowed border-ink-disabled text-ink-disabled hover:border-ink-disabled hover:bg-transparent",
+                )}
+              >
+                Settlement
+              </Link>
+              <button type="button" onClick={() => void resume()} className={solid}>
+                Resume hearing →
+              </button>
+            </>
           )}
           {resolved && (
             <>
@@ -1090,6 +1173,11 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
               <button type="button" onClick={openAnalysis} className={outline}>
                 Case analysis
               </button>
+              {negotiated && (
+                <button type="button" onClick={openNegotiation} className={outline}>
+                  {mob ? "Negotiation" : "Negotiation analysis"}
+                </button>
+              )}
             </>
           )}
         </div>
@@ -1265,6 +1353,20 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
         outcome={data.outcome}
         sub={`${SIDE[me]} · ${data.title}`}
         foot={[`Analysis generated on ${formatDate(judgment?.timestamp ?? data.created_at)}`, court]}
+        small={small}
+      />
+      <AnalysisDialog
+        open={negOpen}
+        onClose={() => setNegOpen(false)}
+        state={typeof negotiation === "object" ? { text: negotiation.review } : negotiation}
+        onRetry={() => void fetchNegotiation()}
+        outcome={null}
+        badge={typeof negotiation === "object" ? [`${negotiation.score} · ${negotiation.tier}`, "#120d09"] : undefined}
+        label="Negotiation analysis"
+        title="How you negotiated"
+        loading="Reviewing how you negotiated…"
+        sub={`${SIDE[me]} · ${data.title}`}
+        foot={[typeof negotiation === "object" ? `Analysis generated on ${formatDate(negotiation.analyzed_at)}` : "", court]}
         small={small}
       />
       <ExhibitViewer

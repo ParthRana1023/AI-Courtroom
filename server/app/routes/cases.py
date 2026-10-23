@@ -236,20 +236,22 @@ async def update_case_status(
         )
 
     if case.status == CaseStatus.ADJOURNED:
-        # Like the user, the AI lawyer confers with its parties between hearings;
-        # the court stays in recess until it is done (or the cap passes).
-        recess = random.randint(
-            settings.counsel_recess_min_seconds,
-            max(
-                settings.counsel_recess_min_seconds, settings.counsel_recess_max_seconds
-            ),
-        )
-        await Case.set_counsel_recess(
-            case.id, datetime.now(UTC) + timedelta(seconds=recess)
-        )
-        background_tasks.add_task(run_counsel_conferences, cnr)
+        await start_recess(case, background_tasks)
 
     return {"message": "Case status updated successfully", "new_status": case.status}
+
+
+async def start_recess(case: Case, background_tasks: BackgroundTasks) -> None:
+    """Like the user, the AI lawyer confers with its parties between hearings; the
+    court stays in recess until it is done (or the cap passes)."""
+    recess = random.randint(
+        settings.counsel_recess_min_seconds,
+        max(settings.counsel_recess_min_seconds, settings.counsel_recess_max_seconds),
+    )
+    await Case.set_counsel_recess(
+        case.id, datetime.now(UTC) + timedelta(seconds=recess)
+    )
+    background_tasks.add_task(run_counsel_conferences, case.cnr)
 
 
 @router.post("/{cnr}/take-over")

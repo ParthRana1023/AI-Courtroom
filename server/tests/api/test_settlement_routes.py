@@ -1,7 +1,7 @@
 """Tests for settlement talks held out of court."""
 
 import json
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -24,7 +24,9 @@ from app.models.case import (
     CourtroomProceedingsEventType as EventType,
 )
 from app.models.case_outcome import CaseOutcomeRecord
+from app.routes import cases as cases_routes
 from app.routes import settlement
+from app.utils.datetime import get_current_datetime
 from tests.helpers import reload
 
 CONDITIONS = [
@@ -137,9 +139,31 @@ def hearing(outcome="granted", **over):
     )
 
 
-COACH = json.dumps(
-    {"worked": "You held firm on interest.", "improve": "Ask for a deposit sooner."}
-)
+def analysis(**over):
+    scores = {
+        "factors": {
+            "terms": {"value": 80, "text": "Close to the best deal."},
+            "closed": {"value": 100, "text": "The court quashed the FIR."},
+            "offers": {"value": 60, "text": "Two moves where one would do."},
+            "conditions": {"value": 40, "text": "The deposit went in."},
+        },
+        "best": {
+            "amount": 92000,
+            "instalments": 3,
+            "months": 9,
+            "interest": 0,
+            "conditions": ["apology", "nonsense"],
+        },
+        "best_text": "Their client wanted the case gone.",
+        "call": "right",
+        "call_text": "The evidence of cheating was strong.",
+        "worked": "You held firm on interest.",
+        "improve": "Ask for a deposit sooner.",
+    } | over
+    return (
+        f"<scores>{json.dumps(scores)}</scores>\n"
+        "<review>### How you negotiated\nYou opened well.</review>"
+    )
 
 
 def agreed_attempt(**terms):
@@ -736,7 +760,7 @@ async def hear(client, headers, case, submission=SUBMISSION):
 async def test_the_court_grants_the_compromise_and_the_case_ends(
     client, auth_headers, adjourned, fake_llm, indexed, user
 ):
-    fake_llm.responses.extend([hearing(), COACH])
+    fake_llm.responses.append(hearing())
     case = await adjourned(settlements=[filed_attempt()])
 
     response = await hear(client, auth_headers, case)
@@ -751,7 +775,6 @@ async def test_the_court_grants_the_compromise_and_the_case_ends(
     assert attempt["user_pays"] is True
     assert [p["amount"] for p in attempt["payments"]] == [50000, 50000]
     assert [p["status"] for p in attempt["payments"]] == ["upcoming", "upcoming"]
-    assert attempt["score"]["tier"] and len(attempt["score"]["notes"]) == 2
 
     saved = await reload(case)
     assert saved.status == CaseStatus.RESOLVED
@@ -771,13 +794,13 @@ async def test_the_court_grants_the_compromise_and_the_case_ends(
     assert SUBMISSION in prompt
     assert "Every complainant agreed freely" in prompt
     assert "₹1,00,000 in 2 equal instalments" in prompt
-    assert fake_llm.prompts[1].startswith("NEGOTIATION REVIEW")
+    assert len(fake_llm.calls) == 1  # the negotiation is analysed later, on request
 
 
 async def test_the_court_refuses_and_the_case_goes_on(
     client, auth_headers, adjourned, fake_llm
 ):
-    fake_llm.responses.extend([hearing("refused"), COACH])
+    fake_llm.responses.append(hearing("refused"))
     case = await adjourned(settlements=[filed_attempt()])
 
     attempt = (await hear(client, auth_headers, case)).json()["attempt"]
@@ -796,7 +819,7 @@ async def test_the_court_refuses_and_the_case_goes_on(
 async def test_an_adjourned_hearing_is_listed_again(
     client, auth_headers, adjourned, fake_llm
 ):
-    fake_llm.responses.extend([hearing("adjourned"), COACH, hearing(), COACH])
+    fake_llm.responses.extend([hearing("adjourned"), hearing()])
     case = await adjourned(settlements=[filed_attempt()])
 
     first = (await hear(client, auth_headers, case)).json()["attempt"]
@@ -846,32 +869,10 @@ async def test_a_failed_hearing_leaves_the_deed_filed(
     assert saved.status == CaseStatus.ADJOURNED
 
 
-async def test_coaching_is_a_bonus(client, auth_headers, adjourned, fake_llm):
-    fake_llm.responses.extend([hearing(), "no notes today"])
-    case = await adjourned(settlements=[filed_attempt()])
-
-    attempt = (await hear(client, auth_headers, case)).json()["attempt"]
-
-    assert attempt["status"] == "recorded"
-    assert attempt["score"]["notes"] == []
-
-
 async def test_a_short_submission_is_refused(client, auth_headers, adjourned):
     case = await adjourned(settlements=[filed_attempt()])
 
     assert (await hear(client, auth_headers, case, "Yes")).status_code == 422
-
-
-async def test_ended_talks_are_scored(client, auth_headers, adjourned, fake_llm):
-    fake_llm.responses.append(COUNTER)
-    case = await adjourned()
-    await offer(client, auth_headers, case)
-
-    attempt = (await post(client, auth_headers, case, "end")).json()["attempt"]
-
-    closed = next(f for f in attempt["score"]["factors"] if f["key"] == "closed")
-    assert closed["value"] == 0
-    assert len(fake_llm.calls) == 1  # no coaching for talks that never reach court
 
 
 # ---------------------------------------------------------------------------
@@ -955,7 +956,7 @@ async def test_refused_talks_never_reach_the_verdict(
 ):
     """Without prejudice: after a refused compromise the judge decides the merits
     without ever seeing the terms that were offered."""
-    fake_llm.responses.extend([ACCEPT, hearing("refused"), COACH])
+    fake_llm.responses.extend([ACCEPT, hearing("refused")])
     case = await adjourned(
         plaintiff_arguments=[
             ArgumentItem(
@@ -1065,3 +1066,239 @@ async def test_adjourning_to_explore_settlement_is_noted(
     assert saved.courtroom_proceedings[-1].content == (
         "Hearing adjourned at the request of counsel to explore an amicable settlement"
     )
+
+
+# ---------------------------------------------------------------------------
+# asking the court in session for time to settle
+# ---------------------------------------------------------------------------
+
+
+async def ask(client, headers, case):
+    return await client.post(f"/cases/{case.cnr}/settlement/adjourn", headers=headers)
+
+
+async def test_the_court_gives_time_once_to_talk(client, auth_headers, adjourned):
+    case = await adjourned(status=CaseStatus.ACTIVE)
+
+    first = await ask(client, auth_headers, case)
+    saved = await reload(case)
+
+    assert first.json()["granted"] is True
+    assert saved.status == CaseStatus.ADJOURNED
+    asked, ruling, adjourned_note = saved.courtroom_proceedings[-3:]
+    assert asked.content == (
+        "Counsel for the Plaintiff asks for an adjournment to explore a settlement"
+    )
+    assert ruling.type == EventType.SETTLEMENT and ruling.sustained is True
+    assert ruling.content.startswith("Granted. The parties say they are in talks.")
+    assert adjourned_note.content.startswith("Hearing adjourned at the request of")
+    assert saved.settlement_adjourn_asks == 1
+
+    saved.status = CaseStatus.ACTIVE
+    await saved.save()
+    second = await ask(client, auth_headers, case)
+
+    assert second.json() == {
+        "granted": False,
+        "ruling": "Refused. The court has already given the parties time to settle. "
+        "Talks can continue alongside the hearing, which proceeds.",
+    }
+    after = await reload(case)
+    assert after.status == CaseStatus.ACTIVE
+    assert after.courtroom_proceedings[-1].sustained is False
+
+
+async def test_a_second_device_takes_over_then_settles(
+    client, auth_headers, adjourned, fake_llm, monkeypatch
+):
+    """Talks happen out of court, so any of the user's devices can hold them; asking
+    the sitting court for time is for the device running the hearing."""
+
+    async def no_conferences(cnr):
+        return None
+
+    monkeypatch.setattr(cases_routes, "run_counsel_conferences", no_conferences)
+    fake_llm.responses.append(COUNTER)
+    case = await adjourned(
+        status=CaseStatus.ACTIVE,
+        active_session_id="laptop-session",
+        active_session_expires_at=get_current_datetime() + timedelta(hours=1),
+    )
+
+    sitting = await offer(client, auth_headers, case)
+    elsewhere = await ask(client, auth_headers, case)
+    await client.post(f"/cases/{case.cnr}/take-over", headers=auth_headers)
+    granted = await ask(client, auth_headers, case)
+    offered = await offer(client, auth_headers, case)
+
+    assert sitting.status_code == 409
+    assert sitting.json()["detail"] == messages.SETTLEMENT_COURT_SITTING
+    assert elsewhere.status_code == 409
+    assert elsewhere.json()["detail"] == messages.HEARING_ON_OTHER_DEVICE
+    assert granted.json()["granted"] is True
+    assert offered.status_code == 200
+    assert offered.json()["attempt"]["entries"][-1]["kind"] == "counter"
+
+
+async def test_a_signed_deed_always_gets_time(client, auth_headers, adjourned):
+    attempt = agreed_attempt()
+    attempt.status = SettlementStatus.SIGNED
+    case = await adjourned(
+        status=CaseStatus.ACTIVE, settlements=[attempt], settlement_adjourn_asks=3
+    )
+
+    response = await ask(client, auth_headers, case)
+
+    assert response.json()["granted"] is True
+    assert "file the joint application to quash the FIR" in response.json()["ruling"]
+    saved = await reload(case)
+    assert saved.status == CaseStatus.ADJOURNED
+    assert saved.courtroom_proceedings[-3].content.startswith(
+        "Counsel for the Plaintiff reports a signed compromise"
+    )
+
+
+async def test_no_time_once_talks_have_failed(client, auth_headers, adjourned):
+    refused = filed_attempt()
+    refused.status = SettlementStatus.REFUSED
+    case = await adjourned(status=CaseStatus.ACTIVE, settlements=[refused])
+
+    response = await ask(client, auth_headers, case)
+
+    assert response.json()["granted"] is False
+    assert "already tried to settle" in response.json()["ruling"]
+
+
+@pytest.mark.parametrize(
+    ("status", "profile", "detail"),
+    [
+        (CaseStatus.ADJOURNED, PROFILE, messages.SETTLEMENT_NOT_SITTING),
+        (CaseStatus.ACTIVE, CLOSED, messages.SETTLEMENT_NO_ROUTE),
+    ],
+)
+async def test_time_to_settle_needs_a_sitting_court_and_a_route(
+    client, auth_headers, adjourned, status, profile, detail
+):
+    case = await adjourned(status=status, settlement_profile=profile)
+
+    response = await ask(client, auth_headers, case)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == detail
+    assert (await reload(case)).settlement_adjourn_asks == 0
+
+
+# ---------------------------------------------------------------------------
+# the negotiation analysis
+# ---------------------------------------------------------------------------
+
+
+async def analyse(client, headers, case):
+    return await client.post(f"/cases/{case.cnr}/analyze-negotiation", headers=headers)
+
+
+async def test_a_settled_case_gets_its_negotiation_analysed_once(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.append(analysis())
+    attempt = recorded_attempt(date(2099, 1, 1))
+    attempt.ruling = "The FIR is quashed."
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        outcome=CaseOutcome.SETTLED,
+        settlement_result="quashed",
+        settlements=[attempt],
+    )
+
+    first = await analyse(client, auth_headers, case)
+    second = await analyse(client, auth_headers, case)
+
+    assert first.status_code == 200 and second.json() == first.json()
+    result = first.json()["negotiation"]
+    assert result["score"] == 40 + 25 + 9 + 4
+    assert result["tier"] == "Strong"
+    assert [f["label"] for f in result["factors"]] == [
+        "Terms won",
+        "Deal closed",
+        "Offers used",
+        "Conditions",
+    ]
+    assert result["best"]["amount"] == 92000
+    assert result["best"]["conditions"] == ["apology"]
+    assert result["call"] == "right"
+    assert [n["kind"] for n in result["notes"]] == ["worked", "improve"]
+    assert result["review"] == "### How you negotiated\nYou opened well."
+
+    assert len(fake_llm.calls) == 1
+    prompt = fake_llm.prompts[0]
+    assert prompt.startswith("NEGOTIATION ANALYSIS")
+    assert "acted for the accused" in prompt
+    assert "You offered: Rs. 1,00,000 in 2 instalments" in prompt
+    assert "Terms agreed: Rs. 1,00,000" in prompt
+    assert (
+        "The court gave the compromise effect (quashed): The FIR is quashed." in prompt
+    )
+    assert (
+        "apology: Written apology to the complainant (favours the complainants)"
+        in prompt
+    )
+
+
+async def test_failed_talks_are_weighed_against_the_judgment(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.append(analysis(call="wrong"))
+    attempt = agreed_attempt()
+    attempt.status = SettlementStatus.WITHDRAWN
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        outcome=CaseOutcome.LOST,
+        verdict="The accused is convicted.",
+        settlements=[attempt],
+    )
+
+    result = (await analyse(client, auth_headers, case)).json()["negotiation"]
+
+    assert result["call"] == "wrong"
+    prompt = fake_llm.prompts[0]
+    assert "went to judgment on the merits" in prompt
+    assert "LOST" in prompt and "The accused is convicted." in prompt
+
+
+@pytest.mark.parametrize(
+    ("status", "settlements"),
+    [
+        (CaseStatus.ADJOURNED, "agreed"),  # not decided yet
+        (CaseStatus.RESOLVED, None),  # never negotiated
+    ],
+)
+async def test_no_negotiation_analysis_until_there_is_one_to_judge(
+    client, auth_headers, adjourned, fake_llm, status, settlements
+):
+    case = await adjourned(
+        status=status, settlements=[agreed_attempt()] if settlements else []
+    )
+
+    response = await analyse(client, auth_headers, case)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == messages.NEGOTIATION_NOT_READY
+    assert fake_llm.calls == []
+
+
+@pytest.mark.parametrize("bad", ["no tags at all", "<review>Only a review.</review>"])
+async def test_a_bad_analysis_is_not_saved(
+    client, auth_headers, adjourned, fake_llm, bad
+):
+    fake_llm.responses.append(bad)
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        outcome=CaseOutcome.SETTLED,
+        settlements=[recorded_attempt(date(2099, 1, 1))],
+    )
+
+    response = await analyse(client, auth_headers, case)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == messages.NEGOTIATION_FAILED
+    assert (await reload(case)).negotiation is None

@@ -12,7 +12,6 @@ from app.models.case import (
     Settlement,
     SettlementCondition,
     SettlementEntry,
-    SettlementProfile,
     SettlementStatus,
     SettlementTerms,
 )
@@ -25,12 +24,11 @@ from app.services.llm.settlement import (
 )
 from app.services.settlement_payments import default_on, schedule
 from app.services.settlement_payments import status as payment_status
-from app.services.settlement_score import score
 from app.utils.llm import LLMGenerationError
 
 APP = Path(__file__).resolve().parents[2] / "app"
 # The only retrieval that may read settlement talks: the case analysis.
-MAY_READ_SETTLEMENT = {APP / "routes" / "case_analysis.py"}
+MAY_READ_SETTLEMENT = {APP / "routes" / "case_analysis.py"}  # the negotiation analysis
 
 KEYS = {"deposit", "apology"}
 CONDITIONS = [
@@ -261,48 +259,6 @@ def terms(amount, conditions=()):
     return SettlementTerms(
         amount=amount, instalments=3, months=6, interest=0, conditions=list(conditions)
     )
-
-
-SCORED = SettlementProfile(route="quash", conditions=CONDITIONS)
-
-
-def test_a_deal_half_way_scores_terms_at_fifty():
-    final = terms(150000, ["deposit"])
-    attempt = Settlement(
-        status=SettlementStatus.RECORDED,
-        entries=[
-            SettlementEntry(by="ai", kind="offer", terms=terms(100000)),
-            SettlementEntry(by="user", kind="counter", terms=terms(200000)),
-            SettlementEntry(by="ai", kind="counter", terms=final),
-            SettlementEntry(by="user", kind="accept"),
-        ],
-        agreed=final,
-    )
-
-    result = score(attempt, SCORED, user_is_accused=False, outcome="granted")
-
-    values = {f.key: f.value for f in result.factors}
-    assert values == {"terms": 50, "closed": 100, "offers": 100, "conditions": 50}
-    assert result.score == 25 + 25 + 15 + 5
-    assert result.tier == "Strong"
-    assert "The accused opened at ₹1,00,000" in result.factors[0].text
-
-
-def test_talks_that_end_close_no_deal():
-    attempt = Settlement(
-        status=SettlementStatus.WITHDRAWN,
-        entries=[
-            SettlementEntry(by="user", kind="offer", terms=terms(200000)),
-            SettlementEntry(by="ai", kind="counter", terms=terms(100000)),
-            SettlementEntry(by="user", kind="ended"),
-        ],
-    )
-
-    result = score(attempt, SCORED, user_is_accused=True, outcome=None)
-
-    values = {f.key: f.value for f in result.factors}
-    assert values["closed"] == 0 and values["offers"] == 100
-    assert result.factors[1].text == "Talks ended without a deal."
 
 
 def test_formats_the_talks_in_order():

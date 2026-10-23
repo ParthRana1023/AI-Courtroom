@@ -142,6 +142,10 @@ test.describe("settlement", () => {
     await expect(page.getByText("Read-only · courtroom in session")).toBeVisible();
     await expect(page.getByRole("button", { name: "Send counter-offer" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Return to Courtroom →" })).toBeVisible();
+    // The note shows in the log and in the offer panel.
+    await expect(page.getByText(/ask for an adjournment to settle \(take the hearing over first/).first()).toBeVisible();
+    await page.getByRole("button", { name: "Go to the courtroom" }).click();
+    await expect(page).toHaveURL(new RegExp(`${base}/courtroom$`));
   });
 
   test("talks that fail to open can be opened again by hand", async ({ page, signIn }) => {

@@ -178,3 +178,13 @@ async def courtroom_control(
 # FastAPI keeps it until the route's background tasks finish, so while the AI
 # examined a witness, Object (and every other hearing action) queued behind it.
 controls_hearing = Depends(courtroom_control, scope="function")
+
+
+async def case_turn(request: Request):
+    """For routes that change a case out of court (settlement talks): one request per
+    case at a time, from any of the user's devices."""
+    async with case_lock(request.path_params["case_cnr"]):
+        yield
+
+
+one_at_a_time = Depends(case_turn, scope="function")

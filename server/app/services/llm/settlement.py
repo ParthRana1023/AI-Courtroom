@@ -1,6 +1,7 @@
 # app/services/llm/settlement.py
 """Settling a criminal case out of court: the route the case allows, AI counsel's side
-of the talks, the hearing that gives the compromise effect, and coaching on the talks.
+of the talks, the hearing that gives the compromise effect, and the analysis of how the
+user negotiated.
 """
 
 import json
@@ -19,6 +20,8 @@ from app.models.case import (
     CoachNote,
     HearingCheck,
     HearingLine,
+    NegotiationAnalysis,
+    ScoreFactor,
     Settlement,
     SettlementCondition,
     SettlementEntry,
@@ -112,8 +115,10 @@ def format_negotiation(
         lines += [
             f"- {entry_text(e, names[e.by], conditions)}" for e in attempt.entries
         ]
-        if attempt.ruling:
-            lines.append(f"- The court: {attempt.ruling}")
+        if attempt.agreed:
+            lines.append(f"- Terms agreed: {terms_text(attempt.agreed, conditions)}")
+        if attempt.hearing:
+            lines.append(f"- The court {attempt.hearing.outcome} it: {attempt.ruling}")
     return "\n".join(lines)
 
 
@@ -470,7 +475,7 @@ Reply with ONLY this JSON object and nothing else:
     try:
         chain = (
             ChatPromptTemplate.from_messages([("human", template)])
-            | get_llm("judge")
+            | get_llm("hearing")
             | StrOutputParser()
         )
         reply = await chain.ainvoke(
@@ -498,44 +503,142 @@ Reply with ONLY this JSON object and nothing else:
     return parse_hearing(reply)
 
 
-async def coach_negotiation(
-    talks: str, factors: str, user_side: str
-) -> list[CoachNote]:
-    """Two notes for the user: what worked in the negotiation, and what to do better.
-    Coaching is a bonus: on any failure there are simply no notes."""
-    template = """NEGOTIATION REVIEW
-You are a senior Indian criminal-law advocate mentoring a junior who has just negotiated a settlement out of court for the {user_side}. Write two short notes addressed to them as "you": one thing that worked, and one concrete thing to do better next time. Base both on the talks below; one or two sentences each.
+# The negotiator score: each factor 0-100 from the analysis, weighted.
+FACTORS = {
+    "terms": ("Terms won", 50),
+    "closed": ("Deal closed", 25),
+    "offers": ("Offers used", 15),
+    "conditions": ("Conditions", 10),
+}
+_REVIEW = re.compile(r"<review>(.*?)(?:</review>|$)", re.DOTALL)
+
+
+def tier(score: int) -> str:
+    if score >= 85:
+        return "Exceptional"
+    if score >= 70:
+        return "Strong"
+    if score >= 40:
+        return "Capable"
+    return "Developing"
+
+
+def parse_negotiation(text: str, keys: set[str]) -> NegotiationAnalysis:
+    """The scores JSON, then the Markdown review; the score is the factors weighted."""
+    text = strip_thinking(text)
+    review = _REVIEW.search(text)
+    if not review or not review.group(1).strip():
+        raise LLMGenerationError("Negotiation analysis had no review")
+    data = _json(text[: review.start()], "Negotiation analysis")
+    try:
+        factors = [
+            ScoreFactor(
+                key=key,  # type: ignore[arg-type]
+                label=label,
+                weight=weight,
+                value=max(0, min(100, round(float(data["factors"][key]["value"])))),
+                text=str(data["factors"][key]["text"]).strip()[:400],
+            )
+            for key, (label, weight) in FACTORS.items()
+        ]
+        score = round(sum(f.value * f.weight for f in factors) / 100)
+        best = data.get("best")
+        return NegotiationAnalysis(
+            score=score,
+            tier=tier(score),
+            factors=factors,
+            best=snap_terms(best, keys) if isinstance(best, dict) else None,
+            best_text=str(data.get("best_text") or "").strip()[:600],
+            call=data["call"],
+            call_text=str(data["call_text"]).strip()[:600],
+            notes=[
+                CoachNote(kind=kind, text=str(data[kind]).strip()[:500])
+                for kind in ("worked", "improve")
+                if str(data.get(kind) or "").strip()
+            ],
+            review=review.group(1).strip(),
+        )
+    except (KeyError, TypeError, ValueError) as e:
+        raise LLMGenerationError(f"Invalid negotiation analysis: {e}") from e
+
+
+async def analyze_negotiation(
+    *,
+    title: str,
+    client: str,
+    profile: SettlementProfile,
+    case_context: str,
+    record: str,
+    talks: str,
+    ending: str,
+) -> NegotiationAnalysis:
+    """How the user negotiated, once the case is decided: the score, the best deal the
+    other side would likely have taken, and whether settling beat fighting it out."""
+    template = """NEGOTIATION ANALYSIS
+You are a senior Indian criminal-law advocate mentoring a junior who acted for {client} in a simulated criminal case, {title}, and tried to settle it out of court with opposing counsel (an AI). The case is now decided. Judge how they negotiated, honestly and constructively, addressing them as "you".
 
 {untrusted_text_rule}
 
-THE TALKS
+THE ROUTE
+{route}
+
+CONDITIONS THAT COULD GO INTO THE TERMS (key: label, and whom it favours)
+{conditions}
+
+THE CASE
+{case_context}
+
+THE HEARING ON THE MERITS (what was argued in court, if anything)
+{record}
+
+THE TALKS (without prejudice; "You" is the user, "Opposing counsel" is the AI)
 {talks}
 
-HOW IT SCORED
-{factors}
+HOW THE CASE ENDED
+{ending}
 
-Reply with ONLY this JSON object and nothing else:
-{{"worked": "...", "improve": "..."}}"""
+WHAT TO JUDGE
+1. How they negotiated: the opening offer and how well it was anchored, the size and order of each concession, whether they traded concessions or gave them away, what their notes said, and when they accepted or walked away.
+2. The best deal on offer: from how opposing counsel moved and how strong each side's case was, the best terms opposing counsel would most likely still have agreed to. Be realistic, not a wish list. Compare them with the terms the user got, or the last terms on the table.
+3. Settle or fight: given the evidence and the likely result on the merits (and, if the case went to judgment, the result it actually got), was negotiating the right call for the client rather than fighting the case in court? "right", "mixed" or "wrong".
+4. Score each factor from 0 to 100:
+   - terms (Terms won): how close the final terms, or the last terms on the table, came to the best deal on offer. 100 means they got all of it.
+   - closed (Deal closed): whether a deal was reached and the court gave it effect. If talks failed, whether walking away was wise: a good walk-away can score well.
+   - offers (Offers used): a strong anchor, few and well-sized moves, nothing conceded for free.
+   - conditions (Conditions): the conditions favouring their client won, and those favouring the other side resisted.
+
+Reply in exactly two parts. First, inside <scores></scores>, this JSON object:
+{{"factors": {{"terms": {{"value": <0-100>, "text": "<one sentence>"}}, "closed": {{"value": <0-100>, "text": "<one sentence>"}}, "offers": {{"value": <0-100>, "text": "<one sentence>"}}, "conditions": {{"value": <0-100>, "text": "<one sentence>"}}}}, "best": {{"amount": <rupees>, "instalments": 1 | 2 | 3 | 4 | 6, "months": 3 | 6 | 9 | 12 | 18, "interest": <per cent a year>, "conditions": ["<condition key>"]}}, "best_text": "<one or two sentences: why opposing counsel would have taken these terms>", "call": "right" | "mixed" | "wrong", "call_text": "<one or two sentences>", "worked": "<one thing that worked>", "improve": "<the one thing to do better>"}}
+Then, inside <review></review>, the full review in Markdown with these sections:
+### How you negotiated
+### The best deal on offer
+### Settle or fight
+### What to do differently
+End with three to five numbered points. Quote the user's offers and notes. Write amounts in rupees with Indian digit grouping (₹42,00,000)."""
     try:
         chain = (
             ChatPromptTemplate.from_messages([("human", template)])
-            | get_llm("lawyer")
+            | get_llm("analyzer")
             | StrOutputParser()
         )
         reply = await chain.ainvoke(
             {
-                "user_side": user_side,
+                "title": title or "the case",
+                "client": client,
                 "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
+                "route": f"{profile.title} ({profile.court}). {profile.must} {profile.must_detail}",
+                "conditions": "\n".join(
+                    f"- {c.key}: {c.label} (favours the {c.favours})"
+                    for c in profile.conditions
+                )
+                or "None.",
+                "case_context": case_context,
+                "record": tagged(record or "Nothing was argued.", "history"),
                 "talks": tagged(talks, "history"),
-                "factors": factors,
+                "ending": ending,
             }
         )
-        data = _json(reply, "Negotiation review")
-        return [
-            CoachNote(kind=kind, text=str(data[kind]).strip()[:500])
-            for kind in ("worked", "improve")
-            if str(data.get(kind) or "").strip()
-        ]
-    except Exception:
-        logger.exception("Negotiation review failed")
-        return []
+    except Exception as e:
+        logger.exception("Error analysing the negotiation")
+        raise LLMGenerationError("Failed to analyse the negotiation") from e
+    return parse_negotiation(reply, {c.key for c in profile.conditions})

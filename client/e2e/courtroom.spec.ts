@@ -1,6 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 import { test, expect, USERS } from "./support/fixtures";
 import { CNR, PARTIES, caseOf } from "./support/case-data";
+import { NEGOTIATION, PROFILE, T2, agreedTalks, attempt } from "./support/settlement-data";
 
 const base = `/cases/${CNR}`;
 let clock = 0;
@@ -619,7 +620,7 @@ test.describe("courtroom", () => {
     await open(page);
 
     // Nothing argued this session yet: the court won't adjourn.
-    const adjourn = page.getByRole("button", { name: "Adjourn" });
+    const adjourn = page.getByRole("button", { name: "Adjourn", exact: true });
     await expect(adjourn).toHaveAttribute("title", "Submit at least 2 more arguments this session before adjourning");
     await adjourn.click({ force: true }); // aria-disabled, but still explains why
     await expect(page.getByText("Submit at least 2 more arguments this session before adjourning.")).toBeVisible();
@@ -633,8 +634,8 @@ test.describe("courtroom", () => {
     );
     await page.reload();
     await expect(page.getByText("COURT IS IN SESSION", { exact: true })).toBeHidden({ timeout: 6000 });
-    await expect(page.getByRole("button", { name: "Adjourn" })).toHaveAttribute("title", "End this court session. You can resume later.");
-    await page.getByRole("button", { name: "Adjourn" }).click();
+    await expect(adjourn).toHaveAttribute("title", "End this court session. You can resume later.");
+    await adjourn.click();
     await expect(page.getByText("COURT ADJOURNED")).toBeVisible();
     await expect(page.getByText("adjourned", { exact: true })).toBeVisible({ timeout: 6000 });
     await expect(page.getByText("The hearing is paused. Resume when you’re ready to continue.")).toBeVisible();
@@ -800,5 +801,93 @@ test.describe("courtroom", () => {
     await page.getByRole("button", { name: "Try again" }).click();
     // A hearing that hasn't opened goes back to Case Prep.
     await expect(page).toHaveURL(new RegExp(`${base}/case-prep$`));
+  });
+
+  test("counsel asks for time to settle: granted once, then refused", async ({ page, signIn, checkA11y }, info) => {
+    const ask = info.project.name === "desktop" ? "Ask for an adjournment to settle" : "Time to settle";
+    const h = hearing({ settlement_profile: PROFILE });
+    const RULINGS = [
+      "Granted. The parties say they are in talks. The court will give them time. The matter is adjourned, and counsel will report on the settlement when it resumes.",
+      "Refused. The court has already given the parties time to settle. Talks can continue alongside the hearing, which proceeds.",
+    ];
+    let asks = 0;
+    await signIn(USERS.email, {
+      ...h.routes,
+      [`POST ${base}/settlement/adjourn`]: async (route: Route) => {
+        const granted = asks === 0;
+        const ruling = RULINGS[asks];
+        asks += 1;
+        h.push(
+          ev(`k${asks}`, "system_message", "Counsel for the Plaintiff asks for an adjournment to explore a settlement"),
+          ev(`r${asks}`, "settlement", ruling, "judge", { sustained: granted }),
+        );
+        if (granted) {
+          h.push(ev("adj", "system_message", "Hearing adjourned at the request of counsel to explore an amicable settlement"));
+          h.s.kase = { ...h.s.kase, status: "adjourned" };
+        }
+        await route.fulfill({ json: { granted, ruling } });
+      },
+      [`PUT ${base}/status`]: async (route: Route) => {
+        h.s.kase = { ...h.s.kase, status: "active" };
+        h.push(ev("back", "system_message", "Court is in session"));
+        await route.fulfill({ json: { new_status: "active" } });
+      },
+    });
+    const log = await open(page);
+
+    await page.getByRole("button", { name: ask }).click();
+    await expect(page.getByText("TIME TO SETTLE", { exact: true })).toBeVisible();
+    await expect(log.getByText(RULINGS[0])).toBeVisible({ timeout: 6000 });
+    await expect(log.getByText("Granted", { exact: true })).toBeVisible();
+    await expect(log.getByText("Counsel for the Plaintiff asks for an adjournment to explore a settlement")).toBeVisible();
+    await expect(page.getByText("adjourned", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Settlement", exact: true })).toHaveAttribute("href", `${base}/settlement`);
+    await checkA11y();
+
+    await page.getByRole("button", { name: "Resume hearing →" }).first().click();
+    await expect(page.getByText("COURT IS IN SESSION", { exact: true })).toBeHidden({ timeout: 6000 });
+    await page.getByRole("button", { name: ask }).click();
+    await expect(log.getByText(RULINGS[1])).toBeVisible({ timeout: 6000 });
+    await expect(log.getByText("Refused", { exact: true })).toBeVisible();
+    await expect(page.getByText("in session", { exact: true })).toBeVisible();
+    expect(asks).toBe(2);
+  });
+
+  test("no settlement route: the link is closed; a signed deed is said to be signed", async ({ page, signIn }, info) => {
+    const closed = hearing({ status: "adjourned", settlement_profile: { ...PROFILE, route: "none" } });
+    await signIn(USERS.email, closed.routes);
+    await open(page, false);
+    const link = page.getByRole("link", { name: "Settlement", exact: true });
+    await expect(link).toHaveAttribute("aria-disabled", "true");
+    await link.click({ force: true });
+    await expect(page.getByText(/No settlement route is open for this case\. At least one charge/)).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`${base}/courtroom$`));
+
+    const signed = hearing({ settlement_profile: PROFILE, settlements: [attempt(agreedTalks, { status: "signed", agreed: T2 })] });
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await signIn(USERS.email, signed.routes);
+    await open(page);
+    await expect(
+      page.getByRole("button", { name: info.project.name === "desktop" ? "Deed signed · ask for time" : "Time to settle" }),
+    ).toBeVisible();
+  });
+
+  test("after a settled case, the negotiation analysis", async ({ page, signIn }, info) => {
+    const h = hearing({
+      status: "resolved",
+      outcome: "settled",
+      settlement_result: "quashed",
+      verdict: "**ORDER**\n\n1. FIR No. 41/2025 is quashed.\n\n**R. K. Mehta, J.**",
+      settlement_profile: PROFILE,
+      settlements: [attempt(agreedTalks, { status: "recorded", agreed: T2 })],
+    });
+    await signIn(USERS.email, { ...h.routes, [`POST ${base}/analyze-negotiation`]: { negotiation: NEGOTIATION } });
+    await open(page, false);
+
+    await page.getByRole("button", { name: info.project.name === "desktop" ? "Negotiation analysis" : "Negotiation", exact: true }).click();
+    const review = page.getByRole("dialog", { name: "How you negotiated" });
+    await expect(review.getByText("You anchored at ₹42,00,000 over a year.")).toBeVisible();
+    await expect(review.getByText("78 · Strong")).toBeVisible();
+    await expect(review.getByRole("heading", { name: "What to do differently" })).toBeVisible();
   });
 });

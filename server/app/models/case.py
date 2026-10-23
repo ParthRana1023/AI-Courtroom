@@ -100,7 +100,8 @@ class CourtroomProceedingsEvent(BaseModel):
     # Exhibits the speaker relied on (EvidenceItem.exhibit_ref values)
     exhibit_refs: list[str] = Field(default_factory=list)
     objection: Objection | None = None  # on OBJECTION events
-    sustained: bool | None = None  # on RULING events
+    # On RULING events; on SETTLEMENT events, whether the court granted the request.
+    sustained: bool | None = None
     # Set by a sustained objection: "struck" from the record, or question "withdrawn"
     struck: Literal["struck", "withdrawn"] | None = None
 
@@ -248,11 +249,20 @@ class CoachNote(BaseModel):
     text: str
 
 
-class NegotiationScore(BaseModel):
-    score: int
+class NegotiationAnalysis(BaseModel):
+    """How the user negotiated, judged once the case is decided: the score, the best
+    deal the other side would likely have taken, and whether settling was right."""
+
+    score: int  # 0-100, the factors weighted
     tier: str
     factors: list[ScoreFactor]
+    best: SettlementTerms | None = None  # the best terms the other side would take
+    best_text: str = ""
+    call: Literal["right", "mixed", "wrong"]  # settling rather than fighting it out
+    call_text: str
     notes: list[CoachNote] = Field(default_factory=list)
+    review: str  # Markdown
+    analyzed_at: datetime = Field(default_factory=get_current_datetime)
 
 
 class Settlement(BaseModel):
@@ -275,7 +285,6 @@ class Settlement(BaseModel):
     # The instalment the AI side won't pay, drawn once when the order is passed. Never
     # sent to the client.
     defaults_on: int | None = None
-    score: NegotiationScore | None = None  # set once talks end or the court rules
     started_at: datetime = Field(default_factory=get_current_datetime)
     ended_at: datetime | None = None
 
@@ -482,6 +491,10 @@ class Case(Document):
     settlement_profile: SettlementProfile | None = None
     # How a settled case ended: FIR quashed, offences compounded, or a plea bargain.
     settlement_result: Literal["quashed", "compounded", "plea"] | None = None
+    # How the user negotiated, generated once the case is decided.
+    negotiation: NegotiationAnalysis | None = None
+    # Times counsel asked the court in session for an adjournment to settle.
+    settlement_adjourn_asks: int = 0
 
     @field_validator(
         "plaintiff_arguments",
