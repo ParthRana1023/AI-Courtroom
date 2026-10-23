@@ -16,7 +16,13 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Literal
 
-from app.models.case import Payment, PaymentDraw, PaymentPlan, SettlementTerms
+from app.models.case import (
+    Payment,
+    PaymentDraw,
+    PaymentPlan,
+    Settlement,
+    SettlementTerms,
+)
 
 FIRST_DUE = timedelta(days=14)  # the first instalment, from the order (before plans)
 DEFAULT_CHANCE = 0.25  # how often the AI side missed one instalment (before plans)
@@ -148,13 +154,21 @@ def timeline(payments: list[Payment], plan: PaymentPlan, today: date) -> Timelin
     return out
 
 
-def describe(payments: list[Payment], plan: PaymentPlan, today: date) -> dict:
+def describe(attempt: Settlement, today: date) -> dict:
     """The timeline for the client, as JSON: each instalment's status and the day it
-    was paid, the stage, and when the last was paid. Nothing of the draws."""
-    line = timeline(payments, plan, today)
+    was paid, the stage, and when the last was paid. Nothing of the draws.
+
+    Once the complainants act on a default, the stage says how: "enforcement" while it
+    is before this court, "suit" when they sued on the deed elsewhere."""
+    assert attempt.plan is not None
+    payments = attempt.payments
+    line = timeline(payments, attempt.plan, today)
+    stage: str = line.stage
+    if attempt.enforcement and line.stage != "closed":
+        stage = "suit" if attempt.enforcement.kind == "suit" else "enforcement"
     return {
         "pace": "days",
-        "stage": line.stage,
+        "stage": stage,
         "closed_on": line.closed_on and line.closed_on.isoformat(),
         "payments": [
             payment.model_dump(mode="json")

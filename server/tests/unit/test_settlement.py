@@ -357,7 +357,9 @@ def test_paying_every_instalment_closes_the_order():
 
 
 def test_the_client_sees_the_timeline_not_the_draws():
-    view = describe(day_schedule(THREE, ORDERED), MIXED, day(4))
+    view = describe(
+        Settlement(payments=day_schedule(THREE, ORDERED), plan=MIXED), day(4)
+    )
 
     assert view["pace"] == "days" and view["stage"] == "notice"
     assert view["closed_on"] is None

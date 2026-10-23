@@ -5,7 +5,7 @@ The talks are indexed in case memory under their own source type, which only the
 case analysis retrieves: the court deciding the merits never sees them.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -38,6 +38,7 @@ from app.routes.cases import ADJOURN_NOTES, start_recess
 from app.routes.courtroom import record_lines, sides
 from app.routes.parties import ensure_reliability
 from app.services import settlement_payments as payments
+from app.services import settlement_progress as progress
 from app.services.case_outcomes import record_settlement
 from app.services.evidence_service import format_evidence_context
 from app.services.llm import settlement as counsel
@@ -46,6 +47,7 @@ from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.services.settlement_deed import case_numbers, hearing_after, owed_paragraph
 from app.services.settlement_deed import deed as draw_up
 from app.utils.datetime import get_current_datetime
+from app.utils.llm_trace import is_developer
 
 logger = get_logger(__name__)
 
@@ -189,7 +191,7 @@ def attempt_out(case: Case, attempt: Settlement) -> dict:
     user_pays = bool(profile and user_is_accused(case, profile))
     today = get_current_datetime().date()
     if attempt.plan:
-        data |= payments.describe(attempt.payments, attempt.plan, today)
+        data |= payments.describe(attempt, today)
     else:
         for i, (p, out) in enumerate(
             zip(attempt.payments, data["payments"], strict=True)
@@ -293,11 +295,14 @@ async def ai_counsel(
 @router.get("/{case_cnr}/settlement")
 async def get_settlement(
     case_cnr: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
-    """The settlement desk: the route (worked out on the first visit) and the talks."""
+    """The settlement desk: the route (worked out on the first visit), the talks and,
+    once the court has given the compromise effect, the payments as of today."""
     case = await get_owned_case(case_cnr, current_user)
     await profile_of(case)
+    await progress.catch_up_and_tell(case, background_tasks)
     return view(case)
 
 
@@ -717,6 +722,35 @@ async def answer_payment(
         raise HTTPException(status_code=409, detail=messages.SETTLEMENT_PAYMENT)
     await case.save()
     logger.info(f"Settlement payment {index} in {case_cnr}: {request.action}")
+    return view(case)
+
+
+@router.post("/{case_cnr}/settlement/next-day", dependencies=[one_at_a_time])
+async def advance_a_day(
+    case_cnr: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    """Developer mode: play the payments a day forward, by moving every date under
+    the order a day back. Anyone else gets a 404."""
+    if not is_developer(current_user.email):
+        raise HTTPException(status_code=404, detail="Not Found")
+    case = await get_owned_case(case_cnr, current_user)
+    found = progress.watched(case)
+    if found is None:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_PAYMENT)
+    _, attempt = found
+    day = timedelta(days=1)
+    for payment in attempt.payments:
+        payment.due -= day
+        if payment.paid_at:
+            payment.paid_at -= day
+    if attempt.enforcement:
+        attempt.enforcement.filed_on -= day
+        if attempt.enforcement.listed_for:
+            attempt.enforcement.listed_for -= day
+    await case.save()
+    await progress.catch_up_and_tell(case, background_tasks)
     return view(case)
 
 

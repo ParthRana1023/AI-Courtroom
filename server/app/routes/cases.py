@@ -28,6 +28,7 @@ from app.models.report import Report
 from app.models.user import User
 from app.schemas.case import CaseCreate, CaseOut
 from app.services import purge
+from app.services import settlement_progress as progress
 from app.services.counsel_conferences import run_counsel_conferences
 from app.services.evidence_service import (
     extract_evidence_items,
@@ -46,6 +47,7 @@ from app.services.rag import (
     upsert_memory_item,
 )
 from app.services.settlement_deed import call_the_matter
+from app.services.settlement_payments import describe
 from app.utils.datetime import get_current_datetime
 from app.utils.locks import case_lock
 from app.utils.rate_limiter import (
@@ -67,7 +69,9 @@ ADJOURN_NOTES = {
 
 
 @router.get("", response_model=list[dict])
-async def list_cases(current_user: User = Depends(get_current_user)):
+async def list_cases(
+    background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user)
+):
     """List all cases for the current user (excluding soft-deleted cases)"""
     logger.debug(f"Listing cases for user: {current_user.email}")
 
@@ -75,6 +79,8 @@ async def list_cases(current_user: User = Depends(get_current_user)):
     cases = await Case.find(
         Case.user_id == current_user.id, {"is_deleted": {"$ne": True}}
     ).to_list()
+    for case in cases:
+        await progress.catch_up_and_tell(case, background_tasks)
 
     logger.debug(f"Found {len(cases)} cases for user: {current_user.email}")
 
@@ -88,6 +94,7 @@ async def list_cases(current_user: User = Depends(get_current_user)):
             "outcome": case.outcome,
             "settlement_result": case.settlement_result,
             "negotiation_score": case.negotiation.score if case.negotiation else None,
+            "payments_stage": progress.stage_of(case),
             "user_role": case.user_role,
         }
         for case in cases
@@ -97,6 +104,7 @@ async def list_cases(current_user: User = Depends(get_current_user)):
 @router.get("/{cnr}")
 async def get_case(
     cnr: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -104,9 +112,14 @@ async def get_case(
     logger.debug(f"Fetching case {cnr} for user: {current_user.email}")
 
     case = await get_owned_case(cnr, current_user)
+    await progress.catch_up_and_tell(case, background_tasks)
 
     # Use model_dump(mode='json') to handle serialization of ObjectIds
     case_dict = case.model_dump(mode="json", exclude=Case.HIDDEN)
+    today = get_current_datetime().date()
+    for attempt, out in zip(case.settlements, case_dict["settlements"], strict=True):
+        if attempt.plan:  # the payments as of today, as the settlement desk shows them
+            out |= describe(attempt, today)
 
     # Return case data with fields directly in the response
     return {

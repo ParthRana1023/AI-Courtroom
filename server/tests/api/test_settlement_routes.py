@@ -1,11 +1,13 @@
 """Tests for settlement talks held out of court."""
 
+import base64
 import json
 from datetime import date, timedelta
 
 import pytest
 
 from app import messages
+from app.config import settings
 from app.models.case import (
     ArgumentItem,
     CaseOutcome,
@@ -29,6 +31,7 @@ from app.models.case_outcome import CaseOutcomeRecord
 from app.routes import cases as cases_routes
 from app.routes import settlement
 from app.services import settlement_payments as payments
+from app.services import settlement_progress as progress
 from app.utils.datetime import get_current_datetime
 from tests.helpers import boom, reload
 
@@ -1023,6 +1026,196 @@ async def test_the_accused_pays_on_their_own_as_the_days_pass(
     assert [p["status"] for p in attempt["payments"]] == ["paid", "due"]
     assert deposit.status_code == 409  # nothing for counsel to deposit
     assert "plan" not in case_view["settlements"][0]
+
+
+def text(mail):
+    """An email's HTML: non-ASCII bodies (the rupee sign) go out base64-encoded."""
+    return base64.b64decode(mail["body"]).decode()
+
+
+def days_ago(n):
+    return get_current_datetime().date() - timedelta(days=n)
+
+
+async def desk(client, headers, case):
+    response = await client.get(f"/cases/{case.cnr}/settlement", headers=headers)
+    return response.json()["attempt"]
+
+
+async def test_a_missed_instalment_is_in_notice_and_told_once(
+    client, auth_headers, adjourned, outbox
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(2), (False, False), (True, True))],
+    )
+
+    first = await desk(client, auth_headers, case)
+    await desk(client, auth_headers, case)
+
+    assert first["stage"] == "notice"
+    assert first["payments"][0]["notice_until"] == days_ago(0).isoformat()
+    assert [m["subject"] for m in outbox] == [
+        f"An instalment was missed: {case.title} - AI Courtroom"
+    ]
+    assert "Your client missed instalment 1 (₹50,000" in text(outbox[0])
+    assert (await reload(case)).settlements[-1].notified == ["missed:0"]
+
+
+async def test_paid_within_notice_then_every_instalment_closes_it(
+    client, auth_headers, adjourned, outbox
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, True), (True, True))],
+    )
+
+    attempt = await desk(client, auth_headers, case)
+    listed = (await client.get("/cases", headers=auth_headers)).json()
+
+    assert attempt["stage"] == "closed"
+    assert attempt["closed_on"] == days_ago(1).isoformat()
+    assert [p["status"] for p in attempt["payments"]] == ["late", "paid"]
+    assert [m["subject"].split(":")[0] for m in outbox] == [
+        "A missed instalment was paid",
+        "Every instalment paid",
+    ]
+    assert listed[0]["payments_stage"] == "closed"
+    saved = (await reload(case)).settlements[-1]
+    assert saved.payments_done and saved.notified == ["cured:0", "closed"]
+
+
+async def test_a_default_after_notice_takes_the_ai_complainants_to_court(
+    client, auth_headers, adjourned, outbox
+):
+    """Quashing can't be recalled for a breach, so the complainants file for contempt
+    of the undertaking given to the court; the case comes back to be heard."""
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, False), (True, True))],
+    )
+
+    attempt = await desk(client, auth_headers, case)
+    case_view = (await client.get(f"/cases/{case.cnr}", headers=auth_headers)).json()
+
+    listed = (days_ago(0) + timedelta(days=2)).isoformat()
+    assert attempt["stage"] == "enforcement"
+    assert [p["status"] for p in attempt["payments"]] == ["defaulted", "held"]
+    assert attempt["enforcement"] == {
+        "kind": "contempt",
+        "by": "ai",
+        "instalment": 0,
+        "filed_on": days_ago(0).isoformat(),
+        "listed_for": listed,
+    }
+    assert case_view["settlements"][-1]["stage"] == "enforcement"
+    assert case_view["status"] == "resolved"  # the trial does not reopen
+    saved = await reload(case)
+    assert saved.courtroom_proceedings[-1].content.startswith(
+        "Contempt petition filed by the complainants"
+    )
+    assert not saved.settlements[-1].payments_done
+    assert [m["subject"].split(":")[0] for m in outbox] == ["Back in court"]
+    assert "listed for <strong>" in text(outbox[0])
+
+
+async def test_on_compounding_a_default_goes_to_a_civil_suit(
+    client, auth_headers, adjourned, outbox
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlement_profile=PROFILE.model_copy(update={"route": "compound"}),
+        settlements=[simulated_attempt(days_ago(3), (False, False), (True, True))],
+    )
+
+    attempt = await desk(client, auth_headers, case)
+
+    assert attempt["stage"] == "suit" and attempt["enforcement"]["kind"] == "suit"
+    assert attempt["enforcement"]["listed_for"] is None
+    saved = await reload(case)
+    assert saved.settlements[-1].payments_done
+    assert not any("filed" in e.content for e in saved.courtroom_proceedings)
+    assert "can't be reopened" in text(outbox[0])
+
+
+async def test_counsel_for_the_complainants_decides_what_to_do_with_a_default(
+    client, auth_headers, adjourned, outbox
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlement_profile=PROFILE.model_copy(update={"accused_side": "defendant"}),
+        settlements=[simulated_attempt(days_ago(3), (False, False), (True, True))],
+    )
+
+    attempt = await desk(client, auth_headers, case)
+
+    assert attempt["stage"] == "defaulted" and attempt["enforcement"] is None
+    assert outbox[0]["subject"].startswith("The accused has defaulted")
+    assert "Ravi Kumar didn" in text(outbox[0])
+    assert "file a contempt petition" in text(outbox[0])
+
+
+async def test_the_daily_job_catches_orders_up(user, adjourned, outbox):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, True), (True, True))],
+    )
+    now = get_current_datetime()
+
+    dry = await progress.progress_settlements(now, dry_run=True)
+    wet = await progress.progress_settlements(now)
+    again = await progress.progress_settlements(now)
+
+    assert dry == {
+        "settlement_updates_due": 2,
+        "settlement_updates": 0,
+        "settlement_emails": 0,
+    }
+    assert wet["settlement_updates"] == 2 and wet["settlement_emails"] == 2
+    assert again == {
+        "settlement_updates_due": 0,
+        "settlement_updates": 0,
+        "settlement_emails": 0,
+    }
+    assert len(outbox) == 2 and (await reload(case)).settlements[-1].payments_done
+
+
+async def test_two_readers_act_on_a_default_once(adjourned):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, False), (True, True))],
+    )
+    stale = await reload(case)
+
+    first = await progress.catch_up(case)
+    second = await progress.catch_up(stale)
+
+    assert [n.key for n in first] == ["defaulted"] and second == []
+    saved = await reload(case)
+    assert saved.settlements[-1].notified == ["defaulted"]
+    filed = [e for e in saved.courtroom_proceedings if "Contempt" in e.content]
+    assert len(filed) == 1
+
+
+async def test_developers_can_play_the_payments_a_day_forward(
+    client, user, auth_headers, adjourned, monkeypatch
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(0), (True, True), (True, True))],
+    )
+    url = f"/cases/{case.cnr}/settlement/next-day"
+
+    hidden = await client.post(url, headers=auth_headers)
+    monkeypatch.setattr(settings, "dev_mode_emails", user.email)
+    one = (await client.post(url, headers=auth_headers)).json()["attempt"]
+    two = (await client.post(url, headers=auth_headers)).json()["attempt"]
+    done = await client.post(url, headers=auth_headers)
+
+    assert hidden.status_code == 404
+    assert [p["status"] for p in one["payments"]] == ["paid", "upcoming"]
+    assert two["stage"] == "closed"
+    assert done.status_code == 409  # nothing left to play out
 
 
 async def test_counsel_for_the_accused_pays_each_instalment(

@@ -255,6 +255,19 @@ class PaymentPlan(BaseModel):
     complies: bool  # pays what the court directs, if a default goes back to court
 
 
+class Enforcement(BaseModel):
+    """What the complainants did about a default left unpaid after notice: a contempt
+    petition for breach of the undertaking (quash), an application to recover the
+    compensation as a fine (plea), both heard in this court; or a suit on the deed in a
+    civil court (compound), which this case never sees."""
+
+    kind: Literal["contempt", "recovery", "suit"]
+    by: Literal["user", "ai"]  # counsel for the complainants
+    instalment: int  # the one left unpaid
+    filed_on: date
+    listed_for: date | None = None  # heard here; None for a suit
+
+
 class ScoreFactor(BaseModel):
     key: Literal["terms", "closed", "offers", "conditions"]
     label: str
@@ -306,6 +319,11 @@ class Settlement(BaseModel):
     # plan, and their instalments fall due a day apart.
     defaults_on: int | None = None
     plan: PaymentPlan | None = None
+    enforcement: Enforcement | None = None
+    # What the owner has been told of the payments ("missed:1", "defaulted", ...),
+    # written once each so a payment is reported once however often it is read.
+    notified: list[str] = Field(default_factory=list)
+    payments_done: bool = False  # nothing more can happen to the payments
     started_at: datetime = Field(default_factory=get_current_datetime)
     ended_at: datetime | None = None
 

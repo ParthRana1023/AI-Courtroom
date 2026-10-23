@@ -4,7 +4,8 @@ POST /admin/jobs/daily) or by hand with `python -m scripts.daily_jobs`:
 1. warn accounts 3 days before they are erased;
 2. erase accounts deleted more than 30 days ago;
 3. remind owners of cases adjourned for 7 days;
-4. send the day's share of product-update emails.
+4. catch settlement payments up (settlement_progress), telling owners what happened;
+5. send the day's share of product-update emails.
 
 Every step only acts on what is still due, so running twice is harmless; a lock
 keeps two runs from overlapping.
@@ -20,7 +21,7 @@ from app.logging_config import get_logger
 from app.models.case import Case, CaseStatus
 from app.models.job_run import JobRun
 from app.models.user import User
-from app.services import announcements, purge
+from app.services import announcements, purge, settlement_progress
 from app.services.notifications import send_optional_email
 from app.utils.datetime import get_current_datetime
 
@@ -112,6 +113,7 @@ STEPS = (
     ("purge", purge.purge_due_users),
     ("image_cleanups", purge.retry_image_cleanups),
     ("hearing_reminders", send_hearing_reminders),
+    ("settlement_payments", settlement_progress.progress_settlements),
     ("announcements", announcements.send_pending),
 )
 
