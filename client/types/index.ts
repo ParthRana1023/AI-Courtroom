@@ -195,25 +195,77 @@ export type SettlementStatus =
   | "rejected" // the other side walked away
   | "withdrawn"; // the user called it off
 
-// What the court did with the compromise: compounding (s.359 BNSS),
-// quashing on settlement (s.528 BNSS), or weighed in a bail order
-export type SettlementMode = "compounding" | "quashing" | "bail";
+// How the case can be settled: quash = s.528 BNSS (High Court), compound = s.359 BNSS
+// (trial court), plea = plea bargaining, ss.289–295 BNSS; none = no route open.
+export type SettlementRoute = "quash" | "compound" | "plea" | "none";
 
-export interface SettlementOffer {
+export interface RouteItem {
+  section: string; // "§ 318(4)"
+  title: string;
+  note: string;
+}
+
+export interface SettlementCondition {
+  key: string;
+  label: string; // the offer toggle
+  short: string; // in the negotiation log
+  clause: string; // in the deed
+  favours: "accused" | "complainants";
+}
+
+/** Worked out once from the case file. */
+export interface SettlementProfile {
+  route: SettlementRoute;
+  title: string;
+  court: string;
+  offences: RouteItem[];
+  must: string;
+  must_detail: string;
+  footnote: string;
+  closed: RouteItem[]; // route "none": why each route is shut
+  conditions: SettlementCondition[];
+  accused: string;
+  accused_side: "plaintiff" | "defendant";
+  complainants: string[]; // the lead first
+  claim: number; // rupees in dispute
+}
+
+export const INSTALMENTS = [1, 2, 3, 4, 6] as const;
+export const MONTHS = [3, 6, 9, 12, 18] as const;
+
+export interface SettlementTerms {
+  amount: number; // rupees
+  instalments: (typeof INSTALMENTS)[number];
+  months: (typeof MONTHS)[number];
+  interest: number; // per cent a year, 0–18
+  conditions: string[]; // SettlementCondition keys
+}
+
+/** The settlement desk as the server sees it: the route, the latest attempt, and what is allowed. */
+export interface SettlementView {
+  profile: SettlementProfile;
+  attempt: Settlement | null;
+  attempts: number;
+  closed: string | null; // why no move can be made now (court sitting, case closed…)
+  can_start: boolean;
+  start_blocked: string | null; // why talks can't open now
+  max_offers: number;
+}
+
+export interface SettlementEntry {
   id: string;
-  side: Roles; // who proposed it
-  terms: string;
-  compensation: number | null; // rupees
-  response: "accepted" | "countered" | "rejected" | "withdrawn" | null;
-  reply: string; // what the other side's counsel said in answer
-  timestamp: string;
+  by: "user" | "ai";
+  kind: "offer" | "counter" | "accept" | "refuse" | "ended";
+  terms: SettlementTerms | null;
+  note: string;
+  at: string;
 }
 
 export interface Settlement {
   id: string;
   status: SettlementStatus;
-  offers: SettlementOffer[];
-  mode: SettlementMode | null;
+  entries: SettlementEntry[];
+  agreed: SettlementTerms | null;
   ruling: string | null; // the court's ruling, as said in court
   court_order: string | null; // Markdown
   started_at: string;
@@ -257,6 +309,7 @@ export interface Case {
   ai_objection_live?: (Partial<AIObjection> & { kind: string; grounds: string }) | null;
   reported?: string[]; // AI responses this user already reported
   settlements?: Settlement[]; // attempts to settle out of court, oldest first
+  settlement_profile?: SettlementProfile | null; // the route, once worked out
 }
 
 export interface RegisterFormData {

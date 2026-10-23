@@ -137,10 +137,17 @@ SETTLEMENT_ATTEMPTS_USED = (
     "The matter will be decided on merits."
 )
 SETTLEMENT_OFFERS_USED = (
-    "You have made your last offer in this round. "
-    "Accept the other side's terms or withdraw."
+    "You've used all three offers. Accept their last terms or end talks."
 )
-SETTLEMENT_AGREED = "Terms are already agreed. Put them before the court, or withdraw."
+SETTLEMENT_AGREED = "Terms are already agreed. No more offers can be made."
+SETTLEMENT_NO_ROUTE = "No settlement route is open for this case."
+SETTLEMENT_AFTER_HEARING = (
+    "Talks are closed for now. You can propose again after the next hearing."
+)
+SETTLEMENT_BAD_CONDITION = "One of the conditions isn't open in this case."
+SETTLEMENT_ROUTE_FAILED = (
+    "Couldn't work out how this case can be settled. Please try again."
+)
 SETTLEMENT_NONE_OPEN = "There is no settlement under negotiation."
 SETTLEMENT_NO_COUNTER = "There are no terms from the other side to accept."
 SETTLEMENT_FAILED = (

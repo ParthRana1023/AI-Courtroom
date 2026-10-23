@@ -123,25 +123,67 @@ class SettlementStatus(str, Enum):
     WITHDRAWN = "withdrawn"  # the user called it off
 
 
-class SettlementMode(str, Enum):
-    """What the court did with a compromise. Civil cases will add a compromise
-    decree (Order XXIII Rule 3 CPC)."""
+# How the case can be settled, which depends on its offences and stage:
+# quash = s.528 BNSS in the High Court, compound = s.359 BNSS before the trial court,
+# plea = plea bargaining, ss.289-295 BNSS, before the trial court; none = no route open.
+SettlementRoute = Literal["quash", "compound", "plea", "none"]
+INSTALMENTS = (1, 2, 3, 4, 6)
+MONTHS = (3, 6, 9, 12, 18)
 
-    COMPOUNDING = "compounding"  # s.359 BNSS, with leave when an appeal is pending
-    QUASHING = "quashing"  # s.528 BNSS, on settlement
-    BAIL = "bail"  # weighed in a bail order
+
+class RouteItem(BaseModel):
+    """One line of the route card: a section, what it is, and why it matters here."""
+
+    section: str  # "§ 318(4)"
+    title: str
+    note: str
 
 
-class SettlementOffer(BaseModel):
-    """Terms one side put across the table, and how the other side answered."""
+class SettlementCondition(BaseModel):
+    """A term beyond money that fits this case, which either side can put in an offer."""
+
+    key: str
+    label: str  # the offer toggle: "First instalment deposited in court"
+    short: str  # in the negotiation log: "Deposit in court"
+    clause: str  # the clause in the deed
+    favours: Literal["accused", "complainants"]
+
+
+class SettlementProfile(BaseModel):
+    """The settlement route for a case, worked out once from the case file."""
+
+    route: SettlementRoute
+    title: str = ""  # "Quashing on compromise"
+    court: str = ""  # "§ 528 BNSS · High Court of Delhi"
+    offences: list[RouteItem] = Field(default_factory=list)
+    must: str = ""  # the rule in bold: "All eleven complainants must sign."
+    must_detail: str = ""
+    footnote: str = ""
+    closed: list[RouteItem] = Field(default_factory=list)  # why each route is shut
+    conditions: list[SettlementCondition] = Field(default_factory=list)
+    accused: str = ""
+    accused_side: Literal["plaintiff", "defendant"] = "plaintiff"
+    complainants: list[str] = Field(default_factory=list)  # the lead first
+    claim: int = 0  # the sum in dispute, in rupees
+
+
+class SettlementTerms(BaseModel):
+    amount: int = Field(ge=0, le=10_000_000_000)  # rupees
+    instalments: Literal[1, 2, 3, 4, 6]
+    months: Literal[3, 6, 9, 12, 18]
+    interest: float = Field(ge=0, le=18)  # per cent a year
+    conditions: list[str] = Field(default_factory=list)  # SettlementCondition keys
+
+
+class SettlementEntry(BaseModel):
+    """One move across the table: an offer, a counter, an answer, or the end of talks."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    side: Roles  # who proposed it
-    terms: str
-    compensation: int | None = None  # rupees
-    response: Literal["accepted", "countered", "rejected", "withdrawn"] | None = None
-    reply: str = ""  # what the other side's counsel said in answer
-    timestamp: datetime = Field(default_factory=get_current_datetime)
+    by: Literal["user", "ai"]
+    kind: Literal["offer", "counter", "accept", "refuse", "ended"]
+    terms: SettlementTerms | None = None  # on offers and counters
+    note: str = ""  # what counsel said with it
+    at: datetime = Field(default_factory=get_current_datetime)
 
 
 class Settlement(BaseModel):
@@ -150,8 +192,8 @@ class Settlement(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     status: SettlementStatus = SettlementStatus.NEGOTIATING
-    offers: list[SettlementOffer] = Field(default_factory=list)
-    mode: SettlementMode | None = None  # set when the court rules
+    entries: list[SettlementEntry] = Field(default_factory=list)
+    agreed: SettlementTerms | None = None
     ruling: str | None = None  # the court's ruling as said in court
     court_order: str | None = None
     started_at: datetime = Field(default_factory=get_current_datetime)
@@ -160,6 +202,14 @@ class Settlement(BaseModel):
     @property
     def is_open(self) -> bool:
         return self.status in (SettlementStatus.NEGOTIATING, SettlementStatus.AGREED)
+
+    def user_offers(self) -> int:
+        return sum(e.by == "user" and e.terms is not None for e in self.entries)
+
+    def last_terms(self, by: Literal["user", "ai"]) -> SettlementTerms | None:
+        return next(
+            (e.terms for e in reversed(self.entries) if e.by == by and e.terms), None
+        )
 
 
 class EvidenceItem(BaseModel):
@@ -342,6 +392,8 @@ class Case(Document):
     reminder_sent_at: datetime | None = None
     # Attempts to settle out of court, oldest first.
     settlements: list[Settlement] = Field(default_factory=list)
+    # The settlement route, worked out from the case file the first time it's asked for.
+    settlement_profile: SettlementProfile | None = None
 
     @field_validator(
         "plaintiff_arguments",
@@ -356,6 +408,13 @@ class Case(Document):
     @classmethod
     def normalize_legacy_null_lists(cls, value):
         return [] if value is None else value
+
+    @field_validator("settlements", mode="before")
+    @classmethod
+    def drop_free_text_settlements(cls, value):
+        # Attempts saved before terms were structured ("offers" of free text) came
+        # from testing before the settlement desk shipped; nothing reads them.
+        return [s for s in value or [] if not (isinstance(s, dict) and "offers" in s)]
 
     def open_settlement(self) -> Settlement | None:
         """The attempt still under negotiation or agreed, if any."""

@@ -13,8 +13,9 @@ from app.models.case import (
     ExaminationItem,
     Roles,
     Settlement,
-    SettlementOffer,
+    SettlementEntry,
     SettlementStatus,
+    SettlementTerms,
     WitnessTestimony,
 )
 from app.models.case_outcome import CaseOutcomeRecord
@@ -240,19 +241,22 @@ def settlement_attempt(status, ruling=None):
     return Settlement(
         status=status,
         ruling=ruling,
-        offers=[
-            SettlementOffer(
-                side=Roles.PLAINTIFF,
-                terms="An apology and payment to the complainant.",
-                compensation=50000,
-                response="countered",
-                reply="My client wants more.",
+        entries=[
+            SettlementEntry(
+                by="user",
+                kind="offer",
+                terms=SettlementTerms(
+                    amount=50000, instalments=1, months=3, interest=0
+                ),
+                note="An apology and payment to the complainant.",
             ),
-            SettlementOffer(
-                side=Roles.DEFENDANT,
-                terms="An apology and Rs. 1 lakh.",
-                compensation=100000,
-                response="accepted",
+            SettlementEntry(
+                by="ai",
+                kind="counter",
+                terms=SettlementTerms(
+                    amount=100000, instalments=2, months=6, interest=0
+                ),
+                note="My client wants more.",
             ),
         ],
     )
@@ -281,8 +285,9 @@ async def test_analysis_reviews_the_settlement_of_a_settled_case(
     prompt = fake_llm.prompts[0]
     assert "OUTCOME FOR THE USER: SETTLED" in prompt
     assert "SETTLEMENT TALKS" in prompt and "### Settlement negotiations" in prompt
-    assert "User offered: An apology and payment" in prompt
-    assert "Opposing counsel offered: An apology and Rs. 1 lakh" in prompt
+    assert "User offered: Rs. 50,000 in one payment within 3 months" in prompt
+    assert '"An apology and payment to the complainant."' in prompt
+    assert "Opposing counsel countered: Rs. 1,00,000 in 2 instalments" in prompt
     assert "The court: The FIR is quashed on the compromise." in prompt
 
 
@@ -291,7 +296,7 @@ async def test_analysis_reviews_failed_talks_in_a_decided_case(
 ):
     fake_llm.responses.extend([outcome_reply("lost", "defendant"), "### Outcome"])
     attempt = settlement_attempt(SettlementStatus.WITHDRAWN)
-    attempt.offers[-1].response = "withdrawn"
+    attempt.entries.append(SettlementEntry(by="user", kind="ended"))
     case = await resolved_case(settlements=[attempt])
 
     await client.post(f"/cases/{case.cnr}/analyze-case", headers=auth_headers)

@@ -708,7 +708,7 @@ test.describe("courtroom", () => {
     await expect(verdict.getByText("The petition is partly allowed.")).toBeVisible();
     // The judge signs at the foot; the typed signature lines become the signature block.
     await expect(verdict.getByRole("img", { name: "Signed: R. K. Mehta" }).locator("svg")).toBeAttached();
-    await expect(verdict.getByText("R. K. Mehta, J.")).toBeVisible();
+    await expect(verdict.getByText("R. K. Mehta, J.", { exact: true })).toBeVisible();
     await expect(verdict.getByText("2 October 2026")).toBeVisible();
     await expect(verdict.getByText("An AI-generated ruling for practice. It is not legal advice.")).toBeVisible();
     await checkA11y();

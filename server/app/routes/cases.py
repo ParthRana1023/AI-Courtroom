@@ -133,6 +133,7 @@ async def get_case(
         "pending_leave": case_dict.get("pending_leave"),
         "ai_objection_live": case_dict.get("ai_objection_live"),
         "settlements": case_dict.get("settlements", []),
+        "settlement_profile": case_dict.get("settlement_profile"),
         # AI responses this user has already reported
         "reported": [
             r.entry_id

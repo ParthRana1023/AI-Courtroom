@@ -63,9 +63,11 @@ def format_settlement_talks(case: Case, user_role: str) -> str:
     """Every settlement attempt and offer, the user's labelled "User"."""
     if not case.settlements:
         return ""
-    ai_role = "defendant" if user_role == "plaintiff" else "plaintiff"
+    profile = case.settlement_profile
     talks = format_negotiation(
-        case.settlements, {user_role: "User", ai_role: "Opposing counsel"}
+        case.settlements,
+        {"user": "User", "ai": "Opposing counsel"},
+        profile.conditions if profile else [],
     )
     return _newest_within_limit(talks.splitlines())
 

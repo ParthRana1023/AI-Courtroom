@@ -4,14 +4,19 @@ import json
 
 import pytest
 
+from app import messages
 from app.models.case import (
     ArgumentItem,
     CaseOutcome,
     CaseStatus,
     Roles,
+    RouteItem,
     Settlement,
-    SettlementOffer,
+    SettlementCondition,
+    SettlementEntry,
+    SettlementProfile,
     SettlementStatus,
+    SettlementTerms,
 )
 from app.models.case import (
     CourtroomProceedingsEventType as EventType,
@@ -20,41 +25,88 @@ from app.models.case_outcome import CaseOutcomeRecord
 from app.routes import settlement
 from tests.helpers import reload
 
-TERMS = "The applicant pays the complainant compensation and apologises in writing."
-
-
-def reply(decision, message="My client has considered your offer.", **extra):
-    return json.dumps({"decision": decision, "message": message, **extra})
-
-
-COUNTER = reply(
-    "counter",
-    "My client needs more than that.",
-    terms="Rs. 2 lakh within 30 days and a written apology.",
-    compensation=200000,
+CONDITIONS = [
+    SettlementCondition(
+        key="apology",
+        label="Written apology to the complainant",
+        short="Written apology",
+        clause="The accused shall apologise in writing.",
+        favours="complainants",
+    ),
+    SettlementCondition(
+        key="deposit",
+        label="First instalment deposited in court",
+        short="Deposit in court",
+        clause="The first instalment shall be deposited in court.",
+        favours="complainants",
+    ),
+]
+# The user (plaintiff side) acts for the accused unless a test says otherwise.
+PROFILE = SettlementProfile(
+    route="quash",
+    title="Quashing on compromise",
+    court="§ 528 BNSS · High Court of Delhi",
+    offences=[RouteItem(section="§ 318(4)", title="Cheating", note="Private.")],
+    must="The complainant must sign.",
+    must_detail="The court won't quash on a part-settlement.",
+    footnote="Compounding needs a trial.",
+    conditions=CONDITIONS,
+    accused="Ravi Kumar",
+    accused_side="plaintiff",
+    complainants=["Asha Rao"],
+    claim=200000,
 )
+CLOSED = SettlementProfile(
+    route="none",
+    closed=[RouteItem(section="§ 528", title="Quashing", note="Attempt to murder.")],
+)
+
+TERMS = {
+    "amount": 100000,
+    "instalments": 2,
+    "months": 6,
+    "interest": 0,
+    "conditions": ["apology"],
+}
+THEIR_TERMS = {
+    "amount": 200000,
+    "instalments": 1,
+    "months": 3,
+    "interest": 9,
+    "conditions": ["apology", "deposit"],
+}
+
+
+def reply(decision, message="My client has considered your offer.", terms=None):
+    return json.dumps({"decision": decision, "terms": terms, "message": message})
+
+
+COUNTER = reply("counter", "My client needs more than that.", THEIR_TERMS)
 ACCEPT = reply("accept", "My client accepts these terms.")
 REJECT = reply("reject", "My client will not settle on these terms.")
 
 ORDER = "**ORDER**\n1. The FIR and all proceedings arising from it are quashed."
 RECORDED = (
-    '<ruling>{"accepted": true, "mode": "quashing", '
+    '<ruling>{"accepted": true, '
     '"ruling": "The dispute is private and settled; the FIR is quashed."}</ruling>\n'
     f"<order>\n{ORDER}\n</order>"
 )
 REFUSED = (
-    '<ruling>{"accepted": false, "mode": null, "ruling": "An attempt to murder '
+    '<ruling>{"accepted": false, "ruling": "An attempt to murder '
     'cannot be compromised; the petition will be heard on merits."}</ruling>\n'
     "<order>\n**ORDER**\n1. The compromise is not accepted.\n</order>"
 )
 
 
-def agreed_attempt(terms=TERMS):
+def agreed_attempt(**terms):
+    agreed = SettlementTerms.model_validate(TERMS | terms)
     return Settlement(
         status=SettlementStatus.AGREED,
-        offers=[
-            SettlementOffer(side=Roles.PLAINTIFF, terms=terms, response="accepted")
+        entries=[
+            SettlementEntry(by="user", kind="offer", terms=agreed),
+            SettlementEntry(by="ai", kind="accept"),
         ],
+        agreed=agreed,
     )
 
 
@@ -62,6 +114,7 @@ def agreed_attempt(terms=TERMS):
 def adjourned(courtroom_case):
     async def _make(**overrides):
         overrides.setdefault("status", CaseStatus.ADJOURNED)
+        overrides.setdefault("settlement_profile", PROFILE)
         return await courtroom_case(**overrides)
 
     return _make
@@ -80,16 +133,116 @@ def indexed(monkeypatch):
     return items
 
 
-async def offer(client, headers, case, terms=TERMS, compensation=100000):
+async def offer(client, headers, case, note="", **terms):
     return await client.post(
         f"/cases/{case.cnr}/settlement/offers",
         headers=headers,
-        json={"terms": terms, "compensation": compensation},
+        json={"terms": TERMS | terms, "note": note},
     )
 
 
 async def post(client, headers, case, action):
     return await client.post(f"/cases/{case.cnr}/settlement/{action}", headers=headers)
+
+
+async def court_sits(case):
+    """The court sits again after talks closed."""
+    saved = await reload(case)
+    saved.log("Court is in session")
+    saved.log("Court adjourned")
+    await saved.save()
+
+
+# ---------------------------------------------------------------------------
+# the route
+# ---------------------------------------------------------------------------
+
+
+async def test_first_visit_works_out_the_route_once(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.append(PROFILE.model_dump_json())
+    case = await adjourned(settlement_profile=None)
+
+    first = await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+    again = await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+
+    assert first.status_code == again.status_code == 200
+    body = again.json()
+    assert body["profile"]["route"] == "quash"
+    assert [c["key"] for c in body["profile"]["conditions"]] == ["apology", "deposit"]
+    assert body["attempt"] is None and body["can_start"] is True
+    assert body["closed"] is None and body["max_offers"] == 3
+    assert len(fake_llm.calls) == 1
+    assert fake_llm.prompts[0].startswith("SETTLEMENT ROUTE")
+    assert (await reload(case)).settlement_profile == PROFILE
+
+
+async def test_a_failed_route_is_not_saved(client, auth_headers, adjourned, fake_llm):
+    fake_llm.responses.append("I can't tell.")
+    case = await adjourned(settlement_profile=None)
+
+    response = await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+
+    assert response.status_code == 500
+    assert (await reload(case)).settlement_profile is None
+
+
+async def test_no_route_means_no_talks(client, auth_headers, adjourned, fake_llm):
+    case = await adjourned(settlement_profile=CLOSED)
+
+    body = (
+        await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+    ).json()
+    response = await offer(client, auth_headers, case)
+
+    assert body["can_start"] is False
+    assert body["start_blocked"] == body["closed"] == messages.SETTLEMENT_NO_ROUTE
+    assert response.status_code == 409
+    assert fake_llm.calls == []
+
+
+# ---------------------------------------------------------------------------
+# opening talks
+# ---------------------------------------------------------------------------
+
+
+async def test_counsel_for_the_accused_opens_talks_with_their_own_offer(
+    client, auth_headers, adjourned, fake_llm
+):
+    case = await adjourned()
+
+    body = (await post(client, auth_headers, case, "start")).json()
+
+    assert body["attempt"]["status"] == "negotiating"
+    assert body["attempt"]["entries"] == []
+    assert fake_llm.calls == []
+
+
+async def test_counsel_for_the_complainants_hears_the_opening_offer_first(
+    client, auth_headers, adjourned, fake_llm, indexed
+):
+    fake_llm.responses.append(
+        reply("counter", "My client accepts the money is owed.", TERMS | {"months": 7})
+    )
+    case = await adjourned(
+        settlement_profile=PROFILE.model_copy(update={"accused_side": "defendant"})
+    )
+
+    body = (await post(client, auth_headers, case, "start")).json()
+    again = (await post(client, auth_headers, case, "start")).json()
+
+    (opening,) = body["attempt"]["entries"]
+    assert opening["by"] == "ai" and opening["kind"] == "offer"
+    assert opening["terms"]["months"] == 6  # snapped to the desk's choices
+    assert opening["note"] == "My client accepts the money is owed."
+    assert again["attempts"] == 1  # already open: nothing new
+    prompt = fake_llm.prompts[0]
+    assert prompt.startswith("SETTLEMENT OFFER")
+    assert "advocate for the accused" in prompt
+    assert "There is no offer yet" in prompt
+    assert len(fake_llm.calls) == 1
+    assert [item[0] for item in indexed] == ["settlement"]
 
 
 # ---------------------------------------------------------------------------
@@ -98,28 +251,28 @@ async def post(client, headers, case, action):
 
 
 async def test_counter_offer_keeps_talks_going(
-    client, auth_headers, adjourned, fake_llm, indexed
+    client, auth_headers, adjourned, fake_llm
 ):
     fake_llm.responses.append(COUNTER)
     case = await adjourned()
 
-    response = await offer(client, auth_headers, case)
+    response = await offer(client, auth_headers, case, note="We need time.")
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "negotiating"
-    mine, theirs = body["offers"]
-    assert mine["side"] == "plaintiff" and mine["compensation"] == 100000
-    assert mine["response"] == "countered"
-    assert mine["reply"] == "My client needs more than that."
-    assert theirs["side"] == "defendant" and theirs["compensation"] == 200000
-    assert theirs["response"] is None
-    saved = await reload(case)
-    assert saved.settlements[0].status == SettlementStatus.NEGOTIATING
+    attempt = response.json()["attempt"]
+    assert attempt["status"] == "negotiating"
+    mine, theirs = attempt["entries"]
+    assert mine["by"] == "user" and mine["kind"] == "offer"
+    assert mine["terms"]["amount"] == 100000 and mine["note"] == "We need time."
+    assert theirs["by"] == "ai" and theirs["kind"] == "counter"
+    assert theirs["terms"] == THEIR_TERMS
+    assert theirs["note"] == "My client needs more than that."
 
     prompt = fake_llm.prompts[0]
-    assert prompt.startswith("SETTLEMENT OFFER")
-    assert TERMS in prompt and "Rs. 100,000" in prompt
+    assert "advocate for the complainants" in prompt
+    assert "Rs. 1,00,000 in 2 instalments within 6 months" in prompt
+    assert "Written apology to the complainant" in prompt
+    assert "We need time." in prompt
     assert "Asha Rao" in prompt  # AI counsel's client
     assert "Ravi Kumar" not in prompt.split("YOUR CLIENT(S)")[1].split("THE CASE")[0]
 
@@ -128,13 +281,14 @@ async def test_accepted_offer_agrees_terms(client, auth_headers, adjourned, fake
     fake_llm.responses.append(ACCEPT)
     case = await adjourned()
 
-    body = (await offer(client, auth_headers, case)).json()
+    attempt = (await offer(client, auth_headers, case)).json()["attempt"]
 
-    assert body["status"] == "agreed"
-    assert body["offers"][0]["response"] == "accepted"
+    assert attempt["status"] == "agreed"
+    assert attempt["agreed"] == TERMS
+    assert [e["kind"] for e in attempt["entries"]] == ["offer", "accept"]
 
 
-async def test_rejected_offer_ends_the_attempt(
+async def test_refused_offer_ends_the_attempt(
     client, auth_headers, adjourned, fake_llm
 ):
     fake_llm.responses.append(REJECT)
@@ -142,30 +296,49 @@ async def test_rejected_offer_ends_the_attempt(
 
     body = (await offer(client, auth_headers, case)).json()
 
-    assert body["status"] == "rejected" and body["ended_at"]
-    assert body["offers"][0]["response"] == "rejected"
+    assert body["attempt"]["status"] == "rejected" and body["attempt"]["ended_at"]
+    assert body["attempt"]["entries"][-1]["kind"] == "refuse"
+    assert body["can_start"] is False
+    assert body["start_blocked"] == messages.SETTLEMENT_AFTER_HEARING
 
 
-async def test_new_offer_answers_the_last_counter(
+async def test_sending_their_terms_back_accepts_them(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.append(COUNTER)
+    case = await adjourned()
+    await offer(client, auth_headers, case)
+
+    reordered = THEIR_TERMS | {"conditions": ["deposit", "apology"]}
+    attempt = (await offer(client, auth_headers, case, **reordered)).json()["attempt"]
+
+    assert attempt["status"] == "agreed" and attempt["agreed"] == THEIR_TERMS
+    assert attempt["entries"][-1] == attempt["entries"][-1] | {
+        "by": "user",
+        "kind": "accept",
+    }
+    assert len(fake_llm.calls) == 1
+
+
+async def test_a_new_offer_shows_ai_counsel_the_talks_so_far(
     client, auth_headers, adjourned, fake_llm
 ):
     fake_llm.responses.extend([COUNTER, ACCEPT])
     case = await adjourned()
 
     await offer(client, auth_headers, case)
-    body = (await offer(client, auth_headers, case, compensation=150000)).json()
+    attempt = (await offer(client, auth_headers, case, amount=150000)).json()["attempt"]
 
-    assert [o["response"] for o in body["offers"]] == [
-        "countered",
-        "countered",
-        "accepted",
+    assert [e["kind"] for e in attempt["entries"]] == [
+        "offer",
+        "counter",
+        "counter",
+        "accept",
     ]
-    assert body["status"] == "agreed"
-    # AI counsel saw the talks so far, its own counter labelled as its own.
-    assert "You offered: Rs. 2 lakh" in fake_llm.prompts[1]
+    assert "You countered: Rs. 2,00,000 in one payment" in fake_llm.prompts[1]
 
 
-async def test_user_offers_are_capped_per_attempt(
+async def test_three_offers_then_accept_or_end(
     client, auth_headers, adjourned, fake_llm
 ):
     fake_llm.responses.extend([COUNTER] * settlement.MAX_OFFERS)
@@ -174,9 +347,27 @@ async def test_user_offers_are_capped_per_attempt(
         assert (await offer(client, auth_headers, case)).status_code == 200
 
     response = await offer(client, auth_headers, case)
+    accepted = await post(client, auth_headers, case, "accept")
 
     assert response.status_code == 409
-    assert "last offer" in response.json()["detail"]
+    assert response.json()["detail"] == messages.SETTLEMENT_OFFERS_USED
+    assert accepted.json()["attempt"]["status"] == "agreed"
+
+
+async def test_talks_reopen_only_after_the_court_sits_again(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.extend([REJECT, COUNTER])
+    case = await adjourned()
+    await offer(client, auth_headers, case)
+
+    too_soon = await offer(client, auth_headers, case)
+    await court_sits(case)
+    later = await offer(client, auth_headers, case)
+
+    assert too_soon.status_code == 409
+    assert too_soon.json()["detail"] == messages.SETTLEMENT_AFTER_HEARING
+    assert later.status_code == 200 and later.json()["attempts"] == 2
 
 
 async def test_attempts_are_capped_per_case(client, auth_headers, adjourned, fake_llm):
@@ -184,10 +375,12 @@ async def test_attempts_are_capped_per_case(client, auth_headers, adjourned, fak
     case = await adjourned()
     for _ in range(settlement.MAX_ATTEMPTS):
         await offer(client, auth_headers, case)
+        await court_sits(case)
 
     response = await offer(client, auth_headers, case)
 
     assert response.status_code == 409
+    assert response.json()["detail"] == messages.SETTLEMENT_ATTEMPTS_USED
     assert len((await reload(case)).settlements) == settlement.MAX_ATTEMPTS
 
 
@@ -205,13 +398,14 @@ async def test_no_new_offer_once_terms_are_agreed(
 
 
 async def test_no_talks_while_the_court_is_sitting(
-    client, auth_headers, courtroom_case, fake_llm
+    client, auth_headers, adjourned, fake_llm
 ):
-    case = await courtroom_case()  # ACTIVE
+    case = await adjourned(status=CaseStatus.ACTIVE)
 
     response = await offer(client, auth_headers, case)
+    started = await post(client, auth_headers, case, "start")
 
-    assert response.status_code == 409
+    assert response.status_code == started.status_code == 409
     assert "adjournment" in response.json()["detail"]
     assert fake_llm.calls == []
 
@@ -228,8 +422,12 @@ async def test_closed_case_cannot_be_settled(client, auth_headers, adjourned):
     case = await adjourned(status=CaseStatus.RESOLVED)
 
     response = await offer(client, auth_headers, case)
+    body = (
+        await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+    ).json()
 
     assert response.status_code == 409
+    assert body["closed"] == messages.SETTLEMENT_CASE_CLOSED
 
 
 async def test_talks_before_the_first_hearing(
@@ -244,19 +442,28 @@ async def test_talks_before_the_first_hearing(
     assert "The hearing has not begun." in fake_llm.prompts[0]
 
 
-@pytest.mark.parametrize("terms", ["too short", "x" * 2001])
-async def test_terms_must_be_a_sensible_length(client, auth_headers, adjourned, terms):
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"instalments": 5},
+        {"months": 7},
+        {"interest": 20},
+        {"amount": -1},
+        {"conditions": ["hostile-witness"]},
+    ],
+)
+async def test_terms_must_be_on_the_desk(client, auth_headers, adjourned, bad):
     case = await adjourned()
 
-    response = await offer(client, auth_headers, case, terms=terms)
+    response = await offer(client, auth_headers, case, **bad)
 
     assert response.status_code == 422
 
 
-async def test_negative_compensation_is_refused(client, auth_headers, adjourned):
+async def test_note_has_a_limit(client, auth_headers, adjourned):
     case = await adjourned()
 
-    response = await offer(client, auth_headers, case, compensation=-5)
+    response = await offer(client, auth_headers, case, note="x" * 1001)
 
     assert response.status_code == 422
 
@@ -281,25 +488,25 @@ async def test_failed_reply_leaves_the_case_unchanged(
 
 
 # ---------------------------------------------------------------------------
-# accept and withdraw
+# accept and end
 # ---------------------------------------------------------------------------
 
 
-async def test_accepting_the_counter_agrees_terms(
+async def test_accepting_their_terms_agrees_them(
     client, auth_headers, adjourned, fake_llm, indexed
 ):
     fake_llm.responses.append(COUNTER)
     case = await adjourned()
     await offer(client, auth_headers, case)
 
-    body = (await post(client, auth_headers, case, "accept")).json()
+    attempt = (await post(client, auth_headers, case, "accept")).json()["attempt"]
 
-    assert body["status"] == "agreed"
-    assert body["offers"][-1]["response"] == "accepted"
-    assert "Answer: accepted." in indexed[-1][2]
+    assert attempt["status"] == "agreed" and attempt["agreed"] == THEIR_TERMS
+    assert attempt["entries"][-1]["kind"] == "accept"
+    assert "The user accepted the last terms" in indexed[-1][2]
 
 
-async def test_nothing_to_accept_without_a_counter(
+async def test_nothing_to_accept_without_their_terms(
     client, auth_headers, adjourned, fake_llm
 ):
     case = await adjourned()
@@ -310,16 +517,16 @@ async def test_nothing_to_accept_without_a_counter(
     assert (await post(client, auth_headers, case, "accept")).status_code == 409
 
 
-async def test_withdrawing_ends_the_attempt(client, auth_headers, adjourned, fake_llm):
+async def test_ending_talks_ends_the_attempt(client, auth_headers, adjourned, fake_llm):
     fake_llm.responses.append(COUNTER)
     case = await adjourned()
     await offer(client, auth_headers, case)
 
-    body = (await post(client, auth_headers, case, "withdraw")).json()
+    attempt = (await post(client, auth_headers, case, "end")).json()["attempt"]
 
-    assert body["status"] == "withdrawn" and body["ended_at"]
-    assert body["offers"][-1]["response"] == "withdrawn"
-    assert (await post(client, auth_headers, case, "withdraw")).status_code == 409
+    assert attempt["status"] == "withdrawn" and attempt["ended_at"]
+    assert attempt["entries"][-1]["kind"] == "ended"
+    assert (await post(client, auth_headers, case, "end")).status_code == 409
 
 
 # ---------------------------------------------------------------------------
@@ -336,9 +543,9 @@ async def test_court_records_the_compromise_and_the_case_ends(
     response = await post(client, auth_headers, case, "present")
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "recorded" and body["mode"] == "quashing"
-    assert body["court_order"] == ORDER
+    attempt = response.json()["attempt"]
+    assert attempt["status"] == "recorded"
+    assert attempt["court_order"] == ORDER
     saved = await reload(case)
     assert saved.status == CaseStatus.RESOLVED
     assert saved.verdict == ORDER
@@ -355,7 +562,7 @@ async def test_court_records_the_compromise_and_the_case_ends(
 
     prompt = fake_llm.prompts[0]
     assert prompt.startswith("COMPROMISE BEFORE THE COURT")
-    assert TERMS in prompt
+    assert "Rs. 1,00,000 in 2 instalments within 6 months" in prompt
 
     stats = await client.get("/auth/profile/stats", headers=auth_headers)
     assert stats.status_code == 200
@@ -369,7 +576,7 @@ async def test_court_refuses_the_compromise_and_the_case_goes_on(
 
     body = (await post(client, auth_headers, case, "present")).json()
 
-    assert body["status"] == "refused" and body["mode"] is None
+    assert body["attempt"]["status"] == "refused"
     saved = await reload(case)
     assert saved.status == CaseStatus.ADJOURNED
     assert saved.verdict is None and saved.outcome is None
@@ -399,10 +606,10 @@ async def test_only_agreed_terms_go_before_the_court(
 
 
 async def test_compromise_can_be_presented_in_session(
-    client, auth_headers, courtroom_case, fake_llm
+    client, auth_headers, adjourned, fake_llm
 ):
     fake_llm.responses.append(RECORDED)
-    case = await courtroom_case(settlements=[agreed_attempt()])
+    case = await adjourned(status=CaseStatus.ACTIVE, settlements=[agreed_attempt()])
 
     response = await post(client, auth_headers, case, "present")
 
@@ -413,10 +620,12 @@ async def test_compromise_can_be_presented_in_session(
 
 
 async def test_not_while_a_witness_is_on_the_stand(
-    client, auth_headers, courtroom_case, fake_llm
+    client, auth_headers, adjourned, fake_llm
 ):
-    case = await courtroom_case(
-        settlements=[agreed_attempt()], current_witness_id="someone"
+    case = await adjourned(
+        status=CaseStatus.ACTIVE,
+        settlements=[agreed_attempt()],
+        current_witness_id="someone",
     )
 
     response = await post(client, auth_headers, case, "present")
@@ -425,20 +634,10 @@ async def test_not_while_a_witness_is_on_the_stand(
     assert fake_llm.calls == []
 
 
-@pytest.mark.parametrize(
-    "bad",
-    [
-        "The compromise is accepted.",  # no tags
-        (  # accepted without a mode
-            '<ruling>{"accepted": true, "mode": null, "ruling": "Quashed."}</ruling>'
-            "<order>Order.</order>"
-        ),
-    ],
-)
 async def test_failed_review_leaves_the_terms_agreed(
-    client, auth_headers, adjourned, fake_llm, bad
+    client, auth_headers, adjourned, fake_llm
 ):
-    fake_llm.responses.append(bad)
+    fake_llm.responses.append("The compromise is accepted.")
     case = await adjourned(settlements=[agreed_attempt()])
 
     response = await post(client, auth_headers, case, "present")
@@ -454,7 +653,6 @@ async def test_refused_talks_never_reach_the_verdict(
 ):
     """Without prejudice: after a refused compromise the judge decides the merits
     without ever seeing the terms that were offered."""
-    secret = "The applicant pays Rs. 7,77,777 as SECRET-TERMS-XYZ to the complainant."
     fake_llm.responses.extend([ACCEPT, REFUSED])
     case = await adjourned(
         plaintiff_arguments=[
@@ -469,7 +667,7 @@ async def test_refused_talks_never_reach_the_verdict(
             ArgumentItem(type="opening", content="ai opening", role=Roles.DEFENDANT)
         ],
     )
-    await offer(client, auth_headers, case, terms=secret)
+    await offer(client, auth_headers, case, note="SECRET-TERMS-XYZ", amount=777777)
     await post(client, auth_headers, case, "present")
     await client.put(
         f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "active"}
@@ -501,7 +699,7 @@ async def test_refused_talks_never_reach_the_verdict(
 # ---------------------------------------------------------------------------
 
 
-async def test_offers_are_indexed_as_settlement_memory(
+async def test_moves_are_indexed_as_settlement_memory(
     client, auth_headers, adjourned, fake_llm, indexed
 ):
     fake_llm.responses.append(COUNTER)
@@ -511,10 +709,16 @@ async def test_offers_are_indexed_as_settlement_memory(
 
     assert [item[0] for item in indexed] == ["settlement", "settlement"]
     mine, theirs = indexed
-    assert "Plaintiff's counsel (the user) offered" in mine[2]
-    assert "Rs. 100,000" in mine[2] and "Answer: countered." in mine[2]
-    assert mine[3]["attempt"] == 1 and mine[3]["round"] == 1
-    assert "Defendant's counsel (AI counsel) offered: Rs. 2 lakh" in theirs[2]
+    assert mine[2].startswith("Settlement attempt 1. The user offered: Rs. 1,00,000")
+    assert mine[3] == {
+        "by": "user",
+        "kind": "offer",
+        "attempt": 1,
+        "round": 1,
+        "amount": 100000,
+    }
+    assert theirs[2].startswith("Settlement attempt 1. AI counsel countered:")
+    assert theirs[3]["round"] == 2
 
 
 async def test_case_detail_includes_settlements(
@@ -527,6 +731,17 @@ async def test_case_detail_includes_settlements(
     detail = (await client.get(f"/cases/{case.cnr}", headers=auth_headers)).json()
 
     assert detail["settlements"][0]["status"] == "negotiating"
+
+
+async def test_free_text_attempts_from_before_are_dropped(adjourned):
+    case = await adjourned()
+    collection = case.get_pymongo_collection()
+    await collection.update_one(
+        {"_id": case.id},
+        {"$set": {"settlements": [{"status": "negotiating", "offers": []}]}},
+    )
+
+    assert (await reload(case)).settlements == []
 
 
 async def test_adjourning_to_explore_settlement_is_noted(

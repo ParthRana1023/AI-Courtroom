@@ -8,7 +8,8 @@ import type {
   NotificationPrefs,
   PartialScoring,
   RegisterFormData,
-  Settlement,
+  SettlementTerms,
+  SettlementView,
   SystemStatus,
   User,
   UserStats,
@@ -692,31 +693,23 @@ export const courtroomAPI = {
 };
 
 // Settling a case out of court. Talks only while the court isn't sitting (adjourn
-// with reason "settlement" first); each call returns the current attempt.
+// with reason "settlement" first); each call returns the whole desk.
 export const settlementAPI = {
-  /** Put terms to the other side; AI counsel accepts, counters or rejects them. */
-  makeOffer: async (cnr: string, terms: string, compensation: number | null): Promise<Settlement> => {
-    const response = await api.post(`/cases/${cnr}/settlement/offers`, { terms, compensation });
-    return response.data;
-  },
+  /** The route (worked out on the first visit) and the talks. */
+  get: async (cnr: string): Promise<SettlementView> => (await api.get(`/cases/${cnr}/settlement`)).data,
 
-  /** Accept the terms AI counsel last countered with. */
-  acceptCounter: async (cnr: string): Promise<Settlement> => {
-    const response = await api.post(`/cases/${cnr}/settlement/accept`);
-    return response.data;
-  },
+  /** Open talks. When the user acts for the complainants, AI counsel opens with its offer. */
+  start: async (cnr: string): Promise<SettlementView> => (await api.post(`/cases/${cnr}/settlement/start`)).data,
 
-  /** Call off the talks, or agreed terms not yet before the court. */
-  withdraw: async (cnr: string): Promise<Settlement> => {
-    const response = await api.post(`/cases/${cnr}/settlement/withdraw`);
-    return response.data;
-  },
+  /** Put terms to the other side; AI counsel accepts, counters or refuses. Their own terms back accept them. */
+  offer: async (cnr: string, terms: SettlementTerms, note: string): Promise<SettlementView> =>
+    (await api.post(`/cases/${cnr}/settlement/offers`, { terms, note })).data,
 
-  /** Put the agreed terms before the court: status "recorded" ends the case, "refused" doesn't. */
-  present: async (cnr: string): Promise<Settlement> => {
-    const response = await api.post(`/cases/${cnr}/settlement/present`);
-    return response.data;
-  },
+  /** Accept the terms AI counsel last put forward. */
+  accept: async (cnr: string): Promise<SettlementView> => (await api.post(`/cases/${cnr}/settlement/accept`)).data,
+
+  /** Call off the talks. */
+  end: async (cnr: string): Promise<SettlementView> => (await api.post(`/cases/${cnr}/settlement/end`)).data,
 };
 
 // Optional-email unsubscribe links (no sign-in; the token is in the link).

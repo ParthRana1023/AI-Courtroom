@@ -10,6 +10,7 @@ import { PinButton, PinnedChips, RefChips } from "@/components/courtroom/exhibit
 import { ExhibitGrid, ExhibitViewer } from "@/components/prep/exhibits";
 import { firstName, initials, onSide } from "@/components/prep/people";
 import { useOnline } from "@/hooks/use-online";
+import { useProceed } from "@/hooks/use-proceed";
 import { useViewport } from "@/hooks/use-viewport";
 import { caseAPI, partiesAPI } from "@/lib/api";
 import { plain } from "@/lib/case-file";
@@ -77,7 +78,6 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
   const [closing, setClosing] = useState<Focus | null>(null);
   const [mView, setMView] = useState<MView>("list");
   const [exId, setExId] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -92,6 +92,7 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
   const RN = role === "plaintiff" ? "Plaintiff" : "Defendant";
   const session: Session = kase?.status === CaseStatus.ACTIVE ? "in session" : kase?.status === CaseStatus.RESOLVED ? "resolved" : "prep";
   const readOnly = session !== "prep";
+  const { proceed, starting, label: ctaLabel, off: ctaOff } = useProceed(cnr, kase);
   const mine = useCallback((p: PersonInvolved) => onSide(role, p), [role]);
 
   const fetchAll = useCallback(async () => {
@@ -414,37 +415,9 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
     }
   };
 
-  const proceed = async () => {
-    if (starting || !kase) return;
-    if (readOnly) {
-      router.push(`/cases/${cnr}/courtroom`);
-      return;
-    }
-    if (!online) {
-      toast("You’re offline. The courtroom opens when you’re back online.", { duration: 2800 });
-      return;
-    }
-    setStarting(true);
-    try {
-      if (role === "defendant") await caseAPI.generatePlaintiffOpening(cnr);
-      await caseAPI.updateCaseStatus(cnr, CaseStatus.ACTIVE);
-      router.push(`/cases/${cnr}/courtroom`);
-    } catch (e) {
-      setStarting(false);
-      toast.error(getErrorDetail(e) || "Couldn’t open the courtroom. Please try again.");
-    }
-  };
-
-  const ctaOff = starting || (!online && session === "prep");
-  const ctaLabel = starting
-    ? role === "defendant"
-      ? "Preparing the opening statement…"
-      : "Preparing courtroom…"
-    : session === "resolved"
-      ? "View Courtroom →"
-      : session === "in session"
-        ? "Return to Courtroom →"
-        : "Proceed to Courtroom →";
+  // No route once the case file has been read and closes every one, or once judgment is given.
+  const settleShut = kase?.settlement_profile?.route === "none" || session === "resolved";
+  const settleTip = settleShut ? "No settlement route is open for this case" : "Negotiate a settlement with the other side";
 
   const banner =
     session === "in session"
@@ -526,18 +499,43 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={proceed}
-          disabled={starting || load !== "loaded"}
-          className={cn(
-            "h-12 cursor-pointer px-5.5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase disabled:cursor-wait light:text-ink",
-            small ? "flex-[1_1_100%]" : "flex-none",
-            ctaOff ? "bg-ink-disabled" : "bg-seal hover:bg-seal-hover",
-          )}
-        >
-          {ctaLabel}
-        </button>
+        <div className={cn("flex flex-wrap gap-2", small ? "flex-[1_1_100%]" : "flex-none")}>
+          <Link
+            href={`/cases/${cnr}/settlement`}
+            aria-disabled={settleShut}
+            title={settleTip}
+            onClick={(e) => {
+              if (!settleShut) return;
+              e.preventDefault();
+              toast(
+                session === "resolved"
+                  ? "The court has delivered its judgment, so the case can no longer be settled."
+                  : "No settlement route is open for this case. At least one charge can’t be compounded or quashed on compromise.",
+                { duration: 3200 },
+              );
+            }}
+            className={cn(
+              "flex h-12 flex-[1_1_auto] items-center justify-center gap-2.5 border-[1.5px] px-4.5 text-xs font-bold tracking-[0.14em] whitespace-nowrap uppercase",
+              settleShut
+                ? "cursor-not-allowed border-ink-disabled text-ink-disabled"
+                : "border-desk-ink text-desk-ink hover:bg-desk-ink hover:text-desk",
+            )}
+          >
+            <span>Settlement</span>
+            <span aria-hidden="true">→</span>
+          </Link>
+          <button
+            type="button"
+            onClick={proceed}
+            disabled={starting || load !== "loaded"}
+            className={cn(
+              "h-12 flex-[1_1_auto] cursor-pointer px-5.5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase disabled:cursor-wait light:text-ink",
+              ctaOff ? "bg-ink-disabled" : "bg-seal hover:bg-seal-hover",
+            )}
+          >
+            {ctaLabel}
+          </button>
+        </div>
       </div>
 
       {banner && (
