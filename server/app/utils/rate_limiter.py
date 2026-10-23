@@ -95,6 +95,35 @@ class RateLimiter:
         logger.warning(f"Rate limit reached for {key} ({self.rate_limiter_type})")
         raise HTTPException(status_code=429, detail=message.format(minutes=minutes))
 
+    async def reserve(self, key: str, message: str) -> RateLimitEntry:
+        """Take an attempt before the work rather than after: checking first and
+        recording later lets parallel requests all pass the check. The attempt is
+        recorded, then counted with the rest; one past the limit is taken back and
+        refused (429). ``release`` it if the attempt shouldn't count."""
+        entry = await RateLimitEntry(
+            user_id=key,
+            rate_limiter_type=self.rate_limiter_type,
+            expiration_time=get_current_datetime() + timedelta(seconds=self.window),
+        ).insert()
+        remaining, seconds = await self.get_remaining_attempts(key)
+        if remaining or seconds is None:
+            return entry
+        taken = await RateLimitEntry.find(
+            RateLimitEntry.user_id == key,
+            RateLimitEntry.rate_limiter_type == self.rate_limiter_type,
+        ).count()
+        if taken <= self.requests:  # this one was the last allowed
+            return entry
+        await entry.delete()
+        logger.warning(f"Rate limit reached for {key} ({self.rate_limiter_type})")
+        minutes = max(1, math.ceil(seconds / 60))
+        raise HTTPException(status_code=429, detail=message.format(minutes=minutes))
+
+    @staticmethod
+    async def release(entry: RateLimitEntry) -> None:
+        """Take back a reserved attempt that turned out not to count."""
+        await entry.delete()
+
     async def check_only(self, user: User = Depends(get_current_user)) -> User:
         """FastAPI dependency: 429 if the limit is reached, else the current user.
 

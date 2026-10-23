@@ -10,7 +10,6 @@ As in practice, a missed instalment is not the end of the deal: the deed gives n
 and a short time to pay. Only a default left uncured goes further (see REMEDY).
 """
 
-import calendar
 import random
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -23,9 +22,6 @@ from app.models.case import (
     Settlement,
     SettlementTerms,
 )
-
-FIRST_DUE = timedelta(days=14)  # the first instalment, from the order (before plans)
-DEFAULT_CHANCE = 0.25  # how often the AI side missed one instalment (before plans)
 
 # Simulated time: a day stands for the gap between instalments, and for the notice
 # the deed gives after a missed one (fifteen days on paper).
@@ -45,35 +41,12 @@ REMEDY: dict[str, Literal["recall", "notice", "recover"]] = {
 }
 
 
-def add_months(day: date, months: int) -> date:
-    month = day.month - 1 + months
-    year, month = day.year + month // 12, month % 12 + 1
-    return date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
-
-
 def amounts(terms: SettlementTerms) -> list[int]:
     """Equal instalments; simple interest for the whole term is added to the last."""
     n = terms.instalments
     base = terms.amount // n
     interest = round(terms.amount * terms.interest / 100 * terms.months / 12)
     return [base for _ in range(n - 1)] + [terms.amount - base * (n - 1) + interest]
-
-
-def schedule(terms: SettlementTerms, ordered: date) -> list[Payment]:
-    """Before plans: the first two weeks after the order, the rest spread over the
-    agreed months."""
-    n = terms.instalments
-    return [
-        Payment(
-            amount=amount,
-            due=(
-                ordered + FIRST_DUE
-                if i == 0
-                else add_months(ordered, round(terms.months * i / (n - 1)))
-            ),
-        )
-        for i, amount in enumerate(amounts(terms))
-    ]
 
 
 def day_schedule(terms: SettlementTerms, ordered: date) -> list[Payment]:
@@ -87,10 +60,13 @@ def day_schedule(terms: SettlementTerms, ordered: date) -> list[Payment]:
     ]
 
 
-def draw(cnr: str, count: int, reliability: float) -> PaymentPlan:
+def draw(count: int, reliability: float) -> PaymentPlan:
     """Every instalment and the court's direction, drawn once against the accused's
-    reliability: the same case always plays out the same way."""
-    chance = random.Random(f"{cnr}:payments")
+    reliability when the order is passed, and saved with it.
+
+    From the OS's randomness, not a seed: the CNR is on screen and the code is public,
+    so a seeded draw could be worked out ahead of time."""
+    chance = random.SystemRandom()
     draws = [
         PaymentDraw(
             on_time=chance.random() < reliability, cures=chance.random() < reliability
@@ -120,33 +96,36 @@ class Timeline:
 def timeline(payments: list[Payment], plan: PaymentPlan, today: date) -> Timeline:
     """Where the accused stands on each instalment today, and overall.
 
-    On time, an instalment is paid on its due date. Missed, it is in notice until the
-    notice runs out, then paid late (cured) or defaulted. A default holds up the rest:
-    what happens next is for the complainants and the court.
+    An instalment is due all its due day, whatever the draws: the day shows the
+    outcome only once it is over. Then it is paid on that day, or missed and in notice
+    until the notice runs out, and only after that paid late (cured) or defaulted, so
+    nothing on screen gives the draws away early. A default holds up what wasn't paid
+    by the time it took effect: what happens next is for the complainants and court.
     """
     out = Timeline(stage="paying")
+    took_effect: date | None = None  # the last day of notice on the defaulted one
     for i, (payment, chance) in enumerate(zip(payments, plan.draws, strict=True)):
         last_day = payment.due + NOTICE
-        if out.defaulted is not None:
-            row = Row("held")
-        elif payment.paid_at:  # paid as the court directed
+        if payment.paid_at:  # paid as the court directed
             paid = payment.paid_at.date()
             row = Row("late" if paid > payment.due else "paid", paid)
-        elif today < payment.due:
-            row = Row("upcoming")
+        elif took_effect is not None:
+            paid_before = chance.on_time and payment.due <= took_effect
+            row = Row("paid", payment.due) if paid_before else Row("held")
+        elif today <= payment.due:
+            row = Row("upcoming" if today < payment.due else "due")
         elif chance.on_time:
             row = Row("paid", payment.due)
-        elif today == payment.due:
-            row = Row("due")
-        elif chance.cures and today >= last_day:
-            row = Row("late", last_day)
         elif today <= last_day:
             row = Row("missed", notice_until=last_day)
             out.stage = "notice"
+        elif chance.cures:
+            row = Row("late", last_day)
         else:
             row = Row("defaulted")
             out.defaulted = i
             out.stage = "defaulted"
+            took_effect = last_day
         out.rows.append(row)
     if all(r.status in ("paid", "late") for r in out.rows):
         out.stage = "closed"
@@ -187,14 +166,6 @@ def describe(attempt: Settlement, today: date) -> dict:
             for payment, row in zip(payments, line.rows, strict=True)
         ],
     }
-
-
-def default_on(cnr: str, count: int) -> int | None:
-    """Before plans: the instalment the AI side will miss, if any, drawn once."""
-    chance = random.Random(f"{cnr}:payments")
-    if count < 2 or chance.random() >= DEFAULT_CHANCE:
-        return None
-    return chance.randrange(1, count)
 
 
 def status(

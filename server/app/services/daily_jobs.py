@@ -12,6 +12,7 @@ keeps two runs from overlapping.
 """
 
 import html
+import uuid
 from datetime import datetime, timedelta
 
 from pymongo.errors import DuplicateKeyError
@@ -35,24 +36,35 @@ def _locks():
     return JobRun.get_pymongo_collection().database["job_locks"]
 
 
-async def _acquire_lock(now: datetime) -> bool:
-    """Take the lock unless another run holds a live one. The upsert can only
-    insert when no lock document exists, so a held lock raises DuplicateKeyError."""
+async def _acquire_lock(now: datetime) -> str | None:
+    """Take the lock unless another run holds a live one, and return this run's
+    token for it. The upsert can only insert when no lock document exists, so a
+    held lock raises DuplicateKeyError."""
+    owner = uuid.uuid4().hex
     try:
         await _locks().update_one(
             {"_id": "daily", "until": {"$lt": now}},
-            {"$set": {"until": now + LOCK_TTL}},
+            {"$set": {"until": now + LOCK_TTL, "owner": owner}},
             upsert=True,
         )
-        return True
+        return owner
     except DuplicateKeyError:
-        return False
+        return None
 
 
-async def _release_lock() -> None:
+async def _renew_lock(owner: str) -> None:
+    """Keep the lock while a long run goes on, so no second run starts mid-way."""
+    await _locks().update_one(
+        {"_id": "daily", "owner": owner},
+        {"$set": {"until": get_current_datetime() + LOCK_TTL}},
+    )
+
+
+async def _release_lock(owner: str) -> None:
     # Deleted rather than set to "now": MongoDB keeps milliseconds, so a run
-    # starting in the same millisecond would still see the lock as held.
-    await _locks().delete_one({"_id": "daily"})
+    # starting in the same millisecond would still see the lock as held. Only this
+    # run's: one that overran its lock mustn't free the next run's.
+    await _locks().delete_one({"_id": "daily", "owner": owner})
 
 
 def last_activity(case: Case) -> datetime | None:
@@ -124,13 +136,15 @@ async def run_daily_jobs(
     """Run every step; None if another run holds the lock. A failing step is
     recorded (by name and error type, no personal data) and the rest still run."""
     now = get_current_datetime()
-    if not await _acquire_lock(now):
+    owner = await _acquire_lock(now)
+    if owner is None:
         logger.warning("Daily jobs already running; skipped")
         return None
     run = JobRun(dry_run=dry_run, trigger=trigger, started_at=now)
     await run.insert()
     try:
         for name, step in STEPS:
+            await _renew_lock(owner)
             try:
                 run.counts.update(await step(now, dry_run))
             except Exception as e:
@@ -141,4 +155,4 @@ async def run_daily_jobs(
         logger.info(f"Daily jobs done: {run.counts} errors={run.errors}")
         return run
     finally:
-        await _release_lock()
+        await _release_lock(owner)

@@ -3,6 +3,8 @@ import secrets
 from datetime import UTC
 from typing import Literal
 
+from fastapi import HTTPException
+
 from app import messages
 from app.config import settings
 from app.logging_config import get_logger
@@ -65,17 +67,21 @@ async def create_otp(
 
     if channel == "sms":
         purpose_text = " to delete your account" if purpose == "delete_account" else ""
-        await send_sms(
+        sent = await send_sms(
             email,
             f"{otp_code} is your AI Courtroom code{purpose_text}. "
             f"It expires in {settings.otp_expire_minutes} minutes.",
         )
     elif purpose == "delete_account":
-        await send_delete_code_email(email, otp_code)
+        sent = await send_delete_code_email(email, otp_code)
     elif purpose == "email_change":
-        await send_email_change_code(email, otp_code)
+        sent = await send_email_change_code(email, otp_code)
     else:
-        await send_otp_email(email, otp_code, is_registration)
+        sent = await send_otp_email(email, otp_code, is_registration)
+    if not sent:
+        # Say so, rather than "code sent" for a code that never arrives.
+        await otp.delete()
+        raise HTTPException(status_code=503, detail=messages.CODE_NOT_SENT)
 
     return otp_code
 
@@ -127,6 +133,11 @@ async def verify_otp(
             logger.warning(f"Wrong OTP for: {email}")
         return False
 
-    await otp_doc.delete()
+    # Used once: two requests with the right code at the same moment both pass the
+    # check, but only the one whose delete removes it is let in.
+    used = await OTP.get_pymongo_collection().delete_one({"_id": otp_doc.id})
+    if not used.deleted_count:
+        logger.warning(f"OTP already used for: {email}")
+        return False
     logger.info(f"OTP verified for: {email}")
     return True

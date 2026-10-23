@@ -4,6 +4,7 @@ Third-party boundaries (Google's endpoints via a mocked httpx, google-auth's
 signature check, SMTP) are replaced with fakes; no request leaves the process.
 """
 
+import asyncio
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -507,3 +508,65 @@ async def test_create_otp_limits_codes_per_email(outbox):
 )
 def test_format_wait(seconds, expected):
     assert rl.format_wait(seconds) == expected
+
+
+async def test_reserve_lets_only_the_limit_through_in_parallel(limiter):
+    async def attempt():
+        try:
+            return await limiter.reserve("p1", "Wait {minutes} minutes.")
+        except HTTPException as e:
+            return e.status_code
+
+    results = await asyncio.gather(*(attempt() for _ in range(5)))
+
+    assert results.count(429) == 3
+    assert await RateLimitEntry.find(RateLimitEntry.user_id == "p1").count() == 2
+
+
+async def test_a_released_attempt_doesnt_count(limiter):
+    for _ in range(4):
+        await rl.RateLimiter.release(await limiter.reserve("p2", "{minutes}"))
+
+    assert await limiter.get_remaining_attempts("p2") == (2, None)
+
+
+async def test_a_code_that_was_never_sent_is_not_kept(monkeypatch):
+    async def undelivered(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr(otp_service, "send_otp_email", undelivered)
+
+    with pytest.raises(HTTPException) as exc:
+        await otp_service.create_otp("lost@example.com")
+
+    assert exc.value.status_code == 503
+    assert await OTP.find(OTP.email == "lost@example.com").count() == 0
+
+
+async def test_a_code_signs_in_once_even_when_sent_twice_at_once(outbox):
+    code = await otp_service.create_otp("twice@example.com")
+
+    results = await asyncio.gather(
+        otp_service.verify_otp("twice@example.com", code),
+        otp_service.verify_otp("twice@example.com", code),
+    )
+
+    assert sorted(results) == [False, True]
+
+
+@pytest.mark.parametrize(
+    "url, kept",
+    [
+        ("https://lh3.googleusercontent.com/a/photo", True),
+        ("https://googleusercontent.com/photo", True),
+        ("http://lh3.googleusercontent.com/a/photo", False),
+        ("https://evil.example/googleusercontent.com/x", False),
+        ("https://googleusercontent.com.evil.example/x", False),
+        ("javascript:alert(1)", False),
+        (None, False),
+    ],
+)
+def test_only_google_profile_pictures_are_taken(url, kept):
+    from app.routes.auth import google_photo
+
+    assert google_photo(url) == (url if kept else None)

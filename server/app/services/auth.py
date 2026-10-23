@@ -1,5 +1,7 @@
 # app/services/auth.py
+import asyncio
 import hashlib
+import html
 import re
 import secrets
 from dataclasses import dataclass
@@ -52,7 +54,7 @@ async def create_user(user_data: UserCreate) -> User:
             status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
         )
 
-    hashed_password = ph.hash(user_data.password)
+    hashed_password = await asyncio.to_thread(ph.hash, user_data.password)
     user = User(
         **user_data.model_dump(
             exclude={"password", "google_signup_token", "confirm_adult"}
@@ -147,7 +149,11 @@ async def issue_token(
             "New sign-in",
             [
                 "Your account was just signed in on a device we haven't seen before:",
-                f"{user_agent or 'Unknown device'} from {device.ip or 'an unknown address'}.",
+                # The browser sends the user agent: escaped, as the email is HTML.
+                (
+                    f"{html.escape(user_agent or 'Unknown device')} from "
+                    f"{html.escape(device.ip or 'an unknown address')}."
+                ),
             ],
         )
     return create_access_token(

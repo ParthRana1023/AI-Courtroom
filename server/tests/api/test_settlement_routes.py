@@ -1103,7 +1103,8 @@ async def test_a_default_after_notice_takes_the_ai_complainants_to_court(
 
     listed = (days_ago(0) + timedelta(days=2)).isoformat()
     assert attempt["stage"] == "enforcement"
-    assert [p["status"] for p in attempt["payments"]] == ["defaulted", "held"]
+    # The second was paid on the day the default took effect, so it stays paid.
+    assert [p["status"] for p in attempt["payments"]] == ["defaulted", "paid"]
     assert attempt["enforcement"] == {
         "kind": "contempt",
         "by": "ai",
@@ -1216,12 +1217,91 @@ async def test_developers_can_play_the_payments_a_day_forward(
     monkeypatch.setattr(settings, "dev_mode_emails", user.email)
     one = (await client.post(url, headers=auth_headers)).json()["attempt"]
     two = (await client.post(url, headers=auth_headers)).json()["attempt"]
+    three = (await client.post(url, headers=auth_headers)).json()["attempt"]
     done = await client.post(url, headers=auth_headers)
 
     assert hidden.status_code == 404
-    assert [p["status"] for p in one["payments"]] == ["paid", "upcoming"]
-    assert two["stage"] == "closed"
+    assert [p["status"] for p in one["payments"]] == ["due", "upcoming"]
+    assert [p["status"] for p in two["payments"]] == ["paid", "due"]
+    assert three["stage"] == "closed"
     assert done.status_code == 409  # nothing left to play out
+
+
+async def test_next_day_brings_the_day_the_court_gave(
+    client, user, auth_headers, adjourned, fake_llm, monkeypatch
+):
+    monkeypatch.setattr(settings, "dev_mode_emails", user.email)
+    fake_llm.responses.append(on_default("last_chance"))
+    case = await adjourned(
+        status=CaseStatus.RESOLVED, settlements=[defaulted_attempt()]
+    )
+    await answer(client, auth_headers, case)  # the balance is due tomorrow
+
+    moved = (
+        await client.post(
+            f"/cases/{case.cnr}/settlement/next-day", headers=auth_headers
+        )
+    ).json()["attempt"]
+
+    assert moved["stage"] == "closed" and moved["enforcement"]["result"] == "paid"
+    assert moved["enforcement"]["pay_by"] == days_ago(0).isoformat()
+
+
+async def test_terms_without_money_leave_no_payments_to_follow(
+    client, auth_headers, adjourned, fake_llm, outbox
+):
+    fake_llm.responses.append(hearing())
+    attempt = filed_attempt()
+    assert attempt.agreed
+    attempt.agreed.amount = 0
+    case = await adjourned(status=CaseStatus.ACTIVE, settlements=[attempt])
+
+    await hear(client, auth_headers, case)
+    desk_view = await desk(client, auth_headers, case)
+
+    assert desk_view["payments"] == [] and desk_view["pace"] == "months"
+    assert (await reload(case)).settlements[-1].plan is None
+    assert outbox == []  # no "every instalment paid" for what was never owed
+
+
+async def test_the_daily_job_finds_an_order_after_an_earlier_attempt(user, adjourned):
+    """The first attempt failed (no plan); the second was granted."""
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[
+            Settlement(status=SettlementStatus.REJECTED),
+            simulated_attempt(days_ago(3), (False, True), (True, True)),
+        ],
+    )
+
+    counts = await progress.progress_settlements(get_current_datetime())
+
+    assert counts["settlement_updates"] == 2
+    assert (await reload(case)).settlements[-1].payments_done
+
+
+async def test_one_case_failing_doesnt_stop_the_daily_job(user, adjourned, monkeypatch):
+    bad = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, True), (True, True))],
+    )
+    good = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, True), (True, True))],
+    )
+    real = progress.catch_up
+
+    async def flaky(case, now=None):
+        if case.cnr == bad.cnr:
+            raise RuntimeError("boom")
+        return await real(case, now)
+
+    monkeypatch.setattr(progress, "catch_up", flaky)
+
+    counts = await progress.progress_settlements(get_current_datetime())
+
+    assert counts["settlement_updates"] == 2
+    assert (await reload(good)).settlements[-1].payments_done
 
 
 # ---------------------------------------------------------------------------
@@ -1330,12 +1410,12 @@ async def test_a_last_chance_to_purge_the_contempt_by_paying(
     closed = await desk(client, auth_headers, case)
 
     assert closed["stage"] == "closed" and closed["enforcement"]["result"] == "paid"
-    assert [p["status"] for p in closed["payments"]] == ["late", "late"]
+    assert [p["status"] for p in closed["payments"]] == ["late", "paid"]
     assert closed["closed_on"] == days_ago(0).isoformat()
     assert "paid the balance as the court directed" in text(outbox[-1])
     final = await reload(case)
     assert final.settlements[-1].payments_done
-    assert "paid the balance of ₹1,00,000" in final.courtroom_proceedings[-1].content
+    assert "paid the balance of ₹50,000" in final.courtroom_proceedings[-1].content
 
 
 async def test_unpaid_after_a_last_chance_the_contempt_is_punished(

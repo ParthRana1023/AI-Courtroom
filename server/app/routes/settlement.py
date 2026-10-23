@@ -654,9 +654,10 @@ async def hold_hearing(
         attempt.status = SettlementStatus.RECORDED
         attempt.ended_at = now
         attempt.payments = payments.day_schedule(attempt.agreed, now.date())
-        attempt.plan = payments.draw(
-            case.cnr, len(attempt.payments), await payer_reliability(case, profile)
-        )
+        if attempt.payments:  # terms with no money leave nothing to pay
+            attempt.plan = payments.draw(
+                len(attempt.payments), await payer_reliability(case, profile)
+            )
         case.verdict = attempt.court_order
         case.outcome = CaseOutcome.SETTLED
         case.outcome_reason = record.ruling
@@ -759,10 +760,15 @@ async def advance_a_day(
         payment.due -= day
         if payment.paid_at:
             payment.paid_at -= day
-    if attempt.enforcement:
-        attempt.enforcement.filed_on -= day
-        if attempt.enforcement.listed_for:
-            attempt.enforcement.listed_for -= day
+    enforcement = attempt.enforcement
+    if enforcement:
+        enforcement.filed_on -= day
+        if enforcement.listed_for:
+            enforcement.listed_for -= day
+        if enforcement.pay_by:
+            enforcement.pay_by -= day
+        if enforcement.hearing:
+            enforcement.hearing.held_at -= day
     await case.save()
     await progress.catch_up_and_tell(case, background_tasks)
     return view(case)

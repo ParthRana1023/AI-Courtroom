@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from functools import lru_cache
 from importlib import import_module
 
@@ -20,11 +21,21 @@ def _load_model():
     return TextEmbedding(settings.embedding_model_name)
 
 
+_loading = threading.Lock()
+
+
+def _model():
+    # lru_cache doesn't lock: the first requests, each in its own worker thread,
+    # would all load the model at once (memory a small server doesn't have).
+    with _loading:
+        return _load_model()
+
+
 def embed_texts_sync(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
 
-    model = _load_model()
+    model = _model()
     embeddings = np.asarray(list(model.embed(texts)), dtype=np.float32)
     # Retrieval scores with a dot product, so every vector must be unit length.
     embeddings /= np.linalg.norm(embeddings, axis=1, keepdims=True).clip(min=1e-12)

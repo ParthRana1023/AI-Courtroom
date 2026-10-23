@@ -582,6 +582,19 @@ class Case(Document):
         "settlements": {"__all__": {"defaults_on", "plan"}},
     }
 
+    def struck_texts(self) -> set[str]:
+        """What a sustained objection struck from the record or withdrew, word for
+        word: arguments and testimony the court must not weigh. Arguments and
+        examinations are stored apart from their record lines, so their text is
+        what links them."""
+        return {
+            text.strip()
+            for event in self.courtroom_proceedings
+            if event.struck
+            for text in (event.content, event.question, event.answer)
+            if text and text.strip()
+        }
+
     def open_settlement(self) -> Settlement | None:
         """The attempt still under negotiation or agreed, if any."""
         last = self.settlements[-1] if self.settlements else None

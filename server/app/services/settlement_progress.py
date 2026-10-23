@@ -392,10 +392,13 @@ async def catch_up_and_tell(case: Case, background_tasks: BackgroundTasks) -> No
 async def progress_settlements(now: datetime, dry_run: bool = False) -> dict[str, int]:
     """Daily job: catch every order up, so the owner hears of it without opening
     the case."""
+    # $elemMatch: a "$ne" across the array would skip a case whose earlier attempt
+    # (refused, withdrawn) has no plan.
     cases = await Case.find(
         {
-            "settlements.plan": {"$ne": None},
-            "settlements.payments_done": {"$ne": True},
+            "settlements": {
+                "$elemMatch": {"plan": {"$ne": None}, "payments_done": {"$ne": True}}
+            },
             "is_deleted": {"$ne": True},
         }
     ).to_list()
@@ -408,9 +411,12 @@ async def progress_settlements(now: datetime, dry_run: bool = False) -> dict[str
         due += len(pending)
         if dry_run or not pending:
             continue
-        notices = await catch_up(case, now)
-        changed += len(notices)
-        sent += await tell_owner(case, notices)
+        try:  # one case going wrong mustn't hold up the others
+            notices = await catch_up(case, now)
+            changed += len(notices)
+            sent += await tell_owner(case, notices)
+        except Exception:
+            logger.exception(f"Settlement payments failed to catch up in {case.cnr}")
     return {
         "settlement_updates_due": due,
         "settlement_updates": changed,

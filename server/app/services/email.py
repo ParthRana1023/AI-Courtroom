@@ -13,13 +13,17 @@ from app.services import health
 logger = get_logger(__name__)
 
 
+SMTP_TIMEOUT = 15  # seconds: a stalled server mustn't hold a worker thread for good
+
+
 def _deliver(message: MIMEMultipart) -> None:
     """Blocking SMTP round trip; run it in a thread so requests aren't held up."""
-    server = smtplib.SMTP(settings.smtp_server, settings.smtp_port)
-    server.starttls()
-    server.login(settings.email_username, settings.email_password)
-    server.send_message(message)
-    server.quit()
+    with smtplib.SMTP(
+        settings.smtp_server, settings.smtp_port, timeout=SMTP_TIMEOUT
+    ) as server:
+        server.starttls()
+        server.login(settings.email_username, settings.email_password)
+        server.send_message(message)
 
 
 async def send_email(

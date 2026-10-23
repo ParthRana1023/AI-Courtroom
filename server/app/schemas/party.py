@@ -37,7 +37,7 @@ class ChatMessageOut(BaseModel):
 class ChatRequest(BaseModel):
     """Request schema for sending a chat message"""
 
-    message: str
+    message: str = Field(min_length=1, max_length=4000)
     exhibit_refs: list[str] = Field(default_factory=list, max_length=10)
 
 

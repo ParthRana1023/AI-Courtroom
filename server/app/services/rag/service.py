@@ -88,7 +88,41 @@ def _transcript_lines(case: Case) -> list[str]:
         f"{event.speaker_name or (event.speaker_role or 'Court').capitalize()}: "
         f"{_event_content(event)}"
         for event in getattr(case, "courtroom_proceedings", None) or []
-        if _event_content(event)
+        if _event_content(event) and not event.struck
+    ]
+
+
+# What a struck line can be remembered as.
+STRUCK_SOURCES = {
+    CaseMemorySourceType.ARGUMENT,
+    CaseMemorySourceType.PROCEEDING,
+    CaseMemorySourceType.WITNESS_TESTIMONY,
+}
+
+
+# A struck text shorter than this ("No.") only drops a chunk that is all of it:
+# found inside longer chunks it would drop unrelated testimony too.
+DISTINCTIVE = 20
+
+
+def _was_struck(content: str, struck: set[str]) -> bool:
+    content = content.strip()
+    return bool(content) and any(
+        content in text or (len(text) >= DISTINCTIVE and text in content)
+        for text in struck
+    )
+
+
+def _not_struck(case: Case, chunks: list[CaseMemoryChunk]) -> list[CaseMemoryChunk]:
+    """Leave out what the court struck: its memory was written before the ruling."""
+    struck = case.struck_texts() if hasattr(case, "struck_texts") else set()
+    if not struck:
+        return chunks
+    return [
+        chunk
+        for chunk in chunks
+        if chunk.source_type not in STRUCK_SOURCES
+        or not _was_struck(chunk.content, struck)
     ]
 
 
@@ -527,7 +561,7 @@ async def retrieve_case_context(
             )
 
         scored: list[tuple[float, CaseMemoryChunk]] = []
-        for chunk in chunks:
+        for chunk in _not_struck(case, chunks):
             vector = np.array(chunk.embedding, dtype=np.float32)
             if vector.size != query_vector.size:  # also skips empty vectors
                 continue

@@ -1,6 +1,8 @@
 # app/routes/cases.py
+import asyncio
 import random
 import time
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
 from beanie import PydanticObjectId
@@ -183,6 +185,12 @@ async def update_case_status(
     # Assuming CaseStatus enum is imported or defined elsewhere
     if new_status not in [e.value for e in CaseStatus]:
         raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
+    # Counsel only opens or adjourns the court: a case is decided by its judgment or
+    # an order on a compromise, and a decided case is never reopened.
+    if case.status == CaseStatus.RESOLVED:
+        raise HTTPException(status_code=409, detail=messages.CASE_DECIDED)
+    if new_status not in (CaseStatus.ACTIVE.value, CaseStatus.ADJOURNED.value):
+        raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
 
     # Ensure role is selected before activating
     if new_status == CaseStatus.ACTIVE.value and (
@@ -331,6 +339,11 @@ async def update_case_roles(
                 status_code=400,
                 detail=f"Invalid ai_role: {new_ai_role}. Must be 'plaintiff', 'defendant', or 'not_started'",
             )
+    # Two sides, one each: the AI argues whichever the user didn't take.
+    sides = {Roles.PLAINTIFF, Roles.DEFENDANT}
+    if case.user_role not in sides or case.ai_role not in sides | {Roles.NOT_STARTED}:
+        raise HTTPException(status_code=400, detail=messages.ROLES_INVALID)
+    case.ai_role = (sides - {case.user_role}).pop()
 
     try:
         await case.save()
@@ -427,6 +440,7 @@ async def generate_plaintiff_opening(
             type="opening",
             content=plaintiff_opening_statement,
             user_id=None,  # LLM-generated
+            role=Roles.PLAINTIFF,
             timestamp=get_current_datetime(),
         )
     )
@@ -616,12 +630,22 @@ async def get_case_history(
     return history
 
 
+# One case drafted at a time per user. The limit is checked before drafting and
+# used up after it, so parallel requests would otherwise all pass the check.
+_generating: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+async def drafting_alone(user: User = Depends(get_current_user)):
+    async with _generating[str(user.id)]:
+        yield await case_generation_rate_limiter.check_only(user)
+
+
 @router.post("/generate", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
 async def generate_new_case(
     case_data: CaseCreate,
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(case_generation_rate_limiter.check_only),
+    current_user: User = Depends(drafting_alone, scope="function"),
 ):
     logger.info(
         f"Case generation requested by user: {current_user.email} with {case_data.sections_involved} sections"

@@ -385,10 +385,36 @@ async def test_status_save_failure(client, user, auth_headers, make_case, monkey
     monkeypatch.setattr(Case, "save", boom)
 
     response = await client.put(
-        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "resolved"}
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "adjourned"}
     )
 
     assert response.status_code == 500
+
+
+@pytest.mark.parametrize("status", ["resolved", "not started"])
+async def test_counsel_only_opens_or_adjourns_the_court(
+    client, user, auth_headers, make_case, status
+):
+    case = await make_case(user, user_role=Roles.PLAINTIFF)
+
+    response = await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": status}
+    )
+
+    assert response.status_code == 400
+
+
+async def test_a_decided_case_is_never_reopened(client, user, auth_headers, make_case):
+    case = await make_case(
+        user, user_role=Roles.PLAINTIFF, status=CaseStatus.RESOLVED, verdict="Done."
+    )
+
+    response = await client.put(
+        f"/cases/{case.cnr}/status", headers=auth_headers, json={"status": "active"}
+    )
+
+    assert response.status_code == 409
+    assert (await reload(case)).status == CaseStatus.RESOLVED
 
 
 # ---------------------------------------------------------------------------
@@ -463,6 +489,27 @@ async def test_roles_validation(
     )
 
 
+async def test_the_ai_takes_the_side_the_user_didnt(
+    client, user, auth_headers, make_case
+):
+    case = await make_case(user)
+    same = {"user_role": "plaintiff", "ai_role": "plaintiff"}
+
+    taken = await client.put(
+        f"/cases/{case.cnr}/roles", headers=auth_headers, json=same
+    )
+    nobody = await make_case(user)
+    neither = await client.put(
+        f"/cases/{nobody.cnr}/roles",
+        headers=auth_headers,
+        json={"user_role": "not_started", "ai_role": "defendant"},
+    )
+
+    assert taken.status_code == 200
+    assert (await reload(case)).ai_role == Roles.DEFENDANT
+    assert neither.status_code == 400
+
+
 async def test_roles_survive_image_generation_failure(
     client, user, auth_headers, make_case, image_pipeline
 ):
@@ -481,7 +528,9 @@ async def test_roles_survive_image_generation_failure(
     )
 
     response = await client.put(
-        f"/cases/{case.cnr}/roles", headers=auth_headers, json={"ai_role": "defendant"}
+        f"/cases/{case.cnr}/roles",
+        headers=auth_headers,
+        json={"user_role": "plaintiff", "ai_role": "defendant"},
     )
 
     assert response.status_code == 200

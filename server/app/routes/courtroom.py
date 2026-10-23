@@ -6,6 +6,7 @@ import contextlib
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from pymongo.errors import DuplicateKeyError
 
 from app import messages
 from app.dependencies import controls_hearing, get_current_user, get_owned_case
@@ -433,13 +434,15 @@ async def report_response(
         Report.entry_id == request.entry_id,
     )
     if existing is None:
-        await Report(
-            user_id=current_user.id,
-            cnr=case_cnr,
-            entry_id=request.entry_id,
-            reason=request.reason,
-            details=details,
-            excerpt=excerpt[:4000],
-        ).insert()
-        logger.info(f"AI response reported in {case_cnr}: {request.reason}")
+        # A double click races past the check; the unique index keeps one report.
+        with contextlib.suppress(DuplicateKeyError):
+            await Report(
+                user_id=current_user.id,
+                cnr=case_cnr,
+                entry_id=request.entry_id,
+                reason=request.reason,
+                details=details,
+                excerpt=excerpt[:4000],
+            ).insert()
+            logger.info(f"AI response reported in {case_cnr}: {request.reason}")
     return {"reported": True}

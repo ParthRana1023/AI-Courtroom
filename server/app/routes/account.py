@@ -2,6 +2,7 @@
 """Account and security: password, signed-in devices, Google, notifications,
 data export and deleting the account. Mounted under /auth."""
 
+import asyncio
 import io
 import json
 import zipfile
@@ -56,12 +57,14 @@ async def check_password(user: User, password: str) -> None:
     if user.password_hash is None:
         raise HTTPException(status_code=400, detail=messages.NO_PASSWORD)
     key = f"password:{user.id}"
-    await login_failure_email_limiter.ensure_available(key, messages.LOGIN_LOCKED)
+    # Taken before the check and handed back if right, so parallel guesses can't
+    # all pass a check made first (see RateLimiter.reserve).
+    attempt = await login_failure_email_limiter.reserve(key, messages.LOGIN_LOCKED)
     try:
-        ph.verify(user.password_hash, password)
+        await asyncio.to_thread(ph.verify, user.password_hash, password)
     except VerifyMismatchError:
-        await login_failure_email_limiter.register_usage(key)
         raise HTTPException(status_code=400, detail=messages.WRONG_PASSWORD)
+    await login_failure_email_limiter.release(attempt)
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +80,7 @@ async def change_password(
 ):
     """Change the password, then sign out every other device."""
     await check_password(user, data.current_password)
-    user.password_hash = ph.hash(data.new_password)
+    user.password_hash = await asyncio.to_thread(ph.hash, data.new_password)
     user.password_changed_at = get_current_datetime()
     await user.save()
     assert user.id is not None

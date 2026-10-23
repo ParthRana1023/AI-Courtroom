@@ -1,4 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from pymongo.results import UpdateResult
 
 from app.config import settings
 from app.dependencies import get_current_user, get_owned_case
@@ -72,6 +73,11 @@ def extraction_source(
                 status_code=400,
                 detail="Only a witness's answers can be extracted as evidence.",
             )
+        if event.struck:
+            raise HTTPException(
+                status_code=400,
+                detail="The court struck this answer from the record.",
+            )
         source = f"{event.speaker_name or 'Witness'} testimony"
         return event.content or "", source, event.id
 
@@ -127,11 +133,19 @@ async def extract_case_evidence(
     try:
         # Appended on its own: a whole-case save would undo exhibit images the
         # background task finished while the text was being extracted.
-        await Case.find_one(Case.cnr == cnr).update_one(
-            {"$push": {"evidence": item.model_dump(mode="json")}}
-        )
+        # Only if nobody extracted it meanwhile (a double click, or the AI logging
+        # the same answer while the model was drafting this).
+        result = await Case.find_one(
+            {"cnr": cnr, "evidence.origin_id": {"$ne": origin_id}}
+        ).update_one({"$push": {"evidence": item.model_dump(mode="json")}})
+        if not isinstance(result, UpdateResult) or not result.modified_count:
+            raise HTTPException(
+                status_code=409, detail="This has already been extracted as evidence."
+            )
         case.evidence.append(item)
         await index_evidence_item(case, item)
+    except HTTPException:
+        raise
     except Exception:
         logger.exception(f"Error extracting evidence for case {cnr}")
         raise HTTPException(status_code=500, detail="Failed to extract evidence.")

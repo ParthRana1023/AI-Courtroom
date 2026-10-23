@@ -40,6 +40,9 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+# An argument or closing, in characters: room for a long submission, not a document.
+MAX_ARGUMENT = 8000
+
 
 ARGUMENT_EVENTS = {
     CourtroomProceedingsEventType.ARGUMENT,
@@ -56,6 +59,10 @@ def other_side(role: str) -> str:
 
 def side_arguments(case: Case, role: str | None) -> list[ArgumentItem]:
     return case.plaintiff_arguments if role == "plaintiff" else case.defendant_arguments
+
+
+def argument_count(case: Case) -> int:
+    return len(case.plaintiff_arguments) + len(case.defendant_arguments)
 
 
 def user_display_name(user: User) -> str:
@@ -224,9 +231,9 @@ async def adjournment_notice(user: User) -> dict:
 async def submit_argument(
     case_cnr: str,
     role: str = Body(...),
-    argument: str = Body(...),
+    argument: str = Body(..., max_length=MAX_ARGUMENT),
     is_closing: bool = Body(False),
-    exhibit_refs: list[str] = Body([]),
+    exhibit_refs: list[str] = Body([], max_length=10),
     current_user: User = Depends(argument_rate_limiter.check_only),
 ):
     logger.info(
@@ -520,8 +527,8 @@ async def submit_closing_statement(
     case_cnr: str,
     background_tasks: BackgroundTasks,
     role: str = Body(...),
-    statement: str = Body(...),
-    exhibit_refs: list[str] = Body([]),
+    statement: str = Body(..., max_length=MAX_ARGUMENT),
+    exhibit_refs: list[str] = Body([], max_length=10),
     current_user: User = Depends(argument_rate_limiter.check_only),
 ):
     logger.info(f"Closing statement submission for case {case_cnr}, role={role}")
@@ -533,21 +540,35 @@ async def submit_closing_statement(
     if exhibit_refs:
         raise HTTPException(status_code=400, detail=messages.NO_EXHIBITS_IN_STATEMENTS)
 
-    record_argument(
-        case,
-        role,
-        "closing",
-        statement,
-        CourtroomProceedingsEventType.CLOSING_STATEMENT,
-        user_display_name(current_user),
-        current_user.id,
+    # Saved before the AI's closing and the verdict. If either fails, the retry
+    # carries on from here rather than closing a second time.
+    closed = any(
+        a.type == "closing" and a.user_id == current_user.id
+        for a in side_arguments(case, role)
     )
-    total = len(case.plaintiff_arguments) + len(case.defendant_arguments)
-    await save_with_memory(
-        case,
-        [argument_memory(f"{role}_closing_user_{total}", statement, role, "closing")],
-        "Failed to save closing statement. Please try again.",
-    )
+    if not closed:
+        record_argument(
+            case,
+            role,
+            "closing",
+            statement,
+            CourtroomProceedingsEventType.CLOSING_STATEMENT,
+            user_display_name(current_user),
+            current_user.id,
+        )
+        await save_with_memory(
+            case,
+            [
+                argument_memory(
+                    f"{role}_closing_user_{argument_count(case)}",
+                    statement,
+                    role,
+                    "closing",
+                )
+            ],
+            "Failed to save closing statement. Please try again.",
+        )
+    total = argument_count(case)
 
     ai_role = other_side(role)
     try:
@@ -587,12 +608,14 @@ async def submit_closing_statement(
         AI_SPEAKER[ai_role],
     )
 
-    all_arguments = case.plaintiff_arguments + case.defendant_arguments
+    # Each side's own list (an opening prepared before the hearing has no role), less
+    # what a sustained objection struck from the record.
+    struck = case.struck_texts()
     arguments_for = {
         side: [
             arg.content + exhibit_note(case, arg.exhibit_refs)
-            for arg in all_arguments
-            if arg.type in VERDICT_ARGUMENT_TYPES and arg.role == Roles(side)
+            for arg in side_arguments(case, side)
+            if arg.type in VERDICT_ARGUMENT_TYPES and arg.content.strip() not in struck
         ]
         for side in ("plaintiff", "defendant")
     }

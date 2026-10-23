@@ -1,5 +1,7 @@
 # app/routes/auth.py
+import asyncio
 import time
+from urllib.parse import urlsplit
 
 from argon2.exceptions import VerifyMismatchError
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -54,6 +56,7 @@ from app.services.otp import create_otp, verify_otp
 from app.services.user_stats import compute_user_stats
 from app.utils.datetime import get_current_datetime
 from app.utils.rate_limiter import (
+    RateLimiter,
     login_failure_email_limiter,
     login_failure_ip_limiter,
     otp_send_rate_limiter,
@@ -97,6 +100,7 @@ async def initiate_registration(user_data: UserCreate, request: Request):
                 detail="Google sign-up expired or does not match this email. Please continue with Google again.",
             )
         user_data.google_id = claims["sub"]
+        user_data.profile_photo_url = google_photo(user_data.profile_photo_url)
 
     # If registering via Google, skip OTP and directly create user
     if user_data.google_id:
@@ -134,6 +138,15 @@ async def initiate_registration(user_data: UserCreate, request: Request):
     return {"message": "OTP sent to your email for verification", "skip_otp": False}
 
 
+def google_photo(url: str | None) -> str | None:
+    """The Google profile picture the client passes on, if it is one."""
+    if url and urlsplit(url).scheme == "https":
+        host = urlsplit(url).hostname or ""
+        if host == "googleusercontent.com" or host.endswith(".googleusercontent.com"):
+            return url
+    return None
+
+
 @router.post(
     "/register/verify",
     status_code=status.HTTP_201_CREATED,
@@ -149,6 +162,14 @@ async def verify_registration(data: RegistrationVerifyRequest, request: Request)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=messages.OTP_INVALID
         )
+
+    # An email sign-up: the Google fields are set only by the Google path above,
+    # from our signed proof. Taken from the client here, they could tie another
+    # person's Google account to this one, or name someone else's stored photo
+    # (which a later photo change or the purge would delete).
+    data.user_data.google_id = None
+    data.user_data.google_signup_token = None
+    data.user_data.profile_photo_url = None
 
     # Create the user
     try:
@@ -209,18 +230,19 @@ async def initiate_login(login_data: dict, request: Request):
     email_key = email
     ip_key = client_ip(request)
     locked = messages.LOGIN_LOCKED
-    await login_failure_email_limiter.ensure_available(email_key, locked)
-    await login_failure_ip_limiter.ensure_available(ip_key, locked)
-
-    async def record_failure():
-        await login_failure_email_limiter.register_usage(email_key)
-        await login_failure_ip_limiter.register_usage(ip_key)
+    # Each attempt is taken before the password is checked and handed back if it
+    # was right: recording only after a wrong guess let parallel guesses all pass.
+    by_email = await login_failure_email_limiter.reserve(email_key, locked)
+    try:
+        by_ip = await login_failure_ip_limiter.reserve(ip_key, locked)
+    except HTTPException:
+        await RateLimiter.release(by_email)
+        raise
 
     # Check if user exists and verify password
     user = await find_user_by_email(email)
     if not user:
         logger.warning(f"Login failed - email not registered: {email} (ip {ip_key})")
-        await record_failure()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Email not registered"
         )
@@ -237,13 +259,15 @@ async def initiate_login(login_data: dict, request: Request):
 
     # Verify password
     try:
-        ph.verify(user.password_hash, password)
+        # Argon2 is slow on purpose: off the event loop, so other requests go on.
+        await asyncio.to_thread(ph.verify, user.password_hash, password)
     except VerifyMismatchError:
         logger.warning(f"Login failed - password mismatch for: {email} (ip {ip_key})")
-        await record_failure()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
+    await RateLimiter.release(by_email)
+    await RateLimiter.release(by_ip)
     ensure_not_deleted(user)
 
     # Generate and send OTP
@@ -747,7 +771,7 @@ async def reset_password(data: ResetPasswordRequest):
     if user is None or user.id is None:
         raise HTTPException(status_code=400, detail=messages.RESET_LINK_INVALID)
 
-    user.password_hash = ph.hash(data.password)
+    user.password_hash = await asyncio.to_thread(ph.hash, data.password)
     user.password_changed_at = get_current_datetime()
     await user.save()
     revoked = await revoke_sessions(user.id)

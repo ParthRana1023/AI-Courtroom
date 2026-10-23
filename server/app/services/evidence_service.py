@@ -1,6 +1,8 @@
+import asyncio
 import json
 import re
 import time
+from collections import defaultdict
 from datetime import UTC, timedelta
 
 from langchain_core.output_parsers import StrOutputParser
@@ -23,9 +25,30 @@ logger = get_logger(__name__)
 
 
 def parse_llm_json(response: str):
-    """Parse JSON from a model reply, ignoring ``` fences and <think> blocks."""
+    """Parse JSON from a model reply, ignoring ``` fences, <think> blocks and any
+    words around it ("Here are the items: [...]"): the first array or object."""
     unfenced = re.sub(r"```(?:json)?\s*(.*?)\s*```", r"\1", response, flags=re.DOTALL)
-    return json.loads(strip_thinking(unfenced))
+    text = strip_thinking(unfenced)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        starts = [i for i in (text.find("["), text.find("{")) if i != -1]
+        if not starts:
+            raise
+        return json.JSONDecoder().raw_decode(text[min(starts) :])[0]
+
+
+def as_items(data) -> list[dict]:
+    """The evidence list, also when the model wrapped it ({"evidence": [...]}) or
+    gave a single item."""
+    if isinstance(data, dict):
+        lists = [v for v in data.values() if isinstance(v, list)]
+        data = [data] if "title" in data or not lists else lists[0]
+    return (
+        [item for item in data if isinstance(item, dict)]
+        if isinstance(data, list)
+        else []
+    )
 
 
 async def extract_evidence_items(
@@ -74,7 +97,7 @@ Example format:
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         # Clean up response (remove markdown code blocks if present)
-        evidence_data = parse_llm_json(response)
+        evidence_data = as_items(parse_llm_json(response))
         items: list[EvidenceItem] = []
 
         for index, data in enumerate(evidence_data, start=1):
@@ -139,7 +162,7 @@ JSON object only:
 
     try:
         response = await chain.ainvoke({"text": text[:3000]})
-        data = parse_llm_json(response)
+        data = as_items(parse_llm_json(response))[0]  # IndexError if there is none
     except Exception as e:
         logger.exception("Error extracting evidence from text", extra={"error": str(e)})
         data = {
@@ -326,13 +349,23 @@ async def queue_missing_images(case: Case) -> int:
     return queued
 
 
+# One run per case at a time (the server runs one worker): a run started while
+# another is going waits, then finds those images made instead of making them twice.
+_making: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
 async def generate_queued_images(cnr: str) -> None:
     """Background task: make each pending exhibit image while the user prepares.
 
-    Each result is written to its own exhibit only, so party chats and anything
-    else saved meanwhile are kept. One lost to a restart is released by
-    release_stuck_images.
+    Each result is written to its own exhibit's image fields only, so party chats,
+    tendering and anything else saved meanwhile are kept. One lost to a restart
+    is released by release_stuck_images.
     """
+    async with _making[cnr]:
+        await _generate_queued(cnr)
+
+
+async def _generate_queued(cnr: str) -> None:
     case = await Case.find_one(Case.cnr == cnr)
     if not case:
         return
@@ -353,11 +386,22 @@ async def generate_queued_images(cnr: str) -> None:
             logger.exception(f"Background image failed for {item.exhibit_ref} in {cnr}")
 
 
+IMAGE_FIELDS = (
+    "image_prompt",
+    "image_url",
+    "image_public_id",
+    "media_status",
+    "image_requested_at",
+)
+
+
 async def _save_item(case: Case, index: int, item: EvidenceItem) -> None:
-    """Write one exhibit, guarded by its id, without touching the rest of the case."""
+    """Write one exhibit's image fields, guarded by its id. Only those: the item
+    was read before a minutes-long image call, and a tender meanwhile renumbers it."""
     case.evidence[index] = item
+    data = item.model_dump(mode="json", include=set(IMAGE_FIELDS))
     await Case.find_one({"cnr": case.cnr, f"evidence.{index}.id": item.id}).update_one(
-        {"$set": {f"evidence.{index}": item.model_dump(mode="json")}}
+        {"$set": {f"evidence.{index}.{field}": data[field] for field in IMAGE_FIELDS}}
     )
 
 

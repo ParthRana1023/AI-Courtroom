@@ -1,5 +1,6 @@
 """Tests for objections, reports of AI responses and the court's session lines."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -326,6 +327,21 @@ async def report(client, headers, case, entry_id, reason="law", details=""):
         headers=headers,
         json={"entry_id": entry_id, "reason": reason, "details": details},
     )
+
+
+async def test_a_double_clicked_report_is_kept_once(
+    client, auth_headers, courtroom_case
+):
+    theirs = said(EventType.AI_ARGUMENT, "Section 999 applies.", "defendant")
+    case = await courtroom_case(courtroom_proceedings=[theirs])
+
+    both = await asyncio.gather(
+        report(client, auth_headers, case, theirs.id),
+        report(client, auth_headers, case, theirs.id),
+    )
+
+    assert [r.status_code for r in both] == [200, 200]
+    assert await Report.find(Report.cnr == case.cnr).count() == 1
 
 
 async def test_report_an_ai_response_once(client, auth_headers, courtroom_case, user):

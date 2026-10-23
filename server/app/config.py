@@ -210,6 +210,11 @@ class Settings(BaseSettings):
     # reasoning models); used for every other Cloudflare task.
     cloudflare_max_tokens: int = 4096
     drafter_temperature: float = 0.8
+    # Per model call. The SDK defaults (10 minutes, two retries) let one hung
+    # provider hold a hearing for half an hour before the next model is tried.
+    # Long enough for a free reasoning model to write a whole petition.
+    llm_timeout_seconds: float = 180
+    llm_max_retries: int = 1
 
     # Highest establishment code (CNR positions 5-6) used for generated cases
     cnr_max_establishment_code: int = 20

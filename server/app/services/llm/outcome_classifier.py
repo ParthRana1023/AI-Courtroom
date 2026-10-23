@@ -21,15 +21,35 @@ class OutcomeResult(BaseModel):
     reason: str
 
 
-def parse_outcome_result(text: str) -> OutcomeResult:
-    """The JSON object in the model's reply, validated."""
+def parse_outcome_result(text: str, user_role: str | None = None) -> OutcomeResult:
+    """The JSON object in the model's reply, validated.
+
+    With ``user_role`` the outcome follows from the favoured party: that is what
+    the model read from the orders, and mapping it to the user's side is ours to
+    get right, not the model's. A heard case is won, lost or partly won, never
+    settled (that comes only from a recorded compromise).
+    """
     match = _JSON_OBJECT.search(strip_thinking(text))
     if not match:
         raise LLMGenerationError("Outcome reply had no JSON object")
     try:
-        return OutcomeResult.model_validate(json.loads(match.group(0)))
-    except (json.JSONDecodeError, ValidationError) as e:
+        data = json.loads(match.group(0))
+        for key in ("outcome", "favoured_party"):
+            if isinstance(data.get(key), str):
+                data[key] = data[key].strip().lower()
+        result = OutcomeResult.model_validate(data)
+    except (json.JSONDecodeError, ValidationError, AttributeError) as e:
         raise LLMGenerationError(f"Invalid outcome reply: {e}") from e
+    if user_role:
+        favoured = result.favoured_party
+        result.outcome = (
+            CaseOutcome.PARTIAL
+            if favoured == "mixed"
+            else CaseOutcome.WON if favoured == user_role.lower() else CaseOutcome.LOST
+        )
+    if result.outcome == CaseOutcome.SETTLED:
+        raise LLMGenerationError("A heard case can't be recorded as settled")
+    return result
 
 
 PROMPT = """
@@ -98,7 +118,7 @@ class OutcomeClassifierService:
             logger.exception("Error during outcome classification")
             raise LLMGenerationError(f"Outcome classification failed: {e}") from e
 
-        result = parse_outcome_result(reply)
+        result = parse_outcome_result(reply, user_role)
         logger.info(
             "Outcome classified",
             extra={"outcome": result.outcome.value, "user_role": user_role},

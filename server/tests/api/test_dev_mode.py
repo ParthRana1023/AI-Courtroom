@@ -5,7 +5,7 @@ import json
 import pytest
 
 from app.config import settings
-from app.models.case import ArgumentItem, Roles
+from app.models.case import ArgumentItem, CaseOutcome, CaseStatus, Roles
 from app.utils.llm_trace import LLM_TRACE_HEADER
 
 
@@ -18,6 +18,9 @@ def developer(monkeypatch, user):
 async def analysable_case(user, make_case):
     return await make_case(
         user,
+        status=CaseStatus.RESOLVED,
+        verdict="The petition is allowed.",
+        outcome=CaseOutcome.WON,
         user_role=Roles.PLAINTIFF,
         plaintiff_arguments=[
             ArgumentItem(

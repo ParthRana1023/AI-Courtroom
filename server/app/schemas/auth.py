@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
-from app.schemas.user import is_adult, validate_password_strength
+from app.schemas.user import ProfileText, is_adult, validate_password_strength
 
 Gender = Literal["male", "female", "others", "prefer-not-to-say"]
 
@@ -24,19 +24,19 @@ class ProfileUpdateRequest(BaseModel):
     """Edit profile. Only the fields sent are changed; an optional field sent
     empty (or null) is cleared. First and last name can't be cleared."""
 
-    first_name: str | None = None
-    last_name: str | None = None
-    nickname: str | None = None
+    first_name: ProfileText | None = None
+    last_name: ProfileText | None = None
+    nickname: ProfileText | None = None
     gender: Gender | None = None
     date_of_birth: date | None = None
     email: EmailStr | None = None  # editable for phone accounts only
-    phone_code: str | None = None
+    phone_code: ProfileText | None = None
     phone_number: str | None = None  # locked for phone accounts
-    city: str | None = None
-    state: str | None = None
-    state_iso2: str | None = None
-    country: str | None = None
-    country_iso2: str | None = None
+    city: ProfileText | None = None
+    state: ProfileText | None = None
+    state_iso2: ProfileText | None = None
+    country: ProfileText | None = None
+    country_iso2: ProfileText | None = None
 
     @field_validator("first_name", "last_name")
     @classmethod

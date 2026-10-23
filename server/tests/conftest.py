@@ -321,8 +321,14 @@ def outbox(monkeypatch):
     sent: list[dict] = []
 
     class RecordingSMTP:
-        def __init__(self, host, port):
+        def __init__(self, host, port, timeout=None):
             self.host, self.port = host, port
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.quit()
 
         def starttls(self):
             pass

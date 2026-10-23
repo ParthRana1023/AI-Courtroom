@@ -30,10 +30,8 @@ from app.services.llm.settlement import (
 from app.services.settlement_deed import owed_paragraph
 from app.services.settlement_payments import (
     day_schedule,
-    default_on,
     describe,
     draw,
-    schedule,
     timeline,
 )
 from app.services.settlement_payments import status as payment_status
@@ -243,28 +241,6 @@ def test_an_adjournment_carries_its_next_date():
     assert record.next_date == date(2026, 11, 20)
 
 
-def test_instalments_fall_on_real_dates_with_interest_on_the_last():
-    terms = SettlementTerms(amount=4200000, instalments=3, months=6, interest=9)
-
-    plan = schedule(terms, date(2026, 11, 4))
-
-    assert [p.due for p in plan] == [
-        date(2026, 11, 18),
-        date(2027, 2, 4),
-        date(2027, 5, 4),
-    ]
-    assert [p.amount for p in plan] == [1400000, 1400000, 1400000 + 189000]
-
-
-def test_one_payment_is_due_in_two_weeks():
-    plan = schedule(
-        SettlementTerms(amount=100000, instalments=1, months=3, interest=0),
-        date(2026, 1, 31),
-    )
-
-    assert [(p.amount, p.due) for p in plan] == [(100000, date(2026, 2, 14))]
-
-
 @pytest.mark.parametrize(
     ("paid", "due", "user_pays", "index", "expected"),
     [
@@ -283,13 +259,6 @@ def test_payment_status_is_worked_out_on_read(paid, due, user_pays, index, expec
     assert payment_status(payment, index, user_pays, 1, date(2026, 12, 1)) == expected
 
 
-def test_the_same_case_always_defaults_the_same_way():
-    draws = {default_on("DLND010004212026", 3) for _ in range(5)}
-
-    assert len(draws) == 1
-    assert default_on("DLND010004212026", 1) is None
-
-
 def test_instalments_fall_a_day_apart_from_the_order():
     terms = SettlementTerms(amount=4200000, instalments=3, months=6, interest=9)
 
@@ -305,12 +274,19 @@ def test_instalments_fall_a_day_apart_from_the_order():
 
 
 def test_draws_follow_the_accused_reliability():
-    sure, never = draw("DLND010004212026", 4, 1.0), draw("DLND010004212026", 4, 0.0)
+    sure, never = draw(4, 1.0), draw(4, 0.0)
 
     assert all(d.on_time and d.cures for d in sure.draws) and sure.complies
     assert not any(d.on_time or d.cures for d in never.draws) and not never.complies
-    assert draw("DLND010004212026", 4, 0.6) == draw("DLND010004212026", 4, 0.6)
     assert sure.reliability == 1.0 and len(sure.draws) == 4
+
+
+def test_draws_cant_be_worked_out_from_the_case():
+    """Not seeded from the CNR, which the user sees. Two runs of 40 even-odds
+    instalments (80 coin flips) never come out alike in practice."""
+    plans = [draw(40, 0.5) for _ in range(2)]
+
+    assert plans[0].draws != plans[1].draws
 
 
 ORDERED = date(2026, 11, 4)
@@ -336,10 +312,12 @@ MIXED = plan_of((True, False), (False, True), (False, False))
 @pytest.mark.parametrize(
     ("today", "statuses", "stage"),
     [
+        # Due all day whatever the draws; the outcome shows once the day is over.
         (0, ["upcoming", "upcoming", "upcoming"], "paying"),
-        (1, ["paid", "upcoming", "upcoming"], "paying"),
+        (1, ["due", "upcoming", "upcoming"], "paying"),
         (2, ["paid", "due", "upcoming"], "paying"),
-        (3, ["paid", "late", "due"], "paying"),
+        # Missed: in notice, whether or not it will be paid within it.
+        (3, ["paid", "missed", "due"], "notice"),
         (4, ["paid", "late", "missed"], "notice"),
         (5, ["paid", "late", "defaulted"], "defaulted"),
     ],
@@ -359,13 +337,16 @@ def test_a_missed_instalment_shows_its_notice_and_a_cure_its_day():
     assert line.defaulted is None and line.closed_on is None
 
 
-def test_a_default_holds_up_the_rest():
+def test_a_default_holds_up_what_wasnt_paid_before_it():
+    """Instalment 1 defaults when its notice ends on day 2; instalment 2, paid on
+    day 2, stays paid; instalment 3, due after, is held up."""
     plan = plan_of((False, False), (True, True), (True, True))
 
     line = timeline(day_schedule(THREE, ORDERED), plan, day(9))
 
-    assert [r.status for r in line.rows] == ["defaulted", "held", "held"]
+    assert [r.status for r in line.rows] == ["defaulted", "paid", "held"]
     assert line.defaulted == 0 and line.stage == "defaulted"
+    assert line.rows[1].paid_on == day(2)
 
 
 def test_paying_every_instalment_closes_the_order():

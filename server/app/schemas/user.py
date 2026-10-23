@@ -1,12 +1,13 @@
 # app/schemas/user.py
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     EmailStr,
     Field,
+    StringConstraints,
     computed_field,
     field_validator,
     model_validator,
@@ -26,6 +27,10 @@ Gender = Literal["male", "female", "others", "prefer-not-to-say"]
 
 # Case location preference type
 CaseLocationPreference = Literal["user_location", "specific_state", "random"]
+
+# A name or place typed into a profile: one line, short. Stored on the user and
+# put into emails and the case drafter's prompt.
+ProfileText = Annotated[str, StringConstraints(max_length=100, pattern=r"^[^\r\n]*$")]
 
 
 def validate_password_strength(value: str) -> str:
@@ -48,8 +53,8 @@ def is_adult(born: date) -> bool:
 
 
 class UserCreate(BaseModel):
-    first_name: str
-    last_name: str
+    first_name: ProfileText
+    last_name: ProfileText
     email: EmailStr
     password: str
     # The sign-up form's "I'm 18 or older" box. Older app versions send a date
@@ -63,12 +68,12 @@ class UserCreate(BaseModel):
     date_of_birth: date | None = None
     phone_number: str | None = None
     gender: Gender | None = None
-    city: str | None = None
-    state: str | None = None
-    state_iso2: str | None = None
-    country: str | None = None
-    country_iso2: str | None = None
-    phone_code: str | None = None
+    city: ProfileText | None = None
+    state: ProfileText | None = None
+    state_iso2: ProfileText | None = None
+    country: ProfileText | None = None
+    country_iso2: ProfileText | None = None
+    phone_code: ProfileText | None = None
 
     @field_validator("email")
     @classmethod

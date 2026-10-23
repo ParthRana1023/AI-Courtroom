@@ -95,7 +95,7 @@ Exhibits before the court (if counsel shows you one, answer from what you know o
 {evidence_context or "(None yet)"}
 
 Previous Examination (if any):
-{history_text if history_text else "(This is the first question)"}
+{tagged(history_text, "history") if history_text else "(This is the first question)"}
 
 CRITICAL GUIDELINES FOR WITNESS TESTIMONY:
 1. You are under oath - your answers must be truthful to what your character actually knows
@@ -224,13 +224,15 @@ Case Details:
 {case_context}
 
 Arguments made in this case so far:
-{case_arguments[:1500] if case_arguments else "(Case just started)"}
+{tagged(case_arguments[:1500], "history") if case_arguments else "(Case just started)"}
 
 Testimony from this witness so far:
-{testimony_text if testimony_text else "(No testimony yet - this is the first question)"}
+{tagged(testimony_text, "witness_examinations") if testimony_text else "(No testimony yet - this is the first question)"}
 
 Exhibits before the court:
 {evidence_context or "(None)"}
+
+{UNTRUSTED_TEXT_RULE}
 
 Rules:
 - Ask ONE question; build on the answers so far and never repeat a question
@@ -323,10 +325,12 @@ Case Details:
 {case_context}
 
 Arguments so far:
-{arguments_history[:1500]}
+{tagged(arguments_history[:1500], "history")}
 
 Available witnesses who have NOT yet testified:
 {witness_list}
+
+{UNTRUSTED_TEXT_RULE}
 
 {SIDES_RULE} Your own side's parties are the {"applicants" if ai_role == "plaintiff" else "non-applicants"}. Calling your own side's witness is usual; call the other side's party only to extract a specific admission.
 
@@ -366,7 +370,7 @@ Your response:
 
         if "CALL" in response.upper():
             # Try index-based matching first (e.g., "CALL: 1" or "CALL: 2")
-            index_match = re.search(r"CALL\s*:\s*(\d+)", response, re.IGNORECASE)
+            index_match = re.search(r"CALL\s*:?\s*\[?(\d+)", response, re.IGNORECASE)
             if index_match:
                 witness_index = int(index_match.group(1)) - 1  # Convert to 0-based
                 if 0 <= witness_index < len(untestified):

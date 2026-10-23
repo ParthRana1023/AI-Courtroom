@@ -165,6 +165,10 @@ SETTLEMENT_NOT_SITTING = "The court isn't in session: there is no hearing to adj
 SETTLEMENT_HEARD_IN_COURT = (
     "The court hears the compromise when it sits. Resume the hearing in the courtroom."
 )
+CODE_NOT_SENT = "We couldn't send your code just now. Please try again in a minute."
+CASE_DECIDED = "The court has decided this case, so it can't be reopened."
+ROLES_INVALID = "Choose the plaintiff or the defence; the AI takes the other side."
+ANALYSIS_NOT_READY = "The case is analysed once the court has decided it."
 NEGOTIATION_NOT_READY = (
     "The negotiation is analysed once you've negotiated and the case is decided."
 )

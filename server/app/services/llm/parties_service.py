@@ -30,10 +30,13 @@ logger = get_logger(__name__)
 RELIABILITY_RUBRIC = """## Payment Reliability
 One number from 0.00 to 1.00: the chance this party pays any one instalment of a money settlement on the day it falls due. Judge it from their means and conduct as the case and the background above show them. Steady income, savings or assets, a reputation or business to protect, and a record of keeping promises raise it. Tight or irregular income, debts, many dependants, a history of default, evasion, dishonoured cheques or broken promises in the case lower it. Most people fall between 0.60 and 0.95; go outside that only for a clear reason in the case. Write the number alone on the line, for example 0.82."""
 
+# A "## Payment Reliability" section, or a "**Payment Reliability**: 0.7" line.
 _RELIABILITY = re.compile(
-    r"##\s*Payment Reliability\s*\n(.*?)(?=\n##|\n---|\Z)", re.DOTALL | re.IGNORECASE
+    r"^(?:#{1,6}[ \t]*|\*\*)Payment Reliability(?:\*\*)?[ \t]*:?(.*?)(?=\n#|\n---|\Z)",
+    re.DOTALL | re.IGNORECASE | re.MULTILINE,
 )
-_NUMBER = re.compile(r"(?<![\d.])(0(?:\.\d+)?|1(?:\.0+)?|\.\d+)(?![\d.])")
+# 0-1, and a full stop after it ("0.82.") still reads as the number.
+_NUMBER = re.compile(r"(?<![\d.])(0(?:\.\d+)?|1(?:\.0+)?|\.\d+)(?!\.?\d)")
 
 
 def _clamp(value: str) -> float:
@@ -404,7 +407,7 @@ Important Guidelines:
 - Do NOT use formal legal language - speak like a regular person in Indian English
 
 Previous Conversation:
-{history_text if history_text else "(No previous conversation)"}
+{tagged(history_text, "history") if history_text else "(No previous conversation)"}
 
 {UNTRUSTED_TEXT_RULE}
 
