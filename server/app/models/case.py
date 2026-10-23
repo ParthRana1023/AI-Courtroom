@@ -255,6 +255,20 @@ class PaymentPlan(BaseModel):
     complies: bool  # pays what the court directs, if a default goes back to court
 
 
+class EnforcementHearing(BaseModel):
+    """The court on the default. Contempt: was the breach wilful? It gives time, a
+    last chance to purge it by paying, or sends the complainants to a civil court.
+    Recovery: it gives time or issues a warrant to levy the amount."""
+
+    submission: str
+    lines: list[HearingLine]
+    outcome: Literal["time", "last_chance", "relegated", "warrant"]
+    judge: str
+    ruling: str
+    order: list[str]
+    held_at: datetime
+
+
 class Enforcement(BaseModel):
     """What the complainants did about a default left unpaid after notice: a contempt
     petition for breach of the undertaking (quash), an application to recover the
@@ -266,6 +280,11 @@ class Enforcement(BaseModel):
     instalment: int  # the one left unpaid
     filed_on: date
     listed_for: date | None = None  # heard here; None for a suit
+    hearing: EnforcementHearing | None = None
+    # The court's direction on the balance, by when, and how it ended:
+    # paid as directed, punished for contempt, recovered as a fine, or left to a suit.
+    pay_by: date | None = None
+    result: Literal["paid", "punished", "recovered", "civil"] | None = None
 
 
 class ScoreFactor(BaseModel):

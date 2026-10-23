@@ -159,13 +159,20 @@ def describe(attempt: Settlement, today: date) -> dict:
     was paid, the stage, and when the last was paid. Nothing of the draws.
 
     Once the complainants act on a default, the stage says how: "enforcement" while it
-    is before this court, "suit" when they sued on the deed elsewhere."""
+    is before this court, "punished" when the court sentenced the accused for contempt,
+    "suit" when the rest is left to a suit on the deed in a civil court."""
     assert attempt.plan is not None
     payments = attempt.payments
     line = timeline(payments, attempt.plan, today)
     stage: str = line.stage
-    if attempt.enforcement and line.stage != "closed":
-        stage = "suit" if attempt.enforcement.kind == "suit" else "enforcement"
+    enforcement = attempt.enforcement
+    if enforcement and line.stage != "closed":
+        if enforcement.result == "punished":
+            stage = "punished"
+        elif enforcement.kind == "suit" or enforcement.result == "civil":
+            stage = "suit"
+        else:
+            stage = "enforcement"
     return {
         "pace": "days",
         "stage": stage,

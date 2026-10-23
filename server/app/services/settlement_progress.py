@@ -11,8 +11,8 @@ with a marker in one atomic update, so two readers at once can't both act.
 """
 
 import html
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 
 from fastapi import BackgroundTasks
@@ -39,6 +39,7 @@ logger = get_logger(__name__)
 # Simulated time, as in settlement_payments: the court lists an application on a
 # default this long after it is filed.
 LIST_AFTER = timedelta(days=2)
+PAY_WITHIN = timedelta(days=1)  # the time the court gives to pay the balance
 
 # What counsel for the complainants does about a default on each route.
 ENFORCE: dict[str, Literal["contempt", "recovery", "suit"]] = {
@@ -128,6 +129,14 @@ def events(attempt: Settlement, today: date) -> list[Notice]:
         found.append(Notice("defaulted", line.defaulted))
     elif line.stage == "closed":
         found.append(Notice("closed"))
+    enforcement = attempt.enforcement
+    if (
+        enforcement
+        and enforcement.pay_by
+        and enforcement.result is None
+        and today >= enforcement.pay_by
+    ):
+        found.append(Notice("direction", enforcement.instalment))
     return [n for n in found if n.key not in attempt.notified]
 
 
@@ -152,6 +161,73 @@ def ai_complainants_act(
     return enforcement, FILED[kind].format(day=_day(listed))
 
 
+@dataclass
+class Step:
+    """What one notice changes: the enforcement, instalments paid (by index), whether
+    the payments are over, and a line for the record."""
+
+    enforcement: Enforcement | None = None
+    paid: dict[int, datetime] = field(default_factory=dict)
+    finished: bool = False
+    note: str | None = None
+
+
+def balance(attempt: Settlement, on: date) -> list[int]:
+    """The instalments still unpaid on a day: what the court directs be paid."""
+    assert attempt.plan is not None
+    rows = timeline(attempt.payments, attempt.plan, on).rows
+    return [i for i, r in enumerate(rows) if r.status not in ("paid", "late")]
+
+
+def direction_met(attempt: Settlement) -> Step:
+    """The day the court gave has come: the accused pays the balance (drawn once,
+    against their reliability), or the court acts: on contempt, it sentences; on
+    recovery, the warrant levies the amount."""
+    enforcement = attempt.enforcement
+    assert enforcement and enforcement.pay_by and enforcement.hearing and attempt.plan
+    owed = balance(attempt, enforcement.pay_by)
+    total = inr(sum(attempt.payments[i].amount for i in owed)).replace("Rs. ", "₹")
+    on = datetime.combine(enforcement.pay_by, time(12), tzinfo=UTC)
+    levied = enforcement.hearing.outcome == "warrant"
+    if attempt.plan.complies and not levied:
+        result, note = "paid", f"The accused paid the balance of {total} as directed"
+    elif enforcement.kind == "recovery":
+        result, note = "recovered", (
+            f"The balance of {total} was recovered under the warrant, by attachment "
+            "of the accused's property"
+        )
+    else:
+        result, note = "punished", (
+            "The accused did not pay as directed. The court held the breach of the "
+            "undertaking wilful and sentenced the accused under Section 12 of the "
+            "Contempt of Courts Act, 1971 to simple imprisonment for one month and a "
+            f"fine of ₹2,000. The balance of {total} remains recoverable by a suit on "
+            "the deed"
+        )
+    step = Step(
+        enforcement=enforcement.model_copy(update={"result": result}), note=note
+    )
+    if result == "punished":
+        step.finished = True
+    else:
+        step.paid = {i: on for i in owed}
+    return step
+
+
+def consequence(case: Case, attempt: Settlement, notice: Notice, today: date) -> Step:
+    if notice.key == "closed":
+        return Step(finished=True)
+    if notice.key == "direction":
+        return direction_met(attempt)
+    if notice.key == "defaulted" and user_defends(case):
+        assert notice.instalment is not None
+        enforcement, note = ai_complainants_act(case, notice.instalment, today)
+        return Step(
+            enforcement=enforcement, finished=enforcement.kind == "suit", note=note
+        )
+    return Step()
+
+
 async def catch_up(case: Case, now: datetime | None = None) -> list[Notice]:
     """Act on what the payments have come to, once each, and return what to tell the
     owner. The case in hand is updated to match what was written."""
@@ -163,25 +239,23 @@ async def catch_up(case: Case, now: datetime | None = None) -> list[Notice]:
     path = f"settlements.{index}"
     done = []
     for notice in events(attempt, now.date()):
+        step = consequence(case, attempt, notice, now.date())
         push: dict = {f"{path}.notified": notice.key}
-        changes: dict = {}
-        enforcement, event = None, None
-        finished = notice.key == "closed"
-        if notice.key == "defaulted" and user_defends(case):
-            assert notice.instalment is not None
-            enforcement, note = ai_complainants_act(case, notice.instalment, now.date())
-            changes[f"{path}.enforcement"] = enforcement
-            finished = enforcement.kind == "suit"
-            if note:
-                event = CourtroomProceedingsEvent(
-                    type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
-                    content=note,
-                    timestamp=now,
-                )
-                # A different array from settlements, so one update may do both.
-                push["courtroom_proceedings"] = event
-        if finished:
+        changes: dict = {
+            f"{path}.payments.{i}.paid_at": paid for i, paid in step.paid.items()
+        }
+        if step.enforcement:
+            changes[f"{path}.enforcement"] = step.enforcement
+        if step.finished:
             changes[f"{path}.payments_done"] = True
+        event = step.note and CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.SYSTEM_MESSAGE,
+            content=step.note,
+            timestamp=now,
+        )
+        if event:
+            # A different array from settlements, so one update may do both.
+            push["courtroom_proceedings"] = event
         update: dict = {"$push": push}
         if changes:
             update["$set"] = changes
@@ -195,14 +269,18 @@ async def catch_up(case: Case, now: datetime | None = None) -> list[Notice]:
         if not isinstance(result, UpdateResult) or not result.modified_count:
             continue  # another reader got there first
         attempt.notified.append(notice.key)
-        if enforcement:
-            attempt.enforcement = enforcement
-        if finished:
+        for i, paid in step.paid.items():
+            attempt.payments[i].paid_at = paid
+        if step.enforcement:
+            attempt.enforcement = step.enforcement
+        if step.finished:
             attempt.payments_done = True
         if event:
             case.courtroom_proceedings.append(event)
         logger.info(f"Settlement payments in {case.cnr}: {notice.key}")
         done.append(notice)
+    if any(n.key == "direction" for n in done):
+        done += await catch_up(case, now)  # paid as directed: the order is now closed
     return done
 
 
@@ -241,9 +319,22 @@ def message(case: Case, notice: Notice) -> tuple[str, str] | None:
         )
     elif notice.key == "closed":
         subject = f"Every instalment paid: {name}"
+        how = {
+            "paid": "The accused paid the balance as the court directed",
+            "recovered": "The balance was recovered under the court's warrant",
+        }.get(
+            enforcement.result if enforcement and enforcement.result else "",
+            f"The last instalment under the order in <strong>{title}</strong> is paid",
+        )
+        body = f"{how}. The case is fully closed."
+    elif notice.key == "direction":  # paid or recovered: "closed" says so
+        if not enforcement or enforcement.result != "punished":
+            return None
+        subject = f"Sentenced for contempt: {name}"
         body = (
-            f"The last instalment under the order in <strong>{title}</strong> is "
-            "paid. The case is fully closed."
+            f"{who} didn't pay the balance in <strong>{title}</strong> as the court "
+            "directed, and was sentenced for contempt. The complainants are left to "
+            "sue on the deed for what is still owed."
         )
     elif mine and enforcement and enforcement.listed_for:
         subject = f"Back in court: {name}"

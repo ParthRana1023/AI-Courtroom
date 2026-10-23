@@ -20,7 +20,9 @@ from app.models.case import (
 )
 from app.services.llm.settlement import (
     format_negotiation,
+    hear_enforcement,
     inr,
+    parse_enforcement,
     parse_hearing,
     parse_offer_reply,
     parse_profile,
@@ -211,6 +213,28 @@ def test_parses_a_hearing():
 def test_rejects_bad_hearings(over):
     with pytest.raises(LLMGenerationError):
         parse_hearing(hearing_json(**over))
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        '{"judge": "S. Iyer", "lines": [], "outcome": "time", "ruling": "x", "order": []}',
+        '{"judge": "S. Iyer", "outcome": "acquit"}',
+    ],
+)
+def test_an_enforcement_hearing_needs_a_record_and_a_lawful_order(reply):
+    with pytest.raises(LLMGenerationError):
+        parse_enforcement(reply, "contempt")
+
+
+async def test_a_failed_enforcement_model_call_is_reported(fake_llm):
+    fake_llm.error = RuntimeError("down")
+    profile = SettlementProfile(route="quash", court="§ 528 BNSS · High Court")
+
+    with pytest.raises(LLMGenerationError):
+        await hear_enforcement(
+            profile, "contempt", "T", "defendant", False, "", "", "x"
+        )
 
 
 def test_an_adjournment_carries_its_next_date():

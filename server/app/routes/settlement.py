@@ -5,7 +5,7 @@ The talks are indexed in case memory under their own source type, which only the
 case analysis retrieves: the court deciding the merits never sees them.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -25,6 +25,8 @@ from app.models.case import (
     CaseStatus,
     CourtroomProceedingsEvent,
     CourtroomProceedingsEventType,
+    Enforcement,
+    EnforcementHearing,
     Roles,
     Settlement,
     SettlementEntry,
@@ -538,11 +540,23 @@ SPEAKER = {
     "complainant": "complainant",
     "accused": "accused",
 }
-OUTCOME_TAG = {"granted": "Granted", "refused": "Refused", "adjourned": "Adjourned"}
+OUTCOME_TAG = {
+    "granted": "Granted",
+    "refused": "Refused",
+    "adjourned": "Adjourned",
+    # on a default
+    "time": "Time to pay",
+    "last_chance": "Last chance to pay",
+    "relegated": "Left to a civil suit",
+    "warrant": "Warrant to levy",
+}
 
 
 def put_on_record(
-    case: Case, submission: str, record: counsel.HearingRecord, ai_side: str
+    case: Case,
+    submission: str,
+    record: counsel.HearingRecord | counsel.EnforcementRecord,
+    ai_side: str,
 ) -> None:
     """The hearing joins the courtroom record: counsel's submission, what each person
     said, and the ruling with the order."""
@@ -751,6 +765,136 @@ async def advance_a_day(
             attempt.enforcement.listed_for -= day
     await case.save()
     await progress.catch_up_and_tell(case, background_tasks)
+    return view(case)
+
+
+def payments_text(attempt: Settlement, today: date) -> str:
+    """The payments under the order as the court reads them."""
+    assert attempt.plan is not None
+    line = payments.timeline(attempt.payments, attempt.plan, today)
+    said = {
+        "paid": "paid on the day",
+        "late": "paid late, within the notice",
+        "defaulted": "unpaid even after notice",
+        "held": "not yet paid (falls with the default)",
+    }
+    return "\n".join(
+        f"Instalment {i}: {counsel.inr(p.amount)}, due {p.due:%d %B %Y}, "
+        f"{said.get(row.status, row.status)}"
+        for i, (p, row) in enumerate(zip(attempt.payments, line.rows, strict=True), 1)
+    )
+
+
+@router.post("/{case_cnr}/settlement/enforcement/file", dependencies=[one_at_a_time])
+async def move_on_default(
+    case_cnr: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    """Counsel for the complainants acts on a default left unpaid after notice: a
+    contempt petition (quash) or a recovery application (plea), listed in this court;
+    on compounding, a suit on the deed in a civil court, which ends the payments here.
+    """
+    case = await get_owned_case(case_cnr, current_user)
+    await progress.catch_up_and_tell(case, background_tasks)
+    found = progress.watched(case)
+    today = get_current_datetime().date()
+    if found is None or progress.user_defends(case) or found[1].enforcement:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_NO_DEFAULT)
+    _, attempt = found
+    assert attempt.plan is not None and case.settlement_profile is not None
+    line = payments.timeline(attempt.payments, attempt.plan, today)
+    if line.defaulted is None:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_NO_DEFAULT)
+    kind = progress.ENFORCE[case.settlement_profile.route]
+    listed = None if kind == "suit" else today + progress.LIST_AFTER
+    attempt.enforcement = Enforcement(
+        kind=kind,
+        by="user",
+        instalment=line.defaulted,
+        filed_on=today,
+        listed_for=listed,
+    )
+    if listed:
+        case.log(progress.FILED[kind].format(day=f"{listed:%d %B %Y}"))
+    else:
+        attempt.payments_done = True
+    await case.save()
+    logger.info(f"Default in {case_cnr} taken further: {kind}")
+    return view(case)
+
+
+@router.post("/{case_cnr}/settlement/enforcement", dependencies=[one_at_a_time])
+async def hear_default(
+    case_cnr: str,
+    request: HearingRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    """The court hears the application on a default, on or after the day it is
+    listed: counsel for the complainants moves it, counsel for the accused answers.
+    It gives time to pay, a last chance to purge the contempt, or a warrant to levy
+    the amount, or leaves the complainants to a civil suit. The hearing goes on the
+    courtroom record; the case itself stays decided."""
+    case = await get_owned_case(case_cnr, current_user)
+    await progress.catch_up_and_tell(case, background_tasks)
+    found = progress.watched(case)
+    enforcement = found[1].enforcement if found else None
+    if (
+        found is None
+        or enforcement is None
+        or enforcement.kind == "suit"
+        or enforcement.listed_for is None
+        or enforcement.hearing is not None
+    ):
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_NO_ENFORCEMENT)
+    _, attempt = found
+    profile = case.settlement_profile
+    assert profile is not None
+    now = get_current_datetime()
+    if now.date() < enforcement.listed_for:
+        raise HTTPException(
+            status_code=409,
+            detail=messages.SETTLEMENT_NOT_LISTED_YET.format(
+                day=f"{enforcement.listed_for:%d %B %Y}"
+            ),
+        )
+    user_side, ai_side = sides(case)
+    try:
+        record = await counsel.hear_enforcement(
+            profile,
+            enforcement.kind,
+            case.title,
+            user_side,
+            not progress.user_defends(case),
+            payments_text(attempt, now.date()),
+            attempt.court_order or "",
+            request.submission,
+            record_lines(case, limit=40),
+        )
+    except Exception:
+        logger.exception(f"Enforcement hearing failed for case {case_cnr}")
+        raise HTTPException(
+            status_code=500, detail=messages.SETTLEMENT_ENFORCEMENT_FAILED
+        )
+
+    enforcement.hearing = EnforcementHearing(
+        submission=request.submission,
+        lines=record.lines,
+        outcome=record.outcome,
+        judge=record.judge,
+        ruling=record.ruling,
+        order=record.order,
+        held_at=now,
+    )
+    if record.outcome == "relegated":
+        enforcement.result = "civil"
+        attempt.payments_done = True
+    else:
+        enforcement.pay_by = now.date() + progress.PAY_WITHIN
+    put_on_record(case, request.submission, record, ai_side)
+    await case.save()
+    logger.info(f"Enforcement hearing in {case_cnr}: {record.outcome}")
     return view(case)
 
 
