@@ -309,6 +309,32 @@ export interface SettlementPayment {
   notice_until?: string | null; // simulated orders, a missed instalment: the last day to pay it
 }
 
+/** Where the payments under a simulated order stand: paying on schedule, an instalment in notice,
+ * a default left unpaid, the complainants' application before the court, the contempt punished,
+ * the rest left to a civil suit, or everything paid. */
+export type PaymentStage = "paying" | "notice" | "defaulted" | "enforcement" | "punished" | "suit" | "closed";
+
+/** The complainants' answer to a default left unpaid after notice. A contempt petition (quash) or a
+ * recovery application (plea) is heard in this court; a suit on the deed (compound) is not. */
+export interface SettlementEnforcement {
+  kind: "contempt" | "recovery" | "suit";
+  by: "user" | "ai"; // counsel for the complainants
+  instalment: number; // index of the one left unpaid
+  filed_on: string; // YYYY-MM-DD
+  listed_for: string | null; // YYYY-MM-DD; null for a suit
+  hearing: {
+    submission: string;
+    lines: HearingLine[];
+    outcome: "time" | "last_chance" | "relegated" | "warrant";
+    judge: string;
+    ruling: string;
+    order: string[];
+    held_at: string;
+  } | null;
+  pay_by: string | null; // YYYY-MM-DD: the balance as the court directed
+  result: "paid" | "punished" | "recovered" | "civil" | null;
+}
+
 /** How the user negotiated, judged once the case is decided. */
 export interface NegotiationAnalysis {
   score: number; // 0-100, the factors weighted
@@ -355,8 +381,10 @@ export interface Settlement {
   user_pays?: boolean; // the user acts for the accused, who pays
   // "days": the accused pays on their own, an instalment a day; "months": orders before that.
   pace?: "days" | "months";
-  stage?: "paying" | "notice" | "defaulted" | "closed"; // simulated orders
+  stage?: PaymentStage; // simulated orders
   closed_on?: string | null; // simulated orders: the day the last instalment was paid
+  enforcement?: SettlementEnforcement | null; // what the complainants did about a default
+  payments_done?: boolean; // nothing more can happen to the payments
   ruling: string | null; // the court's ruling, as said in court
   court_order: string | null; // Markdown
   started_at: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { HEARING_COPY, inr, longDate, type Next } from "@/lib/settlement";
 import { cn } from "@/lib/utils";
 import type { SettlementPayment, SettlementProfile, SettlementTerms } from "@/types";
@@ -40,7 +41,7 @@ export default function HearingRail({
   next,
   payments,
   userPays,
-  simulated,
+  paymentsSlot,
   busy,
   onPay,
   cnr,
@@ -57,7 +58,8 @@ export default function HearingRail({
   next: Next | null; // once the order is passed
   payments: SettlementPayment[];
   userPays: boolean;
-  simulated: boolean; // the accused pays on their own: nothing to deposit or answer here
+  /** Simulated orders: the accused pays on their own, so this replaces the deposit and remedy list. */
+  paymentsSlot?: ReactNode;
   busy: number | null; // the instalment being acted on
   onPay: (index: number) => void;
   cnr: string;
@@ -70,9 +72,9 @@ export default function HearingRail({
 }) {
   const route = profile.route === "none" ? "quash" : profile.route;
   const copy = HEARING_COPY[route];
-  const missed = simulated ? -1 : payments.findIndex((p) => p.status === "missed" && !p.remedy);
+  const missed = payments.findIndex((p) => p.status === "missed" && !p.remedy);
   const answered = payments.findIndex((p) => p.remedy);
-  const payable = userPays && !simulated ? payments.findIndex((p) => p.status === "due" || p.status === "upcoming") : -1;
+  const payable = userPays ? payments.findIndex((p) => p.status === "due" || p.status === "upcoming") : -1;
   const confirmed = complainants.filter((c) => c.state === "Confirmed").length;
   const conds = profile.conditions.filter((c) => terms.conditions.includes(c.key)).map((c) => c.short);
 
@@ -143,7 +145,8 @@ export default function HearingRail({
                   </span>
                 </div>
                 <p className="m-0 text-[13.5px] leading-[1.55] text-pretty text-[#2a2018]">{next.body}</p>
-                {payments.length > 0 && (
+                {paymentsSlot}
+                {!paymentsSlot && payments.length > 0 && (
                   <>
                     <ol className="m-0 flex list-none flex-col border-t border-ink/15 p-0">
                       {payments.map((p, i) => {

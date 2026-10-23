@@ -727,6 +727,16 @@ export const settlementAPI = {
   payment: async (cnr: string, index: number, action: "pay" | "recall" | "notice" | "recover"): Promise<SettlementView> =>
     (await api.post(`/cases/${cnr}/settlement/payments/${index}`, { action })).data,
 
+  /** Counsel for the complainants takes a default further: contempt or recovery here, a suit on the deed elsewhere. */
+  fileDefault: async (cnr: string): Promise<SettlementView> => (await api.post(`/cases/${cnr}/settlement/enforcement/file`)).data,
+
+  /** Make counsel's submission on the default; the court hears the application and passes its order. */
+  hearDefault: async (cnr: string, submission: string): Promise<SettlementView> =>
+    (await api.post(`/cases/${cnr}/settlement/enforcement`, { submission })).data,
+
+  /** Developer mode: play the payments a day forward. */
+  nextDay: async (cnr: string): Promise<SettlementView> => (await api.post(`/cases/${cnr}/settlement/next-day`)).data,
+
   /** Ask the court in session for an adjournment to settle; the ruling goes on the record. */
   adjourn: async (cnr: string): Promise<{ granted: boolean; ruling: string }> => (await api.post(`/cases/${cnr}/settlement/adjourn`)).data,
 

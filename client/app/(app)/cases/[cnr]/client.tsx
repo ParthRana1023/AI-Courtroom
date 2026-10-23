@@ -20,7 +20,7 @@ import { NUMERALS, SECTIONS, readCaseFile, sideNames, type SectionId } from "@/l
 import { longDate } from "@/lib/settlement";
 import { caseFonts } from "@/lib/signature";
 import { cn } from "@/lib/utils";
-import type { Case } from "@/types";
+import type { Case, PaymentStage } from "@/types";
 
 type Side = "plaintiff" | "defendant";
 type Load = "loading" | "loaded" | "error" | "notfound";
@@ -34,17 +34,30 @@ const DID = {
   plea: "disposed of the case by plea bargaining",
 };
 
+// Where simulated payments stand, for the banner. The case itself stays decided whatever happens to them.
+const PAYMENTS_NOW: Record<PaymentStage, string> = {
+  paying: "The accused is paying the instalments, one a day.",
+  notice: "An instalment was missed and notice has gone out.",
+  defaulted: "An instalment is unpaid even after notice.",
+  enforcement: "The complainants have taken the default back to the court; see the courtroom.",
+  punished: "The accused was sentenced for contempt for not paying; the rest is left to a civil suit.",
+  suit: "What is unpaid is left to a suit on the deed in a civil court.",
+  closed: "Every instalment is paid: the matter is fully closed.",
+};
+
 /** The settled banner: when the court gave the compromise effect, what it did, and how long payments run. */
 function settledNote(c: Case) {
   const deal = c.settlements?.findLast((s) => s.status === "recorded");
   if (c.outcome !== "settled" || !c.settlement_result || !deal) return null;
   const [sec, court] = (c.settlement_profile?.court ?? "").split(" · ");
   const last = deal.payments.at(-1);
-  const pay = !last
-    ? ""
-    : deal.payments.every((p) => p.paid_at)
-      ? " Every instalment is paid."
-      : ` Payments are tracked until ${longDate(last.due).replace(/^\d+ /, "")}.`;
+  const pay = deal.stage
+    ? ` ${PAYMENTS_NOW[deal.stage]}`
+    : !last
+      ? ""
+      : deal.payments.every((p) => p.paid_at)
+        ? " Every instalment is paid."
+        : ` Payments are tracked until ${longDate(last.due).replace(/^\d+ /, "")}.`;
   return {
     on: deal.ended_at ? longDate(deal.ended_at.slice(0, 10)) : null,
     t: `The ${court || "court"} ${DID[c.settlement_result]}${sec && court ? ` under ${sec}` : ""}.${pay}`,

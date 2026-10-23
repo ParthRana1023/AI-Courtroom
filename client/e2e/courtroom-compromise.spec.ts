@@ -4,6 +4,8 @@ import { CNR, PARTIES, caseOf } from "./support/case-data";
 import { AT, DEED, NEGOTIATION, PROFILE, SIGNED_BY, T2, agreedTalks, attempt, view } from "./support/settlement-data";
 
 const base = `/cases/${CNR}`;
+/** A day from today where the court sits (the payments run on real days): day(0) is today. */
+const day = (n: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(Date.now() + n * 86_400_000));
 let clock = 0;
 type Event = Record<string, unknown>;
 
@@ -278,9 +280,145 @@ test.describe("the compromise in the courtroom", () => {
 
     const rail = await checksPanel(page, info.project.name !== "desktop");
     await expect(rail.getByText("Instalment 2 missed")).toBeVisible();
-    await rail.getByRole("button", { name: "Apply to recall the order" }).click();
-    await expect(rail.getByText("Recall application filed.", { exact: true })).toBeVisible();
+    // The quashing can't be recalled for a breach: the remedy is contempt of the undertaking to pay.
+    await rail.getByRole("button", { name: "File a contempt petition" }).click();
+    await expect(rail.getByText("Contempt petition filed.", { exact: true })).toBeVisible();
     expect(action).toBe("recall");
+  });
+
+  test("the client pays on their own; a default after notice comes back to the court, and counsel answers it", async ({
+    page,
+    signIn,
+  }, info) => {
+    const order = [
+      { amount: 1400000, due: day(-4), paid_at: null, remedy: null, remedy_at: null, status: "paid", paid_on: day(-4), notice_until: null },
+      {
+        amount: 1400000,
+        due: day(-3),
+        paid_at: null,
+        remedy: null,
+        remedy_at: null,
+        status: "defaulted",
+        paid_on: null,
+        notice_until: null,
+      },
+      { amount: 1589000, due: day(-2), paid_at: null, remedy: null, remedy_at: null, status: "held", paid_on: null, notice_until: null },
+    ];
+    const listed = {
+      kind: "contempt",
+      by: "ai",
+      instalment: 1,
+      filed_on: day(-2),
+      listed_for: day(0),
+      hearing: null,
+      pay_by: null,
+      result: null,
+    };
+    const simulated = (over: Event = {}) =>
+      talks({
+        status: "recorded",
+        hearing: HEARING,
+        payments: order,
+        ended_at: AT,
+        pace: "days",
+        stage: "enforcement",
+        enforcement: listed,
+        ...over,
+      });
+    const h = court({ status: "resolved", outcome: "settled", verdict: ORDER, settlements: [simulated()] });
+    h.s.view = view({ attempt: simulated(), attempts: 1, can_start: false, deed: DEED });
+    let said = "";
+    await signIn(USERS.email, {
+      ...h.routes,
+      [`POST ${base}/settlement/enforcement`]: async (route: Route) => {
+        said = route.request().postDataJSON().submission;
+        const heard = {
+          ...listed,
+          pay_by: day(1),
+          hearing: {
+            submission: said,
+            lines: [],
+            outcome: "time",
+            judge: "S. Iyer",
+            ruling: "The breach is not shown to be wilful.",
+            order: ["The balance shall be paid within a week."],
+            held_at: AT,
+          },
+        };
+        h.s.view = { ...h.s.view, attempt: simulated({ enforcement: heard }) };
+        await route.fulfill({ json: h.s.view });
+      },
+    });
+    await open(page, false);
+
+    const rail = await checksPanel(page, info.project.name !== "desktop");
+    await expect(rail.getByText("Day 3 of 3")).toBeVisible();
+    await expect(rail.getByText("Defaulted", { exact: true })).toBeVisible();
+    await expect(rail.getByText(/Contempt petition · listed/)).toBeVisible();
+    // Nothing for counsel to deposit: the client pays on their own.
+    await expect(rail.getByRole("button", { name: /Pay instalment|Confirm first deposit/ })).toHaveCount(0);
+    await rail.getByLabel("Your submission to the court").fill("My Lord, my client lost his job and will pay the balance within the week.");
+    await rail.getByRole("button", { name: "Address the court" }).click();
+    await expect(rail.getByText("Contempt petition · Not wilful: time to pay")).toBeVisible();
+    await expect(rail.getByText("The balance shall be paid within a week.")).toBeVisible();
+    expect(said).toMatch(/^My Lord, my client lost his job/);
+  });
+
+  test("counsel for the complainants takes a default after notice back to the court", async ({ page, signIn }, info) => {
+    const order = [
+      {
+        amount: 1400000,
+        due: day(-3),
+        paid_at: null,
+        remedy: null,
+        remedy_at: null,
+        status: "defaulted",
+        paid_on: null,
+        notice_until: null,
+      },
+      { amount: 1400000, due: day(-2), paid_at: null, remedy: null, remedy_at: null, status: "held", paid_on: null, notice_until: null },
+    ];
+    const simulated = (over: Event = {}) =>
+      talks({
+        status: "recorded",
+        hearing: HEARING,
+        payments: order,
+        user_pays: false,
+        ended_at: AT,
+        pace: "days",
+        stage: "defaulted",
+        ...over,
+      });
+    const profile = { ...PROFILE, accused_side: "defendant" };
+    const h = court({ status: "resolved", outcome: "settled", verdict: ORDER, settlement_profile: profile, settlements: [simulated()] });
+    h.s.view = { ...view({ attempt: simulated(), attempts: 1, can_start: false, deed: DEED }), profile };
+    let filed = false;
+    await signIn(USERS.email, {
+      ...h.routes,
+      [`POST ${base}/settlement/enforcement/file`]: async (route: Route) => {
+        filed = true;
+        const e = {
+          kind: "contempt",
+          by: "user",
+          instalment: 0,
+          filed_on: day(0),
+          listed_for: day(2),
+          hearing: null,
+          pay_by: null,
+          result: null,
+        };
+        h.s.view = { ...h.s.view, attempt: simulated({ stage: "enforcement", enforcement: e }) };
+        await route.fulfill({ json: h.s.view });
+      },
+    });
+    await open(page, false);
+
+    const rail = await checksPanel(page, info.project.name !== "desktop");
+    await expect(rail.getByText("Instalment 1 unpaid after notice")).toBeVisible();
+    await rail.getByRole("button", { name: "File a contempt petition" }).click();
+    await expect(rail.getByText(/^You filed it on/)).toBeVisible();
+    await expect(rail.getByRole("button", { name: "Address the court" })).toHaveCount(0); // heard on the day listed
+    expect(filed).toBe(true);
   });
 
   test("the old hearing page opens the courtroom", async ({ page, signIn }) => {
