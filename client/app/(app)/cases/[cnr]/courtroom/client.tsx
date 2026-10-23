@@ -18,6 +18,8 @@ import {
 } from "@/components/courtroom/dialogs";
 import { MOVES_ON, Proceedings, SIDE, THE, aiMade, buildRows, type Ev, type RecordCtx, type Side } from "@/components/courtroom/record";
 import WitnessStand, { type Candidate, type Foot, type QA } from "@/components/courtroom/witness-stand";
+import HearingRail, { type Check } from "@/components/settlement/hearing-rail";
+import NegotiationSummary from "@/components/settlement/negotiation-summary";
 import { formatDate } from "@/components/cases/kit";
 import CourtModelLoader from "@/components/court/court-model-loader";
 import { ExhibitViewer } from "@/components/prep/exhibits";
@@ -28,6 +30,7 @@ import { useOnline } from "@/hooks/use-online";
 import { useViewport } from "@/hooks/use-viewport";
 import { argumentAPI, caseAPI, courtroomAPI, partiesAPI, settlementAPI, witnessAPI } from "@/lib/api";
 import { readCaseFile } from "@/lib/case-file";
+import { HEARING_COPY, draftSubmission, nextAfter } from "@/lib/settlement";
 import { AI_EXAMINATION_POLL_MS, COURTROOM_POLL_MS, MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS } from "@/lib/config";
 import { getErrorDetail } from "@/lib/error-utils";
 import { argumentRateLimitAPI, type RateLimitInfo } from "@/lib/rateLimitAPI";
@@ -40,7 +43,7 @@ import {
   type CurrentWitnessResponse,
   type PersonInvolved,
 } from "@/types";
-import type { NegotiationAnalysis } from "@/types";
+import type { NegotiationAnalysis, SettlementView } from "@/types";
 
 type Load = "loading" | "loaded" | "error" | "notfound";
 
@@ -52,6 +55,8 @@ const JUDGMENT_DELIVERED = "Judgment delivered";
 const OBJECTION_POLL_MS = 700;
 /** The shortest time an objection stamp stays up, so it can be read. */
 const MIN_STAMP_MS = 1500;
+/** How long each line of a settlement hearing stays before the next is read out. */
+const LINE_MS = 1700;
 
 interface SpeechRec {
   lang: string;
@@ -127,8 +132,14 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const [verdictOpen, setVerdictOpen] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [analysis, setAnalysis] = useState<{ text: string } | "loading" | "error">("loading");
-  const [negOpen, setNegOpen] = useState(false);
+  const [anTab, setAnTab] = useState<"court" | "negotiation">("court");
   const [negotiation, setNegotiation] = useState<NegotiationAnalysis | "loading" | "error">("loading");
+  // A compromise before the court: the desk's view of it, the hearing lines still to be read out,
+  // and the instalment being paid or answered.
+  const [talks, setTalks] = useState<SettlementView | null>(null);
+  const [held, setHeld] = useState<string[]>([]);
+  const [paying, setPaying] = useState<number | null>(null);
+  const drafted = useRef(false);
   const [seeking, setSeeking] = useState(false);
   const [extracting, setExtracting] = useState<string | null>(null);
   const [og, setOg] = useState<Record<string, boolean>>({});
@@ -223,9 +234,10 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const events = useMemo<Ev[]>(() => {
     const list = (data?.courtroom_proceedings ?? [])
       .map((e, i) => ({ ...e, id: e.id ?? `ev-${i}` }))
-      .filter((e) => !(deliberating && e.type === T.SYSTEM_MESSAGE && e.content === JUDGMENT_DELIVERED));
+      .filter((e) => !(deliberating && e.type === T.SYSTEM_MESSAGE && e.content === JUDGMENT_DELIVERED))
+      .filter((e) => !held.includes(e.id));
     return sending ? [...list, sending] : list;
-  }, [data, sending, deliberating]);
+  }, [data, sending, deliberating, held]);
 
   const me: Side = data?.user_role === "defendant" ? "defendant" : "plaintiff";
   const ai: Side = me === "plaintiff" ? "defendant" : "plaintiff";
@@ -233,6 +245,36 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const active = status === CaseStatus.ACTIVE;
   const view = active && data?.hearing_controlled_here === false;
   const live = active && !view && online;
+  const route = data?.settlement_profile && data.settlement_profile.route !== "none" ? data.settlement_profile.route : null;
+  const lastTalks = data?.settlements?.[data.settlements.length - 1];
+  // A filed compromise is heard first when the court sits: counsel's submission is due.
+  const listed = !!route && !!lastTalks && (lastTalks.status === "filed" || lastTalks.status === "adjourned");
+  const heard = active && !view && listed;
+  const talksKey = data?.settlement_profile ? (data.settlements ?? []).map((a) => a.status).join() : "";
+
+  // The compromise's details (deed, payments as of today) come from the settlement desk's view.
+  useEffect(() => {
+    if (!talksKey) return;
+    let live = true;
+    settlementAPI
+      .get(cnr)
+      .then((v) => {
+        if (!live) return;
+        setTalks(v);
+        const a = v.attempt;
+        if (heard && a?.agreed && v.profile && v.profile.route !== "none" && !drafted.current) {
+          drafted.current = true;
+          setDraft(draftSubmission(v.profile.route, v.profile.accused_side === me, v.profile.complainants, a.agreed));
+          // The court's checks start open beside the record (on a phone they'd cover it).
+          if (two) setWitOpen(true);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [talksKey, cnr, heard]);
   const evidence = useMemo(() => data?.evidence ?? [], [data]);
   const names = useMemo(() => Object.fromEntries(parties.map((p) => [p.id, p.name])), [parties]);
 
@@ -354,7 +396,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   // ---- derived record state ----
   const objected = useMemo(() => new Set(events.flatMap((e) => (e.objection ? [e.objection.target_id] : []))), [events]);
   const lastMove = useMemo(() => [...events].reverse().find((e) => MOVES_ON.has(e.type)), [events]);
-  const busy = !!sending || !!typing || aiTurn || witBusy || !!asking || objBusy;
+  const busy = !!sending || !!typing || aiTurn || witBusy || !!asking || objBusy || held.length > 0;
   const objectable =
     lastMove && lastMove.speaker_role === ai && !objected.has(lastMove.id) && active && !view && !sending && !popup && !objBusy
       ? lastMove.id
@@ -454,9 +496,44 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     setListening(false);
   };
 
+  /** Counsel makes the submission; the court hears the compromise, every line goes on the record and
+   * is read out in turn, then the order: the verdict when granted, else the court adjourns. */
+  const submitCompromise = async (text: string) => {
+    if (text.length < 10) return note("Say a sentence or two to the court first.");
+    if (!online) return note("You’re offline. Your submission is kept, so you can make it when you’re back online.");
+    const before = new Set((data?.courtroom_proceedings ?? []).map((e, i) => e.id ?? `ev-${i}`));
+    stopMic();
+    setSending({ id: "pending", type: T.SETTLEMENT, content: text, speaker_role: me, timestamp: new Date().toISOString() } as Ev);
+    try {
+      const v = await settlementAPI.hearing(cnr, text);
+      const c = (await caseAPI.getCase(cnr)) as Case;
+      const fresh = (c.courtroom_proceedings ?? []).map((e, i) => e.id ?? `ev-${i}`).filter((id) => !before.has(id));
+      const queue = reduce() ? [] : fresh.slice(1); // counsel's own words show at once
+      setHeld(queue);
+      setSending(null);
+      setDraft("");
+      setTalks(v);
+      setData(c);
+      queue.forEach((id, k) => later(() => setHeld((h) => h.filter((x) => x !== id)), LINE_MS * (k + 1)));
+      later(
+        () => {
+          if (v.attempt?.hearing?.outcome === "granted") setVerdictOpen(true);
+          else showPopup("adjourned", 2600);
+          // Refused: the checks give way to the witness stand, folded away as it usually starts.
+          if (v.attempt?.hearing?.outcome === "refused") setWit(false);
+        },
+        LINE_MS * (queue.length + 1),
+      );
+    } catch (err) {
+      setSending(null);
+      toast.error(getErrorDetail(err) || "The court couldn’t hear the matter just now. Please try again.");
+    }
+  };
+
   const submit = async () => {
     const text = draft.trim();
     if (!text || busy || !data) return;
+    if (heard) return void submitCompromise(text);
     if (leave) return note(LEAVE_FIRST);
     if (!online) return note("You’re offline. Your argument is kept, so you can submit it when you’re back online.");
     if (onStand) {
@@ -744,12 +821,6 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     }
   }, [cnr]);
 
-  const openAnalysis = () => {
-    setVerdictOpen(false);
-    setAnalysisOpen(true);
-    if (typeof analysis !== "object") void fetchAnalysis();
-  };
-
   const fetchNegotiation = useCallback(async () => {
     setNegotiation("loading");
     try {
@@ -759,9 +830,34 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     }
   }, [cnr]);
 
-  const openNegotiation = () => {
-    setNegOpen(true);
-    if (typeof negotiation !== "object") void fetchNegotiation();
+  // What there is to analyse: the user's work in court, and their negotiation.
+  const argued = events.some((e) => e.speaker_role === me && (MOVES_ON.has(e.type) || e.type === T.CLOSING_STATEMENT));
+  const negotiated = (data?.settlements ?? []).some((a) => a.entries.some((e) => e.by === "user"));
+  const showTab = (tab: "court" | "negotiation") => {
+    setAnTab(tab);
+    if (tab === "court" && typeof analysis !== "object") void fetchAnalysis();
+    if (tab === "negotiation" && typeof negotiation !== "object") void fetchNegotiation();
+  };
+  const openAnalysis = () => {
+    setVerdictOpen(false);
+    setAnalysisOpen(true);
+    showTab(argued || !negotiated ? "court" : "negotiation");
+  };
+
+  const pay = async (index: number) => {
+    const a = talks?.attempt;
+    if (!route || !a || paying !== null) return;
+    if (!online) return note("You’re offline. Try again when you’re back online.");
+    const action = a.user_pays ? "pay" : ({ quash: "recall", compound: "notice", plea: "recover" } as const)[route];
+    setPaying(index);
+    try {
+      setTalks(await settlementAPI.payment(cnr, index, action));
+      note(a.user_pays ? "Payment recorded." : HEARING_COPY[route].remedy.done);
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "Couldn’t record that. Please try again.");
+    } finally {
+      setPaying(null);
+    }
   };
 
   /** Counsel asks the court for time to settle; the court considers it, rules, and adjourns if it grants it. */
@@ -1048,11 +1144,43 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
 
   // Settling: open unless the case's route is known to be closed; the court sees a signed deed.
   const routeOpen = data.settlement_profile?.route !== "none";
-  const lastTalks = data.settlements?.[data.settlements.length - 1];
   const deedSigned = !!lastTalks && ["signed", "filed", "adjourned"].includes(lastTalks.status);
-  const negotiated = (data.settlements ?? []).some((a) => a.entries.some((e) => e.by === "user"));
-  const canSeek = active && !view && routeOpen;
-  const grid = mob && (canSeek || (resolved && negotiated));
+  const canSeek = active && !view && routeOpen && !listed;
+  const grid = mob && canSeek;
+
+  // While a compromise is before the court, or once it has disposed of the case, the court's checks
+  // take the witness stand's place.
+  const deal = talks?.attempt?.agreed && talks.profile && talks.profile.route !== "none" ? talks : null;
+  const settledHere = deal?.attempt?.status === "recorded";
+  const checksUp = !!deal && (listed || settledHere || held.length > 0);
+  const hearingNow = deal?.attempt?.hearing && !held.length ? deal.attempt.hearing : null;
+  const copy = deal?.profile && deal.profile.route !== "none" ? HEARING_COPY[deal.profile.route] : null;
+  const checks: Check[] =
+    hearingNow?.checks.length && copy
+      ? hearingNow.checks
+      : (copy?.checks ?? []).map((label) => ({ label, state: "wait" as const, text: "The court hears this." }));
+  const people = deal?.profile?.complainants ?? [];
+  const many = people.length > 3;
+  const complainants = (many ? people.slice(0, 2) : people).map((name, i) => {
+    const a = hearingNow?.lines.find((l) => l.kind === "answer" && l.who.includes(name));
+    return {
+      name,
+      role: i === 0 ? "Lead complainant" : "Complainant",
+      state: (a ? (a.unsure ? "Unsure" : "Confirmed") : "Waiting") as "Confirmed" | "Unsure" | "Waiting",
+    };
+  });
+  if (many)
+    complainants.push({
+      name: `${people.length - 2} others`,
+      role: "Identified by the investigating officer",
+      state: settledHere ? "Confirmed" : "Waiting",
+    });
+  const next = settledHere && deal?.profile && deal.profile.route !== "none" ? nextAfter(deal.profile.route, "granted", "") : null;
+  const tabs = [
+    ...(argued || !negotiated ? [{ id: "court", label: "In court" }] : []),
+    ...(negotiated ? [{ id: "negotiation", label: "Negotiation" }] : []),
+  ];
+  const onNegotiation = anTab === "negotiation" && negotiated;
 
   const btn = cn(
     "h-10.5 min-w-0 cursor-pointer font-bold whitespace-nowrap uppercase",
@@ -1072,8 +1200,9 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
         mob ? "gap-2.5 px-3 pt-2.5 pb-3" : "gap-3 px-[3vw] pt-4 pb-4.5",
       )}
     >
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5">
-        <div className="flex min-w-0 flex-col gap-1.5">
+      {/* Beside the title on wider screens (a long title wraps instead), so the record keeps the room. */}
+      <div className={cn("flex items-end justify-between gap-x-6 gap-y-2.5", mob ? "flex-wrap" : "flex-nowrap")}>
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <Link
             href={`/cases/${cnr}/case-prep`}
             className="relative flex min-h-7 items-center gap-2 self-start text-xs tracking-[0.16em] text-desk-soft uppercase before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:text-desk-hover"
@@ -1102,7 +1231,8 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
           className={cn(
             "min-w-0",
             grid ? "grid grid-cols-2 gap-1.5" : mob ? "flex flex-nowrap gap-1.5" : "flex flex-wrap gap-2",
-            small ? "flex-[1_1_100%]" : "flex-none",
+            // On a line of their own (a long title), the buttons still sit at the right.
+            small ? "flex-[1_1_100%]" : "ml-auto flex-none",
           )}
         >
           <button type="button" onClick={() => setCaseOpen(true)} className={outline}>
@@ -1110,7 +1240,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
           </button>
           {mob && (
             <button type="button" onClick={() => setWit(!witOpen)} className={outline}>
-              {onStand ? "On the stand" : "Witness stand"}
+              {checksUp ? "Court’s checks" : onStand ? "On the stand" : "Witness stand"}
             </button>
           )}
           {canSeek && (
@@ -1121,7 +1251,8 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
               title="Ask the judge to adjourn so the parties can try to settle"
               className={outline}
             >
-              {mob ? "Time to settle" : deedSigned ? "Deed signed · ask for time" : "Ask for an adjournment to settle"}
+              {/* Short, so the toolbar fits on the title's row; the tooltip says it in full. */}
+              {!mob && deedSigned ? "Deed signed · ask for time" : "Time to settle"}
             </button>
           )}
           {active && !view && (
@@ -1173,11 +1304,6 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
               <button type="button" onClick={openAnalysis} className={outline}>
                 Case analysis
               </button>
-              {negotiated && (
-                <button type="button" onClick={openNegotiation} className={outline}>
-                  {mob ? "Negotiation" : "Negotiation analysis"}
-                </button>
-              )}
             </>
           )}
         </div>
@@ -1213,15 +1339,16 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
             ctx={ctx}
             open={og}
             onToggle={(id, open) => setOg((o) => ({ ...o, [id]: open }))}
-            thinking={sending ? SIDE[ai] : null}
+            thinking={sending ? (heard ? "The court" : SIDE[ai]) : null}
             scRef={rec.ref}
             count={events.length}
           />
           <Composer
             mob={mob}
             canArgue={active && !view}
-            closingAvail={closingAvail}
-            mode={closingAvail ? mode : "arg"}
+            closingAvail={closingAvail && !heard}
+            mode={closingAvail && !heard ? mode : "arg"}
+            label={heard ? "Your submission" : undefined}
             onMode={setMode}
             meta={`${sess} argument${sess === 1 ? "" : "s"} this session · ${limit ? limit.remaining_attempts : "—"} left today`}
             evidence={evidence}
@@ -1233,21 +1360,25 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
             onDraft={setDraft}
             onSubmit={() => void submit()}
             placeholder={
-              onStand
-                ? mob
-                  ? "Witness on the stand"
-                  : "A witness is on the stand"
-                : leave
+              heard
+                ? "Make your submission on the compromise…"
+                : onStand
                   ? mob
-                    ? "Answer the witness request"
-                    : "Respond to the request to call a witness above"
-                  : closingMode
+                    ? "Witness on the stand"
+                    : "A witness is on the stand"
+                  : leave
                     ? mob
-                      ? "Sum up your case…"
-                      : "Sum up your case for the court…"
-                    : "Address the court…"
+                      ? "Answer the witness request"
+                      : "Respond to the request to call a witness above"
+                    : closingMode
+                      ? mob
+                        ? "Sum up your case…"
+                        : "Sum up your case for the court…"
+                      : "Address the court…"
             }
-            sendLabel={!online ? "Offline" : sending ? "Submitting…" : closingMode ? "Deliver closing" : "Submit"}
+            sendLabel={
+              !online ? "Offline" : sending ? "Submitting…" : heard ? "Make submission" : closingMode ? "Deliver closing" : "Submit"
+            }
             sendOff={busy || !!onStand}
             sendGrey={!online || busy || !!onStand}
             sendTip={onStand ? "A witness is on the stand. Finish with the witness before you address the court." : undefined}
@@ -1260,7 +1391,26 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
           />
         </section>
 
-        {(two || witOpen || witClosing) && (
+        {(two || witOpen || witClosing) && checksUp && deal?.profile && deal.attempt?.agreed && (
+          <HearingRail
+            profile={deal.profile}
+            checks={checks}
+            complainants={complainants}
+            terms={deal.attempt.agreed}
+            next={next}
+            payments={settledHere ? deal.attempt.payments : []}
+            userPays={!!deal.attempt.user_pays}
+            busy={paying}
+            onPay={(i) => void pay(i)}
+            cnr={cnr}
+            two={two}
+            open={witOpen}
+            closing={witClosing}
+            wide={w >= 1320}
+            onToggle={() => setWit(!witOpen)}
+          />
+        )}
+        {(two || witOpen || witClosing) && !checksUp && (
           <WitnessStand
             two={two}
             open={witOpen}
@@ -1348,25 +1498,18 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
       <AnalysisDialog
         open={analysisOpen}
         onClose={() => setAnalysisOpen(false)}
-        state={analysis}
-        onRetry={() => void fetchAnalysis()}
+        state={onNegotiation ? (typeof negotiation === "object" ? { text: negotiation.review } : negotiation) : analysis}
+        onRetry={() => void (onNegotiation ? fetchNegotiation() : fetchAnalysis())}
         outcome={data.outcome}
+        tabs={tabs}
+        tab={onNegotiation ? "negotiation" : "court"}
+        onTab={(t) => showTab(t as "court" | "negotiation")}
+        top={onNegotiation && typeof negotiation === "object" ? <NegotiationSummary n={negotiation} /> : null}
+        {...(onNegotiation
+          ? { title: "How you negotiated", loading: "Reviewing how you negotiated…" }
+          : { title: "How you argued", loading: "Reviewing how you argued…" })}
         sub={`${SIDE[me]} · ${data.title}`}
         foot={[`Analysis generated on ${formatDate(judgment?.timestamp ?? data.created_at)}`, court]}
-        small={small}
-      />
-      <AnalysisDialog
-        open={negOpen}
-        onClose={() => setNegOpen(false)}
-        state={typeof negotiation === "object" ? { text: negotiation.review } : negotiation}
-        onRetry={() => void fetchNegotiation()}
-        outcome={null}
-        badge={typeof negotiation === "object" ? [`${negotiation.score} · ${negotiation.tier}`, "#120d09"] : undefined}
-        label="Negotiation analysis"
-        title="How you negotiated"
-        loading="Reviewing how you negotiated…"
-        sub={`${SIDE[me]} · ${data.title}`}
-        foot={[typeof negotiation === "object" ? `Analysis generated on ${formatDate(negotiation.analyzed_at)}` : "", court]}
         small={small}
       />
       <ExhibitViewer

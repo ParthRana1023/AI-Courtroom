@@ -36,7 +36,7 @@ const OUTCOME: Record<CaseOutcome, [string, string]> = {
   won: ["WON", "#3f6b3a"],
   lost: ["LOST", "#8e1f19"],
   partial: ["PARTLY WON", "#7a4a0c"],
-  settled: ["SETTLED", "#120d09"],
+  settled: ["SETTLED", "#6b5d4b"],
 };
 
 /** A paper dialog: header strip with the close ×, a scrolling body, an optional footer. */
@@ -628,6 +628,10 @@ export function AnalysisDialog({
   title = "How you argued",
   loading = "Reviewing how you argued…",
   badge,
+  tabs,
+  tab,
+  onTab,
+  top,
 }: {
   open: boolean;
   onClose: () => void;
@@ -641,6 +645,12 @@ export function AnalysisDialog({
   title?: string;
   loading?: string;
   badge?: [string, string]; // [text, colour] in place of the outcome
+  /** more than one analysis: in court, and of the negotiation */
+  tabs?: { id: string; label: string }[];
+  tab?: string;
+  onTab?: (id: string) => void;
+  /** shown above the review once it is ready (the negotiator score) */
+  top?: ReactNode;
 }) {
   const out = badge ?? (outcome ? OUTCOME[outcome] : null);
   return (
@@ -672,6 +682,28 @@ export function AnalysisDialog({
         <h2 className={cn(H2(small), "leading-[1.1]")}>{title}</h2>
         <span className="text-[13.5px] text-ink-muted">{sub}</span>
       </div>
+      {tabs && tabs.length > 1 && (
+        <div role="tablist" aria-label="Analyses" className="flex border-b-[1.5px] border-ink">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={t.id === tab}
+              onClick={() => onTab?.(t.id)}
+              className={cn(
+                "-mb-[1.5px] h-10 flex-[1_1_0] cursor-pointer border-[1.5px] px-3 text-[11px] font-bold tracking-[0.14em] uppercase",
+                t.id === tab
+                  ? "border-ink border-b-paper bg-paper text-ink"
+                  : "border-transparent bg-transparent text-ink-muted hover:text-ink",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {typeof state === "object" && top}
       {state === "loading" && (
         <div className="flex flex-col items-center gap-3 py-6">
           <CourtModelLoader status={loading} tone="paper" />

@@ -429,8 +429,10 @@ async def hold_hearing(
     deed: dict,
     user_side: str,
     submission: str,
+    record: str = "",
 ) -> HearingRecord:
-    """The court hears the filed compromise (or plea report) and passes its order."""
+    """The court hears the filed compromise (or plea report) and passes its order. The
+    same court has heard the case so far, so it knows the record."""
     template = """SETTLEMENT HEARING
 You are the presiding judge of {court}, in a simulated Indian criminal case: {title}. This is {hearing}. Counsel for the {user_side} (the user) has just made a short submission. Write the rest of the hearing as it would happen in an Indian court, then pass the order.
 
@@ -458,6 +460,9 @@ THE ROUTE
 
 THE CASE
 {case_context}
+
+THE HEARING SO FAR (this court's record of the case before the compromise was placed before it)
+{record}
 
 THE DEED AS FILED
 {deed}
@@ -489,6 +494,7 @@ Reply with ONLY this JSON object and nothing else:
                 "today": get_current_datetime().date().isoformat(),
                 "route": f"{profile.title} ({profile.court}). {profile.must} {profile.must_detail}",
                 "case_context": case_context,
+                "record": tagged(record or "Nothing has been argued yet.", "history"),
                 "deed": deed_text,
                 "submission": tagged(submission, "user_argument"),
                 "checks": ", ".join(

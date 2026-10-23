@@ -102,6 +102,9 @@ class CourtroomProceedingsEvent(BaseModel):
     objection: Objection | None = None  # on OBJECTION events
     # On RULING events; on SETTLEMENT events, whether the court granted the request.
     sustained: bool | None = None
+    # On SETTLEMENT events: a short label beside the speaker (the State's stand, the
+    # court's ruling, a complainant who is unsure).
+    tag: str | None = None
     # Set by a sustained objection: "struck" from the record, or question "withdrawn"
     struck: Literal["struck", "withdrawn"] | None = None
 

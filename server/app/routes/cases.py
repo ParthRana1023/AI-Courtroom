@@ -45,6 +45,7 @@ from app.services.rag import (
     retrieve_case_context,
     upsert_memory_item,
 )
+from app.services.settlement_deed import call_the_matter
 from app.utils.datetime import get_current_datetime
 from app.utils.locks import case_lock
 from app.utils.rate_limiter import (
@@ -226,6 +227,8 @@ async def update_case_status(
                 case.open_court()
             elif old_status != CaseStatus.ACTIVE:
                 case.log("Court is in session")
+            if old_status != CaseStatus.ACTIVE:
+                call_the_matter(case)  # a filed compromise is heard first
     try:
         await case.save()
         logger.info(f"Case {cnr} status updated: {old_status} → {new_status}")

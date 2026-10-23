@@ -40,7 +40,7 @@ export const ROUTE_COPY: Record<OpenRoute, Copy> = {
     agreedT: "The AI has drafted the compromise deed from the agreed terms. Read it before your client signs.",
     filedK: "Joint application filed · § 528 BNSS",
     filedT: (d) =>
-      `The verification hearing is listed for ${d}. The judge will question the complainants directly to confirm they agreed freely.`,
+      `The verification hearing is listed for ${d}. The judge will question the complainants directly to confirm they agreed freely. It is heard in the courtroom, first thing when the court next sits.`,
     hearL: "Go to the verification hearing",
     fileToast: "Joint application filed under § 528 BNSS.",
   },
@@ -58,7 +58,7 @@ export const ROUTE_COPY: Record<OpenRoute, Copy> = {
     agreedT: "The AI has drafted the compromise deed from the agreed terms. Read it before your client signs.",
     filedK: "Compounding application filed · § 359 BNSS",
     filedT: (d) =>
-      `The matter is listed for ${d}. The court will record each complainant’s consent and decide whether to permit compounding.`,
+      `The matter is listed for ${d}. The court will record each complainant’s consent and decide whether to permit compounding. It is heard in the courtroom, first thing when the court next sits.`,
     hearL: "Go to the compounding hearing",
     fileToast: "Compounding application filed under § 359 BNSS.",
   },
@@ -76,7 +76,7 @@ export const ROUTE_COPY: Record<OpenRoute, Copy> = {
     agreedT: "The AI has drafted the disposition report from the agreed terms. Read it before it is signed.",
     filedK: "Report submitted · § 292 BNSS",
     filedT: (d) =>
-      `The case is listed for sentence on ${d}. The court confirms the plea once more, then passes sentence under section 293.`,
+      `The case is listed for sentence on ${d}. The court confirms the plea once more, then passes sentence under section 293. It is heard in the courtroom, first thing when the court next sits.`,
     hearL: "Go to the sentencing hearing",
     fileToast: "Report submitted to the court under § 292 BNSS.",
   },

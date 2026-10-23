@@ -152,7 +152,8 @@ export interface CourtroomProceedingsEvent {
   // Exhibits the speaker relied on (EvidenceItem.exhibit_ref)
   exhibit_refs?: string[];
   objection?: { target_id: string; grounds: string; details: string } | null;
-  sustained?: boolean | null; // on rulings
+  sustained?: boolean | null; // on rulings; on settlement rulings, granted
+  tag?: string | null; // on settlement lines: the State's stand, the ruling, "Unsure"
   // A sustained objection struck it from the record, or withdrew the question
   struck?: "struck" | "withdrawn" | null;
 }

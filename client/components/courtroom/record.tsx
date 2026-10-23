@@ -26,7 +26,9 @@ function clock(ts: string) {
 
 /** The AI said it: the other side's arguments, questions and leave requests, every answer and ruling. */
 export function aiMade(e: Ev, ai: Side) {
-  if (e.type === T.WITNESS_EXAMINED_A || e.type === T.RULING || e.type === T.SETTLEMENT) return true;
+  if (e.type === T.WITNESS_EXAMINED_A || e.type === T.RULING) return true;
+  // In a settlement hearing everyone but the user speaks through the AI.
+  if (e.type === T.SETTLEMENT) return e.speaker_role !== (ai === "plaintiff" ? "defendant" : "plaintiff");
   return e.speaker_role === ai && (MOVES_ON.has(e.type) || e.type === T.LEAVE_REQUEST);
 }
 
@@ -230,15 +232,13 @@ function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
       </div>
     );
   } else if (SPOKEN.has(e.type) || e.type === T.LEAVE_REQUEST || e.type === T.OBJECTION || e.type === T.RULING || e.type === T.SETTLEMENT) {
-    // The court rules on an objection, or on settling: counsel's request for time, or the compromise itself.
+    // Settling in court: counsel asking for time, and the hearing of a filed compromise, where the
+    // court, the State and the complainants each speak and the court rules.
     const settling = e.type === T.SETTLEMENT;
-    const ruling = e.type === T.RULING || settling;
+    const ruling = e.type === T.RULING || (settling && e.speaker_role === "judge");
+    const settleTag = e.tag ?? (e.sustained == null ? null : e.sustained ? "Granted" : "Refused");
     const tag = settling
-      ? e.sustained == null
-        ? "Compromise"
-        : e.sustained
-          ? "Granted"
-          : "Refused"
+      ? settleTag
       : ruling
         ? e.sustained
           ? "Sustained"
@@ -252,24 +252,33 @@ function Entry({ e, i, ctx }: { e: Ev; i: number; ctx: RecordCtx }) {
               : e.type === T.LEAVE_REQUEST
                 ? "Seeks leave"
                 : null;
-    const tagC = ruling
-      ? e.sustained
-        ? "#3f6b3a"
-        : e.sustained == null
-          ? "#7a4a0c"
+    const tagC = settling
+      ? (({ Granted: "#3f6b3a", Refused: "#8e1f19", Adjourned: "#7a4a0c", Unsure: "#7a4a0c" } as Record<string, string>)[settleTag ?? ""] ??
+        "#120d09")
+      : ruling
+        ? e.sustained
+          ? "#3f6b3a"
           : "#8e1f19"
-      : e.type === T.LEAVE_REQUEST
-        ? "#7a4a0c"
-        : mine
-          ? "#8e1f19"
-          : "#120d09";
+        : e.type === T.LEAVE_REQUEST
+          ? "#7a4a0c"
+          : mine
+            ? "#8e1f19"
+            : "#120d09";
     const ink = ruling ? "#7a4a0c" : mine ? "#8e1f19" : "#120d09";
     const leaveOpen = ctx.leaveOpen === e.id && !isTyping;
     body = (
       <div className="flex min-w-0 flex-col gap-1.5 border-l-[3px] pl-3.5" style={{ borderLeftColor: ink }}>
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
           <span className={LABEL} style={{ color: ink }}>
-            {ruling ? "The Court" : mine ? `You · ${SIDE[me]}` : `${SIDE[ai]} · AI`}
+            {mine
+              ? `You · ${SIDE[me]}`
+              : settling
+                ? e.speaker_role === "judge" && !e.speaker_name?.startsWith("The Court")
+                  ? "The Court"
+                  : e.speaker_name || "The Court"
+                : ruling
+                  ? "The Court"
+                  : `${SIDE[ai]} · AI`}
           </span>
           {tag && (
             <span className={cn(LABEL, "border px-1.5 pt-0.5 pb-px tracking-[0.16em]")} style={{ borderColor: tagC, color: tagC }}>

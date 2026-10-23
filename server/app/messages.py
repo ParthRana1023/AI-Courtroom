@@ -154,6 +154,9 @@ SETTLEMENT_FILED = "The deed is filed. The court takes it up at the hearing."
 SETTLEMENT_NOT_FILED = "The deed must be filed before the court can hear it."
 SETTLEMENT_PAYMENT = "That can't be done for this instalment."
 SETTLEMENT_NOT_SITTING = "The court isn't in session: there is no hearing to adjourn."
+SETTLEMENT_HEARD_IN_COURT = (
+    "The court hears the compromise when it sits. Resume the hearing in the courtroom."
+)
 NEGOTIATION_NOT_READY = (
     "The negotiation is analysed once you've negotiated and the case is decided."
 )

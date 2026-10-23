@@ -35,7 +35,7 @@ const OUTCOMES = {
   won: ["Won", "#2f6b3a"],
   lost: ["Lost", "#8e1f19"],
   partial: ["Partly won", "#9a5b12"],
-  settled: ["Settled", "#120d09"],
+  settled: ["Settled", "#6b5d4b"],
 } as const;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, Ref } from "react";
+import { useLayoutEffect, type KeyboardEvent, type RefObject } from "react";
 import { cn } from "@/lib/utils";
 import type { EvidenceItem } from "@/types";
 import { PinButton, PinnedChips } from "./exhibit-pin";
@@ -44,6 +44,7 @@ export default function Composer({
   note,
   argRef,
   pickMax,
+  label = "Your argument",
 }: {
   mob: boolean;
   canArgue: boolean;
@@ -71,9 +72,11 @@ export default function Composer({
   /** onSoon explains why the button is off while VOICE_INPUT is false */
   mic: { supported: boolean; listening: boolean; onToggle: () => void; onSoon: () => void };
   note: ComposerNote | null;
-  argRef: Ref<HTMLTextAreaElement>;
+  argRef: RefObject<HTMLTextAreaElement | null>;
   /** room above the composer for the exhibit picker */
   pickMax: () => number;
+  /** what the box holds: an argument, or counsel's submission on a compromise */
+  label?: string;
 }) {
   const closing = mode === "close";
 
@@ -84,13 +87,15 @@ export default function Composer({
       onSubmit();
     }
   };
-  const grow = (el: HTMLTextAreaElement) => {
-    if (!autoExpand) return;
+  // Sized on every draft change, typed or not (a pre-filled submission, a cleared box after sending).
+  useLayoutEffect(() => {
+    const el = argRef.current;
+    if (!autoExpand || !el) return;
     el.style.height = "auto";
     const h = el.scrollHeight + 3;
     el.style.height = `${Math.min(180, Math.max(46, h))}px`;
     el.style.overflowY = h > 180 ? "auto" : "hidden";
-  };
+  }, [draft, autoExpand, argRef, canArgue]);
 
   return (
     <div
@@ -127,7 +132,7 @@ export default function Composer({
                 ))}
               </div>
             ) : (
-              <span className={cn(LABEL, "text-ink-label")}>Your argument</span>
+              <span className={cn(LABEL, "text-ink-label")}>{label}</span>
             )}
             <span className="text-[12.5px] text-ink-muted">{meta}</span>
           </div>
@@ -143,13 +148,10 @@ export default function Composer({
             <textarea
               ref={argRef}
               value={draft}
-              onChange={(e) => {
-                onDraft(e.target.value);
-                grow(e.target);
-              }}
+              onChange={(e) => onDraft(e.target.value)}
               onKeyDown={onKey}
               rows={1}
-              aria-label={closing ? "Closing statement" : "Your argument"}
+              aria-label={closing ? "Closing statement" : label}
               placeholder={placeholder}
               className={cn(
                 "h-11.5 max-h-45 min-w-0 flex-1 resize-none rounded-none border-[1.5px] bg-[#f8f3e7] px-3 py-2.5 font-type text-[15px] leading-normal text-ink outline-none placeholder:truncate placeholder:text-[#8f8574] focus:border-seal focus:shadow-[0_0_0_3px_rgba(142,31,25,.18)]",

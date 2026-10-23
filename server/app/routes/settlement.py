@@ -52,6 +52,10 @@ router = APIRouter()
 
 MAX_OFFERS = 3  # the user's offers in one attempt
 MAX_ATTEMPTS = 2  # attempts in one case
+COUNSEL = {
+    "plaintiff": "Counsel for the Plaintiff",
+    "defendant": "Counsel for the Defence",
+}
 
 
 class OfferRequest(BaseModel):
@@ -481,17 +485,65 @@ def order_markdown(
     )
 
 
-@router.post("/{case_cnr}/settlement/hearing", dependencies=[one_at_a_time])
+# How the record names the people in a settlement hearing.
+SPEAKER = {
+    "court": "judge",
+    "state": "state",
+    "complainant": "complainant",
+    "accused": "accused",
+}
+OUTCOME_TAG = {"granted": "Granted", "refused": "Refused", "adjourned": "Adjourned"}
+
+
+def put_on_record(
+    case: Case, submission: str, record: counsel.HearingRecord, ai_side: str
+) -> None:
+    """The hearing joins the courtroom record: counsel's submission, what each person
+    said, and the ruling with the order."""
+    user_side, _ = sides(case)
+
+    def said(role: str, who: str, text: str, tag: str | None = None, **extra):
+        case.courtroom_proceedings.append(
+            CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.SETTLEMENT,
+                content=text,
+                speaker_role=role,
+                speaker_name=who,
+                tag=tag,
+                **extra,
+            )
+        )
+
+    said(user_side, COUNSEL[user_side], submission)
+    for line in record.lines:
+        if line.kind == "system":
+            case.log(line.text)
+            continue
+        role = ai_side if line.role == "other" else SPEAKER.get(line.role, "judge")
+        said(role, line.who, line.text, line.tag or ("Unsure" if line.unsure else None))
+    order = "\n".join(f"{i}. {p}" for i, p in enumerate(record.order, 1))
+    said(
+        "judge",
+        "The Court",
+        f"{record.ruling}\n\n{order}",
+        OUTCOME_TAG[record.outcome],
+        sustained={"granted": True, "refused": False}.get(record.outcome),
+    )
+
+
+@router.post("/{case_cnr}/settlement/hearing", dependencies=[controls_hearing])
 async def hold_hearing(
     case_cnr: str,
     request: HearingRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """The court hears the filed compromise and passes its order: granted (the case
-    ends, settled, and the payments start), refused (the case goes on and no new talks
-    can open), or adjourned to another date."""
+    """The sitting court hears the filed compromise and passes its order: granted (the
+    case ends, settled, and the payments start), refused (no new talks can open, and the
+    matter is listed for hearing on the merits), or adjourned to another date. The
+    hearing goes on the courtroom record."""
     case = await get_owned_case(case_cnr, current_user)
-    check(why_closed(case))
+    if case.status != CaseStatus.ACTIVE:
+        raise HTTPException(status_code=409, detail=messages.SETTLEMENT_HEARD_IN_COURT)
     attempt = open_attempt(case)
     profile = case.settlement_profile
     if (
@@ -501,7 +553,7 @@ async def hold_hearing(
         or profile.route == "none"
     ):
         raise HTTPException(status_code=409, detail=messages.SETTLEMENT_NOT_FILED)
-    user_side, _ = sides(case)
+    user_side, ai_side = sides(case)
 
     try:
         case_context = await retrieve_case_context(
@@ -516,6 +568,7 @@ async def hold_hearing(
             draw_up(case, profile, attempt.agreed),
             user_side,
             request.submission,
+            record_lines(case, limit=40),
         )
     except Exception:
         logger.exception(f"Settlement hearing failed for case {case_cnr}")
@@ -534,16 +587,9 @@ async def hold_hearing(
     )
     attempt.ruling = record.ruling
     attempt.court_order = order_markdown(case, profile, record)
-    case.log("Compromise placed before the court")
-    case.courtroom_proceedings.append(
-        CourtroomProceedingsEvent(
-            type=CourtroomProceedingsEventType.SETTLEMENT,
-            content=record.ruling,
-            speaker_role="judge",
-            speaker_name="Judge",
-        )
-    )
+    put_on_record(case, request.submission, record, ai_side)
     granted = record.outcome == "granted"
+    listed = record.next_date.strftime("%d %B %Y") if record.next_date else ""
     if granted:
         attempt.status = SettlementStatus.RECORDED
         attempt.ended_at = now
@@ -558,11 +604,15 @@ async def hold_hearing(
         case.active_session_expires_at = None
         case.log("Case disposed of on compromise")
     elif record.outcome == "refused":
+        # As in court: the application is dismissed, talks close, and the case is
+        # listed for hearing on the merits on another day.
         attempt.status = SettlementStatus.REFUSED
         attempt.ended_at = now
+        case.adjourn(note=f"Matter listed for hearing on the merits on {listed}")
     else:
         attempt.status = SettlementStatus.ADJOURNED
         attempt.hearing_date = record.next_date
+        case.adjourn(note=f"Verification of the compromise adjourned to {listed}")
 
     await case.save()
     await upsert_memory_item(
@@ -626,10 +676,6 @@ async def answer_payment(
     return view(case)
 
 
-COUNSEL = {
-    "plaintiff": "Counsel for the Plaintiff",
-    "defendant": "Counsel for the Defence",
-}
 ADJOURN_FOR = {
     "quash": "file the joint application to quash the FIR",
     "compound": "file the application to compound the offences",
@@ -706,7 +752,7 @@ async def ask_to_settle(
             type=CourtroomProceedingsEventType.SETTLEMENT,
             content=ruling,
             speaker_role="judge",
-            speaker_name="Judge",
+            speaker_name="The Court",
             sustained=granted,
         )
     )

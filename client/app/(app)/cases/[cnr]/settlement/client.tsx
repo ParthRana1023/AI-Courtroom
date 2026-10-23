@@ -236,6 +236,9 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
                 action: view?.can_start ? { label: startErr ? "Try again" : "Open talks", go: openTalks } : undefined,
               };
 
+  // A filed compromise is the first thing the court hears, so the button names that hearing.
+  const cta =
+    !starting && phase === "filed" && copy && kase?.status !== CaseStatus.RESOLVED ? `${copy.hearL} →` : ctaLabel;
   const ctaNote =
     !readOnly && ["compose", "waiting", "final"].includes(phase) && used > 0
       ? "Your offer stays open. Talks continue after the hearing."
@@ -322,7 +325,7 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
                 <span className="-mt-1 text-meta leading-[1.4] text-ink-muted">{now?.d}</span>
               </div>
             ) : (
-              <div className="flex-none [scrollbar-width:none] overflow-x-auto">
+              <div className="flex-none scrollbar-none overflow-x-auto">
                 <ol aria-label="Settlement steps" className="m-0 grid list-none grid-cols-[repeat(5,minmax(128px,1fr))] gap-1 p-0">
                   {steps.map((s) => (
                     <li
@@ -383,8 +386,10 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
                 hearingDate={attempt?.hearing_date ?? null}
                 readOnly={readOnly}
                 filing={busy === "file"}
+                hearing={starting}
                 onSign={() => void sign()}
                 onFile={() => void file()}
+                onHear={() => void proceed()}
               />
               <OfferPanel
                 conditions={profile.conditions}
@@ -448,7 +453,7 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
             ctaOff ? "bg-ink-disabled" : "bg-seal hover:bg-seal-hover",
           )}
         >
-          {ctaLabel}
+          {cta}
         </button>
       </div>
       {ctaNote && (

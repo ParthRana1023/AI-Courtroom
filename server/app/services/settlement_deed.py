@@ -8,7 +8,14 @@ when the case's route was worked out, so drafting can't fail half way through.
 import re
 from datetime import date, timedelta
 
-from app.models.case import Case, SettlementProfile, SettlementTerms
+from app.models.case import (
+    Case,
+    CourtroomProceedingsEvent,
+    CourtroomProceedingsEventType,
+    SettlementProfile,
+    SettlementStatus,
+    SettlementTerms,
+)
 from app.services.llm.settlement import inr
 
 TITLE = {
@@ -154,3 +161,45 @@ def hearing_after(filed: date) -> date:
     """The listing date: twelve days on, moved to the Monday when it falls on a weekend."""
     day = filed + HEARING_GAP
     return day + timedelta(days=(7 - day.weekday()) % 7 if day.weekday() >= 5 else 0)
+
+
+LISTED = {
+    "quash": "Verification of compromise",
+    "compound": "Compounding under section 359 BNSS",
+    "plea": "Plea bargaining · sentence under section 293 BNSS",
+}
+CALL = {
+    "quash": "{title}. This is a joint application under section 528 BNSS to quash the "
+    "FIR on the basis of a compromise. Counsel, briefly.",
+    "compound": "{title}. The complainants have applied under section 359 BNSS to "
+    "compound the offences. Counsel, briefly.",
+    "plea": "{title}. The report of the mutually satisfactory disposition under section "
+    "292 BNSS is before me, signed by everyone who took part. I will hear counsel "
+    "before I dispose of the case.",
+}
+
+
+def call_the_matter(case: Case) -> None:
+    """When the court sits with a filed compromise, it takes the compromise up first:
+    the record shows the matter called and the court asking counsel to begin."""
+    attempt = case.open_settlement()
+    profile = case.settlement_profile
+    if (
+        attempt is None
+        or attempt.status not in (SettlementStatus.FILED, SettlementStatus.ADJOURNED)
+        or profile is None
+        or profile.route == "none"
+    ):
+        return
+    numbers = case_numbers(case.details)
+    case.log(f"{LISTED[profile.route]} · listed before the court")
+    case.courtroom_proceedings.append(
+        CourtroomProceedingsEvent(
+            type=CourtroomProceedingsEventType.SETTLEMENT,
+            content=CALL[profile.route].format(
+                title=f"{numbers}, {case.title}" if numbers else case.title
+            ),
+            speaker_role="judge",
+            speaker_name="The Court",
+        )
+    )

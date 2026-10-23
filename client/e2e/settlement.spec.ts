@@ -195,6 +195,7 @@ test.describe("settlement", () => {
   });
 
   test("agreed terms become a deed: sign it, then file it", async ({ page, signIn, checkA11y }) => {
+    let opened: unknown = null;
     const at = (status: string, over: Record<string, unknown> = {}) =>
       view({ attempt: attempt(agreedTalks, { status, agreed: T2, ...over }), attempts: 1, can_start: false, deed: DEED });
     await signIn(
@@ -203,6 +204,10 @@ test.describe("settlement", () => {
         [`GET ${base}/settlement`]: at("agreed"),
         [`POST ${base}/settlement/sign`]: at("signed", { signatures: SIGNED_BY }),
         [`POST ${base}/settlement/file`]: at("filed", { signatures: SIGNED_BY, filed_at: AT, hearing_date: "2026-11-04" }),
+        [`PUT ${base}/status`]: async (route: Route) => {
+          opened = route.request().postDataJSON();
+          await route.fulfill({ json: {} });
+        },
       }),
     );
     await page.goto(`${base}/settlement`);
@@ -230,7 +235,11 @@ test.describe("settlement", () => {
     await expect(page.getByText("Joint application filed under § 528 BNSS.")).toBeVisible();
     await expect(page.getByText("Joint application filed · § 528 BNSS")).toBeVisible();
     await expect(page.getByText(/listed for 4 November 2026/)).toBeVisible();
-    await expect(page.getByRole("link", { name: "Go to the verification hearing" })).toHaveAttribute("href", `${base}/settlement/hearing`);
+    // Both buttons open the sitting (the case may not have started), so the court calls the compromise.
+    await expect(page.getByRole("button", { name: "Go to the verification hearing →" })).toBeVisible();
+    await page.getByRole("button", { name: "Go to the verification hearing", exact: true }).click();
+    await expect.poll(() => opened).toEqual({ status: "active" });
+    await expect(page).toHaveURL(`${base}/courtroom`);
   });
 
   test("a plea bargain is a report signed by everyone at the meeting", async ({ page, signIn }) => {

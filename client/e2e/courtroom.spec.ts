@@ -1,7 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 import { test, expect, USERS } from "./support/fixtures";
 import { CNR, PARTIES, caseOf } from "./support/case-data";
-import { NEGOTIATION, PROFILE, T2, agreedTalks, attempt } from "./support/settlement-data";
+import { PROFILE, T2, agreedTalks, attempt } from "./support/settlement-data";
 
 const base = `/cases/${CNR}`;
 let clock = 0;
@@ -804,7 +804,7 @@ test.describe("courtroom", () => {
   });
 
   test("counsel asks for time to settle: granted once, then refused", async ({ page, signIn, checkA11y }, info) => {
-    const ask = info.project.name === "desktop" ? "Ask for an adjournment to settle" : "Time to settle";
+    const ask = "Time to settle";
     const h = hearing({ settlement_profile: PROFILE });
     const RULINGS = [
       "Granted. The parties say they are in talks. The court will give them time. The matter is adjourned, and counsel will report on the settlement when it resumes.",
@@ -835,6 +835,18 @@ test.describe("courtroom", () => {
     });
     const log = await open(page);
 
+    if (info.project.name === "desktop") {
+      // The long toolbar wraps under the title, and still sits at the right.
+      const adjourn = await page.getByRole("button", { name: "Adjourn", exact: true }).boundingBox();
+      const paper = await page.getByRole("region", { name: "Proceedings" }).boundingBox();
+      expect(adjourn && paper && adjourn.x + adjourn.width).toBeGreaterThan((paper?.x ?? 0) + (paper?.width ?? 0) - 80);
+      // On a wide screen they share the title's rows, leaving more room for the record.
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      const you = await page.getByText(/^You are/).boundingBox();
+      const wide = await page.getByRole("button", { name: "Adjourn", exact: true }).boundingBox();
+      expect(wide?.y ?? Infinity).toBeLessThan((you?.y ?? 0) + (you?.height ?? 0));
+      await page.setViewportSize({ width: 924, height: 540 });
+    }
     await page.getByRole("button", { name: ask }).click();
     await expect(page.getByText("TIME TO SETTLE", { exact: true })).toBeVisible();
     await expect(log.getByText(RULINGS[0])).toBeVisible({ timeout: 6000 });
@@ -870,24 +882,5 @@ test.describe("courtroom", () => {
     await expect(
       page.getByRole("button", { name: info.project.name === "desktop" ? "Deed signed · ask for time" : "Time to settle" }),
     ).toBeVisible();
-  });
-
-  test("after a settled case, the negotiation analysis", async ({ page, signIn }, info) => {
-    const h = hearing({
-      status: "resolved",
-      outcome: "settled",
-      settlement_result: "quashed",
-      verdict: "**ORDER**\n\n1. FIR No. 41/2025 is quashed.\n\n**R. K. Mehta, J.**",
-      settlement_profile: PROFILE,
-      settlements: [attempt(agreedTalks, { status: "recorded", agreed: T2 })],
-    });
-    await signIn(USERS.email, { ...h.routes, [`POST ${base}/analyze-negotiation`]: { negotiation: NEGOTIATION } });
-    await open(page, false);
-
-    await page.getByRole("button", { name: info.project.name === "desktop" ? "Negotiation analysis" : "Negotiation", exact: true }).click();
-    const review = page.getByRole("dialog", { name: "How you negotiated" });
-    await expect(review.getByText("You anchored at ₹42,00,000 over a year.")).toBeVisible();
-    await expect(review.getByText("78 · Strong")).toBeVisible();
-    await expect(review.getByRole("heading", { name: "What to do differently" })).toBeVisible();
   });
 });

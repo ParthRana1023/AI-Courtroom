@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import Signature from "@/components/court/signature";
 import { longDate, type Phase, type ROUTE_COPY } from "@/lib/settlement";
 import { SIG_SPACING, caseFonts, handOf } from "@/lib/signature";
@@ -33,8 +32,10 @@ export default function Deed({
   hearingDate,
   readOnly,
   filing,
+  hearing,
   onSign,
   onFile,
+  onHear,
 }: {
   cnr: string;
   deed: SettlementDeed | null;
@@ -45,8 +46,10 @@ export default function Deed({
   hearingDate: string | null;
   readOnly: boolean;
   filing: boolean;
+  hearing: boolean; // the court is being opened
   onSign: () => void;
   onFile: () => void;
+  onHear: () => void;
 }) {
   const [othersOpen, setOthersOpen] = useState(false);
   const signers = deed?.signatories ?? [];
@@ -80,7 +83,7 @@ export default function Deed({
 
       {!deed ? (
         <div className="flex flex-col gap-1.5 border border-dashed border-ink/45 px-4 py-4.5">
-          <span className="font-display text-lg leading-[1.25]">Drafted once both sides agree</span>
+          <span className="font-display text-lg leading-tight">Drafted once both sides agree</span>
           <span className="text-[13.5px] leading-[1.55] text-pretty text-ink-label">{copy.noDeedT}</span>
         </div>
       ) : (
@@ -211,13 +214,19 @@ export default function Deed({
             <div className="flex flex-col items-start gap-2.5 border-[1.5px] border-[#3f6b3a] px-4 py-3.5">
               <strong className="text-[10.5px] font-bold tracking-[0.18em] text-[#3f6b3a] uppercase">{copy.filedK}</strong>
               <span className="text-sm leading-[1.55] text-pretty text-[#2a2018]">{copy.filedT(longDate(hearingDate))}</span>
-              <Link
-                href={`/cases/${cnr}/settlement/hearing`}
-                className="flex h-12 items-center justify-center gap-2.5 self-stretch bg-seal px-5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase hover:bg-seal-hover"
+              {/* Opens the sitting (resuming it if adjourned); the court calls the compromise first. */}
+              <button
+                type="button"
+                onClick={onHear}
+                disabled={hearing}
+                className={cn(
+                  "flex h-12 cursor-pointer items-center justify-center gap-2.5 self-stretch border-0 px-5 text-xs font-bold tracking-[0.14em] whitespace-nowrap text-cream uppercase",
+                  hearing ? "cursor-wait bg-ink-disabled" : "bg-seal hover:bg-seal-hover",
+                )}
               >
-                <span>{copy.hearL}</span>
-                <span aria-hidden="true">→</span>
-              </Link>
+                <span>{hearing ? "Opening the court…" : copy.hearL}</span>
+                {!hearing && <span aria-hidden="true">→</span>}
+              </button>
             </div>
           )}
         </>
