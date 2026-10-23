@@ -134,6 +134,7 @@ async def get_case(
         "ai_objection_live": case_dict.get("ai_objection_live"),
         "settlements": case_dict.get("settlements", []),
         "settlement_profile": case_dict.get("settlement_profile"),
+        "settlement_result": case_dict.get("settlement_result"),
         # AI responses this user has already reported
         "reported": [
             r.entry_id

@@ -192,6 +192,7 @@ export type SettlementStatus =
   | "agreed" // both sides agree; the deed is drafted
   | "signed" // every signatory has signed the deed
   | "filed" // filed; the hearing is listed
+  | "adjourned" // the court put the hearing off to another date
   | "recorded" // the court accepted it; the case is over
   | "refused" // the court refused it; the case goes on to be heard on merits
   | "rejected" // the other side walked away
@@ -255,6 +256,43 @@ export interface SettlementView {
   deed: SettlementDeed | null; // once terms are agreed
 }
 
+/** A line of the settlement hearing after counsel's submission. */
+export interface HearingLine {
+  kind: "speech" | "question" | "answer" | "system";
+  role: "court" | "other" | "state" | "complainant" | "accused" | "system";
+  who: string;
+  tag: string; // the State's stand: "No objection", "Opposes", "Agrees"
+  unsure: boolean;
+  text: string;
+}
+
+export interface SettlementHearing {
+  submission: string;
+  lines: HearingLine[];
+  checks: { label: string; state: "ok" | "unsure" | "fail"; text: string }[];
+  outcome: "granted" | "refused" | "adjourned";
+  judge: string;
+  order: string[];
+  next_date: string | null; // YYYY-MM-DD
+  held_at: string;
+}
+
+export interface SettlementPayment {
+  amount: number; // interest included on the last
+  due: string; // YYYY-MM-DD
+  paid_at: string | null;
+  remedy: "recall" | "notice" | "recover" | null;
+  remedy_at: string | null;
+  status: "paid" | "late" | "due" | "upcoming" | "missed"; // as of today
+}
+
+export interface NegotiationScore {
+  score: number;
+  tier: string;
+  factors: { key: "terms" | "closed" | "offers" | "conditions"; label: string; weight: number; value: number; text: string }[];
+  notes: { kind: "worked" | "improve"; text: string }[];
+}
+
 /** The compromise deed (or plea-bargaining report) drawn up from the agreed terms. */
 export interface SettlementDeed {
   title: string;
@@ -282,6 +320,10 @@ export interface Settlement {
   signatures: Record<string, string>; // signer → signed at
   filed_at: string | null;
   hearing_date: string | null; // YYYY-MM-DD
+  hearing: SettlementHearing | null;
+  payments: SettlementPayment[];
+  user_pays?: boolean; // the user acts for the accused, who pays
+  score: NegotiationScore | null; // once talks end or the court rules
   ruling: string | null; // the court's ruling, as said in court
   court_order: string | null; // Markdown
   started_at: string;
@@ -326,6 +368,7 @@ export interface Case {
   reported?: string[]; // AI responses this user already reported
   settlements?: Settlement[]; // attempts to settle out of court, oldest first
   settlement_profile?: SettlementProfile | null; // the route, once worked out
+  settlement_result?: "quashed" | "compounded" | "plea" | null; // how a settled case ended
 }
 
 export interface RegisterFormData {

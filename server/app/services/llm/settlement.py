@@ -1,9 +1,11 @@
 # app/services/llm/settlement.py
 """Settling a criminal case out of court: the route the case allows, AI counsel's side
-of the talks, and the court's review of the compromise."""
+of the talks, the hearing that gives the compromise effect, and coaching on the talks.
+"""
 
 import json
 import re
+from datetime import date
 from typing import Literal
 
 from langchain_core.output_parsers import StrOutputParser
@@ -14,6 +16,9 @@ from app.logging_config import get_logger
 from app.models.case import (
     INSTALMENTS,
     MONTHS,
+    CoachNote,
+    HearingCheck,
+    HearingLine,
     Settlement,
     SettlementCondition,
     SettlementEntry,
@@ -361,89 +366,107 @@ Reply with ONLY this JSON object and nothing else:
 # Before the court
 # ---------------------------------------------------------------------------
 
+# What the court must be satisfied of, by route; the court rules on each.
+CHECKS = {
+    "quash": [
+        "Every complainant agreed freely",
+        "The dispute is private",
+        "The State’s view",
+    ],
+    "compound": [
+        "Every complainant compounded freely",
+        "The court’s permission",
+        "The offences can be compounded",
+    ],
+    "plea": [
+        "The plea is voluntary",
+        "Every complainant accepts",
+        "The offences qualify",
+    ],
+}
+HEARING = {
+    "quash": "a verification hearing on a joint application under Section 528 BNSS to quash the FIR and all proceedings on the basis of a compromise",
+    "compound": "a hearing on an application under Section 359 BNSS to compound the offences, which needs the court's permission where the table says so",
+    "plea": "a sentencing hearing on the report of a mutually satisfactory disposition under Section 292 BNSS (plea bargaining)",
+}
 
-class CompromiseRuling(BaseModel):
-    accepted: bool
+
+class HearingRecord(BaseModel):
+    judge: str
+    lines: list[HearingLine]
+    checks: list[HearingCheck]
+    outcome: Literal["granted", "refused", "adjourned"]
     ruling: str
-    order: str
+    order: list[str]
+    next_date: date | None = None
 
     @model_validator(mode="after")
-    def not_empty(self) -> "CompromiseRuling":
+    def complete(self) -> "HearingRecord":
+        if not self.lines or not self.order or not self.judge.strip():
+            raise ValueError("the hearing needs a record, an order and a judge")
+        if self.outcome != "granted" and self.next_date is None:
+            raise ValueError("a refused or adjourned matter needs its next date")
         self.ruling = self.ruling.strip()[:1000]
-        if not self.ruling or not self.order.strip():
-            raise ValueError("the ruling and the order must not be empty")
         return self
 
 
-_RULING = re.compile(r"<ruling>(.*?)</ruling>", re.DOTALL)
-_ORDER = re.compile(r"<order>(.*?)(?:</order>|$)", re.DOTALL)
-
-
-def parse_compromise_ruling(text: str) -> CompromiseRuling:
-    """The <ruling> JSON and the <order> Markdown in the judge's reply."""
-    text = strip_thinking(text)
-    ruling, order = _RULING.search(text), _ORDER.search(text)
-    if not ruling or not order:
-        raise LLMGenerationError("Compromise ruling missing <ruling> or <order>")
+def parse_hearing(text: str) -> HearingRecord:
     try:
-        data = json.loads(ruling.group(1))
-        return CompromiseRuling.model_validate(
-            {**data, "order": order.group(1).strip()}
-        )
-    except (json.JSONDecodeError, ValidationError, TypeError) as e:
-        raise LLMGenerationError(f"Invalid compromise ruling: {e}") from e
+        return HearingRecord.model_validate(_json(text, "Settlement hearing"))
+    except ValidationError as e:
+        raise LLMGenerationError(f"Invalid settlement hearing: {e}") from e
 
 
-async def review_compromise(
+async def hold_hearing(
+    profile: SettlementProfile,
     title: str,
     case_context: str,
-    record: str,
-    terms: str,
-) -> CompromiseRuling:
-    """The court decides whether it can act on a compromise both sides put before it."""
-    template = """COMPROMISE BEFORE THE COURT
-You are the presiding judge of the Indian High Court named in the case file, hearing a simulated case. Counsel for both sides have jointly placed a compromise on record and ask the court to act on it. Decide, as a High Court judge would, whether the law lets the court act on this compromise in this proceeding, and pass the order.
+    deed: dict,
+    user_side: str,
+    submission: str,
+) -> HearingRecord:
+    """The court hears the filed compromise (or plea report) and passes its order."""
+    template = """SETTLEMENT HEARING
+You are the presiding judge of {court}, in a simulated Indian criminal case: {title}. This is {hearing}. Counsel for the {user_side} (the user) has just made a short submission. Write the rest of the hearing as it would happen in an Indian court, then pass the order.
+
+WHAT HAPPENS
+- Counsel for the other side confirms the compromise (one or two sentences).
+- The Additional Public Prosecutor (APP) states the State's view: "No objection", "Opposes" or, on plea bargaining, "Agrees". The State is not a party to the compromise but may oppose it.
+- The court examines the complainants or victims in person (on plea bargaining, first the accused on whether the plea is voluntary): short questions and answers by name. Ask whether they signed freely, whether anyone pressured them, and whether they are satisfied with the payments. If there are more than three complainants, a system line may say the investigating officer identified the rest and each confirmed.
+- The court gives its reasons in a few sentences, then passes the order.
 
 HOW TO DECIDE
-- Identify the kind of proceeding from the case file, and every offence (BNS section) involved.
-- Quashing petition (Section 528 BNSS):
-  - If every offence is compoundable under Section 359 BNSS, permit compounding. Compounding has the effect of an acquittal (Section 359(8) BNSS).
-  - If any offence is not compoundable, the court may still quash the FIR and all proceedings on the settlement in its inherent power, as laid down in Gian Singh v. State of Punjab (2012) and Narinder Singh v. State of Punjab (2014). Do so only where the dispute is overwhelmingly private or civil in character (commercial, financial, matrimonial, family or property disputes, minor assaults), the parties have genuinely buried their dispute, and continuing the prosecution would be futile.
-- Regular or anticipatory bail (Sections 483 and 482 BNSS): a court hearing bail cannot quash or compound the case. It may weigh the compromise as one factor for bail, because it lowers the risk of the complainant being influenced, but never as a ground on its own. If you act on it, grant bail on the usual conditions and give the parties liberty to apply for compounding before the trial court or for quashing under Section 528 BNSS.
-- Criminal appeal against conviction (Section 415 BNSS): compounding needs the leave of the appellate court (Section 359(5) BNSS). Grant leave only if every offence of conviction is compoundable; the conviction and sentence are then set aside and the appellant is acquitted.
-- Always refuse when any offence is heinous or against society: murder, rape or any sexual offence, dacoity, attempt to murder, grave injuries or the use of weapons, offences under the Arms Act or other special statutes, or corruption by public servants (State of Madhya Pradesh v. Laxmi Narayan (2019)). A private compromise cannot end such a case, and in bail it carries no weight.
-- Voluntariness: the complainant or victim appears in person, is identified by counsel, and is examined by the court on whether the compromise is free and voluntary. Record what they say. Treat the consent as genuine unless the terms or the record suggest pressure, fraud or inducement (for example threats on record, co-accused still absconding, a victim in a position of dependence); then refuse.
-- Terms: refuse terms that are illegal or improper, such as a witness turning hostile or matters outside this dispute. Note any compensation paid or payable and when.
-- The Public Prosecutor is heard for the State and may oppose. The State is not a party to the compromise, but the court must be satisfied that the law permits acting on it.
-- Costs: when quashing on settlement the court may impose modest costs (often Rs. 10,000 to Rs. 25,000) payable to the State Legal Services Authority or a welfare fund; otherwise none.
-- {current_law_rule}
-- Do not invent facts, and cite no case other than those named above.
+- "granted": the law allows the court to act on this compromise and every complainant consents freely. Most genuine, lawful settlements of private disputes are granted.
+- "refused": the law bars it, for instance a heinous offence or one against society (State of Madhya Pradesh v. Laxmi Narayan (2019)), victims not before the court who are affected by the same acts, an offence that cannot be compounded, terms that are illegal, or a plea of guilty that is not voluntary.
+- "adjourned": a complainant is not fully satisfied, is absent, or the court needs something more before deciding. Mark that answer "unsure".
+- Decide on the law and the case file, not on what the user would like. {current_law_rule}
+- Do not invent facts beyond the case file, the deed and what is said at this hearing. Cite no case other than the one named.
+
+THE ORDER
+- Numbered paragraphs in plain English, 3 to 5 of them. When granted: what is quashed, compounded (the composition has the effect of an acquittal, Section 359(8) BNSS) or, on plea bargaining, the conviction on the plea, the compensation and the reduced sentence under Section 293 BNSS (for a first offender, a quarter or a sixth of the punishment provided, as the section says); the first instalment deposited in court within two weeks; what happens on default. When refused: that the application is dismissed and what continues. When adjourned: the next date and what the parties must do before it.
+- "next_date": for refused or adjourned, the date the matter is listed next, two to six weeks after {today}, as YYYY-MM-DD; null when granted.
 
 {untrusted_text_rule}
+
+THE ROUTE
+{route}
 
 THE CASE
 {case_context}
 
-THE HEARING SO FAR
-<history>
-{record}
-</history>
+THE DEED AS FILED
+{deed}
 
-THE COMPROMISE AS AGREED BY BOTH SIDES
-<user_argument>{terms}</user_argument>
+COUNSEL'S SUBMISSION
+{submission}
 
-Reply in exactly two parts and nothing else:
-<ruling>{{"accepted": true | false, "ruling": "<one or two sentences from the bench saying what the court does with the compromise and why. Do not repeat the terms or any amount: if the compromise is refused, the case goes on to be heard on merits.>"}}</ruling>
-<order>
-The order in Markdown. Begin with this unnumbered header, taken from the case file:
-**IN THE [HIGH COURT NAME]**
-**[CASE NO.]**
-**{title}**
-**CORAM: HON'BLE [invent a judge's name], J.**
-**Date of Order: {order_date}**
-**ORDER**
-Then numbered paragraphs: what the petition seeks; that a compromise has been placed on record, and its terms; the complainant's statement before the court; the Public Prosecutor's stand; the law and why the court can or cannot act on the compromise; and the operative directions (what is quashed or compounded, or bail granted with its conditions, or that the compromise is not accepted and the matter will be heard on merits), with costs if any. End with "Pending application(s), if any, stand disposed of." only if the case is disposed of. Close with the judge's name followed by ", J.".
-</order>"""
+Reply with ONLY this JSON object and nothing else:
+{{"judge": "<the presiding judge's name, invented, without 'J.'>", "lines": [{{"kind": "speech" | "question" | "answer" | "system", "role": "court" | "other" | "state" | "complainant" | "accused" | "system", "who": "<speaker as the record names them, e.g. 'Counsel for the accused', 'APP for the State', 'The Court to Priya Khanna', 'Priya Khanna'>", "tag": "<the State's stand on its line, else ''>", "unsure": false, "text": "..."}}], "checks": [{checks}], "outcome": "granted" | "refused" | "adjourned", "ruling": "<one sentence from the bench>", "order": ["<paragraph>", "..."], "next_date": "YYYY-MM-DD" | null}}"""
+    labels = CHECKS[profile.route]
+    deed_text = "\n".join(
+        [deed["title"], deed["parties"]]
+        + [f"{i}. {c}" for i, c in enumerate(deed["clauses"], 1)]
+    )
     try:
         chain = (
             ChatPromptTemplate.from_messages([("human", template)])
@@ -452,18 +475,67 @@ Then numbered paragraphs: what the petition seeks; that a compromise has been pl
         )
         reply = await chain.ainvoke(
             {
-                "title": title or "No title provided",
-                "case_context": case_context,
-                "record": (record or "The hearing has not begun.").replace(
-                    "</history>", ""
-                ),
-                "terms": terms.replace("</user_argument>", ""),
+                "court": profile.court.split("·")[-1].strip() or "the court",
+                "title": title or "the case",
+                "hearing": HEARING[profile.route],
+                "user_side": user_side,
                 "current_law_rule": CURRENT_LAW_RULE,
                 "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
-                "order_date": get_current_datetime().strftime("%d %B %Y"),
+                "today": get_current_datetime().date().isoformat(),
+                "route": f"{profile.title} ({profile.court}). {profile.must} {profile.must_detail}",
+                "case_context": case_context,
+                "deed": deed_text,
+                "submission": tagged(submission, "user_argument"),
+                "checks": ", ".join(
+                    f'{{"label": "{label}", "state": "ok" | "unsure" | "fail", "text": "<one short sentence>"}}'
+                    for label in labels
+                ),
             }
         )
     except Exception as e:
-        logger.exception("Error reviewing a compromise")
-        raise LLMGenerationError("Failed to review the compromise") from e
-    return parse_compromise_ruling(reply)
+        logger.exception("Error holding the settlement hearing")
+        raise LLMGenerationError("Failed to hold the settlement hearing") from e
+    return parse_hearing(reply)
+
+
+async def coach_negotiation(
+    talks: str, factors: str, user_side: str
+) -> list[CoachNote]:
+    """Two notes for the user: what worked in the negotiation, and what to do better.
+    Coaching is a bonus: on any failure there are simply no notes."""
+    template = """NEGOTIATION REVIEW
+You are a senior Indian criminal-law advocate mentoring a junior who has just negotiated a settlement out of court for the {user_side}. Write two short notes addressed to them as "you": one thing that worked, and one concrete thing to do better next time. Base both on the talks below; one or two sentences each.
+
+{untrusted_text_rule}
+
+THE TALKS
+{talks}
+
+HOW IT SCORED
+{factors}
+
+Reply with ONLY this JSON object and nothing else:
+{{"worked": "...", "improve": "..."}}"""
+    try:
+        chain = (
+            ChatPromptTemplate.from_messages([("human", template)])
+            | get_llm("lawyer")
+            | StrOutputParser()
+        )
+        reply = await chain.ainvoke(
+            {
+                "user_side": user_side,
+                "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
+                "talks": tagged(talks, "history"),
+                "factors": factors,
+            }
+        )
+        data = _json(reply, "Negotiation review")
+        return [
+            CoachNote(kind=kind, text=str(data[kind]).strip()[:500])
+            for kind in ("worked", "improve")
+            if str(data.get(kind) or "").strip()
+        ]
+    except Exception:
+        logger.exception("Negotiation review failed")
+        return []

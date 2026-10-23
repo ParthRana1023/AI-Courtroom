@@ -716,6 +716,14 @@ export const settlementAPI = {
 
   /** File the signed deed; the court lists the hearing. */
   file: async (cnr: string): Promise<SettlementView> => (await api.post(`/cases/${cnr}/settlement/file`)).data,
+
+  /** Make counsel's submission; the court hears the filed compromise and passes its order. */
+  hearing: async (cnr: string, submission: string): Promise<SettlementView> =>
+    (await api.post(`/cases/${cnr}/settlement/hearing`, { submission })).data,
+
+  /** Pay an instalment, or answer a missed one with the route's remedy. */
+  payment: async (cnr: string, index: number, action: "pay" | "recall" | "notice" | "recover"): Promise<SettlementView> =>
+    (await api.post(`/cases/${cnr}/settlement/payments/${index}`, { action })).data,
 };
 
 // Optional-email unsubscribe links (no sign-in; the token is in the link).

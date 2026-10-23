@@ -88,7 +88,7 @@ export function phaseOf(view: SettlementView, sending: boolean): Phase {
   if (!a) return "start";
   if (a.status === "agreed") return "agreed";
   if (a.status === "signed") return "signed";
-  if (a.status === "filed" || a.status === "recorded") return "filed";
+  if (a.status === "filed" || a.status === "adjourned" || a.status === "recorded") return "filed";
   if (a.status !== "negotiating") return "refused";
   const last = a.entries[a.entries.length - 1];
   return userOffers(a) >= view.max_offers && last?.by === "ai" ? "final" : "compose";
@@ -142,3 +142,168 @@ export function stamp(ts: string) {
 /** "2026-11-04" → "4 November 2026". */
 export const longDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+export type Outcome = "granted" | "refused" | "adjourned";
+export type Next = { title: string; stamp: string; c: string; body: string; line: string; cta: string; to: "cases" | "prep" | "desk" };
+
+type HearingCopy = {
+  title: string;
+  sub: string;
+  lord: string; // how counsel address the court
+  s2: [string, string];
+  s3: [string, string];
+  deedH: string;
+  readL: string;
+  stamp: Record<Outcome, string>;
+  chip: Record<Outcome, string>;
+  checks: string[];
+  call: (title: string, caseNo: string) => string;
+  granted: Pick<Next, "title" | "stamp" | "body" | "line">;
+  refused: Pick<Next, "stamp" | "body" | "line">;
+  remedy: { label: string; them: string; you: string; done: string; filed: string; note: string };
+};
+
+/** The settlement hearing, by route: what it is called, how the court is addressed, the stamp
+ * and chip for each outcome, the checks the court makes, and what follows. */
+export const HEARING_COPY: Record<OpenRoute, HearingCopy> = {
+  quash: {
+    title: "Verification hearing",
+    sub: "Verification of compromise",
+    lord: "My Lord",
+    s2: ["Verification", "The judge hears counsel and questions the complainants"],
+    s3: ["Order", "Quashed, refused or adjourned"],
+    deedH: "The deed",
+    readL: "Read the full deed",
+    stamp: { granted: "QUASHED", refused: "REFUSED", adjourned: "ADJOURNED" },
+    chip: { granted: "Quashed · settled", refused: "Quash refused", adjourned: "Adjourned" },
+    checks: ["Every complainant agreed freely", "The dispute is private", "The State’s view"],
+    call: (title, caseNo) =>
+      `${caseNo ? `${caseNo}, ` : ""}${title}. This is a joint application under section 528 BNSS to quash the FIR on the basis of a compromise. Counsel, briefly.`,
+    granted: {
+      title: "Payments",
+      stamp: "SETTLED",
+      body: "The FIR is quashed. The case is closed as Settled, and the payments below are tracked against the order.",
+      line: "The case moves to My Cases as Settled.",
+    },
+    refused: {
+      stamp: "CONTINUES",
+      body: "The petition goes back to arguments on its merits. The deed still binds the parties, and the trial court may consider it.",
+      line: "The petition continues. Prepare for arguments on",
+    },
+    remedy: {
+      label: "Apply to recall the order",
+      them: "You can apply to this court to recall the order. If it does, the FIR is revived and the prosecution resumes from where it stopped.",
+      you: "The complainants can now apply to recall the order and revive the FIR. Paying now, with interest for the delay, is the best answer to that application.",
+      done: "Recall application filed.",
+      filed:
+        "Recall application filed. The court will hear the accused on why the payment was missed before deciding whether to revive the FIR.",
+      note: "If a payment is missed, the complainants can apply to this court to recall the order and revive the FIR.",
+    },
+  },
+  compound: {
+    title: "Compounding hearing",
+    sub: "Compounding under § 359 BNSS",
+    lord: "Your Honour",
+    s2: ["Recording", "The court records each complainant’s consent"],
+    s3: ["Order", "Acquitted, refused or adjourned"],
+    deedH: "The deed",
+    readL: "Read the full deed",
+    stamp: { granted: "ACQUITTED", refused: "REFUSED", adjourned: "ADJOURNED" },
+    chip: { granted: "Acquitted · settled", refused: "Compounding refused", adjourned: "Adjourned" },
+    checks: ["Every complainant compounded freely", "The court’s permission", "The offences can be compounded"],
+    call: (title) => `${title}. The complainants have applied under section 359 BNSS to compound the offences. Counsel, briefly.`,
+    granted: {
+      title: "Payments",
+      stamp: "ACQUITTED",
+      body: "The accused is acquitted and the case is closed as Settled. The payments below are owed under the deed.",
+      line: "The case moves to My Cases as Settled.",
+    },
+    refused: {
+      stamp: "CONTINUES",
+      body: "The trial continues on every charge. Any refunds can count in the accused’s favour at sentence.",
+      line: "The trial continues. Prepare for the next date,",
+    },
+    remedy: {
+      label: "Send a legal notice",
+      them: "The acquittal stands, so the FIR can’t be revived. You can recover the amount under the deed, starting with a legal notice.",
+      you: "The acquittal stands, but the complainants can sue on the deed. Paying now avoids that.",
+      done: "Legal notice sent.",
+      filed: "Legal notice sent. The accused has 15 days to pay; after that, you can file a summary suit on the deed.",
+      note: "The acquittal can’t be undone. If a payment is missed, the complainants recover it under the deed through a civil suit.",
+    },
+  },
+  plea: {
+    title: "Sentencing hearing",
+    sub: "Plea bargaining · sentence under § 293 BNSS",
+    lord: "Your Honour",
+    s2: ["Hearing", "The court confirms the plea and hears the parties"],
+    s3: ["Sentence", "Sentenced, rejected or adjourned"],
+    deedH: "The report",
+    readL: "Read the full report",
+    stamp: { granted: "SENTENCED", refused: "REJECTED", adjourned: "ADJOURNED" },
+    chip: { granted: "Sentenced · plea bargain", refused: "Report rejected", adjourned: "Adjourned" },
+    checks: ["The plea is voluntary", "Every complainant accepts", "The offences qualify"],
+    call: (title) =>
+      `${title}. The report of the mutually satisfactory disposition under section 292 BNSS is before me, signed by everyone who took part. I will hear counsel before I dispose of the case.`,
+    granted: {
+      title: "Compensation",
+      stamp: "SENTENCED",
+      body: "The case is closed as Plea bargained. The compensation is part of the sentence and is tracked below.",
+      line: "The case moves to My Cases as Plea bargained.",
+    },
+    refused: {
+      stamp: "TRIAL",
+      body: "The case goes back to trial. Nothing the accused said during the plea bargaining can be used against him.",
+      line: "The trial continues. Prepare for the next date,",
+    },
+    remedy: {
+      label: "Ask the court to recover it",
+      them: "The compensation is part of the sentence. Ask the court to recover it as it would a fine.",
+      you: "The court can recover it as it would a fine, by attaching property. Paying now avoids that.",
+      done: "Recovery application filed.",
+      filed: "Recovery application filed. The court can attach the accused’s property to recover the amount.",
+      note: "The compensation is part of the sentence. If a payment is missed, the court recovers it as it would a fine.",
+    },
+  },
+};
+
+/** What follows the order, with the next date filled in. */
+export function nextAfter(route: OpenRoute, outcome: Outcome, date: string): Next {
+  const c = HEARING_COPY[route];
+  if (outcome === "granted") return { ...c.granted, c: "#3f6b3a", cta: "Back to My Cases", to: "cases" };
+  if (outcome === "refused")
+    return {
+      title: `Next date · ${date}`,
+      stamp: c.refused.stamp,
+      c: "#8e1f19",
+      body: c.refused.body,
+      line: `${c.refused.line} ${date}.`,
+      cta: "Back to Case Prep",
+      to: "prep",
+    };
+  return {
+    title: `Next date · ${date}`,
+    stamp: "ADJOURNED",
+    c: "#7a4a0c",
+    body: `The court takes the matter up again on ${date}. Do what the order asks before then.`,
+    line: `The matter is listed again on ${date}.`,
+    cta: "Call the matter again",
+    to: "desk",
+  };
+}
+
+/** Counsel's submission, pre-filled from the deed for the user to edit. */
+export function draftSubmission(route: OpenRoute, forAccused: boolean, complainants: string[], t: SettlementTerms) {
+  const lord = HEARING_COPY[route].lord;
+  const who = complainants.length > 1 ? `all ${complainants.length} complainants` : (complainants[0] ?? "the complainant");
+  const money = t.amount
+    ? `${inr(t.amount)} ${t.instalments === 1 ? "in one payment" : `in ${t.instalments} instalments`} over ${t.months} months, ${t.interest ? `with interest at ${t.interest}% a year` : "without interest"}`
+    : "";
+  if (route === "plea")
+    return forAccused
+      ? `${lord}, the accused pleads guilty to the charges.${money ? ` The accused will pay the complainants ${money}, as compensation.` : ""} The accused has no previous conviction and asks for the reduced sentence under section 293.`
+      : `${lord}, the complainants took part in the disposition meeting.${money ? ` They accept ${money} as compensation, and ask that it be made part of the sentence.` : ""}`;
+  return forAccused
+    ? `${lord}, the accused and ${who} have settled.${money ? ` The accused will pay ${money}.` : ""} Every complainant has signed the deed.`
+    : `${lord}, ${who} have settled with the accused.${money ? ` They will receive ${money}.` : ""} They have signed the deed and ${route === "quash" ? "don’t wish to pursue the FIR" : "ask the court to permit compounding"}.`;
+}

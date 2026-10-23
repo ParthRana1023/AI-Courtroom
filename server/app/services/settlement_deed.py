@@ -35,7 +35,7 @@ def _names(people: list[str]) -> str:
     return f"{people[0]}, {people[1]} and {len(people) - 2} others"
 
 
-def _case_numbers(text: str) -> str:
+def case_numbers(text: str) -> str:
     """ "CRL.M.C. No. 1234/2026 · FIR No. 41/2025", from the petition."""
     case_no = re.search(
         r"CASE NO\.?:?\**\s*:?\s*(.+?)\**\s*$", text, re.IGNORECASE | re.MULTILINE
@@ -142,7 +142,7 @@ def deed(case: Case, profile: SettlementProfile, terms: SettlementTerms) -> dict
 
     return {
         "title": TITLE[route],
-        "header": [f"In the {court}", _case_numbers(case.details) or case.title],
+        "header": [f"In the {court}", case_numbers(case.details) or case.title],
         "parties": parties,
         "clauses": clauses,
         "signatories": signatories,

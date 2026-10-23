@@ -119,6 +119,7 @@ class SettlementStatus(str, Enum):
     AGREED = "agreed"  # both sides agree; the deed is drafted
     SIGNED = "signed"  # every signatory has signed the deed
     FILED = "filed"  # the deed is filed and the hearing listed
+    ADJOURNED = "adjourned"  # the court put the hearing off to another date
     RECORDED = "recorded"  # the court accepted it; the case is over
     REFUSED = "refused"  # the court refused it; the hearing goes on
     REJECTED = "rejected"  # the other side walked away
@@ -191,6 +192,69 @@ class SettlementEntry(BaseModel):
     at: datetime = Field(default_factory=get_current_datetime)
 
 
+class HearingLine(BaseModel):
+    """A line of the settlement hearing's record after counsel's submission."""
+
+    kind: Literal["speech", "question", "answer", "system"]
+    role: Literal["court", "other", "state", "complainant", "accused", "system"] = (
+        "system"
+    )
+    who: str = ""
+    tag: str = ""  # the State's stand: "No objection", "Opposes", "Agrees"
+    unsure: bool = False  # an answer that leaves the court in doubt
+    text: str
+
+
+class HearingCheck(BaseModel):
+    """One thing the court must be satisfied of before it acts on the compromise."""
+
+    label: str
+    state: Literal["ok", "unsure", "fail"]
+    text: str
+
+
+class SettlementHearing(BaseModel):
+    submission: str  # what the user told the court
+    lines: list[HearingLine] = Field(default_factory=list)
+    checks: list[HearingCheck] = Field(default_factory=list)
+    outcome: Literal["granted", "refused", "adjourned"]
+    judge: str
+    order: list[str] = Field(default_factory=list)  # numbered paragraphs
+    next_date: date | None = None  # refused or adjourned: when the case is next listed
+    held_at: datetime = Field(default_factory=get_current_datetime)
+
+
+class Payment(BaseModel):
+    """An instalment owed under the order. Whether it is paid, due or missed is worked
+    out when it is read (settlement_payments.status)."""
+
+    amount: int  # rupees, interest included on the last
+    due: date
+    paid_at: datetime | None = None
+    remedy: Literal["recall", "notice", "recover"] | None = None
+    remedy_at: datetime | None = None
+
+
+class ScoreFactor(BaseModel):
+    key: Literal["terms", "closed", "offers", "conditions"]
+    label: str
+    weight: int  # per cent of the score
+    value: int  # 0-100
+    text: str
+
+
+class CoachNote(BaseModel):
+    kind: Literal["worked", "improve"]
+    text: str
+
+
+class NegotiationScore(BaseModel):
+    score: int
+    tier: str
+    factors: list[ScoreFactor]
+    notes: list[CoachNote] = Field(default_factory=list)
+
+
 class Settlement(BaseModel):
     """One attempt to settle the case out of court. Without prejudice: the court
     deciding the merits never sees it."""
@@ -202,8 +266,16 @@ class Settlement(BaseModel):
     signatures: dict[str, datetime] = Field(default_factory=dict)  # signer -> signed at
     filed_at: datetime | None = None
     hearing_date: date | None = None  # the hearing listed on filing
+    hearing: SettlementHearing | None = None
     ruling: str | None = None  # the court's ruling as said in court
-    court_order: str | None = None
+    court_order: str | None = (
+        None  # the order in Markdown, the case's verdict if granted
+    )
+    payments: list[Payment] = Field(default_factory=list)
+    # The instalment the AI side won't pay, drawn once when the order is passed. Never
+    # sent to the client.
+    defaults_on: int | None = None
+    score: NegotiationScore | None = None  # set once talks end or the court rules
     started_at: datetime = Field(default_factory=get_current_datetime)
     ended_at: datetime | None = None
 
@@ -214,6 +286,7 @@ class Settlement(BaseModel):
             SettlementStatus.AGREED,
             SettlementStatus.SIGNED,
             SettlementStatus.FILED,
+            SettlementStatus.ADJOURNED,
         )
 
     def user_offers(self) -> int:
@@ -407,6 +480,8 @@ class Case(Document):
     settlements: list[Settlement] = Field(default_factory=list)
     # The settlement route, worked out from the case file the first time it's asked for.
     settlement_profile: SettlementProfile | None = None
+    # How a settled case ended: FIR quashed, offences compounded, or a plea bargain.
+    settlement_result: Literal["quashed", "compounded", "plea"] | None = None
 
     @field_validator(
         "plaintiff_arguments",
