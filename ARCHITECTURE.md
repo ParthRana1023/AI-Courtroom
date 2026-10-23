@@ -114,17 +114,18 @@ One FastAPI process serves everything; there is no queue or worker. Slow work ru
 
 ## The AI layer
 
-`get_llm(task)` in `utils/llm.py` returns a LangChain runnable for one of seven tasks:
+`get_llm(task)` in `utils/llm.py` returns a LangChain runnable for one of eight tasks:
 
-| Task       | Used for                                                                                                                  |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `drafter`  | The petition; extracting parties and evidence from it; party details; evidence image prompts                              |
-| `lawyer`   | AI counsel: openings, counter-arguments, closings, questions to its clients; witness questions; whether to call a witness |
-| `judge`    | Rulings on objections, and the verdict                                                                                    |
-| `witness`  | Witness answers on the stand                                                                                              |
-| `party`    | Parties' replies in case prep chat                                                                                        |
-| `analyzer` | The case analysis, and summaries of long courtroom records                                                                |
-| `outcome`  | Classifying the result for profile stats                                                                                  |
+| Task       | Used for                                                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `drafter`  | The petition; extracting parties and evidence from it; party details; evidence image prompts                                                  |
+| `lawyer`   | AI counsel: openings, counter-arguments, closings, questions to its clients; witness questions; whether to call a witness; settlement replies |
+| `judge`    | Rulings on objections, the verdict, and working out how a case can be settled                                                                 |
+| `hearing`  | The court hearing a filed compromise. Fast models first (Groq), because the user waits on it                                                  |
+| `witness`  | Witness answers on the stand                                                                                                                  |
+| `party`    | Parties' replies in case prep chat                                                                                                            |
+| `analyzer` | The courtroom and negotiation analyses, and summaries of long courtroom records                                                               |
+| `outcome`  | Classifying the result for profile stats                                                                                                      |
 
 Each task has a chain of up to four models (`*_MODEL`, `*_FALLBACK_MODEL`, `*_FALLBACK2_MODEL`, `*_FALLBACK3_MODEL`) across Groq, OpenRouter and Cloudflare Workers AI. A failure falls through to the next model with LangChain's `with_fallbacks`. Every call's success or failure is recorded in `services/health.py`, which drives the components on the public status page (generation, the courtroom, analysis).
 
@@ -144,7 +145,7 @@ flowchart LR
 ```
 
 - Retrieval runs **in process**: a case's chunks are loaded and ranked with NumPy (dot product of normalised embeddings). Cases are small, so no vector index is needed. It filters by `source_type`, so the judge never sees AI counsel's private conferences, and a party only sees its own chats.
-- Settlement talks are stored as `settlement` chunks, and only the case analysis retrieves them. See [Settlement](#settlement).
+- Settlement talks are stored as `settlement` chunks, and only the analyses in `routes/case_analysis.py` retrieve them. See [Settlement](#settlement).
 - Users can turn retrieval off in Settings. Prompts then get the full case text and the courtroom record instead (`_case_fallback_context`). The newest `FULL_TEXT_PROCEEDINGS_LIMIT` entries stay word for word, and older ones are summarised by the `analyzer` task.
 - Missing or unembedded chunks are re-indexed on demand, so old cases still work.
 
@@ -263,29 +264,45 @@ sequenceDiagram
 
 ### Settlement
 
-`routes/settlement.py` and `services/llm/settlement.py`. A case can be settled out of court, the way a criminal compromise works in India: the accused and the complainant agree terms, and the High Court decides whether the law lets it act on them.
+A criminal case can be settled out of court, the way a compromise works in India: the accused and the complainants agree terms, sign a deed, file it, and a court decides whether the law lets it act on them.
+
+| File                                      | Does                                                                                                          |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `routes/settlement.py`                    | The desk (`/cases/{cnr}/settlement/*`), the hearing, payments, and the courtroom's ask for time               |
+| `services/llm/settlement.py`              | The route (`assess_settlement`), AI counsel's replies, the hearing (`hold_hearing`), the negotiation analysis |
+| `services/settlement_deed.py`             | The deed as a template from the agreed terms; the hearing date; the court calling a filed compromise          |
+| `services/settlement_payments.py`         | Instalments with real due dates; status (paid, due, upcoming, missed, late) worked out when read              |
+| `client/app/(app)/cases/[cnr]/settlement` | The settlement desk: route card, negotiation log, offer panel, deed with animated signatures                  |
+
+**The route.** On the first visit, one `judge` call reads the case file and returns a `SettlementProfile`, cached on the case: the route (`quash` under s.528 BNSS in the High Court, `compound` under s.359 BNSS, `plea` under ss.289–295 BNSS, or `none` with each route's reason for being closed), the offences, who must sign, and the conditions that fit the case (2–6, each with its deed clause). Heinous offences close quashing (_Laxmi Narayan_); quashing follows _Gian Singh_ and _Narinder Singh_.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> negotiating: POST /settlement/offers (AI counters)
-    [*] --> agreed: offer accepted
-    [*] --> rejected: offer rejected
-    negotiating --> negotiating: new offer (AI counters again)
-    negotiating --> agreed: AI accepts, or POST /settlement/accept
-    negotiating --> rejected
-    negotiating --> withdrawn: POST /settlement/withdraw
-    agreed --> withdrawn
-    agreed --> recorded: POST /settlement/present, court accepts
-    agreed --> refused: POST /settlement/present, court refuses
+    [*] --> negotiating: POST /settlement/start
+    negotiating --> negotiating: POST /offers (AI counters)
+    negotiating --> agreed: AI accepts, or POST /accept
+    negotiating --> rejected: AI walks away
+    negotiating --> withdrawn: POST /end
+    agreed --> signed: POST /sign
+    signed --> filed: POST /file (hearing listed)
+    filed --> recorded: court grants it
+    filed --> adjourned: court puts it off
+    adjourned --> recorded
+    filed --> refused: court refuses
     recorded --> [*]: case resolved, outcome "settled"
-    refused --> [*]: heard on merits, no more attempts
+    refused --> [*]: talks closed, merits listed
 ```
 
-1. **Talks.** Offers are allowed only while the court isn't sitting (`not started` or `adjourned`). The client adjourns with `reason: "settlement"` first. The `lawyer` task answers each offer for its client, who is the complainant on the defendant side and the accused on the plaintiff side. Limits: `MAX_OFFERS` user offers per attempt and `MAX_ATTEMPTS` attempts per case.
-2. **Before the court.** `present` sends the agreed terms to the `judge` task. Its reply is a `<ruling>` JSON block and an `<order>` Markdown block. It applies three tests: compounding under s.359 BNSS (with leave when an appeal is pending), quashing on settlement under s.528 BNSS (_Gian Singh_, _Narinder Singh_), and, in bail, the compromise as one factor only. Heinous offences are refused (_Laxmi Narayan_).
-3. **Recorded:** the order becomes `case.verdict`, the case is resolved, and `record_settlement` writes the `settled` ledger row without the classifier. Settled cases are left out of win % and don't affect streaks.
-4. **Refused:** the case goes on, and no new attempt is allowed.
-5. **Analysis.** It reads every attempt and adds a "Settlement negotiations" review with suggestions.
+1. **Talks.** Only while the court isn't sitting (`not started` or `adjourned`); in the courtroom, counsel asks for time with `POST /settlement/adjourn` (granted while talks can open; refused on a second ask; a signed deed always gets time). The accused opens: when the user acts for the complainants, AI counsel makes the first offer. Terms are structured (`SettlementTerms`: amount, instalments, months, interest, condition keys), snapped to the allowed values by the server. Limits: `MAX_OFFERS` user offers per attempt, `MAX_ATTEMPTS` attempts per case, and a new attempt needs the court to have sat since the last one ended.
+2. **Deed.** Agreed terms become a deed from a template (no LLM call). Every signatory signs, then the deed is filed and the hearing listed `HEARING_GAP` later, on a working day.
+3. **Hearing.** Heard in the courtroom, on the same record as the case. When the court next sits, `call_the_matter` lists the filed compromise and the court calls it. Counsel's submission goes to `hold_hearing` (the `hearing` task) with the record so far; it returns the hearing's lines (the State, each complainant questioned, the court), the court's checks, an outcome and an order. Every line is appended to `courtroom_proceedings` as a `SETTLEMENT` event with a `tag`.
+   - **Granted:** the order becomes `case.verdict`, the case is resolved with `settlement_result` (`quashed`, `compounded`, `plea`), `record_settlement` writes the `settled` ledger row without the classifier, and the payments start.
+   - **Adjourned:** re-listed for another date.
+   - **Refused:** as in real practice, talks close and the court lists the matter for hearing on the merits.
+4. **Payments.** Due dates start `FIRST_DUE` after the order. Whether the AI side misses one instalment is decided once, when the order is passed. A defending user deposits each instalment; a missed one opens the route's remedies (recall the order, a notice, recovery).
+5. **Negotiation analysis.** `POST /cases/{cnr}/analyze-negotiation`, once the case is resolved and the user negotiated. The `analyzer` task scores four factors (terms won 50%, deal closed 25%, offers used 15%, conditions 10%); the server weights them and sets the tier. It also gives the best terms the other side would likely have taken, and whether settling beat fighting it out. Saved on `case.negotiation` and copied to the ledger row by `record_negotiation` for the negotiator rating. The courtroom analysis (`analyze-case`) leaves the talks out.
+
+**Stats.** `User.settled_scoring` decides how a settled case counts toward win % and streaks: left out (default), a win, or a win at a negotiator score of 70 or more (a loss below; left out until scored). The profile's negotiator rating averages the last ten scores, provisional under five. A score saved before the ledger kept scores is copied in when the stats are read.
 
 ### Daily jobs
 
@@ -312,7 +329,7 @@ Rules the code depends on. Breaking one usually passes the tests on mongomock an
 - **One writer per hearing.** Use `controls_hearing` on any route that changes a hearing. The lock is in-process (`asyncio.Lock`), which is correct while the API runs as a single instance; running several instances would need a shared lock.
 - **Function-scoped hearing lock.** It is released when the route returns, not when its background tasks finish. Otherwise Object would queue behind a running AI examination.
 - **Private memory stays private.** Retrieval filters by `source_type` and party; AI counsel's conferences never reach the judge's prompts.
-- **Settlement talks are without prejudice.** Every `retrieve_case_context` call must list its `source_types`, and only `routes/case_analysis.py` may list `settlement`. `tests/unit/test_settlement.py` parses the code to enforce this. The court's one-line ruling on a compromise goes into the record, but it never repeats the terms.
+- **Settlement talks are without prejudice.** Every `retrieve_case_context` call must list its `source_types`, and only `routes/case_analysis.py` may list `settlement`. `tests/unit/test_settlement.py` parses the code to enforce this. The offers never reach the record; a filed compromise and its hearing do, as they would in court.
 - **Current law only.** Prompts and fixtures cite the BNS, BNSS and BSA.
 
 ## Testing

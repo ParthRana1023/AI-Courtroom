@@ -17,6 +17,33 @@ const TAG_CLASS: Record<Tag, string> = { New: K.tagNew, Changed: K.tagFix, Fixed
 // not every version bump in the git history.
 const RELEASES: Release[] = [
   {
+    id: "v5-3",
+    title: "5.2–5.4 · 21–24 October 2026",
+    lede: "Settle a case out of court.",
+    items: [
+      [
+        "New",
+        "The settlement desk, from Case Prep. It shows how your case can be settled (quashing, compounding or plea bargaining, or why none is open) and lets you trade up to three offers with the opposing lawyer.",
+      ],
+      ["New", "Agreed terms become a compromise deed. Every party signs it by hand, then you file it with the court."],
+      [
+        "New",
+        "The court hears a filed compromise in the courtroom, on the same record as the case. It questions the complainants, checks the deed, then grants, adjourns or refuses it. A granted compromise ends the case as settled, and its instalments are tracked, with remedies when one is missed.",
+      ],
+      ["New", "Ask the judge for time to settle, from the courtroom."],
+      [
+        "New",
+        "A negotiation analysis: your score out of 100, the best deal the other side would likely have taken, and whether settling was the right call.",
+      ],
+      ["New", "Your negotiator rating on your profile."],
+      ["New", "Settled cases in My Cases, with how each one ended, and a banner on the case file."],
+      ["New", "Choose how settled cases count toward your win rate, in Settings → Courtroom AI."],
+      ["New", "Counsel signs the petition when you choose a side, and the judge signs the verdict."],
+      ["Changed", "The case analysis has In court and Negotiation tabs."],
+      ["Changed", "The courtroom’s buttons sit beside the case title, leaving more room for the record."],
+    ],
+  },
+  {
     id: "v5-1",
     title: "5.1 · 20 October 2026",
     lede: "The opposing lawyer can object too.",
@@ -210,7 +237,7 @@ export default function ChangelogPage() {
       kicker="The record · Changelog"
       title="CHANGELOG"
       lede="What’s new and what’s changed in AI Courtroom."
-      updated="20 October 2026"
+      updated="24 October 2026"
       form={["Form L-9", "Record of proceedings"]}
       label="Changelog"
       index={RELEASES.map((r) => [r.id, r.title])}
