@@ -473,6 +473,7 @@ export interface PersonInvolved {
   address?: string;
   bio?: string;
   can_chat: boolean;
+  reliability?: number | null; // developers only: the chance (0-1) they pay an instalment on time
 }
 
 export interface ChatMessage {

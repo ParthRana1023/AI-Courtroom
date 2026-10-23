@@ -237,8 +237,7 @@ export default function SettlementPage({ params }: { params: Promise<{ cnr: stri
               };
 
   // A filed compromise is the first thing the court hears, so the button names that hearing.
-  const cta =
-    !starting && phase === "filed" && copy && kase?.status !== CaseStatus.RESOLVED ? `${copy.hearL} →` : ctaLabel;
+  const cta = !starting && phase === "filed" && copy && kase?.status !== CaseStatus.RESOLVED ? `${copy.hearL} →` : ctaLabel;
   const ctaNote =
     !readOnly && ["compose", "waiting", "final"].includes(phase) && used > 0
       ? "Your offer stays open. Talks continue after the hearing."

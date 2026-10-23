@@ -287,7 +287,9 @@ async def build_export(user: User) -> bytes:
     ).to_list()
     files = {
         "profile.json": UserOut.model_validate(user).model_dump(mode="json"),
-        "cases.json": [case.model_dump(mode="json") for case in cases],
+        "cases.json": [
+            case.model_dump(mode="json", exclude=Case.HIDDEN) for case in cases
+        ],
         "outcomes.json": [o.model_dump(mode="json") for o in outcomes],
     }
     buffer = io.BytesIO()

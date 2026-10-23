@@ -16,6 +16,7 @@ from app.models.case import (
     EvidenceMediaStatus,
     ExaminationItem,
     Roles,
+    Settlement,
     WitnessTestimony,
 )
 from app.models.client_log import ClientLog
@@ -113,6 +114,67 @@ async def test_party_details_existing_bio_and_missing_party(
 
     assert ok.json()["can_chat"] is True and fake_llm.calls == []
     assert missing.status_code == 404
+
+
+async def test_party_details_save_reliability_and_hide_it(
+    client, auth_headers, prep_case, fake_llm
+):
+    fake_llm.responses.append(
+        "## Role\n**NON-APPLICANT**\nA landlord.\n## Payment Reliability\n0.64"
+    )
+    no_bio = PartyInvolved(name="New Person", role=PartyRole.NON_APPLICANT)
+    case = await prep_case(parties_involved=[no_bio])
+
+    body = (
+        await client.get(f"/cases/{case.cnr}/parties/{no_bio.id}", headers=auth_headers)
+    ).json()
+    listed = (
+        await client.get(f"/cases/{case.cnr}/parties", headers=auth_headers)
+    ).json()
+
+    saved = (await reload(case)).parties_involved[0]
+    assert saved.reliability == 0.64 and "0.64" not in saved.bio
+    assert body["reliability"] is None and listed["parties"][0]["reliability"] is None
+    assert "0.64" not in body["bio"]
+
+
+async def test_developers_see_party_reliability(
+    client, user, auth_headers, prep_case, monkeypatch
+):
+    monkeypatch.setattr(settings, "dev_mode_emails", user.email)
+    party = PartyInvolved(
+        name="Ravi", role=PartyRole.APPLICANT, bio="Teacher.", reliability=0.9
+    )
+    case = await prep_case(parties_involved=[party])
+
+    body = (
+        await client.get(f"/cases/{case.cnr}/parties/{party.id}", headers=auth_headers)
+    ).json()
+
+    assert body["reliability"] == 0.9
+
+
+async def test_ensure_reliability_rates_an_old_bio_once(prep_case, fake_llm):
+    party = PartyInvolved(name="Ravi", role=PartyRole.APPLICANT, bio="Teacher.")
+    case = await prep_case(parties_involved=[party])
+    fake_llm.responses.append("0.77")
+
+    first = await parties_routes.ensure_reliability(case, party)
+    again = await parties_routes.ensure_reliability(case, party)
+
+    assert first == again == 0.77 and len(fake_llm.calls) == 1
+    assert (await reload(case)).parties_involved[0].reliability == 0.77
+
+
+async def test_case_view_hides_simulation_values(client, auth_headers, prep_case):
+    party = PartyInvolved(name="Ravi", role=PartyRole.APPLICANT, reliability=0.3)
+    case = await prep_case(
+        parties_involved=[party], settlements=[Settlement(defaults_on=1)]
+    )
+
+    body = (await client.get(f"/cases/{case.cnr}", headers=auth_headers)).json()
+
+    assert body["settlements"] and "defaults_on" not in body["settlements"][0]
 
 
 @pytest.mark.parametrize("target", ["generate_party_details", "upsert_memory_item"])

@@ -25,6 +25,46 @@ from app.utils.llm import (
 
 logger = get_logger(__name__)
 
+# Asked for with the bio, then taken out of it: the party's persona must not speak of
+# its own score. The user only has the background to judge it by, as the model did.
+RELIABILITY_RUBRIC = """## Payment Reliability
+One number from 0.00 to 1.00: the chance this party pays any one instalment of a money settlement on the day it falls due. Judge it from their means and conduct as the case and the background above show them. Steady income, savings or assets, a reputation or business to protect, and a record of keeping promises raise it. Tight or irregular income, debts, many dependants, a history of default, evasion, dishonoured cheques or broken promises in the case lower it. Most people fall between 0.60 and 0.95; go outside that only for a clear reason in the case. Write the number alone on the line, for example 0.82."""
+
+_RELIABILITY = re.compile(
+    r"##\s*Payment Reliability\s*\n(.*?)(?=\n##|\n---|\Z)", re.DOTALL | re.IGNORECASE
+)
+_NUMBER = re.compile(r"(?<![\d.])(0(?:\.\d+)?|1(?:\.0+)?|\.\d+)(?![\d.])")
+
+
+def _clamp(value: str) -> float:
+    return round(min(max(float(value), 0.0), 1.0), 2)
+
+
+def split_reliability(text: str) -> tuple[str, float | None]:
+    """The bio without its Payment Reliability section, and the number it gave."""
+    match = _RELIABILITY.search(text)
+    if not match:
+        return text, None
+    number = _NUMBER.search(match.group(1))
+    bio = (text[: match.start()] + text[match.end() :]).strip()
+    return bio, _clamp(number.group(1)) if number else None
+
+
+async def rate_reliability(party_name: str, bio: str) -> float | None:
+    """The reliability for a party whose bio was written before it was asked for."""
+    prompt = (
+        f"Here is the background of **{party_name}**, a party to a court case.\n\n"
+        f"{bio}\n\n---\n{RELIABILITY_RUBRIC.partition(chr(10))[2]}\n\n"
+        "Reply with the number only."
+    )
+    try:
+        reply = await get_llm("drafter").ainvoke([HumanMessage(content=prompt)])
+        number = _NUMBER.search(strip_thinking(str(reply.content)))
+        return _clamp(number.group(1)) if number else None
+    except Exception:
+        logger.exception(f"Error rating payment reliability for {party_name}")
+        return None
+
 
 async def extract_names_from_case(
     case_text: str,
@@ -132,6 +172,8 @@ State whether they are an **APPLICANT** or a **NON-APPLICANT**, and nothing else
 ## Background
 Write 2-3 paragraphs about this party's background, their involvement in the case, what they know first-hand, and how they see the dispute. Make it feel like a real person's or organisation's story, not legal language.
 
+{reliability_rubric}
+
 ---
 Important: Base everything on the case text. Do not contradict it; any detail you add must fit it.
 """
@@ -142,11 +184,15 @@ Important: Base everything on the case text. Do not contradict it; any detail yo
     try:
         start_time = time.perf_counter()
         response = await chain.ainvoke(
-            {"party_name": party_name, "case_context": case_context}
+            {
+                "party_name": party_name,
+                "case_context": case_context,
+                "reliability_rubric": RELIABILITY_RUBRIC,
+            }
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        response = strip_thinking(response)
+        response, reliability = split_reliability(strip_thinking(response))
 
         # Role comes from the "## Role" section only: the background may well
         # mention the other side ("the non-applicant complainant ...").
@@ -191,6 +237,7 @@ Important: Base everything on the case text. Do not contradict it; any detail yo
             age=age,
             address=address,
             bio=response,  # Store raw markdown response
+            reliability=reliability,
         )
 
     except Exception:

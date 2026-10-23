@@ -9,6 +9,8 @@ import Scroller from "@/components/court/scroller";
 import { PinButton, PinnedChips, RefChips } from "@/components/courtroom/exhibit-pin";
 import { ExhibitGrid, ExhibitViewer } from "@/components/prep/exhibits";
 import { firstName, initials, onSide } from "@/components/prep/people";
+import { useAuth } from "@/contexts/auth-context";
+import { useSettings } from "@/contexts/settings-context";
 import { useOnline } from "@/hooks/use-online";
 import { useProceed } from "@/hooks/use-proceed";
 import { useViewport } from "@/hooks/use-viewport";
@@ -51,6 +53,8 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
   const { cnr } = use(params);
   const router = useRouter();
   const online = useOnline();
+  const { user } = useAuth();
+  const { devMode } = useSettings();
   const { w, h } = useViewport();
   const two = w >= 760;
   const mob = !two;
@@ -160,7 +164,10 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
     setBios((b) => ({ ...b, [selId]: null }));
     partiesAPI
       .getPartyDetails(cnr, selId)
-      .then((d: PersonInvolved) => setBios((b) => ({ ...b, [selId]: d.bio ?? "" })))
+      .then((d: PersonInvolved) => {
+        setBios((b) => ({ ...b, [selId]: d.bio ?? "" }));
+        setParties((ps) => ps.map((p) => (p.id === selId ? { ...p, reliability: d.reliability } : p)));
+      })
       .catch(() => setBios((b) => ({ ...b, [selId]: "" })));
   }, [selId, load, bios, cnr]);
 
@@ -779,6 +786,14 @@ export default function CasePrepPage({ params }: { params: Promise<{ cnr: string
                           {P.role === PersonRole.APPLICANT ? "Applicant" : "Non-applicant"}
                         </span>
                         {!chatOn && <span className="text-[12.5px] text-ink-muted">{can ? "Your side" : "Other side"}</span>}
+                        {devMode && user?.is_developer && P.reliability != null && (
+                          <span
+                            title="Developer mode: the chance this party pays a settlement instalment on its due date"
+                            className="font-mono text-[11.5px] text-ink-muted"
+                          >
+                            pays on time {P.reliability.toFixed(2)}
+                          </span>
+                        )}
                       </div>
                       <Meta p={P} nowrap={chatOn} />
                     </div>

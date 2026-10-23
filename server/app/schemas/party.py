@@ -17,6 +17,7 @@ class PartyOut(BaseModel):
     address: str | None = None
     bio: str | None = None
     can_chat: bool = False  # Whether user can chat with this party based on their role
+    reliability: float | None = None  # developers only; None for everyone else
 
     model_config = ConfigDict(from_attributes=True)
 

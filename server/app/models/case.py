@@ -520,6 +520,13 @@ class Case(Document):
         # from testing before the settlement desk shipped; nothing reads them.
         return [s for s in value or [] if not (isinstance(s, dict) and "offers" in s)]
 
+    # What the simulation draws and judges by, kept on the server: pass to model_dump
+    # wherever a whole case (or its settlements) goes out.
+    HIDDEN: ClassVar[dict] = {
+        "parties_involved": {"__all__": {"reliability"}},
+        "settlements": {"__all__": {"defaults_on"}},
+    }
+
     def open_settlement(self) -> Settlement | None:
         """The attempt still under negotiation or agreed, if any."""
         last = self.settlements[-1] if self.settlements else None

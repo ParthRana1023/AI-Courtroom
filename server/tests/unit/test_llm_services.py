@@ -388,6 +388,54 @@ async def test_generate_party_details_role_ignores_other_side_in_background(fake
     assert (await ps.generate_party_details("X", "case")).role == PartyRole.APPLICANT
 
 
+async def test_generate_party_details_takes_reliability_out_of_the_bio(fake_llm):
+    fake_llm.responses.append(
+        APPLICANT_BIO + "\n\n## Payment Reliability\n**0.72**\n\n---\nnote"
+    )
+
+    party = await ps.generate_party_details("Ravi", "case")
+    bio = party.bio or ""
+
+    assert party.reliability == 0.72
+    assert "Reliability" not in bio and "0.72" not in bio
+    assert bio.startswith("## Role") and bio.endswith("---\nnote")
+    assert "Payment Reliability" in fake_llm.prompts[0]
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [("1", 1.0), ("0.954", 0.95), (".4", 0.4), ("About 0.6 (tight income)", 0.6)],
+)
+def test_split_reliability_reads_the_number(line, expected):
+    assert ps.split_reliability(f"Bio\n## Payment Reliability\n{line}") == (
+        "Bio",
+        expected,
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["Bio only", "Bio\n## Payment Reliability\nhigh", "## Payment Reliability\n7"],
+)
+def test_split_reliability_without_a_usable_number(text):
+    bio, reliability = ps.split_reliability(text)
+
+    assert reliability is None and "7" not in bio
+
+
+async def test_rate_reliability_from_an_old_bio(fake_llm):
+    fake_llm.responses.append("0.81")
+
+    assert await ps.rate_reliability("Ravi", "Ravi teaches.") == 0.81
+    assert "Ravi teaches." in fake_llm.prompts[0]
+
+
+async def test_rate_reliability_failure_is_none(fake_llm):
+    fake_llm.error = RuntimeError("down")
+
+    assert await ps.rate_reliability("Ravi", "bio") is None
+
+
 async def test_generate_party_details_failure(fake_llm):
     fake_llm.error = RuntimeError("down")
 

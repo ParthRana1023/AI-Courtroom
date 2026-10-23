@@ -106,7 +106,7 @@ async def get_case(
     case = await get_owned_case(cnr, current_user)
 
     # Use model_dump(mode='json') to handle serialization of ObjectIds
-    case_dict = case.model_dump(mode="json")
+    case_dict = case.model_dump(mode="json", exclude=Case.HIDDEN)
 
     # Return case data with fields directly in the response
     return {
