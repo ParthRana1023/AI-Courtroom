@@ -313,6 +313,7 @@ test.describe("new case", () => {
       status: "resolved",
       outcome: "settled",
       settlement_result: "compounded",
+      payments_stage: "suit",
       created_at: "2026-08-11T10:00:00Z",
     };
     await signIn(USERS.email, { "GET /cases": [...CASES, settled], "GET /cases/deleted/list": [] });
@@ -321,6 +322,7 @@ test.describe("new case", () => {
     const row = list.getByRole("link", { name: /Meera Joshi v\. Marwar Travels/ });
     await expect(row.getByText("Settled", { exact: true })).toBeVisible();
     await expect(row.getByText("Compounded")).toBeVisible();
+    await expect(row.getByText("· Civil suit")).toBeVisible(); // where the payments stand
 
     if (!info.project.name.startsWith("mobile")) {
       await expect(page.getByRole("button", { name: /^Resolved\s*1$/ })).toBeVisible(); // the settled case isn't counted here

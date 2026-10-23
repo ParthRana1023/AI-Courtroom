@@ -17,13 +17,14 @@ export default function HelpPage() {
       kicker="Clerk’s desk · Help"
       title="HELP & FAQ"
       lede="How cases, verdicts and your win rate work, and answers to common questions."
-      updated="6 October 2026"
+      updated="24 October 2026"
       form={["Form H-1", "Questions put to the clerk"]}
       label="Help and FAQ"
       index={[
         ["start", "Getting started"],
         ["cases", "Cases"],
         ["court", "In the courtroom"],
+        ["settle", "Settling a case"],
         ["verdicts", "Verdicts and win rate"],
         ["account", "Account and privacy"],
         ["more", "Still stuck?"],
@@ -153,6 +154,13 @@ export default function HelpPage() {
                   <span className={K.term}>Resolved</span>
                   <span className={K.note}>The judge has delivered a verdict.</span>
                 </li>{" "}
+                <li className={K.defRow}>
+                  <span className={K.term}>Settled</span>
+                  <span className={K.note}>
+                    The court gave effect to a compromise. Beside it, My Cases shows where the payments stand, such as Back in court or Paid
+                    in full.
+                  </span>
+                </li>{" "}
               </ul>
             </div>
           </div>{" "}
@@ -253,7 +261,85 @@ export default function HelpPage() {
         </div>
       </Sec>
 
-      <Sec id="verdicts" n="IV." title="Verdicts and win rate">
+      <Sec id="settle" n="IV." title="Settling a case">
+        <div className={K.stack}>
+          {" "}
+          <div className={K.faq}>
+            <h3 className={K.faqQ}>Can I settle a case instead of arguing it?</h3>
+            <div className={K.faqA}>
+              <span>
+                Where the law allows it. The settlement desk, from Case Prep, shows the routes open for your case: quashing the FIR on a
+                compromise in the High Court, compounding the offences, or plea bargaining, or why each is closed. Trade up to three offers
+                with the opposing lawyer while the court isn’t sitting, or ask the sitting court for time to settle.
+              </span>
+            </div>
+          </div>{" "}
+          <div className={K.faq}>
+            <h3 className={K.faqQ}>What happens once the terms are agreed?</h3>
+            <div className={K.faqA}>
+              <span>
+                The terms become a deed that every party signs. You file it, and the court hears it in the courtroom on the same record as
+                the case: it questions the complainants, then grants, adjourns or refuses the compromise. Granted, the case ends as settled.
+              </span>
+            </div>
+          </div>{" "}
+          <div className={K.faq}>
+            <h3 className={K.faqQ}>Who pays the instalments?</h3>
+            <div className={K.faqA}>
+              <span>
+                The accused, on their own: your client when you defend. In this simulation one instalment falls due each day after the
+                order, and you can follow them in the courtroom. How reliably the accused pays depends on their background, so read it
+                before you settle: a steady earner with a name to protect pays more reliably than someone already in debt.
+              </span>
+            </div>
+          </div>{" "}
+          <div className={K.faq}>
+            <h3 className={K.faqQ}>What if an instalment is missed?</h3>
+            <div className={K.faqA}>
+              <p className={K.p}>
+                The deed gives notice and a short time to pay. Paid within it, nothing more comes of it. Left unpaid, the complainants act,
+                as the law allows on each route:
+              </p>
+              <ul className={K.defs}>
+                {" "}
+                <li className={K.defRow}>
+                  <span className={K.term}>Quashing</span>
+                  <span className={K.note}>
+                    The FIR stays quashed: the order can’t be recalled for a breach. The accused’s promise to pay was an undertaking to the
+                    High Court, so the complainants petition it for contempt.
+                  </span>
+                </li>{" "}
+                <li className={K.defRow}>
+                  <span className={K.term}>Plea bargaining</span>
+                  <span className={K.note}>The compensation is part of the sentence, so the court recovers it as it would a fine.</span>
+                </li>{" "}
+                <li className={K.defRow}>
+                  <span className={K.term}>Compounding</span>
+                  <span className={K.note}>
+                    The acquittal stands. The complainants sue on the deed in a civil court, and this case doesn’t reopen.
+                  </span>
+                </li>{" "}
+              </ul>
+              <p className={K.p}>
+                A contempt petition or a recovery application is heard in the courtroom on the day it is listed, and you argue it. The court
+                can give time to pay, a last chance to pay before it punishes the contempt, or a warrant to recover the amount.
+              </p>
+            </div>
+          </div>{" "}
+          <div className={K.faq}>
+            <h3 className={K.faqQ}>Does a default undo the settlement or change my result?</h3>
+            <div className={K.faqA}>
+              <span>
+                No. The case stays settled, and your win rate and negotiator rating don’t change. Only the payments and the court’s orders
+                on them are added to the record. You get an email when an instalment is missed, paid late or the last one is paid, if
+                hearing reminders are on.
+              </span>
+            </div>
+          </div>{" "}
+        </div>
+      </Sec>
+
+      <Sec id="verdicts" n="V." title="Verdicts and win rate">
         <div className={K.stack}>
           {" "}
           <div className={K.faq}>
@@ -268,7 +354,10 @@ export default function HelpPage() {
           <div className={K.faq}>
             <h3 className={K.faqQ}>What outcomes are there?</h3>
             <div className={K.faqA}>
-              <span>A case can be won, lost or partly won, for example a petition allowed only in part.</span>
+              <span>
+                A case can be won, lost or partly won, for example a petition allowed only in part, or settled on a compromise. You choose
+                how settled cases count toward your win rate in Settings → Courtroom AI.
+              </span>
             </div>
           </div>{" "}
           <div className={K.faq}>
@@ -301,7 +390,7 @@ export default function HelpPage() {
         </div>
       </Sec>
 
-      <Sec id="account" n="V." title="Account and privacy">
+      <Sec id="account" n="VI." title="Account and privacy">
         <div className={K.stack}>
           {" "}
           <div className={K.faq}>
@@ -422,7 +511,7 @@ export default function HelpPage() {
         </div>
       </Sec>
 
-      <Sec id="more" n="VI." title="Still stuck?">
+      <Sec id="more" n="VII." title="Still stuck?">
         <p className={K.p}>
           Send a message through the{" "}
           <Link href="/contact" className={K.a}>

@@ -10,7 +10,9 @@ import pytest
 
 from app import messages
 from app.config import settings
+from app.models.case import PaymentDraw, PaymentPlan, Settlement
 from app.models.otp import OTP
+from app.models.party import PartyInvolved, PartyRole
 from app.models.user import User
 from app.routes import account as account_routes
 from app.services import auth as auth_service
@@ -656,6 +658,33 @@ async def test_data_export_emails_a_zip_once_a_day(
     assert json.loads(archive.read("cases.json"))[0]["title"] == "Menon v. State"
     profile = json.loads(archive.read("profile.json"))
     assert profile["email"] == user.email and "password_hash" not in profile
+
+
+async def test_the_export_leaves_out_what_the_simulation_draws_by(user, make_case):
+    """A party's payment reliability and a settlement's draws stay on the server."""
+    await make_case(
+        user,
+        parties_involved=[
+            PartyInvolved(name="Ravi", role=PartyRole.APPLICANT, reliability=0.4)
+        ],
+        settlements=[
+            Settlement(
+                defaults_on=1,
+                plan=PaymentPlan(
+                    reliability=0.4,
+                    draws=[PaymentDraw(on_time=False, cures=False)],
+                    complies=False,
+                ),
+            )
+        ],
+    )
+
+    archive = zipfile.ZipFile(io.BytesIO(await account_routes.build_export(user)))
+    case = json.loads(archive.read("cases.json"))[0]
+
+    assert case["parties_involved"][0]["name"] == "Ravi"
+    assert "reliability" not in case["parties_involved"][0]
+    assert not {"plan", "defaults_on"} & case["settlements"][0].keys()
 
 
 async def test_export_needs_an_email(client, make_user):

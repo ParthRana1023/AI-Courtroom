@@ -18,7 +18,7 @@ const TAG_CLASS: Record<Tag, string> = { New: K.tagNew, Changed: K.tagFix, Fixed
 const RELEASES: Release[] = [
   {
     id: "v5-4",
-    title: "5.4.1–5.4.6 · 24 October 2026",
+    title: "5.4.1–5.5.0 · 24 October 2026",
     lede: "Settlement payments play out, and a default goes where the law sends it.",
     items: [
       [
@@ -42,6 +42,7 @@ const RELEASES: Release[] = [
         "Fixed",
         "A missed payment after quashing no longer offers to recall the order and revive the FIR, which the law doesn’t allow. The remedy is a contempt petition.",
       ],
+      ["Changed", "Help, About, Terms of Service and the Privacy Policy now cover settling a case and its payments."],
     ],
   },
   {

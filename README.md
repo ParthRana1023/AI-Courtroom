@@ -6,7 +6,7 @@
 # AI Courtroom
 
 **Practise advocacy in a simulated Indian High Court.**<br>
-Take a side, argue against AI counsel, examine witnesses, object, and hear a reasoned judgment.
+Take a side, argue against AI counsel, examine witnesses, object, settle, and hear a reasoned judgment.
 
 [![CI](https://github.com/ParthRana1023/AI-Courtroom/actions/workflows/ci.yml/badge.svg)](https://github.com/ParthRana1023/AI-Courtroom/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ParthRana1023/AI-Courtroom?label=android)](https://github.com/ParthRana1023/AI-Courtroom/releases/latest)
@@ -53,10 +53,20 @@ It is built for law students, moot court teams and anyone who wants to practise 
 - **Adjourn and resume:** the record, the hearing's state and a case memory (retrieval-augmented) carry over between sessions.
 - **Judgment and analysis:** a reasoned verdict, plus a written analysis of your arguments, witness examinations and client conferences.
 
+### Settling out of court
+
+A criminal case can be settled the way a compromise works in India, and what follows a settlement follows the law, not a game rule.
+
+- **The settlement desk:** each case shows the routes the law leaves open (quashing under s.528 BNSS, compounding under s.359 BNSS, plea bargaining under ss.289–295 BNSS) or why each is closed. Trade structured offers with AI counsel: amount, instalments, months, interest and conditions.
+- **Deed and hearing:** agreed terms become a compromise deed that every party signs. The court hears it in the courtroom, on the same record as the case, questions the complainants and grants, adjourns or refuses it. You can also ask the sitting court for time to settle.
+- **Payments that play out:** after the order, the accused pays the instalments on their own, one a day. How reliably each party pays is judged from their background (a 0–1 number only developer accounts see), so read the background before you settle.
+- **Defaults, as the law handles them:** a missed instalment gets notice under the deed; paid within it, nothing more comes of it. Left unpaid, the complainants act: a contempt petition for breach of the undertaking to the High Court (a quashing can't be recalled for a breach), recovery as a fine on a plea bargain (s.461 BNSS), or a suit on the deed in a civil court on compounding (the acquittal stands). You argue it before the court on the day it is listed; the court gives time, a last chance to pay or a warrant, and punishes contempt if the balance stays unpaid.
+- **Negotiation analysis:** a score out of 100, the best deal the other side would likely have taken, and whether settling beat fighting it out, with a negotiator rating on your profile. You choose how settled cases count toward your win rate.
+
 ### Accounts and the rest
 
 - Email and password, Google sign-in and one-time codes; profile, settings and notification preferences.
-- Hearing reminders and optional product-update emails, each with one-click unsubscribe.
+- Hearing reminders (including what happens to a settlement's payments) and optional product-update emails, each with one-click unsubscribe.
 - Account deletion: the account is kept for 30 days (restorable on request through Contact → Account Recovery), then erased automatically.
 - A 3D walk-through landing page (three.js) with a simple fallback for devices without WebGL.
 - Installable as a PWA, and as an [Android app](https://github.com/ParthRana1023/AI-Courtroom/releases/latest).
@@ -72,11 +82,11 @@ flowchart LR
     end
 
     subgraph Server["Server · FastAPI on Render"]
-        Routes["REST API<br/>auth · cases · hearing · witnesses"]
+        Routes["REST API<br/>auth · cases · hearing · witnesses · settlement"]
         AI["AI roles<br/>drafter · counsel · judge<br/>witness · party · analyzer"]
         Memory["Case memory (RAG)<br/>fastembed embeddings"]
         BG["Background tasks<br/>AI examination · images<br/>counsel conferences · emails"]
-        Jobs["Daily jobs<br/>purge · reminders · updates"]
+        Jobs["Daily jobs<br/>purge · reminders · settlement payments · updates"]
     end
 
     DB[("MongoDB Atlas")]
@@ -105,9 +115,10 @@ flowchart LR
 - **One API process, no queue:** slow AI work (witness examination, evidence images, AI counsel's private conferences) runs as background tasks after the response, and the client polls for it.
 - **Fallback per AI task:** each role has its own chain of up to four models, so one provider being down or rate-limited doesn't stop a hearing.
 - **Case memory:** everything said in a case is embedded and retrieved per prompt, filtered so private material (such as AI counsel's conferences) never reaches the judge.
+- **No timers for settlements:** a settlement's payments are worked out from dates and draws made once at the order; what follows (emails, the complainants moving the court) is applied once, when the case is next read or by the daily jobs.
 - **Android:** the app is a Capacitor shell that loads the live site, so most updates reach it without a new APK.
 
-For the codemap, sequence diagrams of every flow (case generation, the hearing, objections, witnesses, judgment, daily jobs) and the rules the code relies on, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+For the codemap, sequence diagrams of every flow (case generation, the hearing, objections, witnesses, judgment, settlement and its payments, daily jobs) and the rules the code relies on, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ## Tech stack
 

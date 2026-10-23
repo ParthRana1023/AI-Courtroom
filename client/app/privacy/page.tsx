@@ -17,7 +17,7 @@ export default function PrivacyPage() {
       kicker="Records · Privacy"
       title="PRIVACY POLICY"
       lede="We are committed to protecting your privacy and keeping your data safe. Here’s everything you need to know."
-      updated="18 October 2026"
+      updated="24 October 2026"
       form={["Form R-7", "Record of data held"]}
       label="Privacy Policy"
       index={[
@@ -75,7 +75,8 @@ export default function PrivacyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Case data</span>
             <span className={K.note}>
-              The sections you choose, the cases generated for you, your arguments, your conversations with AI parties, and the verdicts.
+              The sections you choose, the cases generated for you, your arguments, your conversations with AI parties, the verdicts, and
+              any settlement: the offers you trade, the deed, the hearing, and the simulated payments and proceedings that follow it.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -130,8 +131,9 @@ export default function PrivacyPage() {
             <span className={K.term}>Communication</span>
             <span className={K.note}>
               Sending sign-in codes by email or text message, security alerts about new sign-ins and password changes, the email
-              notifications you turn on (case ready, hearing reminders, product updates), and replies to your messages. Every optional email
-              has a one-click unsubscribe link; security alerts can’t be turned off.
+              notifications you turn on (case ready, hearing reminders, which include what happens to a settlement’s payments, product
+              updates), and replies to your messages. Every optional email has a one-click unsubscribe link; security alerts can’t be turned
+              off.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -163,6 +165,12 @@ export default function PrivacyPage() {
         <p className={K.p}>
           Objections you raise, the court’s rulings, witness testimony and any exhibits you pin to an argument are part of the case record
           and are processed the same way.
+        </p>
+        <p className={K.p}>
+          Settlement offers are sent to the AI that plays opposing counsel, and to the analysis of your negotiation, but never to the judge
+          deciding the case on its merits: as in a real court, talks are without prejudice. A filed deed and its hearing go on the record
+          like any other proceeding. Each party’s background includes an AI-generated estimate of how reliably they would pay; it is kept on
+          our servers to run the simulation and is left out of what we send to your device and of your data export.
         </p>
         <div className={K.callout}>
           <strong className={K.calloutT}>Keep real people out of your arguments.</strong>

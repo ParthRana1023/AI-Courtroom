@@ -17,7 +17,7 @@ export default function TermsPage() {
       kicker="Rules of court · Terms"
       title="TERMS OF SERVICE"
       lede="Please read these terms carefully before using AI Courtroom. By using our platform, you agree to these terms."
-      updated="6 October 2026"
+      updated="24 October 2026"
       form={["Form T-1", "Rules of the court"]}
       label="Terms of Service"
       index={[
@@ -51,6 +51,10 @@ export default function TermsPage() {
           practice cases from sections of the Bharatiya Nyaya Sanhita, plays the parties and the judge, and gives feedback on your
           arguments, for training and educational purposes.
         </p>
+        <p className={K.p}>
+          You can also settle a practice case out of court: negotiate with AI counsel, sign a compromise deed, have it heard, and follow the
+          simulated payments under the order and any proceedings on a default. No real money, agreement or court is involved.
+        </p>
       </Sec>
 
       <Sec id="disclaimer" n="III." title="Important legal disclaimer">
@@ -72,6 +76,12 @@ export default function TermsPage() {
         <p className={K.p}>
           Witness testimony, rulings on objections, verdicts and case analysis are also AI-generated. They follow the rules of this
           simulation, not those of a real court, and are not a guide to court procedure or the law of evidence.
+        </p>
+        <p className={K.p}>
+          Settlements are simulated too. The settlement routes, deeds, orders and what follows a missed payment (notice, contempt, recovery
+          as a fine, a civil suit) follow Indian law in outline but are simplified: time runs faster (an instalment a day), whether a party
+          pays is decided by chance weighted by their AI-written background, and the AI court’s orders can be wrong. Don’t rely on them to
+          draft, negotiate or enforce a real settlement.
         </p>
       </Sec>
 
