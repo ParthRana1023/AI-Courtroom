@@ -22,6 +22,8 @@ const PAY = {
   due: ["Due", "#7a4a0c"],
   upcoming: ["Upcoming", "#6b5d4b"],
   missed: ["Missed", "#8e1f19"],
+  defaulted: ["Defaulted", "#8e1f19"],
+  held: ["Held up", "#6b5d4b"],
 } as const;
 const short = (iso: string) => longDate(iso).replace(/ (\w{3})\w* /, " $1 ");
 const LABEL = "text-[10.5px] font-bold uppercase tracking-[0.18em]";
@@ -38,6 +40,7 @@ export default function HearingRail({
   next,
   payments,
   userPays,
+  simulated,
   busy,
   onPay,
   cnr,
@@ -54,6 +57,7 @@ export default function HearingRail({
   next: Next | null; // once the order is passed
   payments: SettlementPayment[];
   userPays: boolean;
+  simulated: boolean; // the accused pays on their own: nothing to deposit or answer here
   busy: number | null; // the instalment being acted on
   onPay: (index: number) => void;
   cnr: string;
@@ -66,9 +70,9 @@ export default function HearingRail({
 }) {
   const route = profile.route === "none" ? "quash" : profile.route;
   const copy = HEARING_COPY[route];
-  const missed = payments.findIndex((p) => p.status === "missed" && !p.remedy);
+  const missed = simulated ? -1 : payments.findIndex((p) => p.status === "missed" && !p.remedy);
   const answered = payments.findIndex((p) => p.remedy);
-  const payable = userPays ? payments.findIndex((p) => p.status === "due" || p.status === "upcoming") : -1;
+  const payable = userPays && !simulated ? payments.findIndex((p) => p.status === "due" || p.status === "upcoming") : -1;
   const confirmed = complainants.filter((c) => c.state === "Confirmed").length;
   const conds = profile.conditions.filter((c) => terms.conditions.includes(c.key)).map((c) => c.short);
 

@@ -11,6 +11,8 @@ from app.models.case import (
     CaseOutcome,
     CaseStatus,
     Payment,
+    PaymentDraw,
+    PaymentPlan,
     Roles,
     RouteItem,
     Settlement,
@@ -26,8 +28,9 @@ from app.models.case import (
 from app.models.case_outcome import CaseOutcomeRecord
 from app.routes import cases as cases_routes
 from app.routes import settlement
+from app.services import settlement_payments as payments
 from app.utils.datetime import get_current_datetime
-from tests.helpers import reload
+from tests.helpers import boom, reload
 
 CONDITIONS = [
     SettlementCondition(
@@ -614,11 +617,13 @@ async def test_agreed_terms_are_drawn_up_as_a_deed(client, auth_headers, adjourn
     assert deed["parties"] == (
         "Made between Ravi Kumar (the accused) and Asha Rao (the complainant)."
     )
-    money, deposit, quash = deed["clauses"]
+    money, default, deposit, quash = deed["clauses"]
     assert money == (
         "The accused shall pay the complainant ₹1,00,000 in 2 equal instalments "
         "within 6 months of signing, without interest."
     )
+    assert "within fifteen days of the notice" in default
+    assert default.endswith("undertakes to the High Court to pay as agreed.")
     assert deposit == "The first instalment shall be deposited in court."
     assert "section 528 BNSS" in quash
     assert deed["signatories"] == [
@@ -771,10 +776,16 @@ async def test_the_court_grants_the_compromise_and_the_case_ends(
     assert attempt["hearing"]["outcome"] == "granted"
     assert attempt["hearing"]["submission"] == SUBMISSION
     assert attempt["hearing"]["lines"][0]["tag"] == "No objection"
-    assert "defaults_on" not in attempt
+    assert "defaults_on" not in attempt and "plan" not in attempt
     assert attempt["user_pays"] is True
+    assert attempt["pace"] == "days" and attempt["stage"] == "paying"
     assert [p["amount"] for p in attempt["payments"]] == [50000, 50000]
     assert [p["status"] for p in attempt["payments"]] == ["upcoming", "upcoming"]
+    today = get_current_datetime().date()
+    assert [p["due"] for p in attempt["payments"]] == [
+        (today + timedelta(days=1)).isoformat(),
+        (today + timedelta(days=2)).isoformat(),
+    ]
 
     saved = await reload(case)
     assert saved.status == CaseStatus.RESOLVED
@@ -804,7 +815,17 @@ async def test_the_court_grants_the_compromise_and_the_case_ends(
     assert "Every complainant agreed freely" in prompt
     assert "₹1,00,000 in 2 equal instalments" in prompt
     assert "THE HEARING SO FAR" in prompt
-    assert len(fake_llm.calls) == 1  # the negotiation is analysed later, on request
+    # One more call: the accused's background predates payment reliability, so it is
+    # rated now. The negotiation is analysed later, on request.
+    assert len(fake_llm.calls) == 2 and "Payment" not in prompt
+    assert "Ravi Kumar" in fake_llm.prompts[1] and "0.82" in fake_llm.prompts[1]
+    plan = saved.settlements[-1].plan
+    assert plan and plan.reliability == payments.DEFAULT_RELIABILITY
+    assert len(plan.draws) == 2
+    assert (saved.verdict or "").endswith(
+        "In the event of a wilful default, the complainant shall be at liberty to "
+        "move this Court.\n\n**R. K. Mehta, J.**"
+    )
 
 
 async def test_the_court_refuses_and_the_case_goes_on(
@@ -935,6 +956,73 @@ async def pay(client, headers, case, index, action):
         headers=headers,
         json={"action": action},
     )
+
+
+async def test_the_order_draws_payments_against_the_accused_background(
+    client, auth_headers, adjourned, fake_llm, witness_party
+):
+    """Ravi Kumar, the accused, already has a reliability: no rating call."""
+    fake_llm.responses.append(hearing())
+    witness_party.reliability = 0.0
+    case = await adjourned(
+        status=CaseStatus.ACTIVE,
+        settlements=[filed_attempt()],
+        parties_involved=[witness_party],
+    )
+
+    await hear(client, auth_headers, case)
+
+    plan = (await reload(case)).settlements[-1].plan
+    assert plan and plan.reliability == 0.0
+    assert not any(d.on_time for d in plan.draws) and len(fake_llm.calls) == 1
+
+
+async def test_no_background_means_the_usual_reliability(
+    adjourned, witness_party, monkeypatch
+):
+    monkeypatch.setattr(settlement, "ensure_reliability", boom)
+    case = await adjourned(parties_involved=[witness_party])
+
+    assert (
+        await settlement.payer_reliability(case, PROFILE)
+        == payments.DEFAULT_RELIABILITY
+    )
+    nobody = PROFILE.model_copy(update={"accused": "Someone Else"})
+    assert await settlement.payer_reliability(case, nobody) == 0.85
+
+
+def simulated_attempt(ordered, *draws):
+    attempt = filed_attempt()
+    attempt.status = SettlementStatus.RECORDED
+    assert attempt.agreed
+    attempt.payments = payments.day_schedule(attempt.agreed, ordered)
+    attempt.plan = PaymentPlan(
+        reliability=0.5,
+        draws=[PaymentDraw(on_time=o, cures=c) for o, c in draws],
+        complies=True,
+    )
+    return attempt
+
+
+async def test_the_accused_pays_on_their_own_as_the_days_pass(
+    client, auth_headers, adjourned
+):
+    ordered = get_current_datetime().date() - timedelta(days=2)
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(ordered, (True, True), (False, True))],
+    )
+
+    attempt = (
+        await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+    ).json()["attempt"]
+    deposit = await pay(client, auth_headers, case, 1, "pay")
+    case_view = (await client.get(f"/cases/{case.cnr}", headers=auth_headers)).json()
+
+    assert attempt["stage"] == "paying" and "plan" not in attempt
+    assert [p["status"] for p in attempt["payments"]] == ["paid", "due"]
+    assert deposit.status_code == 409  # nothing for counsel to deposit
+    assert "plan" not in case_view["settlements"][0]
 
 
 async def test_counsel_for_the_accused_pays_each_instalment(

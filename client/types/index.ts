@@ -303,7 +303,10 @@ export interface SettlementPayment {
   paid_at: string | null;
   remedy: "recall" | "notice" | "recover" | null;
   remedy_at: string | null;
-  status: "paid" | "late" | "due" | "upcoming" | "missed"; // as of today
+  // As of today. Simulated orders add "defaulted" (unpaid after notice) and "held" (after a default).
+  status: "paid" | "late" | "due" | "upcoming" | "missed" | "defaulted" | "held";
+  paid_on?: string | null; // simulated orders: the day it was paid
+  notice_until?: string | null; // simulated orders, a missed instalment: the last day to pay it
 }
 
 /** How the user negotiated, judged once the case is decided. */
@@ -350,6 +353,10 @@ export interface Settlement {
   hearing: SettlementHearing | null;
   payments: SettlementPayment[];
   user_pays?: boolean; // the user acts for the accused, who pays
+  // "days": the accused pays on their own, an instalment a day; "months": orders before that.
+  pace?: "days" | "months";
+  stage?: "paying" | "notice" | "defaulted" | "closed"; // simulated orders
+  closed_on?: string | null; // simulated orders: the day the last instalment was paid
   ruling: string | null; // the court's ruling, as said in court
   court_order: string | null; // Markdown
   started_at: string;

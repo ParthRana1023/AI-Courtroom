@@ -1400,6 +1400,7 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
             next={next}
             payments={settledHere ? deal.attempt.payments : []}
             userPays={!!deal.attempt.user_pays}
+            simulated={deal.attempt.pace === "days"}
             busy={paying}
             onPay={(i) => void pay(i)}
             cnr={cnr}

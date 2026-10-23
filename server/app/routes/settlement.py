@@ -36,13 +36,14 @@ from app.models.case import (
 from app.models.user import User
 from app.routes.cases import ADJOURN_NOTES, start_recess
 from app.routes.courtroom import record_lines, sides
+from app.routes.parties import ensure_reliability
 from app.services import settlement_payments as payments
 from app.services.case_outcomes import record_settlement
 from app.services.evidence_service import format_evidence_context
 from app.services.llm import settlement as counsel
 from app.services.llm.parties_service import can_lawyer_confer_with_party
 from app.services.rag import retrieve_case_context, upsert_memory_item
-from app.services.settlement_deed import case_numbers, hearing_after
+from app.services.settlement_deed import case_numbers, hearing_after, owed_paragraph
 from app.services.settlement_deed import deed as draw_up
 from app.utils.datetime import get_current_datetime
 
@@ -70,6 +71,31 @@ def _utc(moment: datetime) -> datetime:
 
 def user_is_accused(case: Case, profile: SettlementProfile) -> bool:
     return sides(case)[0] == profile.accused_side
+
+
+async def payer_reliability(case: Case, profile: SettlementProfile) -> float:
+    """How reliably the accused pays, from their background: rated now if the
+    background was written before it was asked for. Never fails the order."""
+    name = profile.accused.casefold()
+    exact = [p for p in case.parties_involved if p.name.casefold() == name]
+    party = next(
+        iter(exact),
+        next(
+            (
+                p
+                for p in case.parties_involved
+                if p.name.casefold() in name or name in p.name.casefold()
+            ),
+            None,
+        ),
+    )
+    reliability = None
+    if party and name:
+        try:
+            reliability = await ensure_reliability(case, party)
+        except Exception:
+            logger.exception(f"No payment reliability for {party.name} in {case.cnr}")
+    return payments.DEFAULT_RELIABILITY if reliability is None else reliability
 
 
 def why_closed(case: Case) -> str | None:
@@ -157,13 +183,19 @@ def view(case: Case) -> dict:
 
 def attempt_out(case: Case, attempt: Settlement) -> dict:
     """The attempt for the client: payments with their status as of today, and never
-    which instalment the AI side will miss."""
-    data = attempt.model_dump(mode="json", exclude={"defaults_on"})
+    the draws that decide them."""
+    data = attempt.model_dump(mode="json", exclude={"defaults_on", "plan"})
     profile = case.settlement_profile
     user_pays = bool(profile and user_is_accused(case, profile))
     today = get_current_datetime().date()
-    for i, (p, out) in enumerate(zip(attempt.payments, data["payments"], strict=True)):
-        out["status"] = payments.status(p, i, user_pays, attempt.defaults_on, today)
+    if attempt.plan:
+        data |= payments.describe(attempt.payments, attempt.plan, today)
+    else:
+        for i, (p, out) in enumerate(
+            zip(attempt.payments, data["payments"], strict=True)
+        ):
+            out["status"] = payments.status(p, i, user_pays, attempt.defaults_on, today)
+        data["pace"] = "months"
     data["user_pays"] = user_pays
     return data
 
@@ -474,7 +506,16 @@ def order_markdown(
     high = "high court" in court.lower()
     signed = f"{record.judge}, J." if high else f"{record.judge}, Magistrate"
     coram = f"HON'BLE {signed}" if high else signed
-    paragraphs = "\n".join(f"{i}. {p}" for i, p in enumerate(record.order, 1))
+    order = list(record.order)
+    attempt = case.open_settlement()
+    if (
+        record.outcome == "granted"
+        and attempt
+        and attempt.agreed
+        and attempt.agreed.amount
+    ):
+        order.append(owed_paragraph(profile))
+    paragraphs = "\n".join(f"{i}. {p}" for i, p in enumerate(order, 1))
     return (
         f"**IN THE {court.upper()}**\n"
         f"**{case_numbers(case.details) or case.title}**\n"
@@ -593,8 +634,10 @@ async def hold_hearing(
     if granted:
         attempt.status = SettlementStatus.RECORDED
         attempt.ended_at = now
-        attempt.payments = payments.schedule(attempt.agreed, now.date())
-        attempt.defaults_on = payments.default_on(case.cnr, len(attempt.payments))
+        attempt.payments = payments.day_schedule(attempt.agreed, now.date())
+        attempt.plan = payments.draw(
+            case.cnr, len(attempt.payments), await payer_reliability(case, profile)
+        )
         case.verdict = attempt.court_order
         case.outcome = CaseOutcome.SETTLED
         case.outcome_reason = record.ruling
@@ -652,6 +695,7 @@ async def answer_payment(
         or profile is None
         or profile.route == "none"
         or attempt.status != SettlementStatus.RECORDED
+        or attempt.plan is not None  # the accused pays on their own
         or not 0 <= index < len(attempt.payments)
     ):
         raise HTTPException(status_code=409, detail=messages.SETTLEMENT_PAYMENT)

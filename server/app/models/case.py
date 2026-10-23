@@ -239,6 +239,22 @@ class Payment(BaseModel):
     remedy_at: datetime | None = None
 
 
+class PaymentDraw(BaseModel):
+    """How the accused meets one instalment, drawn against their reliability."""
+
+    on_time: bool
+    cures: bool  # if it is missed: paid within the notice the deed gives
+
+
+class PaymentPlan(BaseModel):
+    """The simulation's draws for one order, made once when it is passed. Never sent
+    to the client: the user judges the accused from their background."""
+
+    reliability: float  # the accused's, 0-1
+    draws: list[PaymentDraw]
+    complies: bool  # pays what the court directs, if a default goes back to court
+
+
 class ScoreFactor(BaseModel):
     key: Literal["terms", "closed", "offers", "conditions"]
     label: str
@@ -286,8 +302,10 @@ class Settlement(BaseModel):
     )
     payments: list[Payment] = Field(default_factory=list)
     # The instalment the AI side won't pay, drawn once when the order is passed. Never
-    # sent to the client.
+    # sent to the client. Orders before the payment simulation only; newer ones have a
+    # plan, and their instalments fall due a day apart.
     defaults_on: int | None = None
+    plan: PaymentPlan | None = None
     started_at: datetime = Field(default_factory=get_current_datetime)
     ended_at: datetime | None = None
 
@@ -524,7 +542,7 @@ class Case(Document):
     # wherever a whole case (or its settlements) goes out.
     HIDDEN: ClassVar[dict] = {
         "parties_involved": {"__all__": {"reliability"}},
-        "settlements": {"__all__": {"defaults_on"}},
+        "settlements": {"__all__": {"defaults_on", "plan"}},
     }
 
     def open_settlement(self) -> Settlement | None:

@@ -2,16 +2,19 @@
 
 import ast
 import json
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from app.models.case import (
     Payment,
+    PaymentDraw,
+    PaymentPlan,
     Settlement,
     SettlementCondition,
     SettlementEntry,
+    SettlementProfile,
     SettlementStatus,
     SettlementTerms,
 )
@@ -22,7 +25,15 @@ from app.services.llm.settlement import (
     parse_offer_reply,
     parse_profile,
 )
-from app.services.settlement_payments import default_on, schedule
+from app.services.settlement_deed import owed_paragraph
+from app.services.settlement_payments import (
+    day_schedule,
+    default_on,
+    describe,
+    draw,
+    schedule,
+    timeline,
+)
 from app.services.settlement_payments import status as payment_status
 from app.utils.llm import LLMGenerationError
 
@@ -253,6 +264,128 @@ def test_the_same_case_always_defaults_the_same_way():
 
     assert len(draws) == 1
     assert default_on("DLND010004212026", 1) is None
+
+
+def test_instalments_fall_a_day_apart_from_the_order():
+    terms = SettlementTerms(amount=4200000, instalments=3, months=6, interest=9)
+
+    plan = day_schedule(terms, date(2026, 11, 4))
+
+    assert [p.due for p in plan] == [
+        date(2026, 11, 5),
+        date(2026, 11, 6),
+        date(2026, 11, 7),
+    ]
+    assert [p.amount for p in plan] == [1400000, 1400000, 1400000 + 189000]
+    assert day_schedule(terms.model_copy(update={"amount": 0}), date(2026, 11, 4)) == []
+
+
+def test_draws_follow_the_accused_reliability():
+    sure, never = draw("DLND010004212026", 4, 1.0), draw("DLND010004212026", 4, 0.0)
+
+    assert all(d.on_time and d.cures for d in sure.draws) and sure.complies
+    assert not any(d.on_time or d.cures for d in never.draws) and not never.complies
+    assert draw("DLND010004212026", 4, 0.6) == draw("DLND010004212026", 4, 0.6)
+    assert sure.reliability == 1.0 and len(sure.draws) == 4
+
+
+ORDERED = date(2026, 11, 4)
+THREE = SettlementTerms(amount=300000, instalments=3, months=6, interest=0)
+
+
+def day(n):
+    return ORDERED + timedelta(days=n)
+
+
+def plan_of(*draws, complies=True):
+    return PaymentPlan(
+        reliability=0.5,
+        draws=[PaymentDraw(on_time=o, cures=c) for o, c in draws],
+        complies=complies,
+    )
+
+
+# On time; missed then paid within notice; missed and never paid.
+MIXED = plan_of((True, False), (False, True), (False, False))
+
+
+@pytest.mark.parametrize(
+    ("today", "statuses", "stage"),
+    [
+        (0, ["upcoming", "upcoming", "upcoming"], "paying"),
+        (1, ["paid", "upcoming", "upcoming"], "paying"),
+        (2, ["paid", "due", "upcoming"], "paying"),
+        (3, ["paid", "late", "due"], "paying"),
+        (4, ["paid", "late", "missed"], "notice"),
+        (5, ["paid", "late", "defaulted"], "defaulted"),
+    ],
+)
+def test_the_timeline_as_days_pass(today, statuses, stage):
+    line = timeline(day_schedule(THREE, ORDERED), MIXED, day(today))
+
+    assert [r.status for r in line.rows] == statuses
+    assert line.stage == stage
+
+
+def test_a_missed_instalment_shows_its_notice_and_a_cure_its_day():
+    line = timeline(day_schedule(THREE, ORDERED), MIXED, day(4))
+
+    assert [r.paid_on for r in line.rows] == [day(1), day(3), None]
+    assert line.rows[2].notice_until == day(4)
+    assert line.defaulted is None and line.closed_on is None
+
+
+def test_a_default_holds_up_the_rest():
+    plan = plan_of((False, False), (True, True), (True, True))
+
+    line = timeline(day_schedule(THREE, ORDERED), plan, day(9))
+
+    assert [r.status for r in line.rows] == ["defaulted", "held", "held"]
+    assert line.defaulted == 0 and line.stage == "defaulted"
+
+
+def test_paying_every_instalment_closes_the_order():
+    owed = day_schedule(THREE, ORDERED)
+    owed[2].paid_at = datetime(2026, 11, 20, tzinfo=UTC)  # as the court directed
+    plan = plan_of((True, True), (False, True), (False, False))
+
+    line = timeline(owed, plan, day(30))
+
+    assert [r.status for r in line.rows] == ["paid", "late", "late"]
+    assert line.stage == "closed" and line.closed_on == date(2026, 11, 20)
+    assert timeline([], plan_of(), day(1)).stage == "closed"
+
+
+def test_the_client_sees_the_timeline_not_the_draws():
+    view = describe(day_schedule(THREE, ORDERED), MIXED, day(4))
+
+    assert view["pace"] == "days" and view["stage"] == "notice"
+    assert view["closed_on"] is None
+    assert view["payments"][2] == {
+        "amount": 100000,
+        "due": "2026-11-07",
+        "paid_at": None,
+        "remedy": None,
+        "remedy_at": None,
+        "status": "missed",
+        "paid_on": None,
+        "notice_until": "2026-11-08",
+    }
+    assert "draws" not in str(view) and "reliability" not in str(view)
+
+
+@pytest.mark.parametrize(
+    ("route", "complainants", "expected"),
+    [
+        ("quash", ["A"], "the complainant shall be at liberty to move this Court."),
+        ("compound", ["A", "B"], "the complainants shall be at liberty to recover"),
+        ("plea", ["A"], "fine under section 461 BNSS."),
+    ],
+)
+def test_the_order_states_the_remedy_for_default(route, complainants, expected):
+    profile = SettlementProfile(route=route, complainants=complainants)
+
+    assert expected in owed_paragraph(profile)
 
 
 def terms(amount, conditions=()):
