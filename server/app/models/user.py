@@ -15,6 +15,10 @@ CaseLocationPreference = Literal["user_location", "specific_state", "random"]
 # How a partly successful case counts toward the win rate
 PartialScoring = Literal["zero", "half", "exclude"]
 
+# How a settled case counts toward the win rate: left out, a win when the
+# negotiator score is 70 or more (else a loss), or always a win
+SettledScoring = Literal["exclude", "score", "win"]
+
 # How the account was created; it decides which sign-in details are locked
 AuthMethod = Literal["email", "phone", "google"]
 
@@ -59,6 +63,7 @@ class User(Document):
     )
     rag_enabled: bool = True
     partial_scoring: PartialScoring = "zero"
+    settled_scoring: SettledScoring = "exclude"
 
     # Account and security
     google_email: str | None = None  # the connected Google account's address

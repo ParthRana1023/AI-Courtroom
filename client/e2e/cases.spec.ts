@@ -304,4 +304,29 @@ test.describe("new case", () => {
     await page.goto("/cases/new");
     await expect(page.getByRole("heading", { name: "Where do you practise?" })).toBeVisible();
   });
+
+  test("a case disposed of on a compromise is listed as settled, with how it ended", async ({ page, signIn }, info) => {
+    const settled = {
+      cnr: "RJJP030012902026",
+      title: "Meera Joshi v. Marwar Travels",
+      user_role: "plaintiff",
+      status: "resolved",
+      outcome: "settled",
+      settlement_result: "compounded",
+      created_at: "2026-08-11T10:00:00Z",
+    };
+    await signIn(USERS.email, { "GET /cases": [...CASES, settled], "GET /cases/deleted/list": [] });
+    await page.goto("/cases");
+    const list = page.getByRole("region", { name: "Cases" });
+    const row = list.getByRole("link", { name: /Meera Joshi v\. Marwar Travels/ });
+    await expect(row.getByText("Settled", { exact: true })).toBeVisible();
+    await expect(row.getByText("Compounded")).toBeVisible();
+
+    if (!info.project.name.startsWith("mobile")) {
+      await expect(page.getByRole("button", { name: /^Resolved\s*1$/ })).toBeVisible(); // the settled case isn't counted here
+      await page.getByRole("button", { name: /^Settled/ }).click();
+      await expect(list.getByRole("link")).toHaveCount(1);
+      await expect(page.getByText("Showing 1 of 4 cases")).toBeVisible();
+    }
+  });
 });

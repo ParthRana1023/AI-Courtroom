@@ -6,7 +6,7 @@ from collections import defaultdict
 from pymongo.errors import DuplicateKeyError
 
 from app.logging_config import get_logger
-from app.models.case import Case, CaseOutcome, CaseStatus, Roles
+from app.models.case import Case, CaseOutcome, CaseStatus, Roles, SettlementStatus
 from app.models.case_outcome import CaseOutcomeRecord
 from app.services.llm.outcome_classifier import OutcomeClassifierService
 
@@ -86,6 +86,41 @@ async def record_settlement(case: Case, reason: str) -> None:
         pass
     except Exception:
         logger.exception("Failed to record settlement", extra={"case_id": str(case.id)})
+
+
+async def record_negotiation(case: Case) -> None:
+    """Copy the case's negotiation score onto its ledger row, for the negotiator
+    rating; with the deal's pace when the court recorded one. Never raises."""
+    if case.negotiation is None:
+        return
+    deal = next(
+        (s for s in case.settlements if s.status == SettlementStatus.RECORDED), None
+    )
+    signed = max(deal.signatures.values(), default=None) if deal else None
+    days = (
+        round((signed - deal.entries[0].at).total_seconds() / 86400, 1)
+        if deal and signed and deal.entries
+        else None
+    )
+    try:
+        await CaseOutcomeRecord.find_one(
+            CaseOutcomeRecord.case_id == case.id
+        ).update_one(
+            {
+                "$set": {
+                    "negotiation_score": case.negotiation.score,
+                    "negotiation_factors": {
+                        f.key: f.value for f in case.negotiation.factors
+                    },
+                    "offers_to_deal": deal.user_offers() if deal else None,
+                    "days_to_settle": days,
+                }
+            }
+        )
+    except Exception:
+        logger.exception(
+            "Failed to record the negotiation score", extra={"case_id": str(case.id)}
+        )
 
 
 async def ensure_outcome(case: Case) -> CaseOutcome | None:

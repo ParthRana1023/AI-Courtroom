@@ -32,6 +32,7 @@ export interface User {
   preferred_case_state?: string;
   rag_enabled?: boolean;
   partial_scoring?: PartialScoring;
+  settled_scoring?: SettledScoring;
   is_developer?: boolean; // may turn on developer mode (server allowlist)
   // Account and security
   has_password?: boolean;
@@ -62,6 +63,10 @@ export interface DeviceSession {
 // How a partly successful case counts toward the win rate
 export type PartialScoring = "zero" | "half" | "exclude";
 
+// How a settled case counts toward the win rate: left out, a win when the
+// negotiator score is 70 or more (else a loss), or always a win
+export type SettledScoring = "exclude" | "score" | "win";
+
 // How the verdict went for the user, decided once after the verdict;
 // "settled" when the court recorded a compromise (not a win or a loss)
 export type CaseOutcome = "won" | "lost" | "partial" | "settled";
@@ -70,7 +75,7 @@ export interface OutcomeCounts {
   wins: number;
   losses: number;
   partials: number;
-  settled: number; // not counted in win_rate
+  settled: number; // in win_rate only as settled_scoring says
   total: number;
   win_rate: number; // percent, 0-100
 }
@@ -102,8 +107,21 @@ interface ActivityStats {
   avg_evidence: number;
 }
 
+// The negotiator rating: the average of the last ten negotiation scores
+export interface NegotiatorStats {
+  score: number | null;
+  tier: string | null;
+  scored: number; // every case with a negotiation score
+  factors: Partial<Record<"terms" | "closed" | "offers" | "conditions", number>>;
+  deals: number; // scored negotiations that ended in a deal the court recorded
+  offers_to_deal: number | null;
+  days_to_settle: number | null; // first offer to the last signature
+  pending: number; // decided cases with talks, not scored yet
+}
+
 export interface UserStats {
   partial_scoring: PartialScoring;
+  settled_scoring: SettledScoring;
   overall: OutcomeCounts;
   as_plaintiff: OutcomeCounts;
   as_defendant: OutcomeCounts;
@@ -113,6 +131,7 @@ export interface UserStats {
   monthly: MonthlyOutcomes[];
   activity: ActivityStats;
   pending_outcomes: number;
+  negotiator: NegotiatorStats;
 }
 
 // Case types

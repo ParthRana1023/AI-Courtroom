@@ -41,6 +41,16 @@ const STATS = {
     avg_evidence: 3.4,
   },
   pending_outcomes: 1,
+  negotiator: {
+    score: 67,
+    tier: "Capable",
+    scored: 3,
+    factors: { terms: 66, closed: 67, offers: 72, conditions: 61 },
+    deals: 2,
+    offers_to_deal: 1.8,
+    days_to_settle: 4,
+    pending: 1,
+  },
 };
 
 const NEW_STATS = {
@@ -53,6 +63,7 @@ const NEW_STATS = {
   recent_form: [],
   monthly: [],
   pending_outcomes: 0,
+  negotiator: { score: null, tier: null, scored: 0, factors: {}, deals: 0, offers_to_deal: null, days_to_settle: null, pending: 0 },
 };
 
 const CASES = [
@@ -82,6 +93,17 @@ const CASES = [
     user_role: "plaintiff",
     created_at: "2026-09-24T10:00:00Z",
     outcome: null,
+  },
+  {
+    id: "c4",
+    cnr: "DLND010003502026",
+    title: "State v. Farhan Qureshi",
+    status: "resolved",
+    user_role: "plaintiff",
+    created_at: "2026-08-30T10:00:00Z",
+    outcome: "settled",
+    settlement_result: "compounded",
+    negotiation_score: 84,
   },
 ];
 
@@ -121,8 +143,25 @@ test.describe("profile", () => {
     await expect(record.getByRole("link", { name: "State v. Kiran Bedi Rao: Won as defence" })).toBeVisible();
 
     const recent = page.getByRole("region", { name: "Recent cases" });
-    await expect(recent.getByRole("link")).toHaveCount(4); // three cases and "All cases →"
+    await expect(recent.getByRole("link")).toHaveCount(5); // four cases and "All cases →"
     await expect(recent.getByRole("link", { name: /State v\. Kiran Bedi Rao/ })).toContainText("Won");
+    const settled = recent.getByRole("link", { name: /State v\. Farhan Qureshi/ });
+    await expect(settled).toContainText("Settled");
+    await expect(settled.getByTitle("Negotiation score")).toHaveText("Neg 84");
+
+    // The negotiator rating: provisional until five cases are scored.
+    const rating = page.getByRole("region", { name: "Negotiator rating" });
+    await expect(rating.getByText("/100")).toBeVisible();
+    await expect(rating.getByText("67", { exact: true }).first()).toBeVisible();
+    await expect(rating.getByText("Provisional")).toBeVisible();
+    await expect(rating.getByText("3 of 5 cases scored · reads as Capable so far")).toBeVisible();
+    await expect(rating.getByText("2 of 3 negotiations ended in a deal the court accepted.")).toBeVisible();
+    await expect(rating.getByText("You usually settle by your second offer.")).toBeVisible();
+    await expect(rating.getByText("1.8")).toBeVisible();
+    await expect(rating.getByText("4 days")).toBeVisible();
+    await expect(rating.getByText("1 decided case has settlement talks waiting for a score.", { exact: false })).toBeVisible();
+    await rating.getByRole("button", { name: "How it’s scored" }).click();
+    await expect(rating.getByText("Developing 0–39 · Capable 40–69 · Strong 70–84 · Exceptional 85–100")).toBeVisible();
     await checkA11y();
 
     await card.getByRole("button", { name: "+ Nickname" }).click();
@@ -137,6 +176,7 @@ test.describe("profile", () => {
     await expect(page.getByRole("link", { name: "Generate your first case →" })).toHaveAttribute("href", "/cases/new");
     await expect(page.getByText("Pick up where you left off")).toHaveCount(0);
     await expect(page.getByText("No cases yet. Your newest five will be listed here.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Negotiator rating" }).getByText("No negotiations yet.")).toBeVisible();
   });
 
   test("edit profile checks the fields, then saves what changed", async ({ page, signIn }) => {

@@ -13,6 +13,8 @@ export interface CaseRow {
   title: string;
   status: string;
   outcome?: "won" | "lost" | "partial" | "settled" | null;
+  settlement_result?: "quashed" | "compounded" | "plea" | null;
+  negotiation_score?: number | null;
   user_role?: string | null;
   created_at: string;
   deleted_at?: string | null;
@@ -29,6 +31,7 @@ export const STATUSES = [
   ["not started", "Not started", "#4a3e30"],
   ["adjourned", "Adjourned", "#9a5b12"],
   ["resolved", "Resolved", "#120d09"],
+  ["settled", "Settled", "#6b5d4b"],
 ] as const;
 
 const OUTCOMES = {
@@ -37,6 +40,7 @@ const OUTCOMES = {
   partial: ["Partly won", "#9a5b12"],
   settled: ["Settled", "#6b5d4b"],
 } as const;
+export const SETTLED_AS = { quashed: "FIR quashed", compounded: "Compounded", plea: "Plea bargain" } as const;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function formatDate(iso?: string | null) {
@@ -47,6 +51,11 @@ export function formatDate(iso?: string | null) {
 
 export function sideLabel(role?: string | null) {
   return role === "plaintiff" ? "Plaintiff" : role === "defendant" ? "Defence" : "Not chosen";
+}
+
+/** The status a row is listed under: a case the court disposed of on a compromise is settled, not resolved. */
+export function statusKey(row: Pick<CaseRow, "status" | "outcome">) {
+  return row.status === "resolved" && row.outcome === "settled" ? "settled" : row.status;
 }
 
 function statusOf(status: string) {
@@ -282,7 +291,8 @@ function StatusTag({ status, compact }: { status: string; compact?: boolean }) {
 
 function Outcome({ row }: { row: CaseRow }) {
   if (row.status !== "resolved" || !row.outcome) return null;
-  const [label, color] = OUTCOMES[row.outcome];
+  const [label, color] =
+    row.outcome === "settled" && row.settlement_result ? [SETTLED_AS[row.settlement_result], OUTCOMES.settled[1]] : OUTCOMES[row.outcome];
   return (
     <span style={{ color }} className="font-bold">
       {label}
@@ -437,7 +447,7 @@ export function CaseList({
                       </span>
                     ) : c === "status" ? (
                       <span key={c} className="flex flex-col items-start gap-1 text-meta">
-                        <StatusTag status={row.status} />
+                        <StatusTag status={statusKey(row)} />
                         <Outcome row={row} />
                       </span>
                     ) : (
@@ -450,7 +460,7 @@ export function CaseList({
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center justify-between gap-2.5">
                       <span className="font-data text-xs font-medium break-all text-ink-label">{row.cnr}</span>
-                      <StatusTag status={row.status} compact />
+                      <StatusTag status={statusKey(row)} compact />
                     </div>
                     <span className="text-base leading-[1.35] font-bold text-pretty">{row.title}</span>
                     <span className="flex flex-wrap gap-x-3 gap-y-1 text-meta text-ink-label">

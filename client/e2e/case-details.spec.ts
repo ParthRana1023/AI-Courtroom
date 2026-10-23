@@ -1,6 +1,7 @@
 import type { Route } from "@playwright/test";
 import { test, expect, USERS } from "./support/fixtures";
 import { CNR, PARTIES, caseOf } from "./support/case-data";
+import { PROFILE, T2, agreedTalks, attempt } from "./support/settlement-data";
 
 const prepRoutes = (c: ReturnType<typeof caseOf>) => ({
   "GET /cases/DLND010004212026/parties": {
@@ -154,5 +155,39 @@ test.describe("case details", () => {
     await expect(page.getByText("You’re offline. Choose a side when you’re back online.")).toBeVisible();
     await expect(page.getByRole("alertdialog")).toBeHidden();
     await context.setOffline(false);
+  });
+
+  test("a settled case leads with when and how it settled", async ({ page, signIn }) => {
+    const deal = attempt(agreedTalks, {
+      status: "recorded",
+      agreed: T2,
+      ended_at: "2026-11-04T11:00:00Z",
+      payments: [
+        { amount: 1400000, due: "2026-12-04", paid_at: "2026-12-01T10:00:00Z", remedy: null, remedy_at: null, status: "paid" },
+        { amount: 1400000, due: "2027-03-04", paid_at: null, remedy: null, remedy_at: null, status: "upcoming" },
+        { amount: 1494500, due: "2027-05-04", paid_at: null, remedy: null, remedy_at: null, status: "upcoming" },
+      ],
+    });
+    await signIn(USERS.email, {
+      [`GET /cases/${CNR}`]: caseOf({
+        user_role: "plaintiff",
+        ai_role: "defendant",
+        status: "resolved",
+        outcome: "settled",
+        settlement_result: "quashed",
+        settlement_profile: PROFILE,
+        settlements: [deal],
+      }),
+    });
+    await page.goto(`/cases/${CNR}`);
+
+    const banner = page.getByRole("region", { name: "Settled on 4 November 2026" });
+    await expect(
+      banner.getByText("The High Court of Delhi quashed the FIR on the compromise under § 528 BNSS.", { exact: false }),
+    ).toBeVisible();
+    await expect(banner.getByText("Payments are tracked until May 2027.", { exact: false })).toBeVisible();
+    await expect(banner.getByRole("link", { name: "Order and payments" })).toHaveAttribute("href", `/cases/${CNR}/courtroom`);
+    await expect(banner.getByRole("link", { name: "The deed" })).toHaveAttribute("href", `/cases/${CNR}/settlement`);
+    await expect(page.getByText("Settled · FIR quashed").first()).toBeVisible();
   });
 });

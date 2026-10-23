@@ -565,13 +565,17 @@ async def update_rag_preference(
 async def update_stats_preference(
     data: StatsPreferenceUpdate, current_user: User = Depends(get_current_user)
 ):
-    """Update how partly successful cases count toward the user's win rate."""
+    """Update how partly successful or settled cases count toward the win rate."""
     logger.info(
-        f"Stats preference update for user: {current_user.email} -> {data.partial_scoring}"
+        f"Stats preference update for user: {current_user.email} -> "
+        f"{data.model_dump(exclude_none=True)}"
     )
 
     try:
-        current_user.partial_scoring = data.partial_scoring
+        if data.partial_scoring is not None:
+            current_user.partial_scoring = data.partial_scoring
+        if data.settled_scoring is not None:
+            current_user.settled_scoring = data.settled_scoring
         await current_user.save()
         return current_user
     except Exception:

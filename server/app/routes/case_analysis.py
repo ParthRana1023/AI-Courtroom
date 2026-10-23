@@ -8,7 +8,11 @@ from app.models.case import Case, CaseOutcome, CaseStatus, Roles
 from app.models.user import User
 from app.routes.courtroom import record_lines
 from app.routes.settlement import user_is_accused
-from app.services.case_outcomes import ensure_outcome, user_role_in_case
+from app.services.case_outcomes import (
+    ensure_outcome,
+    record_negotiation,
+    user_role_in_case,
+)
 from app.services.llm import settlement as counsel
 from app.services.llm.case_analysis import OUTCOME_TEXT, CaseAnalysisService
 from app.services.rag import retrieve_case_context, upsert_memory_item
@@ -248,6 +252,7 @@ async def analyze_negotiation(
                     status_code=500, detail=messages.NEGOTIATION_FAILED
                 ) from e
             await case.save()
+            await record_negotiation(case)
             logger.info(
                 f"Negotiation analysed in {caseId}: {case.negotiation.score}",
                 extra={"case_id": caseId},

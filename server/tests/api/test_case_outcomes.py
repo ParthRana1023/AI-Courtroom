@@ -11,7 +11,9 @@ from app.models.case import (
     CaseOutcome,
     CaseStatus,
     ExaminationItem,
+    NegotiationAnalysis,
     Roles,
+    ScoreFactor,
     Settlement,
     SettlementEntry,
     SettlementStatus,
@@ -430,6 +432,130 @@ async def test_partial_scoring_preference(
     stats = await get_stats(client, auth_headers)
     assert stats["partial_scoring"] == scoring
     assert stats["overall"]["win_rate"] == expected
+
+
+@pytest.mark.parametrize(
+    ("scoring", "rate", "streaks"),
+    [
+        ("exclude", 50.0, (1, 1)),  # the settled cases are left out
+        ("win", 83.3, (5, 5)),  # each one is a win
+        ("score", 60.0, (0, 3)),  # 80 and 90 win, 40 loses, the unscored one waits
+    ],
+)
+async def test_settled_scoring_preference(
+    client, auth_headers, user, scoring, rate, streaks
+):
+    settled = CaseOutcome.SETTLED
+    # oldest first: L W S80 S90 S40 S(not scored yet)
+    history = [
+        (CaseOutcome.LOST, None),
+        (CaseOutcome.WON, None),
+        (settled, 80),
+        (settled, 90),
+        (settled, 40),
+        (settled, None),
+    ]
+    for i, (outcome, score) in enumerate(history):
+        await add_record(
+            user, outcome, days_ago=len(history) - i, negotiation_score=score
+        )
+
+    response = await client.put(
+        "/auth/profile/stats-preference",
+        headers=auth_headers,
+        json={"settled_scoring": scoring},
+    )
+
+    assert response.json()["settled_scoring"] == scoring
+    assert response.json()["partial_scoring"] == "zero"  # left as it was
+    stats = await get_stats(client, auth_headers)
+    assert stats["settled_scoring"] == scoring
+    assert stats["overall"]["win_rate"] == rate
+    assert stats["overall"]["settled"] == 4
+    assert (stats["current_streak"], stats["best_streak"]) == streaks
+
+
+async def test_negotiator_rating_averages_the_latest_ten_scores(
+    client, auth_headers, user, courtroom_case
+):
+    # Twelve scored cases, oldest first; the two oldest (scored 0) fall out.
+    for i in range(12):
+        await add_record(
+            user,
+            CaseOutcome.SETTLED if i % 2 else CaseOutcome.LOST,
+            days_ago=12 - i,
+            negotiation_score=0 if i < 2 else 60 + i,
+            negotiation_factors={"terms": 0 if i < 2 else 70, "offers": 50},
+            offers_to_deal=2 if i % 2 else None,
+            days_to_settle=4.0 if i % 2 else None,
+        )
+    await add_record(user, CaseOutcome.WON)  # no talks
+    # A decided case with talks the user took part in, not analysed yet.
+    terms = SettlementTerms(
+        amount=100000, instalments=1, months=3, interest=0, conditions=[]
+    )
+    await courtroom_case(
+        status=CaseStatus.RESOLVED,
+        settlements=[
+            Settlement(
+                status=SettlementStatus.WITHDRAWN,
+                entries=[SettlementEntry(by="user", kind="offer", terms=terms)],
+            )
+        ],
+    )
+
+    negotiator = (await get_stats(client, auth_headers))["negotiator"]
+
+    assert negotiator["score"] == 66  # 62 to 71 average 66.5, rounded to even
+    assert negotiator["tier"] == "Capable"
+    assert negotiator["scored"] == 12
+    assert negotiator["factors"] == {"offers": 50, "terms": 70}
+    assert negotiator["deals"] == 6
+    assert (negotiator["offers_to_deal"], negotiator["days_to_settle"]) == (2.0, 4.0)
+    assert negotiator["pending"] == 1
+
+
+async def test_a_score_from_before_the_ledger_kept_scores_is_copied_in(
+    client, auth_headers, user, courtroom_case
+):
+    case = await courtroom_case(
+        status=CaseStatus.RESOLVED,
+        outcome=CaseOutcome.SETTLED,
+        negotiation=NegotiationAnalysis(
+            score=65,
+            tier="Capable",
+            factors=[
+                ScoreFactor(
+                    key="terms", label="Terms won", weight=50, value=70, text="."
+                )
+            ],
+            call="right",
+            call_text=".",
+            review=".",
+        ),
+    )
+    await CaseOutcomeRecord(
+        user_id=user.id,
+        case_id=case.id,
+        cnr=case.cnr,
+        role=Roles.PLAINTIFF,
+        outcome=CaseOutcome.SETTLED,
+    ).insert()
+
+    negotiator = (await get_stats(client, auth_headers))["negotiator"]
+
+    assert (negotiator["score"], negotiator["scored"]) == (65, 1)
+    assert negotiator["factors"] == {"terms": 70}
+    record = await CaseOutcomeRecord.find_one(CaseOutcomeRecord.case_id == case.id)
+    assert record is not None and record.negotiation_score == 65
+
+
+async def test_no_negotiator_rating_without_a_scored_case(client, auth_headers, user):
+    await add_record(user, CaseOutcome.SETTLED)
+
+    negotiator = (await get_stats(client, auth_headers))["negotiator"]
+
+    assert negotiator["score"] is None and negotiator["scored"] == 0
 
 
 async def test_stats_preference_rejects_unknown_value(client, auth_headers):

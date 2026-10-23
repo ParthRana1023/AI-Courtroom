@@ -1,6 +1,6 @@
 {
   "name": "ai-courtroom",
-  "version": "5.3.5",
+  "version": "5.3.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,7 +19,9 @@
     "cap:ios": "cap sync ios && cap open ios",
     "test:e2e": "playwright test -c e2e",
     "test:e2e:fast": "playwright test -c e2e --project=desktop",
-    "test:e2e:update": "playwright test -c e2e --update-snapshots"
+    "test:e2e:update": "playwright test -c e2e --update-snapshots",
+    "test:e2e:coverage": "cross-env E2E_COVERAGE=true playwright test -c e2e",
+    "e2e:serve": "cross-env NEXT_PUBLIC_API_URL=http://127.0.0.1:8765 NEXT_PUBLIC_PHONE_AUTH_ENABLED=true NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA next build --webpack && next start --port 3100"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

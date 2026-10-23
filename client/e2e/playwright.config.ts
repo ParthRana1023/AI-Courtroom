@@ -9,8 +9,14 @@ const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 //
 // The client is built against an API origin that never answers; every call is mocked
 // per test with page.route (support/fixtures.ts), so no server, DB or LLM is needed.
+//
+// Speed: the app is built once per run unless a server is already on PORT. Run
+// `pnpm e2e:serve` in another terminal and test runs reuse it, skipping the build;
+// restart it after changing client code. Coverage is opt-in (`pnpm test:e2e:coverage`):
+// it needs a source-mapped build and slows every test.
 export const E2E_API = "http://127.0.0.1:8765";
 const PORT = 3100;
+const COVERAGE = process.env.E2E_COVERAGE === "true";
 
 export default defineConfig({
   testDir: ".",
@@ -27,19 +33,23 @@ export default defineConfig({
     ["html", { open: "never", outputFolder: "./.report/html" }],
     // Client code coverage from Chromium (V8), mapped to our source through source maps.
     // Open e2e/.report/coverage/index.html; the totals also print after the run.
-    [
-      "monocart-reporter",
-      {
-        name: "AI Courtroom e2e",
-        outputFile: here("./.report/monocart/index.html"),
-        coverage: {
-          outputDir: here("./.report/coverage"),
-          reports: ["v8", "console-summary"],
-          entryFilter: (entry: { url: string }) => entry.url.includes("/_next/static/chunks/"),
-          sourceFilter: (path: string) => /(^|\/)(app|components|contexts|hooks|lib)\//.test(path) && !path.includes("node_modules"),
-        },
-      },
-    ],
+    ...(COVERAGE
+      ? [
+          [
+            "monocart-reporter",
+            {
+              name: "AI Courtroom e2e",
+              outputFile: here("./.report/monocart/index.html"),
+              coverage: {
+                outputDir: here("./.report/coverage"),
+                reports: ["v8", "console-summary"],
+                entryFilter: (entry: { url: string }) => entry.url.includes("/_next/static/chunks/"),
+                sourceFilter: (path: string) => /(^|\/)(app|components|contexts|hooks|lib)\//.test(path) && !path.includes("node_modules"),
+              },
+            },
+          ] as const,
+        ]
+      : []),
   ],
   // Baselines are per OS; CI runs on Linux and skips @visual until Linux baselines exist.
   grepInvert: process.env.CI ? /@visual/ : undefined,
@@ -79,12 +89,13 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 600_000,
     // E2E_COVERAGE turns on browser source maps so coverage maps back to our files.
+    // Keep these in step with the e2e:serve script in package.json.
     env: {
       NEXT_PUBLIC_API_URL: E2E_API,
       NEXT_PUBLIC_PHONE_AUTH_ENABLED: "true",
       // Cloudflare's always-pass test site key; the widget script itself is faked in fixtures.ts.
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
-      E2E_COVERAGE: "true",
+      E2E_COVERAGE: String(COVERAGE),
     },
   },
 });

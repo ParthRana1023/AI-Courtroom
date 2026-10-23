@@ -19,6 +19,7 @@ import {
   SortSelect,
   sortRows,
   STATUSES,
+  statusKey,
   StrikeIcon,
   formatDate,
   type CaseRow,
@@ -90,14 +91,14 @@ export default function MyCasesPage() {
         cases.filter(
           (c) =>
             (!query || c.title.toLowerCase().includes(query) || c.cnr.toLowerCase().includes(query)) &&
-            (!filters.length || filters.includes(c.status)),
+            (!filters.length || filters.includes(statusKey(c))),
         ),
         sort,
       ),
     [cases, query, filters, sort],
   );
   const filtered = !!(query || filters.length);
-  const counts = (k?: string) => (k ? cases.filter((c) => c.status === k).length : cases.length);
+  const counts = (k?: string) => (k ? cases.filter((c) => statusKey(c) === k).length : cases.length);
 
   const toggleFilter = (k: string) => setFilters((f) => (f.includes(k) ? f.filter((x) => x !== k) : [...f, k]));
   const clearAll = () => {

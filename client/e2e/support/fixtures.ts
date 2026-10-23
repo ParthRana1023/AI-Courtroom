@@ -79,7 +79,7 @@ export const test = base.extend<Fixtures>({
 
   coverage: [
     async ({ page, browserName }, run, info) => {
-      const on = browserName === "chromium";
+      const on = browserName === "chromium" && process.env.E2E_COVERAGE === "true";
       if (on) await page.coverage.startJSCoverage({ resetOnNavigation: false });
       await run();
       if (on) await addCoverageReport(await page.coverage.stopJSCoverage(), info);

@@ -2,19 +2,24 @@
 
 from app.models.case import Case, CaseOutcome, CaseStatus, Roles
 from app.models.case_outcome import CaseOutcomeRecord
-from app.models.user import PartialScoring, User
+from app.models.user import PartialScoring, SettledScoring, User
 from app.schemas.stats import (
     ActivityStats,
     MonthlyOutcomes,
+    NegotiatorStats,
     OutcomeCounts,
     RecentOutcome,
     UserStatsOut,
 )
+from app.services.case_outcomes import record_negotiation
+from app.services.llm.settlement import tier
 from app.utils.datetime import get_current_datetime
 from app.utils.rate_limiter import ensure_ist_timezone
 
 RECENT_FORM_SIZE = 10
 TREND_MONTHS = 6
+RATING_SIZE = 10  # the negotiator rating averages this many latest scores
+SCORE_FOR_WIN = 70  # settled_scoring "score": a settled case at or above it is a win
 
 
 def win_rate(wins: int, losses: int, partials: int, scoring: PartialScoring) -> float:
@@ -27,12 +32,33 @@ def win_rate(wins: int, losses: int, partials: int, scoring: PartialScoring) -> 
     return round(100 * won / decided, 1) if decided else 0.0
 
 
+def counted_as(
+    record: CaseOutcomeRecord, settled: SettledScoring
+) -> CaseOutcome | None:
+    """What a case counts as in the win rate and streaks; None leaves it out.
+
+    A settled case is left out, always a win, or a win or loss by its negotiator
+    score (left out until the negotiation analysis scores it).
+    """
+    if record.outcome != CaseOutcome.SETTLED:
+        return record.outcome
+    if settled == "win":
+        return CaseOutcome.WON
+    if settled == "score" and record.negotiation_score is not None:
+        won = record.negotiation_score >= SCORE_FOR_WIN
+        return CaseOutcome.WON if won else CaseOutcome.LOST
+    return None
+
+
 def count_outcomes(
-    records: list[CaseOutcomeRecord], scoring: PartialScoring
+    records: list[CaseOutcomeRecord],
+    scoring: PartialScoring,
+    settled: SettledScoring = "exclude",
 ) -> OutcomeCounts:
-    wins = sum(r.outcome == CaseOutcome.WON for r in records)
-    losses = sum(r.outcome == CaseOutcome.LOST for r in records)
-    partials = sum(r.outcome == CaseOutcome.PARTIAL for r in records)
+    counted = [counted_as(r, settled) for r in records]
+    wins = counted.count(CaseOutcome.WON)
+    losses = counted.count(CaseOutcome.LOST)
+    partials = counted.count(CaseOutcome.PARTIAL)
     return OutcomeCounts(
         wins=wins,
         losses=losses,
@@ -43,14 +69,17 @@ def count_outcomes(
     )
 
 
-def win_streaks(records: list[CaseOutcomeRecord]) -> tuple[int, int]:
+def win_streaks(
+    records: list[CaseOutcomeRecord], settled: SettledScoring = "exclude"
+) -> tuple[int, int]:
     """(current, best) runs of wins, oldest record first. A partial ends a run;
-    a settled case neither extends nor ends one."""
+    a settled case left out of the win rate neither extends nor ends one."""
     current = best = 0
     for record in records:
-        if record.outcome == CaseOutcome.SETTLED:
+        outcome = counted_as(record, settled)
+        if outcome is None:
             continue
-        current = current + 1 if record.outcome == CaseOutcome.WON else 0
+        current = current + 1 if outcome == CaseOutcome.WON else 0
         best = max(best, current)
     return current, best
 
@@ -99,16 +128,72 @@ def activity(records: list[CaseOutcomeRecord]) -> ActivityStats:
     return ActivityStats(**totals, **averages)
 
 
-async def compute_user_stats(user: User) -> UserStatsOut:
-    # ponytail: loads every outcome row for the user; fine for hundreds of cases.
-    # Switch to a $facet aggregation if a user ever has thousands.
-    records = (
+def _mean(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 1) if values else None
+
+
+def negotiator(records: list[CaseOutcomeRecord], pending: int) -> NegotiatorStats:
+    """The negotiator rating from the scored cases, oldest record first."""
+    scored = [r for r in records if r.negotiation_score is not None]
+    if not scored:
+        return NegotiatorStats(pending=pending)
+    latest = scored[-RATING_SIZE:]
+    score = round(sum(r.negotiation_score or 0 for r in latest) / len(latest))
+    keys = {key for r in latest for key in r.negotiation_factors}
+    deals = [r for r in scored if r.outcome == CaseOutcome.SETTLED]
+    return NegotiatorStats(
+        score=score,
+        tier=tier(score),
+        scored=len(scored),
+        factors={
+            key: round(
+                _mean(
+                    [
+                        r.negotiation_factors[key]
+                        for r in latest
+                        if key in r.negotiation_factors
+                    ]
+                )
+                or 0
+            )
+            for key in sorted(keys)
+        },
+        deals=len(deals),
+        offers_to_deal=_mean(
+            [r.offers_to_deal for r in deals if r.offers_to_deal is not None]
+        ),
+        days_to_settle=_mean(
+            [r.days_to_settle for r in deals if r.days_to_settle is not None]
+        ),
+        pending=pending,
+    )
+
+
+async def _records(user: User) -> list[CaseOutcomeRecord]:
+    return (
         await CaseOutcomeRecord.find(CaseOutcomeRecord.user_id == user.id)
         .sort("decided_at")
         .to_list()
     )
+
+
+async def compute_user_stats(user: User) -> UserStatsOut:
+    # ponytail: loads every outcome row for the user; fine for hundreds of cases.
+    # Switch to a $facet aggregation if a user ever has thousands.
+    records = await _records(user)
+    # A score generated before the ledger kept scores (or whose copy failed) is
+    # copied in now, so the rating never misses a scored case.
+    unscored = [r.case_id for r in records if r.negotiation_score is None]
+    missed = await Case.find(
+        {"_id": {"$in": unscored}, "negotiation": {"$ne": None}}
+    ).to_list()
+    for case in missed:
+        await record_negotiation(case)
+    if missed:
+        records = await _records(user)
     scoring = user.partial_scoring
-    current, best = win_streaks(records)
+    settled = user.settled_scoring
+    current, best = win_streaks(records, settled)
 
     # Deleted cases count too; only cases with a verdict can be decided.
     pending = await Case.find(
@@ -117,15 +202,24 @@ async def compute_user_stats(user: User) -> UserStatsOut:
         Case.outcome == None,
         Case.verdict != None,
     ).count()
+    # Talks the user took part in, on a decided case not yet scored. Opening the
+    # negotiation analysis scores it; an archived case can't be opened.
+    unscored = await Case.find(
+        Case.user_id == user.id,
+        Case.status == CaseStatus.RESOLVED,
+        Case.negotiation == None,
+        {"settlements.entries.by": "user", "is_deleted": {"$ne": True}},
+    ).count()
 
     return UserStatsOut(
         partial_scoring=scoring,
-        overall=count_outcomes(records, scoring),
+        settled_scoring=settled,
+        overall=count_outcomes(records, scoring, settled),
         as_plaintiff=count_outcomes(
-            [r for r in records if r.role == Roles.PLAINTIFF], scoring
+            [r for r in records if r.role == Roles.PLAINTIFF], scoring, settled
         ),
         as_defendant=count_outcomes(
-            [r for r in records if r.role == Roles.DEFENDANT], scoring
+            [r for r in records if r.role == Roles.DEFENDANT], scoring, settled
         ),
         current_streak=current,
         best_streak=best,
@@ -142,4 +236,5 @@ async def compute_user_stats(user: User) -> UserStatsOut:
         monthly=monthly_trend(records),
         activity=activity(records),
         pending_outcomes=pending,
+        negotiator=negotiator(records, unscored),
     )

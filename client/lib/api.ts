@@ -7,6 +7,7 @@ import type {
   LoginFormData,
   NotificationPrefs,
   PartialScoring,
+  SettledScoring,
   RegisterFormData,
   SettlementTerms,
   SettlementView,
@@ -360,7 +361,7 @@ export const authAPI = {
       throw error;
     }
   },
-  updateStatsPreference: async (data: { partial_scoring: PartialScoring }) => {
+  updateStatsPreference: async (data: { partial_scoring?: PartialScoring; settled_scoring?: SettledScoring }) => {
     try {
       const response = await api.put("/auth/profile/stats-preference", data);
       logger.info("Stats preference updated");

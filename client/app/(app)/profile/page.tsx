@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useViewport } from "@/hooks/use-viewport";
 import { authAPI, caseAPI } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { CaseOutcome, OutcomeCounts, PartialScoring, User, UserStats } from "@/types";
+import type { CaseOutcome, NegotiatorStats, OutcomeCounts, PartialScoring, User, UserStats } from "@/types";
 
 // Profile.dc.html: identity card, record, recent cases and the Edit profile panel.
 
@@ -21,6 +21,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const WIN = "#3f6b3a";
 const PART = "#b07a1a";
 const LOSS = "#8e1f19";
+const SETTLED = "#6b5d4b";
 
 const SCORING: Record<PartialScoring, string> = {
   half: "Partial wins count as half a win",
@@ -31,7 +32,7 @@ const RESULT: Record<CaseOutcome, [string, string, string]> = {
   won: ["W", "Won", WIN],
   lost: ["L", "Lost", LOSS],
   partial: ["P", "Partly won", PART],
-  settled: ["S", "Settled", "#6b5d4b"],
+  settled: ["S", "Settled", SETTLED],
 };
 
 /** Status stamp for a case: the outcome once decided, else where the hearing stands. */
@@ -57,6 +58,33 @@ function phoneText(u: User) {
   return `+${code} ${code === "91" && n.length === 10 ? `${n.slice(0, 5)} ${n.slice(5)}` : n}`;
 }
 
+const FACTORS = [
+  ["terms", "Terms won", 50],
+  ["closed", "Deal closed", 25],
+  ["offers", "Offers used", 15],
+  ["conditions", "Conditions", 10],
+] as const;
+const TIER_COLOR: Record<string, string> = { Exceptional: WIN, Strong: WIN, Capable: "#7a4a0c", Developing: LOSS };
+const PROVISIONAL_UNDER = 5; // scores before the rating firms up
+const ORDINAL = ["first", "second", "third"];
+const tierOf = (n: number) => (n >= 85 ? "Exceptional" : n >= 70 ? "Strong" : n >= 40 ? "Capable" : "Developing");
+
+/** One line under each factor's bar, read from the averages. */
+function factorNote(key: (typeof FACTORS)[number][0], v: number, n: NegotiatorStats) {
+  if (key === "terms")
+    return v >= 75
+      ? "Final terms moved most of the way toward your client’s position."
+      : v >= 50
+        ? "Final terms moved about half way or more toward your client’s position."
+        : "Final terms stayed close to the other side’s first offer.";
+  if (key === "closed") return `${n.deals} of ${n.scored} negotiation${n.scored === 1 ? "" : "s"} ended in a deal the court accepted.`;
+  if (key === "offers")
+    return n.offers_to_deal
+      ? `You usually settle by your ${ORDINAL[Math.min(2, Math.max(0, Math.round(n.offers_to_deal) - 1))]} offer.`
+      : "No deal yet, so no offers to count.";
+  return v >= 60 ? "You keep most of your client’s conditions on the table." : "You often give up conditions to close the deal.";
+}
+
 const pct = (n: number, t: number) => (t ? `${(n / t) * 100}%` : "0%");
 
 export default function ProfilePage() {
@@ -64,6 +92,7 @@ export default function ProfilePage() {
   const { w } = useViewport();
   const mob = w < 560;
   const two = w >= 980;
+  const three = w >= 1320;
   const roomy = w >= 700;
   const [stats, setStats] = useState<UserStats | null>(null);
   const [cases, setCases] = useState<CaseRow[] | null>(null);
@@ -181,10 +210,18 @@ export default function ProfilePage() {
 
       {loaded && user && stats && cases && (
         <>
-          <div className={cn("grid items-stretch", mob ? "gap-3" : "gap-4.5", two ? "grid-cols-[360px_minmax(0,1fr)]" : "grid-cols-1")}>
+          <div
+            className={cn(
+              "grid items-stretch",
+              mob ? "gap-3" : "gap-4.5",
+              three ? "grid-cols-[320px_minmax(0,1fr)_340px]" : two ? "grid-cols-[360px_minmax(0,1fr)]" : "grid-cols-1",
+            )}
+          >
             <Identity user={user} cases={cases} mob={mob} onEdit={() => setEditing(true)} />
             <Record stats={stats} mob={mob} roomy={roomy} recRef={recRef} rateRef={rateRef} />
+            {three && <Negotiator n={stats.negotiator} mob={mob} side />}
           </div>
+          {!three && <Negotiator n={stats.negotiator} mob={mob} side={false} />}
           <RecentCases cases={cases} px={px} mob={mob} />
         </>
       )}
@@ -437,7 +474,9 @@ function Record({
               <span className="text-[15px] font-bold">
                 {o.wins}W · {o.losses}L · {o.partials}P
               </span>
-              <span className="text-[13px] text-ink-muted">{o.total} decided</span>
+              <span className="text-[13px] text-ink-muted">
+                {o.total} decided{o.settled ? ` · ${o.settled} settled` : ""}
+              </span>
             </div>
             <div className="flex min-w-0 flex-col gap-4">
               {[role("As Plaintiff", stats.as_plaintiff), role("As Defence", stats.as_defendant)].map((r) => (
@@ -497,11 +536,7 @@ function Record({
                 })}
               </div>
               <div className="flex flex-wrap gap-3.5 text-xs text-ink-muted">
-                {[
-                  ["Won", WIN],
-                  ["Partial", PART],
-                  ["Lost", LOSS],
-                ].map(([t, c]) => (
+                {[["Won", WIN], ["Partial", PART], ["Lost", LOSS], ...(o.settled ? [["Settled", SETTLED]] : [])].map(([t, c]) => (
                   <span key={t} className="flex items-center gap-1.5">
                     <span className="h-2.25 w-2.25" style={{ background: c }} />
                     {t}
@@ -573,15 +608,152 @@ function RecentCases({ cases, px, mob }: { cases: CaseRow[]; px: string; mob: bo
               </span>
             </span>
             {!mob && <span className="text-[13px] whitespace-nowrap text-ink-muted">{formatDate(c.created_at)}</span>}
-            <span
-              className={cn(TAG, "justify-self-end border-[1.5px] px-2 pt-0.75 pb-0.5 whitespace-nowrap")}
-              style={{ borderColor: color, color }}
-            >
-              {label}
+            <span className="flex flex-wrap items-center justify-end gap-1.5 justify-self-end">
+              <span className={cn(TAG, "border-[1.5px] px-2 pt-0.75 pb-0.5 whitespace-nowrap")} style={{ borderColor: color, color }}>
+                {label}
+              </span>
+              {c.negotiation_score != null && (
+                <span
+                  title="Negotiation score"
+                  className="border-[1.5px] border-dashed px-1.75 pt-0.5 pb-px font-data text-[11px] font-medium whitespace-nowrap"
+                  style={{ borderColor: TIER_COLOR[tierOf(c.negotiation_score)], color: TIER_COLOR[tierOf(c.negotiation_score)] }}
+                >
+                  Neg {c.negotiation_score}
+                </span>
+              )}
             </span>
           </Link>
         );
       })}
+    </section>
+  );
+}
+
+/** Profile v2.dc.html, negotiator rating: the average of the last ten negotiation scores. */
+function Negotiator({ n, mob, side }: { n: NegotiatorStats; mob: boolean; side: boolean }) {
+  const [how, setHow] = useState(false);
+  const px = mob ? "px-4" : "px-6";
+  const mx = mob ? "mx-4" : "mx-6";
+  const provisional = n.scored < PROVISIONAL_UNDER;
+  const tier = n.tier ?? "";
+  const stampColor = provisional ? SETTLED : TIER_COLOR[tier];
+  const days = n.days_to_settle == null ? null : Math.max(1, Math.round(n.days_to_settle));
+  const stats: [string, string, string][] = [
+    ["Deals closed", `${n.deals} of ${n.scored}`, "accepted by the court"],
+    ["Offers to a deal", n.offers_to_deal?.toFixed(1) ?? "—", "on average"],
+    ["Time to settle", days == null ? "—" : `${days} day${days > 1 ? "s" : ""}`, "first offer to signing"],
+  ];
+
+  return (
+    <section aria-label="Negotiator rating" className={cn(SHEET, "flex min-w-0 flex-col")}>
+      <div className={cn(HEAD, px)}>
+        <span>Negotiator rating</span>
+        <button
+          type="button"
+          onClick={() => setHow(!how)}
+          aria-expanded={how}
+          className="cursor-pointer border-0 border-b border-seal bg-transparent p-0 text-[10.5px] font-bold tracking-[0.16em] text-seal uppercase hover:text-ink"
+        >
+          How it’s scored
+        </button>
+      </div>
+      {how && (
+        <div
+          className={cn(
+            "mt-4 flex flex-col gap-2 border border-ink/20 bg-[#f8f3e7] px-4 py-3.5 text-[13.5px] leading-[1.55] text-[#2a2018]",
+            mx,
+          )}
+        >
+          <span>
+            Each case with settlement talks gets a score out of 100 from its negotiation analysis, once the case is decided. Your rating is
+            the average of your last ten scores.
+          </span>
+          <span>
+            <strong>Terms won (50%)</strong> measures how far the final terms moved in your client’s favour from the other side’s first
+            offer. <strong>Deal closed (25%)</strong> is full marks when the court accepts the settlement, partial when terms are agreed but
+            the court refuses or adjourns, and zero when talks end. <strong>Offers used (15%)</strong> rewards reaching terms in fewer
+            offers. <strong>Conditions (10%)</strong> counts conditions that favour your client.
+          </span>
+          <span className="text-ink-label">Developing 0–39 · Capable 40–69 · Strong 70–84 · Exceptional 85–100</span>
+        </div>
+      )}
+      {n.pending > 0 && (
+        <div
+          className={cn(
+            "mt-3.5 border border-[rgba(176,122,26,.5)] bg-[#f3e6c6] px-3 py-2.25 text-[13.5px] leading-[1.45] text-[#5a3608]",
+            mx,
+          )}
+        >
+          {n.pending} decided case{n.pending === 1 ? " has" : "s have"} settlement talks waiting for a score. Opening a case’s negotiation
+          analysis scores it.
+        </div>
+      )}
+      {n.score == null ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2.5 px-5 py-8.5 text-center">
+          <span className="font-display text-2xl leading-[1.2]">No negotiations yet.</span>
+          <span className="max-w-[46ch] text-[15px] leading-[1.55] text-ink-label">
+            Settle a case, or try to, and your first negotiation score appears here.
+          </span>
+        </div>
+      ) : (
+        <>
+          <div
+            className={cn(
+              "grid flex-1 items-center gap-x-8 gap-y-5 pt-5 pb-5.5",
+              px,
+              side || mob ? "grid-cols-1" : "grid-cols-[auto_minmax(0,1fr)]",
+            )}
+          >
+            <div className="flex flex-col gap-1.5">
+              <span className={cn(TAG, "text-ink-label")}>Rating</span>
+              <span className="flex items-baseline gap-1">
+                <span className={cn("font-display", mob ? "text-[72px]/[0.9]" : "text-[84px]/[0.9]")}>{n.score}</span>
+                <span className="font-display text-[26px]">/100</span>
+              </span>
+              <span
+                className="-rotate-2 self-start border-[3px] border-double px-2.5 pt-1 pb-0.75 font-display text-[15px] leading-none tracking-[0.08em] uppercase"
+                style={{ borderColor: stampColor, color: stampColor }}
+              >
+                {provisional ? "Provisional" : tier}
+              </span>
+              <span className="text-[13px] text-ink-label">
+                {provisional ? `${n.scored} of ${PROVISIONAL_UNDER} cases scored · reads as ${tier} so far` : `${n.scored} cases scored`}
+              </span>
+            </div>
+            <div className="flex min-w-0 flex-col gap-3.5">
+              {FACTORS.map(([key, label, weight]) => {
+                const v = n.factors[key] ?? 0;
+                return (
+                  <div key={key} className="flex flex-col gap-1.5">
+                    <div className="flex items-baseline justify-between gap-2.5">
+                      <span className="text-sm font-bold">
+                        {label} <span className="font-data text-[11px] font-medium text-ink-meta">· {weight}%</span>
+                      </span>
+                      <span className="font-display text-xl">{v}</span>
+                    </div>
+                    <div aria-hidden="true" className="h-2 bg-ink/12">
+                      <span className="block h-full" style={{ width: `${v}%`, background: v >= 70 ? WIN : v >= 40 ? PART : LOSS }} />
+                    </div>
+                    <span className="text-[12.5px] leading-[1.4] text-ink-label">{factorNote(key, v, n)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 border-t border-ink/25">
+            {stats.map(([k, v, sub], i) => (
+              <div
+                key={k}
+                className={cn("flex min-w-0 flex-col gap-0.75 py-3.5", mob ? "px-3" : "px-4", i > 0 && "border-l border-ink/20")}
+              >
+                <span className={cn(TAG, "text-ink-label")}>{k}</span>
+                <span className="font-display text-[26px] leading-[1.05]">{v}</span>
+                <span className="text-[12.5px] leading-[1.4] text-ink-label">{sub}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }

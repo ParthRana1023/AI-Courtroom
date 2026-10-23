@@ -86,6 +86,8 @@ async def list_cases(current_user: User = Depends(get_current_user)):
             "created_at": case.created_at,
             "status": case.status,
             "outcome": case.outcome,
+            "settlement_result": case.settlement_result,
+            "negotiation_score": case.negotiation.score if case.negotiation else None,
             "user_role": case.user_role,
         }
         for case in cases
@@ -497,6 +499,7 @@ async def list_deleted_cases(current_user: User = Depends(get_current_user)):
             "deleted_at": case.deleted_at,
             "status": case.status,
             "outcome": case.outcome,
+            "settlement_result": case.settlement_result,
             "user_role": case.user_role,
         }
         for case in cases

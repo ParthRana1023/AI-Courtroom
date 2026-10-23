@@ -1246,12 +1246,20 @@ async def test_a_settled_case_gets_its_negotiation_analysed_once(
     fake_llm.responses.append(analysis())
     attempt = recorded_attempt(date(2099, 1, 1))
     attempt.ruling = "The FIR is quashed."
+    attempt.signatures["Asha Rao"] = attempt.entries[0].at + timedelta(days=3)
     case = await adjourned(
         status=CaseStatus.RESOLVED,
         outcome=CaseOutcome.SETTLED,
         settlement_result="quashed",
         settlements=[attempt],
     )
+    await CaseOutcomeRecord(
+        user_id=case.user_id,
+        case_id=case.id,
+        cnr=case.cnr,
+        role=Roles.DEFENDANT,
+        outcome=CaseOutcome.SETTLED,
+    ).insert()
 
     first = await analyse(client, auth_headers, case)
     second = await analyse(client, auth_headers, case)
@@ -1271,6 +1279,13 @@ async def test_a_settled_case_gets_its_negotiation_analysed_once(
     assert result["call"] == "right"
     assert [n["kind"] for n in result["notes"]] == ["worked", "improve"]
     assert result["review"] == "### How you negotiated\nYou opened well."
+    # The score goes on the stats ledger, for the negotiator rating.
+    record = await CaseOutcomeRecord.find_one(CaseOutcomeRecord.case_id == case.id)
+    assert record is not None and record.negotiation_score == result["score"]
+    assert record.negotiation_factors == {
+        f["key"]: f["value"] for f in result["factors"]
+    }
+    assert (record.offers_to_deal, record.days_to_settle) == (1, 3.0)
 
     assert len(fake_llm.calls) == 1
     prompt = fake_llm.prompts[0]

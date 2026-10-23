@@ -12,7 +12,12 @@ from pydantic import (
     model_validator,
 )
 
-from app.models.user import AuthMethod, NotificationPrefs, PartialScoring
+from app.models.user import (
+    AuthMethod,
+    NotificationPrefs,
+    PartialScoring,
+    SettledScoring,
+)
 from app.utils.datetime import get_current_datetime
 from app.utils.llm_trace import is_developer
 
@@ -126,6 +131,7 @@ class UserOut(BaseModel):
     preferred_case_state: str | None = None
     rag_enabled: bool = True
     partial_scoring: PartialScoring = "zero"
+    settled_scoring: SettledScoring = "exclude"
 
     # Account and security
     has_password: bool = False
@@ -171,6 +177,8 @@ class RagPreferenceUpdate(BaseModel):
 
 
 class StatsPreferenceUpdate(BaseModel):
-    """Schema for choosing how partly successful cases count toward the win rate."""
+    """Schema for choosing how partly successful and settled cases count toward the
+    win rate. Either can be sent alone."""
 
-    partial_scoring: PartialScoring
+    partial_scoring: PartialScoring | None = None
+    settled_scoring: SettledScoring | None = None

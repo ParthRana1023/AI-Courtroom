@@ -10,13 +10,14 @@ import CourtModelLoader from "@/components/court/court-model-loader";
 import Scroller from "@/components/court/scroller";
 import { buttonClass } from "@/components/court/button";
 import CaseFileBody from "@/components/cases/case-file-body";
-import { STATUSES, formatDate } from "@/components/cases/kit";
+import { SETTLED_AS, STATUSES, formatDate, statusKey } from "@/components/cases/kit";
 import Signature from "@/components/court/signature";
 import { useAuth } from "@/contexts/auth-context";
 import { useOnline } from "@/hooks/use-online";
 import { useViewport } from "@/hooks/use-viewport";
 import { caseAPI } from "@/lib/api";
 import { NUMERALS, SECTIONS, readCaseFile, sideNames, type SectionId } from "@/lib/case-file";
+import { longDate } from "@/lib/settlement";
 import { caseFonts } from "@/lib/signature";
 import { cn } from "@/lib/utils";
 import type { Case } from "@/types";
@@ -27,6 +28,29 @@ type Load = "loading" | "loaded" | "error" | "notfound";
 const OFFLINE = "You’re offline. Choose a side when you’re back online.";
 const BUSY = ["Recording your appearance…", "Preparing the evidence images…", "Opening Case Prep…"];
 const BUSY_PCT = ["20%", "65%", "100%"];
+const DID = {
+  quashed: "quashed the FIR on the compromise",
+  compounded: "recorded the compounding of the offence",
+  plea: "disposed of the case by plea bargaining",
+};
+
+/** The settled banner: when the court gave the compromise effect, what it did, and how long payments run. */
+function settledNote(c: Case) {
+  const deal = c.settlements?.findLast((s) => s.status === "recorded");
+  if (c.outcome !== "settled" || !c.settlement_result || !deal) return null;
+  const [sec, court] = (c.settlement_profile?.court ?? "").split(" · ");
+  const last = deal.payments.at(-1);
+  const pay = !last
+    ? ""
+    : deal.payments.every((p) => p.paid_at)
+      ? " Every instalment is paid."
+      : ` Payments are tracked until ${longDate(last.due).replace(/^\d+ /, "")}.`;
+  return {
+    on: deal.ended_at ? longDate(deal.ended_at.slice(0, 10)) : null,
+    t: `The ${court || "court"} ${DID[c.settlement_result]}${sec && court ? ` under ${sec}` : ""}.${pay}`,
+  };
+}
+
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function CaseDetails({ params }: { params: Promise<{ cnr: string }> }) {
@@ -70,7 +94,13 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
 
   const file = useMemo(() => readCaseFile(data?.case_text ?? "", data?.evidence ?? []), [data]);
   const role: Side | null = data?.user_role === "plaintiff" || data?.user_role === "defendant" ? data.user_role : null;
-  const status = load === "loaded" && data ? (STATUSES.find(([k]) => k === data.status)?.[1] ?? data.status) : "—";
+  const status =
+    load === "loaded" && data
+      ? data.outcome === "settled" && data.settlement_result
+        ? `Settled · ${SETTLED_AS[data.settlement_result]}`
+        : (STATUSES.find(([k]) => k === statusKey(data))?.[1] ?? data.status)
+      : "—";
+  const settled = load === "loaded" && data ? settledNote(data) : null;
 
   /** Eased scroll to a section; the reader's wheel or touch cancels it. */
   const jump = (id: SectionId) => {
@@ -281,6 +311,35 @@ export default function CaseDetails({ params }: { params: Promise<{ cnr: string 
             </select>
           )}
         </div>
+      )}
+
+      {settled && (
+        <section
+          aria-labelledby="cd-settled"
+          className="flex flex-none flex-wrap items-center gap-x-6 gap-y-3 border-t-[3px] border-[#6b5d4b] bg-paper px-4.5 py-3.5 text-ink"
+        >
+          <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1">
+            <h2 id="cd-settled" className="m-0 font-display text-[19px] leading-[1.2] font-normal">
+              {settled.on ? `Settled on ${settled.on}` : "Settled"}
+            </h2>
+            <span className="text-sm leading-normal text-pretty text-[#2a2018]">{settled.t}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/cases/${cnr}/courtroom`}
+              className="flex h-11 items-center gap-2 bg-ink px-4 text-[11.5px] font-bold tracking-[0.14em] whitespace-nowrap text-paper uppercase hover:bg-seal hover:text-paper"
+            >
+              <span>Order and payments</span>
+              <span aria-hidden="true">→</span>
+            </Link>
+            <Link
+              href={`/cases/${cnr}/settlement`}
+              className="flex h-11 items-center border-[1.5px] border-ink px-4 text-[11.5px] font-bold tracking-[0.14em] whitespace-nowrap text-ink uppercase hover:bg-ink hover:text-paper"
+            >
+              The deed
+            </Link>
+          </div>
+        </section>
       )}
 
       <div className={cn("grid min-h-0 flex-1", wide ? "grid-cols-[300px_minmax(0,1fr)] gap-10" : "grid-cols-[minmax(0,1fr)]")}>

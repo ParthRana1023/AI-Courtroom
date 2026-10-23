@@ -31,6 +31,14 @@ class CaseOutcomeRecord(Document):
     conferences_held: int = 0
     evidence_count: int = 0
 
+    # The negotiation analysis, copied in once it is generated (cases with talks only)
+    negotiation_score: int | None = None
+    negotiation_factors: dict[str, int] = Field(default_factory=dict)
+    # In the deal the court recorded: the user's offers, and days from its first
+    # offer to its last signature
+    offers_to_deal: int | None = None
+    days_to_settle: float | None = None
+
     class Settings:
         name = "case_outcomes"
         indexes: ClassVar[list[IndexModel]] = [

@@ -16,7 +16,7 @@ import { useSectionIndex } from "@/hooks/use-section-index";
 import { useViewport } from "@/hooks/use-viewport";
 import { accountAPI, authAPI, locationAPI } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { CaseLocationPreference, PartialScoring } from "@/types";
+import type { CaseLocationPreference, PartialScoring, SettledScoring } from "@/types";
 
 // Settings.dc.html: one form, one save bar. Theme and developer mode apply at once.
 
@@ -31,6 +31,7 @@ interface Local {
   locState: string;
   rag: boolean;
   partial: PartialScoring;
+  settled: SettledScoring;
   nCase: boolean;
   nRemind: boolean;
   nProduct: boolean;
@@ -52,7 +53,7 @@ const GROUP: Record<string, Key[]> = {
   text: ["textSize"],
   writing: ["enterSubmits", "autoExpand"],
   cases: ["skipArchive", "skipDelete", "loc", "locState"],
-  ai: ["rag", "partial"],
+  ai: ["rag", "partial", "settled"],
   // Hearing reminders and product updates come back once something sends them.
   notify: ["nCase"],
 };
@@ -84,6 +85,7 @@ export default function SettingsPage() {
       locState: user?.preferred_case_state ?? "",
       rag: user?.rag_enabled ?? true,
       partial: user?.partial_scoring ?? "zero",
+      settled: user?.settled_scoring ?? "exclude",
       nCase: user?.notification_prefs?.case_ready ?? true,
       nRemind: user?.notification_prefs?.hearing_reminders ?? true,
       nProduct: user?.notification_prefs?.product_updates ?? false,
@@ -181,7 +183,8 @@ export default function SettingsPage() {
         }),
       );
     if (has("rag")) jobs.push(authAPI.updateRagPreference({ rag_enabled: local.rag }));
-    if (has("partial")) jobs.push(authAPI.updateStatsPreference({ partial_scoring: local.partial }));
+    if (has("partial", "settled"))
+      jobs.push(authAPI.updateStatsPreference({ partial_scoring: local.partial, settled_scoring: local.settled }));
     if (has("nCase", "nRemind", "nProduct"))
       jobs.push(
         accountAPI.updateNotifications({ case_ready: local.nCase, hearing_reminders: local.nRemind, product_updates: local.nProduct }),
@@ -532,7 +535,7 @@ export default function SettingsPage() {
                     <div className="flex flex-col gap-3">
                       <Lead
                         t="Win rate"
-                        d="Choose how a partly successful case (for example, a petition allowed only in part) counts toward the win rate on your profile."
+                        d="Choose how partly successful and settled cases count toward the win rate on your profile. Settled cases always count toward your negotiator rating."
                       />
                       <div className="flex flex-col gap-1.75">
                         <label htmlFor="ps-sel" className={LABEL}>
@@ -548,6 +551,25 @@ export default function SettingsPage() {
                           <option value="half">Half a win</option>
                           <option value="exclude">Left out of the win rate</option>
                         </select>
+                      </div>
+                      <div className="flex flex-col gap-1.75">
+                        <label htmlFor="st-sel" className={LABEL}>
+                          Settled cases count as
+                        </label>
+                        <select
+                          id="st-sel"
+                          value={local.settled}
+                          onChange={(e) => set("settled", e.target.value as SettledScoring)}
+                          className="h-12 w-full max-w-105 cursor-pointer rounded-none border-0 border-b-2 border-ink/55 bg-paper-alt px-2.5 font-data text-[15px] text-ink scheme-light outline-none"
+                        >
+                          <option value="exclude">Left out of the win rate</option>
+                          <option value="score">A win if your negotiator score is 70 or more</option>
+                          <option value="win">A win</option>
+                        </select>
+                        <span className="text-[13px] leading-[1.45] text-pretty text-ink-label">
+                          A settlement has no verdict, so by default it doesn’t change your win rate. Scored by negotiation, one under 70
+                          counts as a loss.
+                        </span>
                       </div>
                     </div>
                     {user.is_developer && (
