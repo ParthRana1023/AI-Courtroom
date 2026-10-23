@@ -17,6 +17,34 @@ const TAG_CLASS: Record<Tag, string> = { New: K.tagNew, Changed: K.tagFix, Fixed
 // not every version bump in the git history.
 const RELEASES: Release[] = [
   {
+    id: "v5-4",
+    title: "5.4.1–5.4.6 · 24 October 2026",
+    lede: "Settlement payments play out, and a default goes where the law sends it.",
+    items: [
+      [
+        "New",
+        "After a settlement, the accused pays the instalments on their own, one a day. How reliably they pay comes from their background, so read it before you settle.",
+      ],
+      [
+        "New",
+        "A missed instalment gets notice under the deed. Paid within it, nothing more comes of it; left unpaid, the complainants act on the default.",
+      ],
+      [
+        "New",
+        "On a quashing, a default brings a contempt petition back to the same court; on a plea bargain, an application to recover the compensation as a fine. You address the court on the day it is listed, and it gives time, a last chance to pay, or a warrant.",
+      ],
+      ["New", "On compounding, the acquittal stands: a default goes to a suit on the deed in a civil court, not back to this case."],
+      [
+        "New",
+        "The payments, day by day, in the courtroom, and where they stand in My Cases and on the case file. Emails tell you what happened.",
+      ],
+      [
+        "Fixed",
+        "A missed payment after quashing no longer offers to recall the order and revive the FIR, which the law doesn’t allow. The remedy is a contempt petition.",
+      ],
+    ],
+  },
+  {
     id: "v5-3",
     title: "5.2–5.4 · 21–24 October 2026",
     lede: "Settle a case out of court.",

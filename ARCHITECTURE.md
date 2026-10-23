@@ -181,6 +181,7 @@ The petition is plain Markdown with fixed bold headers. The client's `lib/case-f
 ### Case prep
 
 - **Choosing a side** (`PUT /cases/{cnr}/roles`) is final. It queues evidence images and starts AI counsel's private **conferences** with its own parties (`services/counsel_conferences.py`), both in the background.
+- **Party bios** are written the first time a party is opened (`ensure_party_bio`). The same call rates the party's **payment reliability** (0–1: the chance they pay a settlement instalment on its due date, judged from their means and conduct). It is taken out of the bio, so the persona never speaks of it, and only developer accounts receive it; everyone else judges it from the background, as the model did. A bio written before the rating is rated once from the bio (`ensure_reliability`).
 - **Party chat** (`POST /cases/{cnr}/parties/{id}/chat`): the `party` task answers in character. New facts in the answer can become **privileged notes** (`PN-01`, …), which go before the court only when counsel relies on them.
 - **Evidence images**: `queue_image` marks visual exhibits pending, and `generate_queued_images` makes each one with Workers AI and uploads it to Cloudinary. Images stuck pending after a restart are released and retried; there is a per-case limit.
 
@@ -266,13 +267,15 @@ sequenceDiagram
 
 A criminal case can be settled out of court, the way a compromise works in India: the accused and the complainants agree terms, sign a deed, file it, and a court decides whether the law lets it act on them.
 
-| File                                      | Does                                                                                                          |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `routes/settlement.py`                    | The desk (`/cases/{cnr}/settlement/*`), the hearing, payments, and the courtroom's ask for time               |
-| `services/llm/settlement.py`              | The route (`assess_settlement`), AI counsel's replies, the hearing (`hold_hearing`), the negotiation analysis |
-| `services/settlement_deed.py`             | The deed as a template from the agreed terms; the hearing date; the court calling a filed compromise          |
-| `services/settlement_payments.py`         | Instalments with real due dates; status (paid, due, upcoming, missed, late) worked out when read              |
-| `client/app/(app)/cases/[cnr]/settlement` | The settlement desk: route card, negotiation log, offer panel, deed with animated signatures                  |
+| File                                                  | Does                                                                                                                        |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `routes/settlement.py`                                | The desk (`/cases/{cnr}/settlement/*`), the hearing, payments, and the courtroom's ask for time                             |
+| `services/llm/settlement.py`                          | The route (`assess_settlement`), AI counsel's replies, the hearing (`hold_hearing`), the negotiation analysis               |
+| `services/settlement_deed.py`                         | The deed as a template from the agreed terms; the hearing date; the court calling a filed compromise                        |
+| `services/settlement_payments.py`                     | The schedule (an instalment a day), the draws against the accused's reliability, and the timeline worked out when read      |
+| `services/settlement_progress.py`                     | Acts on the timeline once each: emails, the AI complainants moving the court on a default, the court's direction met or not |
+| `client/components/settlement/simulated-payments.tsx` | The payments panel in the courtroom's rail: the timeline, notice, the default before the court, the outcome                 |
+| `client/app/(app)/cases/[cnr]/settlement`             | The settlement desk: route card, negotiation log, offer panel, deed with animated signatures                                |
 
 **The route.** On the first visit, one `judge` call reads the case file and returns a `SettlementProfile`, cached on the case: the route (`quash` under s.528 BNSS in the High Court, `compound` under s.359 BNSS, `plea` under ss.289–295 BNSS, or `none` with each route's reason for being closed), the offences, who must sign, and the conditions that fit the case (2–6, each with its deed clause). Heinous offences close quashing (_Laxmi Narayan_); quashing follows _Gian Singh_ and _Narinder Singh_.
 
@@ -299,7 +302,28 @@ stateDiagram-v2
    - **Granted:** the order becomes `case.verdict`, the case is resolved with `settlement_result` (`quashed`, `compounded`, `plea`), `record_settlement` writes the `settled` ledger row without the classifier, and the payments start.
    - **Adjourned:** re-listed for another date.
    - **Refused:** as in real practice, talks close and the court lists the matter for hearing on the merits.
-4. **Payments.** Due dates start `FIRST_DUE` after the order. Whether the AI side misses one instalment is decided once, when the order is passed. A defending user deposits each instalment; a missed one opens the route's remedies (recall the order, a notice, recovery).
+4. **Payments.** The accused pays on their own (the user's client when the user defends), simulated on real days: an instalment falls due each day from the day after the order. When the order is passed, `draw` decides once, against the accused's payment reliability, whether each instalment is paid on time and, if missed, whether it is paid within the notice the deed gives, and whether the accused pays what the court later directs. The draws (`Settlement.plan`) never leave the server. `timeline` works out each instalment's status from the draws and today; nothing runs on a timer.
+
+   What follows a default is what the law allows on each route. A quashing order can't be recalled for a breach of the compromise (s.403 BNSS bars a review), so the accused's promise to pay is an undertaking to the High Court, and its wilful breach is civil contempt. Compounding is an acquittal; a default only gives a claim on the deed in a civil court. Plea-bargain compensation is part of the sentence and is recovered as a fine (s.461 BNSS). The deed and the order say so.
+
+   ```mermaid
+   stateDiagram-v2
+       [*] --> paying: order passed
+       paying --> notice: instalment missed
+       notice --> paying: paid within notice (late)
+       notice --> defaulted: unpaid after notice
+       paying --> closed: last instalment paid
+       defaulted --> enforcement: contempt (quash) or recovery (plea), listed in this court
+       defaulted --> suit: compound, a suit on the deed elsewhere
+       enforcement --> suit: court leaves it to a civil suit
+       enforcement --> closed: balance paid as directed, or levied under a warrant
+       enforcement --> punished: contempt, the balance unpaid
+   ```
+
+   `settlement_progress.catch_up` acts on the timeline once each, with a marker on the settlement in one atomic update: it emails the owner (missed, paid late, closed, back in court), and on a default the user defends against it has the AI complainants move the court (listed `LIST_AFTER` later) or sue on the deed. When the user acts for the complainants, they file it (`POST /settlement/enforcement/file`). On the day it is listed, either side addresses the court (`POST /settlement/enforcement`, the `hearing` task): time to pay, a last chance to purge the contempt, a warrant to levy, or relegation to a civil suit. On the day the court gave, the accused pays the balance or the contempt is punished. The case stays `resolved` throughout; the hearing goes on its record. `catch_up` runs on reading the case, the case list and the settlement desk, and from the daily jobs. Developer accounts can play a day forward (`POST /settlement/next-day`).
+
+   Orders passed before the simulation keep their months-long schedule, manual deposits and `defaults_on`.
+
 5. **Negotiation analysis.** `POST /cases/{cnr}/analyze-negotiation`, once the case is resolved and the user negotiated. The `analyzer` task scores four factors (terms won 50%, deal closed 25%, offers used 15%, conditions 10%); the server weights them and sets the tier. It also gives the best terms the other side would likely have taken, and whether settling beat fighting it out. Saved on `case.negotiation` and copied to the ledger row by `record_negotiation` for the negotiator rating. The courtroom analysis (`analyze-case`) leaves the talks out.
 
 **Stats.** `User.settled_scoring` decides how a settled case counts toward win % and streaks: left out (default), a win, or a win at a negotiator score of 70 or more (a loss below; left out until scored). The profile's negotiator rating averages the last ten scores, provisional under five. A score saved before the ledger kept scores is copied in when the stats are read.
@@ -311,13 +335,14 @@ GitHub Actions (`.github/workflows/daily-jobs.yml`) calls `POST /admin/jobs/dail
 1. Takes a lock in `job_locks`, so overlapping runs skip. The lock is deleted on release.
 2. Runs each step and records it in `job_runs`. One step failing does not stop the others.
 
-| Step                | What it does                                                                                                                                                |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `purge_notices`     | Emails accounts 3 days before their 30-day erasure                                                                                                          |
-| `purge`             | Erases accounts deleted over 30 days ago: photo, cases and their images, memory, outcomes, sessions, OTPs, rate-limit keys; contact messages are anonymised |
-| `image_cleanups`    | Retries Cloudinary deletions that failed earlier (`delete_or_queue`)                                                                                        |
-| `hearing_reminders` | One email per adjournment when a case has waited 7 days                                                                                                     |
-| `announcements`     | Sends queued product-update emails in batches, with one-click unsubscribe tokens                                                                            |
+| Step                  | What it does                                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `purge_notices`       | Emails accounts 3 days before their 30-day erasure                                                                                                          |
+| `purge`               | Erases accounts deleted over 30 days ago: photo, cases and their images, memory, outcomes, sessions, OTPs, rate-limit keys; contact messages are anonymised |
+| `image_cleanups`      | Retries Cloudinary deletions that failed earlier (`delete_or_queue`)                                                                                        |
+| `hearing_reminders`   | One email per adjournment when a case has waited 7 days                                                                                                     |
+| `settlement_payments` | Catches every settlement order's payments up (`settlement_progress`) and emails owners what happened                                                        |
+| `announcements`       | Sends queued product-update emails in batches, with one-click unsubscribe tokens                                                                            |
 
 ## Invariants
 
@@ -328,6 +353,7 @@ Rules the code depends on. Breaking one usually passes the tests on mongomock an
 - **Indexes into `courtroom_proceedings` stay valid,** because the record is append-only. Entries are struck or withdrawn, never removed.
 - **One writer per hearing.** Use `controls_hearing` on any route that changes a hearing. The lock is in-process (`asyncio.Lock`), which is correct while the API runs as a single instance; running several instances would need a shared lock.
 - **Function-scoped hearing lock.** It is released when the route returns, not when its background tasks finish. Otherwise Object would queue behind a running AI examination.
+- **The simulation's values stay on the server.** A party's reliability and a settlement's draws (`plan`, `defaults_on`) are in `Case.HIDDEN`; pass it to `model_dump` wherever a whole case or its settlements go out (the case view, the data export). Only developers get the reliability, from the parties API.
 - **Private memory stays private.** Retrieval filters by `source_type` and party; AI counsel's conferences never reach the judge's prompts.
 - **Settlement talks are without prejudice.** Every `retrieve_case_context` call must list its `source_types`, and only `routes/case_analysis.py` may list `settlement`. `tests/unit/test_settlement.py` parses the code to enforce this. The offers never reach the record; a filed compromise and its hearing do, as they would in court.
 - **Current law only.** Prompts and fixtures cite the BNS, BNSS and BSA.
