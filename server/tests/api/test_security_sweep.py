@@ -216,7 +216,6 @@ async def test_reads_never_show_reliability_or_the_draws(
 ):
     from app.models.case import PaymentPlan, Settlement
     from app.models.party import PartyInvolved, PartyRole
-
     from tests.api.test_settlement_routes import PROFILE
 
     case = await make_case(
@@ -243,3 +242,60 @@ async def test_reads_never_show_reliability_or_the_draws(
     if response.status_code == 200:
         assert not hidden_keys(response.json()), path
         assert "0.137" not in response.text, path
+
+
+# ---------------------------------------------------------------------------
+# API6:2023 sensitive business flows: a daily AI limit holds under parallel use
+# ---------------------------------------------------------------------------
+
+
+async def test_parallel_arguments_cant_pass_the_daily_limit(
+    client, auth_headers, courtroom_case, fake_llm, monkeypatch
+):
+    import asyncio
+
+    from app.utils.rate_limiter import argument_rate_limiter
+
+    monkeypatch.setattr(argument_rate_limiter, "requests", 2)
+    fake_llm.responses.extend(["My Lord, the AI side says so."] * 30)
+    cases = [await courtroom_case("defendant", status="not started") for _ in range(6)]
+
+    responses = await asyncio.gather(
+        *(
+            client.post(
+                f"/cases/{case.cnr}/arguments",
+                headers=auth_headers,
+                json={"role": "defendant", "argument": "We deny it"},
+            )
+            for case in cases
+        )
+    )
+
+    codes = [r.status_code for r in responses]
+    assert codes.count(200) == 2 and codes.count(429) == 4, codes
+
+
+async def test_parallel_party_chats_cant_pass_the_limit(
+    client, auth_headers, courtroom_case, witness_party, fake_llm, monkeypatch
+):
+    import asyncio
+
+    from app.utils.rate_limiter import party_chat_rate_limiter
+
+    monkeypatch.setattr(party_chat_rate_limiter, "requests", 2)
+    fake_llm.responses.extend(["I paid on the first of every month."] * 30)
+    cases = [await courtroom_case(status="not started") for _ in range(5)]
+
+    responses = await asyncio.gather(
+        *(
+            client.post(
+                f"/cases/{case.cnr}/parties/{witness_party.id}/chat",
+                headers=auth_headers,
+                json={"message": "When did you pay?"},
+            )
+            for case in cases
+        )
+    )
+
+    codes = [r.status_code for r in responses]
+    assert codes.count(200) == 2 and codes.count(429) == 3, codes

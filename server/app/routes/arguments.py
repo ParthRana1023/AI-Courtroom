@@ -234,7 +234,7 @@ async def submit_argument(
     argument: str = Body(..., max_length=MAX_ARGUMENT),
     is_closing: bool = Body(False),
     exhibit_refs: list[str] = Body([], max_length=10),
-    current_user: User = Depends(argument_rate_limiter.check_only),
+    current_user: User = Depends(argument_rate_limiter.check_alone, scope="function"),
 ):
     logger.info(
         f"Argument submission for case {case_cnr}, role={role}, length={len(argument)}"
@@ -529,7 +529,7 @@ async def submit_closing_statement(
     role: str = Body(...),
     statement: str = Body(..., max_length=MAX_ARGUMENT),
     exhibit_refs: list[str] = Body([], max_length=10),
-    current_user: User = Depends(argument_rate_limiter.check_only),
+    current_user: User = Depends(argument_rate_limiter.check_alone, scope="function"),
 ):
     logger.info(f"Closing statement submission for case {case_cnr}, role={role}")
     case = await get_owned_case(case_cnr, current_user)

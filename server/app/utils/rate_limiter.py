@@ -1,5 +1,7 @@
 # app/utils/rate_limiter.py
+import asyncio
 import math
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException
@@ -44,6 +46,10 @@ def format_wait(seconds: float) -> str:
     if minutes:
         parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
     return " and ".join(parts)
+
+
+# One lock per (limit, user): see RateLimiter.hold.
+_held: defaultdict[tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
 class RateLimiter:
@@ -123,6 +129,22 @@ class RateLimiter:
     async def release(entry: RateLimitEntry) -> None:
         """Take back a reserved attempt that turned out not to count."""
         await entry.delete()
+
+    async def hold(self, user: User = Depends(get_current_user)):
+        """FastAPI dependency (with scope="function"): the current user, holding
+        their lock for this limit until the route returns.
+
+        Limits here are checked before the work and used up after it, so without
+        the lock parallel requests (one per case, say) would all pass the check.
+        One worker serves the API, so a process lock is enough.
+        """
+        async with _held[(self.rate_limiter_type, str(user.id))]:
+            yield user
+
+    async def check_alone(self, user: User = Depends(get_current_user)):
+        """check_only while holding the user's lock for this limit (see hold)."""
+        async with _held[(self.rate_limiter_type, str(user.id))]:
+            yield await self.check_only(user)
 
     async def check_only(self, user: User = Depends(get_current_user)) -> User:
         """FastAPI dependency: 429 if the limit is reached, else the current user.

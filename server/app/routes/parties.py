@@ -186,7 +186,7 @@ async def chat_with_case_party(
     cnr: str,
     party_id: str,
     chat_request: ChatRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(party_chat_rate_limiter.hold, scope="function"),
 ):
     """Chat with a party involved in the case (role-based access control)"""
     logger.info(f"Chat request for party {party_id} in case {cnr}")
