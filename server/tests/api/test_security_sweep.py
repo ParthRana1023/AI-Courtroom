@@ -174,3 +174,72 @@ async def test_an_oversized_photo_is_refused_without_reading_it_all(
 
     assert response.status_code == 400
     assert sum(read) <= 5 * 1024 * 1024 + 1  # not the 12 MB sent
+
+
+# ---------------------------------------------------------------------------
+# API3:2023 excessive data exposure: what the simulation draws by stays hidden
+# ---------------------------------------------------------------------------
+
+
+def hidden_keys(value, found=None):
+    """Every key in a response that should never reach a user."""
+    found = set() if found is None else found
+    if isinstance(value, dict):
+        for key, inner in value.items():
+            if key in ("plan", "defaults_on") or (
+                key == "reliability" and inner is not None
+            ):
+                found.add(key)
+            hidden_keys(inner, found)
+    elif isinstance(value, list):
+        for inner in value:
+            hidden_keys(inner, found)
+    return found
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/cases",
+        "/cases/{cnr}",
+        "/cases/{cnr}/history",
+        "/cases/{cnr}/parties",
+        "/cases/{cnr}/parties/p1",
+        "/cases/{cnr}/parties/p1/chat-history",
+        "/cases/{cnr}/settlement",
+        "/cases/{cnr}/witness/current",
+        "/cases/{cnr}/evidence",
+    ],
+)
+async def test_reads_never_show_reliability_or_the_draws(
+    client, user, auth_headers, make_case, path
+):
+    from app.models.case import PaymentPlan, Settlement
+    from app.models.party import PartyInvolved, PartyRole
+
+    from tests.api.test_settlement_routes import PROFILE
+
+    case = await make_case(
+        user,
+        user_role="plaintiff",
+        ai_role="defendant",
+        settlement_profile=PROFILE,
+        parties_involved=[
+            PartyInvolved(
+                id="p1", name="Ravi", role=PartyRole.APPLICANT, reliability=0.137
+            )
+        ],
+        settlements=[
+            Settlement(
+                defaults_on=None,
+                plan=PaymentPlan(reliability=0.137, draws=[], complies=True),
+            )
+        ],
+    )
+
+    response = await client.get(path.replace("{cnr}", case.cnr), headers=auth_headers)
+
+    assert response.status_code < 500, response.text
+    if response.status_code == 200:
+        assert not hidden_keys(response.json()), path
+        assert "0.137" not in response.text, path

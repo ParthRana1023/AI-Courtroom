@@ -14,3 +14,5 @@ minimumReleaseAgeExclude:
 overrides:
   # @capacitor/cli > xcode pins uuid 7 (GHSA buffer bounds check, fixed in 11.1.1).
   uuid@<11.1.1: ^11.1.1
+  # @serwist/next pins zod 4.6.5 (GHSA-mrhx-c7xc-m3w5 memory exhaustion, fixed in 4.6.6).
+  zod@<4.6.6: ^4.6.6
