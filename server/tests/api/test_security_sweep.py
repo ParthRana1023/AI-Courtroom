@@ -143,3 +143,34 @@ async def test_a_signed_out_token_no_longer_works(client, user):
     assert (await client.post("/auth/logout", headers=headers)).status_code == 200
 
     assert (await client.get("/auth/profile", headers=headers)).status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# API4:2023: an upload is never read whole into memory
+# ---------------------------------------------------------------------------
+
+
+async def test_an_oversized_photo_is_refused_without_reading_it_all(
+    client, auth_headers, monkeypatch
+):
+    from starlette.datastructures import UploadFile
+
+    read = []
+    real_read = UploadFile.read
+
+    async def counting_read(self, size=-1):
+        data = await real_read(self, size)
+        read.append(len(data))
+        return data
+
+    monkeypatch.setattr(UploadFile, "read", counting_read)
+    huge = b"\x89PNG" + b"0" * (12 * 1024 * 1024)
+
+    response = await client.post(
+        "/auth/profile/photo",
+        headers=auth_headers,
+        files={"file": ("a.png", huge, "image/png")},
+    )
+
+    assert response.status_code == 400
+    assert sum(read) <= 5 * 1024 * 1024 + 1  # not the 12 MB sent

@@ -467,7 +467,9 @@ async def upload_profile_photo(
 
     # Validate file size (max 5MB)
     max_size = 5 * 1024 * 1024  # 5MB
-    file_bytes = await file.read()
+    # One byte past the limit is enough to know: reading it all would let any
+    # account fill the server's memory with one upload.
+    file_bytes = await file.read(max_size + 1)
     if len(file_bytes) > max_size:
         logger.warning(f"File size exceeded for photo upload: {len(file_bytes)} bytes")
         raise HTTPException(
