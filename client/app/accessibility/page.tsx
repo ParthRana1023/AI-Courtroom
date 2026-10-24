@@ -17,7 +17,7 @@ export default function AccessibilityPage() {
       kicker="Access to the court · Statement"
       title="ACCESSIBILITY"
       lede="We want everyone to be able to practise in AI Courtroom, whatever device or assistive technology they use."
-      updated="4 October 2026"
+      updated="24 October 2026"
       form={["Form X-3", "Statement on access"]}
       label="Accessibility"
       index={[
@@ -116,6 +116,15 @@ export default function AccessibilityPage() {
               —
             </span>
             <span>New entries in the courtroom record and the interview transcript are announced to screen readers as they arrive.</span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.bullet} aria-hidden="true">
+              —
+            </span>
+            <span>
+              Signing a settlement deed takes a button, not drawing. Each signature is read out as “Signed” with the signer’s name, and
+              appears at once when your device is set to reduce motion.
+            </span>
           </li>{" "}
         </ul>
       </Sec>

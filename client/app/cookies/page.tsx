@@ -17,7 +17,7 @@ export default function CookiePolicyPage() {
       kicker="Records · Cookies"
       title="COOKIE POLICY"
       lede="What cookies AI Courtroom uses, why, and how to change your choices."
-      updated="18 October 2026"
+      updated="24 October 2026"
       form={["Form R-8", "Schedule of cookies"]}
       label="Cookie Policy"
       index={[
@@ -74,7 +74,10 @@ export default function CookiePolicyPage() {
           {" "}
           <li className={K.defRow}>
             <span className={K.term}>token</span>
-            <span className={K.note}>Keeps you signed in. Lasts 1 day, or 7 days if you choose to keep yourself signed in.</span>
+            <span className={K.note}>
+              Keeps you signed in. Cleared after 1 day, or 7 days if you choose to keep yourself signed in, and at once when you sign out,
+              which also ends that sign-in on our side.
+            </span>
           </li>{" "}
           <li className={K.defRow}>
             <span className={K.term}>ai_courtroom_consent</span>
@@ -89,8 +92,15 @@ export default function CookiePolicyPage() {
       <Sec id="storage" n="IV." title="Settings stored in your browser">
         <p className={K.p}>
           Display and writing settings, such as text size, theme, Enter key behaviour and confirmation dialogs, are saved in your browser’s
-          local storage so they apply on this device. Local storage also remembers whether you’ve installed or dismissed the app prompt.
-          Settings like case location, case memory and how partial wins count are saved to your account instead.
+          local storage so they apply on this device. Local storage also keeps a copy of your sign-in token for talking to our server
+          (removed when you sign out), your choices on the home page and which sample cases it last showed, and which handwriting each
+          signer uses on a case’s deed. Settings like case location, case memory and how partial wins count are saved to your account
+          instead.
+        </p>
+        <p className={K.p}>
+          Session storage, cleared when you close the tab, holds the details Google sends while you finish signing up with it, a check that
+          the Google sign-in was started on this page, whether you’ve dismissed the app install prompt, and a random number that groups the
+          error reports your browser sends us so we can tell one visit’s problems apart.
         </p>
         <p className={K.p}>
           When you write to us without signing in, the contact page loads Cloudflare Turnstile from challenges.cloudflare.com to check

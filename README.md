@@ -66,6 +66,7 @@ A criminal case can be settled the way a compromise works in India, and what fol
 ### Accounts and the rest
 
 - Email and password, Google sign-in and one-time codes; profile, settings and notification preferences.
+- Security: a session per device that ends on sign-out; codes that work once, limited per address and per network; AI limits that hold under parallel requests; logs that mask emails and keep no phone numbers; CodeQL on every change, and a sweep test (`server/tests/api/test_security_sweep.py`) that checks every case route refuses other accounts.
 - Hearing reminders (including what happens to a settlement's payments) and optional product-update emails, each with one-click unsubscribe.
 - Account deletion: the account is kept for 30 days (restorable on request through Contact → Account Recovery), then erased automatically.
 - A 3D walk-through landing page (three.js) with a simple fallback for devices without WebGL.

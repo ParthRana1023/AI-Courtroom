@@ -7,10 +7,10 @@ const DOCS: [string, string, string, string, number, string | null][] = [
   ["/about", "ABOUT AI COURTROOM", "About", "About", 5, null],
   ["/privacy", "PRIVACY POLICY", "Privacy Policy", "Privacy Policy", 8, "24 October 2026"],
   ["/terms", "TERMS OF SERVICE", "Terms of Service", "Terms of Service", 12, "24 October 2026"],
-  ["/cookies", "COOKIE POLICY", "Cookie Policy", "Cookie Policy", 7, "18 October 2026"],
+  ["/cookies", "COOKIE POLICY", "Cookie Policy", "Cookie Policy", 7, "24 October 2026"],
   ["/help", "HELP & FAQ", "Help and FAQ", "Help & FAQ", 7, "24 October 2026"],
   ["/changelog", "CHANGELOG", "Changelog", "Changelog", 14, "24 October 2026"],
-  ["/accessibility", "ACCESSIBILITY", "Accessibility", "Accessibility", 4, "4 October 2026"],
+  ["/accessibility", "ACCESSIBILITY", "Accessibility", "Accessibility", 4, "24 October 2026"],
 ];
 const FOOTER = [
   "About",

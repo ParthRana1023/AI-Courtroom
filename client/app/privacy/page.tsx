@@ -87,18 +87,10 @@ export default function PrivacyPage() {
             </span>
           </li>{" "}
           <li className={K.defRow}>
-            <span className={K.term}>Profile</span>
-            <span className={K.note}>A nickname, gender and profile photo, if you choose to add them on your profile.</span>
-          </li>{" "}
-          <li className={K.defRow}>
-            <span className={K.term}>Messages</span>
-            <span className={K.note}>Anything you send through the contact form, with the category you chose.</span>
-          </li>{" "}
-          <li className={K.defRow}>
             <span className={K.term}>Usage and device</span>
             <span className={K.note}>
               How you use the service, your browser type, operating system and IP address. We use these to list your signed-in devices in
-              Settings, so you can sign out any you don’t recognise.
+              Settings, so you can sign out any you don’t recognise, and your IP address to limit sign-in attempts and codes.
             </span>
           </li>{" "}
           <li className={K.defRow}>
@@ -143,8 +135,10 @@ export default function PrivacyPage() {
           <li className={K.defRow}>
             <span className={K.term}>Security</span>
             <span className={K.note}>
-              Keeping the platform secure and preventing fraud and abuse. When you write to us without signing in, Cloudflare Turnstile
-              checks that you’re not a robot; Cloudflare sees your IP address and browser signals for that check only.
+              Keeping the platform secure and preventing fraud and abuse. We count sign-in attempts and the codes we send by email address
+              and by IP address, and the AI requests each account makes, to stop guessing and flooding. When you write to us without signing
+              in, Cloudflare Turnstile checks that you’re not a robot; Cloudflare sees your IP address and browser signals for that check
+              only.
             </span>
           </li>{" "}
         </ul>
@@ -240,6 +234,15 @@ export default function PrivacyPage() {
               —
             </span>
             <span>
+              Sign-in codes expire after 10 minutes and are deleted once used. The counts we keep to limit attempts and codes expire on
+              their own, within a day at most. A device’s sign-in record lasts until it expires or you sign out.
+            </span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.bullet} aria-hidden="true">
+              —
+            </span>
+            <span>
               You can download a copy of your data, or delete your account and everything in it, in{" "}
               <Link href="/settings" className={K.a}>
                 Settings → Account & security
@@ -258,8 +261,10 @@ export default function PrivacyPage() {
 
       <Sec id="security" n="VII." title="Data security">
         <p className={K.p}>
-          We implement industry-standard security measures to protect your data, including encryption, secure servers, and regular security
-          audits. Your case data and personal information are stored securely and accessed only by authorized personnel.
+          Data travels to and from the service over encrypted connections. Passwords are stored only as Argon2 hashes, never as text. Each
+          sign-in is recorded per device and ends when you sign out, sign other devices out or change your password, and links in our emails
+          can’t be used to sign in. Our server logs mask email addresses and keep no phone numbers or passwords. Every change to the code is
+          scanned for security issues with GitHub CodeQL. Your case data and personal information are accessed only by authorised personnel.
         </p>
       </Sec>
 
