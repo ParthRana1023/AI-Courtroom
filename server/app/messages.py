@@ -40,6 +40,10 @@ OTP_SEND_LIMIT = (
     "The court clerk has already issued several summons to this address. "
     "Kindly wait {minutes} minute(s) before asking for another code."
 )
+CODE_IP_LIMIT = (
+    "Too many codes have been asked for from this network. "
+    "Kindly wait {minutes} minute(s) and try again."
+)
 LOGIN_LOCKED = (
     "Too many failed attempts to enter the court. "
     "Kindly try again after {minutes} minute(s)."

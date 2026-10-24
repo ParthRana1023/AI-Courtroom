@@ -159,6 +159,10 @@ class Settings(BaseSettings):
     argument_rate_window: int = 86400  # Window in seconds (86400 = 24 hours)
     otp_send_limit: int = 3  # OTP emails allowed per address per window
     otp_send_window: int = 600  # Window in seconds (10 minutes)
+    # Codes sent before sign-in from one IP, to any address. Generous: mobile
+    # carriers put many users behind one address.
+    otp_ip_limit: int = 15
+    otp_ip_window: int = 3600
     otp_max_attempts: int = 5  # Wrong guesses before an OTP is discarded
     otp_expire_minutes: int = 10  # How long an emailed code stays valid
     login_failure_limit: int = 5  # Wrong passwords per email per window

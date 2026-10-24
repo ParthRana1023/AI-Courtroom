@@ -59,15 +59,24 @@ from app.utils.rate_limiter import (
     RateLimiter,
     login_failure_email_limiter,
     login_failure_ip_limiter,
+    otp_ip_rate_limiter,
     otp_send_rate_limiter,
 )
 
 logger = get_logger(__name__)
 
+
+async def codes_from_this_network(request: Request) -> None:
+    """A code sent before sign-in uses up one of this IP's codes for the hour."""
+    await otp_ip_rate_limiter.reserve(client_ip(request), messages.CODE_IP_LIMIT)
+
+
+sends_a_code = [Depends(codes_from_this_network)]
+
 router = APIRouter()
 
 
-@router.post("/register/initiate")
+@router.post("/register/initiate", dependencies=sends_a_code)
 async def initiate_registration(user_data: UserCreate, request: Request):
     logger.info(f"Registration initiated for email: {user_data.email}")
 
@@ -699,7 +708,9 @@ async def find_phone_user(phone_code: str, phone_number: str) -> User | None:
     )
 
 
-@router.post("/phone/send-otp", dependencies=[Depends(require_phone_auth)])
+@router.post(
+    "/phone/send-otp", dependencies=[Depends(require_phone_auth), *sends_a_code]
+)
 async def send_phone_otp(data: PhoneOtpRequest):
     existing = await find_phone_user(data.phone_code, data.phone_number)
     if data.purpose == "login" and existing is None:
@@ -746,7 +757,7 @@ async def verify_phone_otp(data: PhoneVerifyRequest, request: Request):
 # ---------------------------------------------------------------------------
 
 
-@router.post("/password/forgot")
+@router.post("/password/forgot", dependencies=sends_a_code)
 async def forgot_password(data: ForgotPasswordRequest, request: Request):
     """Email a reset link. The reply never says whether the account exists."""
     key = f"reset:{data.email}"

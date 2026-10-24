@@ -169,6 +169,11 @@ case_generation_rate_limiter = RateLimiter(
 otp_send_rate_limiter = RateLimiter(
     settings.otp_send_limit, settings.otp_send_window, "otp_send_rate_limiter"
 )
+# Per address alone, one client could mail every address it likes and spend the
+# day's email quota, which every sign-in needs.
+otp_ip_rate_limiter = RateLimiter(
+    settings.otp_ip_limit, settings.otp_ip_window, "otp_ip"
+)
 
 # Only wrong passwords are recorded. Per email stops guessing one account; per IP
 # stops one client trying many accounts.
