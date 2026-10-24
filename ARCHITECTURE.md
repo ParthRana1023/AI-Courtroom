@@ -202,7 +202,7 @@ sequenceDiagram
     Note over API: refused during the counsel recess after an adjournment
     U->>API: POST /arguments {role, argument, exhibit_refs}
     API->>API: courtroom_control: lock case, check device
-    API->>API: opening if first statement; exhibits only in arguments
+    API->>API: opening if first statement, exhibits only in arguments
     API->>DB: record argument in the timeline
     API->>L: counter-argument (RAG: chats, evidence, record…)
     L-->>API: AI counsel's reply
