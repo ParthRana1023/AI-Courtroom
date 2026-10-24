@@ -298,6 +298,7 @@ async def test_log_sms_provider_writes_the_message_to_the_log(caplog):
     with caplog.at_level("INFO"):
         assert await send_sms("+919876543210", "123456 is your code") is True
     assert "123456 is your code" in caplog.text
+    assert "9876543210" not in caplog.text  # logs keep no phone numbers
 
 
 # ---------------------------------------------------------------------------

@@ -37,14 +37,16 @@ async def create_otp(
     ``email`` is the address the code belongs to; for ``channel="sms"`` it is the
     E.164 phone number instead (the OTP collection keys both by this field).
     """
-    logger.info(f"Creating OTP for: {email}, is_registration={is_registration}")
+    # The address isn't logged: it may be a phone number. The request id ties
+    # these lines to their request.
+    logger.info(f"Creating OTP ({channel}), is_registration={is_registration}")
 
     # Stops anyone from flooding an inbox (or our mail quota) with codes.
     await otp_send_rate_limiter.ensure_available(email, messages.OTP_SEND_LIMIT)
 
     # Delete any existing OTPs for this email
     await OTP.find(OTP.email == email).delete()
-    logger.debug(f"Deleted existing OTPs for: {email}")
+    logger.debug("Deleted existing OTPs")
 
     # Generate new OTP
     otp_code = generate_otp()
@@ -60,10 +62,10 @@ async def create_otp(
         is_registration=is_registration,
         purpose=purpose,
     )
-    logger.debug(f"Inserting OTP for: {email}, expiry={expiry_utc}")
+    logger.debug(f"Inserting OTP, expiry={expiry_utc}")
     await otp.insert()
     await otp_send_rate_limiter.register_usage(email)
-    logger.debug(f"OTP inserted successfully for: {email}")
+    logger.debug("OTP inserted")
 
     if channel == "sms":
         purpose_text = " to delete your account" if purpose == "delete_account" else ""
@@ -106,7 +108,7 @@ async def verify_otp(
 
     otp_doc = await OTP.find_one(*filters)
     if not otp_doc:
-        logger.warning(f"OTP not found for: {email}")
+        logger.warning("OTP not found")
         return False
 
     # MongoDB returns naive UTC datetimes
@@ -114,7 +116,7 @@ async def verify_otp(
     if expiry.tzinfo is None:
         expiry = expiry.replace(tzinfo=UTC)
     if expiry < get_current_datetime():
-        logger.warning(f"OTP expired for: {email}")
+        logger.warning("OTP expired")
         await OTP.find(OTP.email == email).delete()
         return False
 
@@ -128,16 +130,16 @@ async def verify_otp(
     if not claimed.modified_count or not secrets.compare_digest(otp_doc.otp, otp_code):
         if not claimed.modified_count or tries_used >= settings.otp_max_attempts:
             await otp_doc.delete()
-            logger.warning(f"OTP discarded after too many attempts for: {email}")
+            logger.warning("OTP discarded after too many attempts")
         else:
-            logger.warning(f"Wrong OTP for: {email}")
+            logger.warning("Wrong OTP")
         return False
 
     # Used once: two requests with the right code at the same moment both pass the
     # check, but only the one whose delete removes it is let in.
     used = await OTP.get_pymongo_collection().delete_one({"_id": otp_doc.id})
     if not used.deleted_count:
-        logger.warning(f"OTP already used for: {email}")
+        logger.warning("OTP already used")
         return False
-    logger.info(f"OTP verified for: {email}")
+    logger.info("OTP verified")
     return True

@@ -18,7 +18,7 @@ const TAG_CLASS: Record<Tag, string> = { New: K.tagNew, Changed: K.tagFix, Fixed
 const RELEASES: Release[] = [
   {
     id: "v5-5",
-    title: "5.5.1–5.6.0 · 24 October 2026",
+    title: "5.5.1–5.6.1 · 24 October 2026",
     lede: "A security review of the whole app, every fix tested against the problem it closes.",
     items: [
       [
@@ -29,6 +29,7 @@ const RELEASES: Release[] = [
       ["Fixed", "Sign-up and password-reset codes are limited per network, so nobody can flood other people’s inboxes."],
       ["Fixed", "The daily limits on arguments, client chats and witness questions hold even when several requests arrive at once."],
       ["Fixed", "An oversized profile photo is turned away straight away."],
+      ["Fixed", "Our server logs no longer record phone numbers or the address a sign-in code was sent to."],
       ["Fixed", "What the court strikes from the record is no longer weighed in the judgment or recalled by the AI later in the hearing."],
       [
         "Fixed",

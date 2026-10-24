@@ -98,31 +98,35 @@ class RateLimiter:
         if remaining or seconds is None:
             return
         minutes = max(1, math.ceil(seconds / 60))
-        logger.warning(f"Rate limit reached for {key} ({self.rate_limiter_type})")
+        # Not the key: it can be an email, a phone number or an IP.
+        logger.warning(f"Rate limit reached ({self.rate_limiter_type})")
         raise HTTPException(status_code=429, detail=message.format(minutes=minutes))
 
     async def reserve(self, key: str, message: str) -> RateLimitEntry:
         """Take an attempt before the work rather than after: checking first and
         recording later lets parallel requests all pass the check. The attempt is
-        recorded, then counted with the rest; one past the limit is taken back and
-        refused (429). ``release`` it if the attempt shouldn't count."""
+        recorded, then admitted only if fewer than the limit were recorded before
+        it; one past the limit is taken back and refused (429). ``release`` it if
+        the attempt shouldn't count."""
         entry = await RateLimitEntry(
             user_id=key,
             rate_limiter_type=self.rate_limiter_type,
             expiration_time=get_current_datetime() + timedelta(seconds=self.window),
         ).insert()
-        remaining, seconds = await self.get_remaining_attempts(key)
-        if remaining or seconds is None:
-            return entry
-        taken = await RateLimitEntry.find(
+        _, seconds = await self.get_remaining_attempts(key)  # clears expired ones
+        # First come, first served, by insertion order (ObjectIds increase). A
+        # plain count fails parallel requests on a real server: each one inserts
+        # before any counts, so all of them see too many and refuse themselves.
+        place = await RateLimitEntry.find(
             RateLimitEntry.user_id == key,
             RateLimitEntry.rate_limiter_type == self.rate_limiter_type,
+            RateLimitEntry.id <= entry.id,
         ).count()
-        if taken <= self.requests:  # this one was the last allowed
+        if place <= self.requests:
             return entry
         await entry.delete()
-        logger.warning(f"Rate limit reached for {key} ({self.rate_limiter_type})")
-        minutes = max(1, math.ceil(seconds / 60))
+        logger.warning(f"Rate limit reached ({self.rate_limiter_type})")
+        minutes = max(1, math.ceil((seconds or self.window) / 60))
         raise HTTPException(status_code=429, detail=message.format(minutes=minutes))
 
     @staticmethod
@@ -171,9 +175,7 @@ class RateLimiter:
             rate_limiter_type=self.rate_limiter_type,
             expiration_time=now + timedelta(seconds=self.window),
         ).insert()
-        logger.debug(
-            f"Rate limit usage registered for user {user_id} ({self.rate_limiter_type})"
-        )
+        logger.debug(f"Rate limit usage registered ({self.rate_limiter_type})")
 
 
 argument_rate_limiter = RateLimiter(

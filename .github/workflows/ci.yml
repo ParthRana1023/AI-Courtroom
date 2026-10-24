@@ -9,6 +9,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job only checks out and tests; the token needs nothing more.
+permissions:
+  contents: read
+
 jobs:
   server-tests:
     name: Server tests (${{ matrix.database }})

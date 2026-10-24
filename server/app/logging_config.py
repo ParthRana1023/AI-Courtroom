@@ -36,6 +36,8 @@ class SensitiveDataFilter(logging.Filter):
         r"(eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*)"
     )
     PASSWORD_PATTERN = re.compile(r'(password["\']?\s*[:=]\s*["\']?)([^"\'}\s]+)')
+    # E.164 numbers (+919876543210): phone accounts sign in and get codes by them.
+    PHONE_PATTERN = re.compile(r"\+(\d{2})\d{4,11}(\d{2})\b")
     API_KEY_PATTERN = re.compile(
         r'(api[_-]?key["\']?\s*[:=]\s*["\']?)([a-zA-Z0-9_-]{20,})'
     )
@@ -62,6 +64,8 @@ class SensitiveDataFilter(logging.Filter):
         text = self.EMAIL_PATTERN.sub(
             lambda m: f"{m.group(1)[0]}***@{m.group(2)}", text
         )
+        # Mask phone numbers: +919876543210 -> +91***10
+        text = self.PHONE_PATTERN.sub(r"+\1***\2", text)
         # Mask JWT tokens
         text = self.TOKEN_PATTERN.sub("[REDACTED_TOKEN]", text)
         # Mask passwords

@@ -54,11 +54,11 @@ async def send_email(
             f"Connecting to SMTP server: {settings.smtp_server}:{settings.smtp_port}"
         )
         await asyncio.to_thread(_deliver, message)
-        logger.info(f"Email sent successfully to {to_email}")
+        logger.info("Email sent")
         health.record("auth", ok=True)
         return True
     except Exception:
-        logger.exception(f"Failed to send email to {to_email}")
+        logger.exception("Failed to send email")
         health.record("auth", ok=False)
         return False
 
@@ -66,7 +66,7 @@ async def send_email(
 async def send_otp_email(email: str, otp: str, is_registration: bool = True):
     """Send OTP verification email"""
     action = "registration" if is_registration else "login"
-    logger.info(f"Sending OTP email for {action} to: {email}")
+    logger.info(f"Sending OTP email for {action}")
 
     subject = f"Your OTP for {action} - AI Courtroom"
     body = f"""
@@ -81,9 +81,9 @@ async def send_otp_email(email: str, otp: str, is_registration: bool = True):
     """
     result = await send_email(email, subject, body)
     if result:
-        logger.debug(f"OTP email sent for {action}: {email}")
+        logger.debug(f"OTP email sent for {action}")
     else:
-        logger.warning(f"OTP email failed for {action}: {email}")
+        logger.warning(f"OTP email failed for {action}")
     return result
 
 
