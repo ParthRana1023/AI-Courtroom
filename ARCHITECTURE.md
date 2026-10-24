@@ -104,7 +104,8 @@ One FastAPI process serves everything; there is no queue or worker. Slow work ru
 ## Requests, auth and sessions
 
 - **Tokens.** Sign-in returns a JWT whose claims are the user id (`sub`) and a session id (`sid`). The client keeps it in `localStorage` and a cookie (the cookie lets `proxy.ts` see it) and sends it as `Authorization: Bearer`.
-- **Sessions.** Each sign-in creates a `UserSession` (one per device). `get_current_user` rejects a token whose session was revoked, so "sign out other devices" and password changes take effect at once.
+- **Sessions.** Each sign-in creates a `UserSession` (one per device). `get_current_user` rejects a token whose session was revoked, so signing out, "sign out other devices" and password changes take effect at once.
+- **Rate limits.** A limit is checked before the work and used up after it, so a route under a per-user limit holds that user's lock for the limit until it returns (`RateLimiter.check_alone` / `hold`, with `scope="function"`); otherwise parallel requests to different cases would all pass the check. Limits before sign-in, which have no user to lock, reserve an attempt up front (`RateLimiter.reserve` / `release`). Both rely on the API running as one worker.
 - **Sign-in methods.**
   - Email: password, then a six-digit code sent by email (`/auth/login/initiate` → `/auth/login/verify`). Registration confirms the address the same way (`/auth/register/initiate` → `/auth/register/verify`).
   - Google: the web authorization-code flow, or an ID token from the Android app's native sign-in, verified server-side. A signed `state` value protects the web flow.

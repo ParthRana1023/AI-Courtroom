@@ -18,7 +18,7 @@ const TAG_CLASS: Record<Tag, string> = { New: K.tagNew, Changed: K.tagFix, Fixed
 const RELEASES: Release[] = [
   {
     id: "v5-4",
-    title: "5.4.1–5.5.1 · 24 October 2026",
+    title: "5.4.1–5.5.7 · 24 October 2026",
     lede: "Settlement payments play out, and a default goes where the law sends it.",
     items: [
       [
@@ -51,6 +51,14 @@ const RELEASES: Release[] = [
       [
         "Fixed",
         "Sign-in is safer: links from emails can’t sign anyone in, each code works once, and a code that couldn’t be sent says so.",
+      ],
+      [
+        "Fixed",
+        "Signing out now ends that sign-in on our side too, not only in your browser. Sign-up and reset codes are limited per network, so nobody can flood other people’s inboxes.",
+      ],
+      [
+        "Fixed",
+        "The daily limits on arguments, client chats and witness questions hold even when several requests arrive at once, and an oversized profile photo is turned away straight away.",
       ],
     ],
   },
