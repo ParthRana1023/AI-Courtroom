@@ -13,6 +13,7 @@ from app.logging_config import get_logger
 from app.models.case import Case
 from app.models.otp import LoginVerifyRequest, RegistrationVerifyRequest
 from app.models.user import TokenResponse, User
+from app.models.user_session import UserSession
 from app.schemas.auth import (
     ForgotPasswordRequest,
     GoogleLoginRequest,
@@ -291,8 +292,13 @@ async def logout(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    """Adjourn hearings this device was running; the client then drops its token."""
+    """Adjourn hearings this device was running and end its session, so the token
+    stops working here too, not only once the client drops it."""
     adjourned = await Case.adjourn_session_cases(current_user.id, session.id)
+    if session.id:
+        await UserSession.find_one(UserSession.sid == session.id).update_one(
+            {"$set": {"revoked": True}}
+        )
     logger.info(f"Logout for {current_user.email}: adjourned {adjourned} case(s)")
     return {"adjourned_cases": adjourned}
 

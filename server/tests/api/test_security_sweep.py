@@ -127,3 +127,19 @@ async def test_one_client_cant_send_codes_to_any_number_of_addresses(client, out
 
     assert 429 in codes, "every address was sent a code"
     assert len(outbox) < 25
+
+
+# ---------------------------------------------------------------------------
+# A07:2025 authentication failures: session ends on sign-out
+# ---------------------------------------------------------------------------
+
+
+async def test_a_signed_out_token_no_longer_works(client, user):
+    from app.services.auth import issue_token
+
+    headers = {"Authorization": f"Bearer {await issue_token(user, remember_me=True)}"}
+    assert (await client.get("/auth/profile", headers=headers)).status_code == 200
+
+    assert (await client.post("/auth/logout", headers=headers)).status_code == 200
+
+    assert (await client.get("/auth/profile", headers=headers)).status_code == 401
