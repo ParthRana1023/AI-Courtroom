@@ -226,7 +226,8 @@ export default function HelpPage() {
               <span>
                 When the opposing lawyer makes an argument or asks a witness a question, an Object button appears on that latest entry.
                 Choose the grounds, explain your reason, and the judge rules. A sustained objection strikes the statement from the record or
-                withdraws the question. An overruled one leaves it standing.
+                withdraws the question, and the judge won’t weigh it in the verdict or the AI recall it later. An overruled one leaves it
+                standing.
               </span>
             </div>
           </div>{" "}
@@ -254,7 +255,8 @@ export default function HelpPage() {
             <div className={K.faqA}>
               <span>
                 You can adjourn after two arguments in a session and resume later. After three arguments you can deliver a closing
-                statement, which ends the hearing and leads to the verdict.
+                statement, which ends the hearing and leads to the verdict. Arguments are limited to a set number in any 24 hours: the
+                courtroom shows how many you have left, and the court adjourns when you use the last one.
               </span>
             </div>
           </div>{" "}
@@ -475,11 +477,22 @@ export default function HelpPage() {
                 <Link href="/login" className={K.a}>
                   sign-in page
                 </Link>
-                , choose “Forgot password?” and we’ll email you a code to set a new one. If you’re signed in, you can change it in{" "}
+                , choose “Forgot password?” and we’ll email you a link to set a new one. It works once and expires after 30 minutes. If
+                you’re signed in, you can change it in{" "}
                 <Link href="/settings" className={K.a}>
                   Settings → Account & security
                 </Link>
                 .
+              </span>
+            </div>
+          </div>{" "}
+          <div className={K.faq}>
+            <h3 className={K.faqQ}>My sign-in code didn’t arrive.</h3>
+            <div className={K.faqA}>
+              <span>
+                Check your spam folder, then ask for a new one. Each code works once and lasts 10 minutes. To stop anyone flooding an inbox,
+                we limit how many codes go to one address in a few minutes and how many are asked for from one network each hour, so you may
+                be asked to wait a little.
               </span>
             </div>
           </div>{" "}

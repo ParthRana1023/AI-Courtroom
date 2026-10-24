@@ -84,7 +84,8 @@ export default function AboutPage() {
           <div className={K.feature}>
             <span className={K.featureT}>Case memory</span>
             <span className={K.note}>
-              Every case keeps a searchable memory, so the court can draw on what was said earlier in the proceedings.
+              Every case keeps a searchable memory, so the court can draw on what was said earlier in the proceedings, leaving out what it
+              struck from the record.
             </span>
           </div>
           <div className={K.feature}>

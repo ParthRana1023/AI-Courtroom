@@ -108,8 +108,10 @@ export default function TermsPage() {
 
       <Sec id="limits" n="VI." title="Fair use and limits">
         <p className={K.p}>
-          Case generation is limited to a set number of cases in each period. The number you have left is shown when you create a case. We
-          may change these limits to keep the service available for everyone.
+          The AI parts of the service are limited per account: cases generated, arguments, witness questions and messages to parties in each
+          period. Where it matters, the number you have left is shown, such as when you create a case or argue in the courtroom. Sign-in
+          attempts and the codes we send are limited per email address and per network. We may change these limits to keep the service
+          available for everyone.
         </p>
       </Sec>
 
@@ -146,6 +148,12 @@ export default function TermsPage() {
               —
             </span>
             <span>Attempt to reverse engineer or scrape data from the Service</span>
+          </li>{" "}
+          <li className={K.bulletRow}>
+            <span className={K.bullet} aria-hidden="true">
+              —
+            </span>
+            <span>Get around the limits, for example with automated or parallel requests or several accounts</span>
           </li>{" "}
         </ul>
       </Sec>
