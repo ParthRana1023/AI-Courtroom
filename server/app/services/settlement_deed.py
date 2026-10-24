@@ -56,6 +56,47 @@ def case_numbers(text: str) -> str:
     return " · ".join(parts)
 
 
+# What a default leads to on each route, as the deed says it. A quashing order can't be
+# recalled for a breach of the compromise (s.403 BNSS bars a review), so the accused's
+# promise is given to the court, where a wilful breach is contempt. Compounding is an
+# acquittal; a default only gives a claim on the deed. Plea compensation is sentence.
+ON_DEFAULT = {
+    "quash": "The accused undertakes to the High Court to pay as agreed.",
+    "compound": (
+        "A default shall not undo the compounding; {who} may recover what remains "
+        "unpaid under this deed."
+    ),
+    "plea": "Compensation left unpaid shall be recovered as if it were a fine.",
+}
+
+# The order's last paragraph when money is owed, written here rather than by the court
+# model so the law it states stays right.
+ORDER_ON_PAYMENT = {
+    "quash": (
+        "The undertaking of the accused to pay {who} the amount settled, in the "
+        "instalments agreed, is accepted. In the event of a wilful default, {who} "
+        "shall be at liberty to move this Court."
+    ),
+    "compound": (
+        "The compounding has the effect of an acquittal. The amount agreed is payable "
+        "as the compromise provides, and in the event of default {who} shall be at "
+        "liberty to recover it in accordance with law."
+    ),
+    "plea": (
+        "The compensation forms part of the sentence and shall be paid to {who} in the "
+        "instalments agreed. In default, it shall be recovered as if it were a fine "
+        "under section 461 BNSS."
+    ),
+}
+
+
+def owed_paragraph(profile: SettlementProfile) -> str:
+    many = len(profile.complainants) > 1
+    return ORDER_ON_PAYMENT[profile.route].format(
+        who="the complainants" if many else "the complainant"
+    )
+
+
 def deed(case: Case, profile: SettlementProfile, terms: SettlementTerms) -> dict:
     """The document both sides sign: header, title, parties, clauses and signatories."""
     route = profile.route
@@ -98,6 +139,11 @@ def deed(case: Case, profile: SettlementProfile, terms: SettlementTerms) -> dict
             f"The accused shall pay {who} {_rupees(terms.amount)}"
             f"{' as compensation' if plea else ''} {schedule} within {terms.months} "
             f"months of signing, {interest}."
+        )
+        clauses.append(
+            f"If an instalment is not paid on its due date, {who} may give the accused "
+            "written notice, and the accused shall pay it within fifteen days of the "
+            f"notice. {ON_DEFAULT[route].format(who=who)}"
         )
     clauses += [c.clause for c in profile.conditions if c.key in terms.conditions]
     if route == "quash":

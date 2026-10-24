@@ -17,6 +17,60 @@ const TAG_CLASS: Record<Tag, string> = { New: K.tagNew, Changed: K.tagFix, Fixed
 // not every version bump in the git history.
 const RELEASES: Release[] = [
   {
+    id: "v5-5",
+    title: "5.5.1–5.6.2 · 24 October 2026",
+    lede: "A security review of the whole app, every fix tested against the problem it closes.",
+    items: [
+      [
+        "Fixed",
+        "Sign-in is safer: links from emails can’t sign anyone in, each code works once, and a code that couldn’t be sent says so.",
+      ],
+      ["Fixed", "Signing out now ends that sign-in on our side too, not only in your browser, so a copied token stops working."],
+      ["Fixed", "Sign-up and password-reset codes are limited per network, so nobody can flood other people’s inboxes."],
+      ["Fixed", "The daily limits on arguments, client chats and witness questions hold even when several requests arrive at once."],
+      ["Fixed", "An oversized profile photo is turned away straight away."],
+      ["Fixed", "Our server logs no longer record phone numbers or the address a sign-in code was sent to."],
+      ["Fixed", "What the court strikes from the record is no longer weighed in the judgment or recalled by the AI later in the hearing."],
+      [
+        "Fixed",
+        "A closing statement sent twice is recorded once, a default holds up only the instalments not yet paid, and a case is analysed only once it is decided.",
+      ],
+      [
+        "Changed",
+        "What the simulation decides by, like how reliably a party pays, stays hidden: you judge it from their background, as the court would.",
+      ],
+    ],
+  },
+  {
+    id: "v5-4",
+    title: "5.4.1–5.5.0 · 24 October 2026",
+    lede: "Settlement payments play out, and a default goes where the law sends it.",
+    items: [
+      [
+        "New",
+        "After a settlement, the accused pays the instalments on their own, one a day. How reliably they pay comes from their background, so read it before you settle.",
+      ],
+      [
+        "New",
+        "A missed instalment gets notice under the deed. Paid within it, nothing more comes of it; left unpaid, the complainants act on the default.",
+      ],
+      [
+        "New",
+        "On a quashing, a default brings a contempt petition back to the same court; on a plea bargain, an application to recover the compensation as a fine. You address the court on the day it is listed, and it gives time, a last chance to pay, or a warrant.",
+      ],
+      ["New", "On compounding, the acquittal stands: a default goes to a suit on the deed in a civil court, not back to this case."],
+      [
+        "New",
+        "The payments, day by day, in the courtroom, and where they stand in My Cases and on the case file. Emails tell you what happened.",
+      ],
+      [
+        "Fixed",
+        "A missed payment after quashing no longer offers to recall the order and revive the FIR, which the law doesn’t allow. The remedy is a contempt petition.",
+      ],
+      ["Changed", "Help, About, Terms of Service and the Privacy Policy now cover settling a case and its payments."],
+    ],
+  },
+  {
     id: "v5-3",
     title: "5.2–5.4 · 21–24 October 2026",
     lede: "Settle a case out of court.",

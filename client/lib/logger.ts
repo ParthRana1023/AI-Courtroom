@@ -76,8 +76,8 @@ function generateSessionId(): string {
     const existing = sessionStorage.getItem("log_session_id");
     if (existing) return existing;
 
-    // Generate new session ID
-    const newId = Math.random().toString(36).substring(2, 10);
+    // Generate new session ID (crypto, not Math.random: randomUUID needs https, this works on LAN dev too)
+    const newId = Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, "0")).join("");
     sessionStorage.setItem("log_session_id", newId);
     return newId;
   }

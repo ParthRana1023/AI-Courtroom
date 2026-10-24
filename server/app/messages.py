@@ -40,6 +40,10 @@ OTP_SEND_LIMIT = (
     "The court clerk has already issued several summons to this address. "
     "Kindly wait {minutes} minute(s) before asking for another code."
 )
+CODE_IP_LIMIT = (
+    "Too many codes have been asked for from this network. "
+    "Kindly wait {minutes} minute(s) and try again."
+)
 LOGIN_LOCKED = (
     "Too many failed attempts to enter the court. "
     "Kindly try again after {minutes} minute(s)."
@@ -153,10 +157,22 @@ SETTLEMENT_NOT_SIGNED = "Every signatory must sign the deed before it is filed."
 SETTLEMENT_FILED = "The deed is filed. The court takes it up at the hearing."
 SETTLEMENT_NOT_FILED = "The deed must be filed before the court can hear it."
 SETTLEMENT_PAYMENT = "That can't be done for this instalment."
+SETTLEMENT_NO_DEFAULT = "There is no default to take to the court."
+SETTLEMENT_NO_ENFORCEMENT = (
+    "There is no application on a default for the court to hear."
+)
+SETTLEMENT_NOT_LISTED_YET = "The court takes the application up on {day}."
+SETTLEMENT_ENFORCEMENT_FAILED = (
+    "The court could not take up the application just now. Please try again."
+)
 SETTLEMENT_NOT_SITTING = "The court isn't in session: there is no hearing to adjourn."
 SETTLEMENT_HEARD_IN_COURT = (
     "The court hears the compromise when it sits. Resume the hearing in the courtroom."
 )
+CODE_NOT_SENT = "We couldn't send your code just now. Please try again in a minute."
+CASE_DECIDED = "The court has decided this case, so it can't be reopened."
+ROLES_INVALID = "Choose the plaintiff or the defence; the AI takes the other side."
+ANALYSIS_NOT_READY = "The case is analysed once the court has decided it."
 NEGOTIATION_NOT_READY = (
     "The negotiation is analysed once you've negotiated and the case is decided."
 )

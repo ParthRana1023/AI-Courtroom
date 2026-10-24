@@ -239,6 +239,54 @@ class Payment(BaseModel):
     remedy_at: datetime | None = None
 
 
+class PaymentDraw(BaseModel):
+    """How the accused meets one instalment, drawn against their reliability."""
+
+    on_time: bool
+    cures: bool  # if it is missed: paid within the notice the deed gives
+
+
+class PaymentPlan(BaseModel):
+    """The simulation's draws for one order, made once when it is passed. Never sent
+    to the client: the user judges the accused from their background."""
+
+    reliability: float  # the accused's, 0-1
+    draws: list[PaymentDraw]
+    complies: bool  # pays what the court directs, if a default goes back to court
+
+
+class EnforcementHearing(BaseModel):
+    """The court on the default. Contempt: was the breach wilful? It gives time, a
+    last chance to purge it by paying, or sends the complainants to a civil court.
+    Recovery: it gives time or issues a warrant to levy the amount."""
+
+    submission: str
+    lines: list[HearingLine]
+    outcome: Literal["time", "last_chance", "relegated", "warrant"]
+    judge: str
+    ruling: str
+    order: list[str]
+    held_at: datetime
+
+
+class Enforcement(BaseModel):
+    """What the complainants did about a default left unpaid after notice: a contempt
+    petition for breach of the undertaking (quash), an application to recover the
+    compensation as a fine (plea), both heard in this court; or a suit on the deed in a
+    civil court (compound), which this case never sees."""
+
+    kind: Literal["contempt", "recovery", "suit"]
+    by: Literal["user", "ai"]  # counsel for the complainants
+    instalment: int  # the one left unpaid
+    filed_on: date
+    listed_for: date | None = None  # heard here; None for a suit
+    hearing: EnforcementHearing | None = None
+    # The court's direction on the balance, by when, and how it ended:
+    # paid as directed, punished for contempt, recovered as a fine, or left to a suit.
+    pay_by: date | None = None
+    result: Literal["paid", "punished", "recovered", "civil"] | None = None
+
+
 class ScoreFactor(BaseModel):
     key: Literal["terms", "closed", "offers", "conditions"]
     label: str
@@ -286,8 +334,15 @@ class Settlement(BaseModel):
     )
     payments: list[Payment] = Field(default_factory=list)
     # The instalment the AI side won't pay, drawn once when the order is passed. Never
-    # sent to the client.
+    # sent to the client. Orders before the payment simulation only; newer ones have a
+    # plan, and their instalments fall due a day apart.
     defaults_on: int | None = None
+    plan: PaymentPlan | None = None
+    enforcement: Enforcement | None = None
+    # What the owner has been told of the payments ("missed:1", "defaulted", ...),
+    # written once each so a payment is reported once however often it is read.
+    notified: list[str] = Field(default_factory=list)
+    payments_done: bool = False  # nothing more can happen to the payments
     started_at: datetime = Field(default_factory=get_current_datetime)
     ended_at: datetime | None = None
 
@@ -519,6 +574,26 @@ class Case(Document):
         # Attempts saved before terms were structured ("offers" of free text) came
         # from testing before the settlement desk shipped; nothing reads them.
         return [s for s in value or [] if not (isinstance(s, dict) and "offers" in s)]
+
+    # What the simulation draws and judges by, kept on the server: pass to model_dump
+    # wherever a whole case (or its settlements) goes out.
+    HIDDEN: ClassVar[dict] = {
+        "parties_involved": {"__all__": {"reliability"}},
+        "settlements": {"__all__": {"defaults_on", "plan"}},
+    }
+
+    def struck_texts(self) -> set[str]:
+        """What a sustained objection struck from the record or withdrew, word for
+        word: arguments and testimony the court must not weigh. Arguments and
+        examinations are stored apart from their record lines, so their text is
+        what links them."""
+        return {
+            text.strip()
+            for event in self.courtroom_proceedings
+            if event.struck
+            for text in (event.content, event.question, event.answer)
+            if text and text.strip()
+        }
 
     def open_settlement(self) -> Settlement | None:
         """The attempt still under negotiation or agreed, if any."""

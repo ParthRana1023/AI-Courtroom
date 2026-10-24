@@ -509,6 +509,132 @@ Reply with ONLY this JSON object and nothing else:
     return parse_hearing(reply)
 
 
+# What the court is hearing on a default, and the orders the law gives it.
+ENFORCEMENT_HEARING = {
+    "contempt": "a petition by the complainants for civil contempt under Section 2(b) of the Contempt of Courts Act, 1971: the accused undertook to this court to pay the amount settled, the court accepted the undertaking when it quashed the FIR, and an instalment is unpaid even after notice. The quashing itself cannot be recalled for a breach of the compromise (Section 403 BNSS bars a review), so contempt is the complainants' remedy here",
+    "recovery": "an application by the complainants to recover compensation unpaid under the sentence passed on a plea bargain (Section 293 BNSS). The compensation is part of the sentence, so the court recovers it as it would a fine, under Section 461 BNSS",
+}
+ENFORCEMENT_ORDERS: dict[str, dict[str, str]] = {
+    "contempt": {
+        "time": "the breach is not shown to be wilful (genuine inability, shown by facts, not just said): no contempt; the court gives a short time to pay the balance and the notice stands discharged once it is paid",
+        "last_chance": "the breach looks wilful (able to pay and chose not to, or no real explanation): the court holds the accused prima facie in contempt but, as courts almost always do, gives one last chance to purge it by paying the balance with costs; sentence under Section 12 (simple imprisonment up to six months, a fine up to Rs. 2,000, or both) follows only if that is not done. An unconditional apology counts only with payment",
+        "relegated": "contempt is not a way to execute a money claim: the dispute is really about the amount or the terms, so the court closes the petition and leaves the complainants to sue on the deed in a civil court",
+    },
+    "recovery": {
+        "time": "the accused shows a real reason and a way to pay: the court gives a short time to pay the balance before it issues a warrant",
+        "warrant": "the court issues a warrant to levy the amount by attaching and selling the accused's movable property, or to the Collector to realise it as arrears of land revenue (Section 461(1) BNSS)",
+    },
+}
+
+
+class EnforcementRecord(BaseModel):
+    judge: str
+    lines: list[HearingLine]
+    outcome: Literal["time", "last_chance", "relegated", "warrant"]
+    ruling: str
+    order: list[str]
+
+    @model_validator(mode="after")
+    def complete(self) -> "EnforcementRecord":
+        if not self.lines or not self.order or not self.judge.strip():
+            raise ValueError("the hearing needs a record, an order and a judge")
+        self.ruling = self.ruling.strip()[:1000]
+        return self
+
+
+def parse_enforcement(text: str, kind: str) -> EnforcementRecord:
+    """The record of the hearing on a default. An order the law doesn't give on this
+    application is read as the nearest one it does."""
+    try:
+        record = EnforcementRecord.model_validate(_json(text, "Enforcement hearing"))
+    except ValidationError as e:
+        raise LLMGenerationError(f"Invalid enforcement hearing: {e}") from e
+    if record.outcome not in ENFORCEMENT_ORDERS[kind]:
+        record.outcome = "last_chance" if kind == "contempt" else "time"
+    return record
+
+
+async def hear_enforcement(
+    profile: SettlementProfile,
+    kind: Literal["contempt", "recovery"],
+    title: str,
+    user_side: str,
+    user_applies: bool,
+    facts: str,
+    order: str,
+    submission: str,
+    record: str = "",
+) -> EnforcementRecord:
+    """The court hears the complainants' application on a default. The user is
+    counsel for the complainants moving it, or counsel for the accused answering it."""
+    template = """ENFORCEMENT HEARING
+You are the presiding judge of {court}, in a simulated Indian criminal case: {title}. The case was disposed of on a compromise, and this court passed the order below. This is {hearing}. Counsel for the {user_side} (the user), who {user_part}, has just made a short submission. Write the rest of the hearing as it would happen in an Indian court, then pass the order.
+
+WHAT HAPPENS
+- Counsel for the other side answers in one to three sentences.
+- The court may put a short question or two to the accused, through counsel or in person, about the default and their means. Keep it brief.
+- The court gives its reasons in a few sentences, then passes the order.
+
+HOW TO DECIDE (pick one)
+{outcomes}
+- Decide on the law, the order, the payments and what is said at this hearing, not on what the user would like. Weigh what counsel shows about why the instalment went unpaid and whether the accused can pay. {current_law_rule}
+- Do not invent facts beyond what is given here. Cite no case.
+
+THE ORDER
+- Numbered paragraphs in plain English, 2 to 4 of them: what the court finds, what it directs (for time, last_chance or warrant: the balance to be paid or levied within a short time) and what follows if that is not done.
+
+{untrusted_text_rule}
+
+THE ORDER ON THE COMPROMISE
+{order}
+
+THE PAYMENTS
+{facts}
+
+THE HEARING SO FAR (this court's record of the case)
+{record}
+
+COUNSEL'S SUBMISSION
+{submission}
+
+Reply with ONLY this JSON object and nothing else:
+{{"judge": "<the presiding judge's name, invented, without 'J.'>", "lines": [{{"kind": "speech" | "question" | "answer" | "system", "role": "court" | "other" | "complainant" | "accused" | "system", "who": "<speaker as the record names them, e.g. 'Counsel for the complainants', 'The Court to Ravi Kumar', 'Ravi Kumar'>", "tag": "", "unsure": false, "text": "..."}}], "outcome": {choices}, "ruling": "<one sentence from the bench>", "order": ["<paragraph>", "..."]}}"""
+    orders = ENFORCEMENT_ORDERS[kind]
+    try:
+        chain = (
+            ChatPromptTemplate.from_messages([("human", template)])
+            | get_llm("hearing")
+            | StrOutputParser()
+        )
+        reply = await chain.ainvoke(
+            {
+                "court": profile.court.split("·")[-1].strip() or "the court",
+                "title": title or "the case",
+                "hearing": ENFORCEMENT_HEARING[kind],
+                "user_side": user_side,
+                "user_part": (
+                    "moves the application for the complainants"
+                    if user_applies
+                    else "answers it for the accused"
+                ),
+                "outcomes": "\n".join(
+                    f'- "{key}": {text}' for key, text in orders.items()
+                ),
+                "choices": " | ".join(f'"{key}"' for key in orders),
+                "current_law_rule": CURRENT_LAW_RULE,
+                "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
+                "order": order,
+                "facts": facts,
+                "record": tagged(record or "Nothing has been argued yet.", "history"),
+                "submission": tagged(submission, "user_argument"),
+            }
+        )
+    except Exception as e:
+        logger.exception("Error holding the enforcement hearing")
+        raise LLMGenerationError("Failed to hold the enforcement hearing") from e
+    return parse_enforcement(reply, kind)
+
+
 # The negotiator score: each factor 0-100 from the analysis, weighted.
 FACTORS = {
     "terms": ("Terms won", 50),

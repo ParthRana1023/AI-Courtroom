@@ -56,10 +56,10 @@ export default function AboutPage() {
           </div>
           <div className={K.card}>
             <span className={K.cardN}>III</span>
-            <span className={K.cardT}>Hear the verdict</span>
+            <span className={K.cardT}>Hear the verdict, or settle</span>
             <span className={K.note}>
-              The AI judge delivers a verdict with its legal reasoning and feedback on your performance. Results count toward the win rate
-              on your profile.
+              The AI judge delivers a verdict with its legal reasoning and feedback on your performance. Or settle the case where the law
+              allows it, and see the settlement through to its last payment. Results count toward the win rate on your profile.
             </span>
           </div>
         </div>
@@ -97,6 +97,20 @@ export default function AboutPage() {
           <div className={K.feature}>
             <span className={K.featureT}>Voice and evidence</span>
             <span className={K.note}>Dictate your arguments with the microphone and pin exhibits to the points you make.</span>
+          </div>
+          <div className={K.feature}>
+            <span className={K.featureT}>Settle out of court</span>
+            <span className={K.note}>
+              Negotiate a compromise with the opposing lawyer where the law allows it, sign the deed, and have the court hear it on the same
+              record as the case.
+            </span>
+          </div>
+          <div className={K.feature}>
+            <span className={K.featureT}>Payments that play out</span>
+            <span className={K.note}>
+              After a settlement the accused pays the instalments, as reliably as their background suggests. A default goes where the law
+              sends it: notice first, then contempt, recovery as a fine or a civil suit.
+            </span>
           </div>
         </div>
       </Sec>

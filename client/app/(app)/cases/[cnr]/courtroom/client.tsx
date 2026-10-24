@@ -19,11 +19,13 @@ import {
 import { MOVES_ON, Proceedings, SIDE, THE, aiMade, buildRows, type Ev, type RecordCtx, type Side } from "@/components/courtroom/record";
 import WitnessStand, { type Candidate, type Foot, type QA } from "@/components/courtroom/witness-stand";
 import HearingRail, { type Check } from "@/components/settlement/hearing-rail";
+import SimulatedPayments from "@/components/settlement/simulated-payments";
 import NegotiationSummary from "@/components/settlement/negotiation-summary";
 import { formatDate } from "@/components/cases/kit";
 import CourtModelLoader from "@/components/court/court-model-loader";
 import { ExhibitViewer } from "@/components/prep/exhibits";
 import { firstName, initials, onSide } from "@/components/prep/people";
+import { useAuth } from "@/contexts/auth-context";
 import { useSettings } from "@/contexts/settings-context";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { useOnline } from "@/hooks/use-online";
@@ -98,7 +100,8 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const router = useRouter();
   const online = useOnline();
   const { w } = useViewport();
-  const { enterKeySubmits, autoExpandTextAreas } = useSettings();
+  const { enterKeySubmits, autoExpandTextAreas, devMode } = useSettings();
+  const { user } = useAuth();
   const two = w >= 760;
   const mob = !two;
   const small = w < 560;
@@ -139,6 +142,8 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
   const [talks, setTalks] = useState<SettlementView | null>(null);
   const [held, setHeld] = useState<string[]>([]);
   const [paying, setPaying] = useState<number | null>(null);
+  // A default under a simulated order: filing it, the court hearing it, or (developer mode) a day passing.
+  const [acting, setActing] = useState<"file" | "hear" | "day" | null>(null);
   const drafted = useRef(false);
   const [seeking, setSeeking] = useState(false);
   const [extracting, setExtracting] = useState<string | null>(null);
@@ -860,6 +865,29 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
     }
   };
 
+  /** A default under a simulated order: counsel for the complainants files on it, either side argues it
+   * when it is listed (the record then carries the hearing), or, in developer mode, a day passes. */
+  const onDefault = async (what: "file" | "hear" | "day", submission = "") => {
+    if (acting) return;
+    if (!online) return note("You’re offline. Try again when you’re back online.");
+    setActing(what);
+    try {
+      const v =
+        what === "file"
+          ? await settlementAPI.fileDefault(cnr)
+          : what === "hear"
+            ? await settlementAPI.hearDefault(cnr, submission)
+            : await settlementAPI.nextDay(cnr);
+      setTalks(v);
+      if (what !== "day") setData((await caseAPI.getCase(cnr)) as Case);
+      if (what === "hear") note("The court has passed its order on the default.");
+    } catch (err) {
+      toast.error(getErrorDetail(err) || "That couldn’t be done just now. Please try again.");
+    } finally {
+      setActing(null);
+    }
+  };
+
   /** Counsel asks the court for time to settle; the court considers it, rules, and adjourns if it grants it. */
   const seekSettle = async () => {
     if (busy || seeking) return;
@@ -1400,6 +1428,20 @@ export default function Courtroom({ params }: { params: Promise<{ cnr: string }>
             next={next}
             payments={settledHere ? deal.attempt.payments : []}
             userPays={!!deal.attempt.user_pays}
+            paymentsSlot={
+              settledHere && deal.attempt.pace === "days" ? (
+                <SimulatedPayments
+                  attempt={deal.attempt}
+                  profile={deal.profile}
+                  userDefends={!!deal.attempt.user_pays}
+                  interest={deal.attempt.agreed.interest > 0}
+                  busy={acting}
+                  onFile={() => void onDefault("file")}
+                  onHear={(said) => void onDefault("hear", said)}
+                  onNextDay={devMode && user?.is_developer ? () => void onDefault("day") : undefined}
+                />
+              ) : undefined
+            }
             busy={paying}
             onPay={(i) => void pay(i)}
             cnr={cnr}

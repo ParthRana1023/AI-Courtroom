@@ -86,6 +86,10 @@ async def analyze_case(caseId: str, current_user: User = Depends(get_current_use
             status_code=400, detail="User role not determined for this case."
         )
 
+    # Only a decided case: an analysis saved before the verdict would be kept for good.
+    if case.status != CaseStatus.RESOLVED or not case.verdict:
+        raise HTTPException(status_code=409, detail=messages.ANALYSIS_NOT_READY)
+
     logger.debug(
         "User role determined",
         extra={"case_id": caseId, "user_role": role.value},
@@ -151,7 +155,11 @@ async def _generate_analysis(
     case.analysis = analysis_result
     case.analyzed_at = get_current_datetime()
     try:
-        await case.save()
+        # Only these fields: a full save after the long model call would undo what
+        # was written meanwhile (settlement payment markers, exhibit images).
+        await Case.find_one(Case.id == case.id).update_one(
+            {"$set": {"analysis": case.analysis, "analyzed_at": case.analyzed_at}}
+        )
         await upsert_memory_item(
             case,
             "analysis",
@@ -251,7 +259,13 @@ async def analyze_negotiation(
                 raise HTTPException(
                     status_code=500, detail=messages.NEGOTIATION_FAILED
                 ) from e
-            await case.save()
+            # Only the analysis: a full save would undo payment markers written
+            # by a concurrent read (settlement_progress.catch_up).
+            await Case.find_one(Case.id == case.id).update_one(
+                {"$set": {"negotiation": case.negotiation}}
+            )
+            case = await Case.get(case.id) or case  # as stored, as later reads see it
+            assert case.negotiation is not None
             await record_negotiation(case)
             logger.info(
                 f"Negotiation analysed in {caseId}: {case.negotiation.score}",

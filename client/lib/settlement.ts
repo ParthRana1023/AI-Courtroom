@@ -190,14 +190,16 @@ export const HEARING_COPY: Record<OpenRoute, HearingCopy> = {
       body: "The petition goes back to arguments on its merits. The deed still binds the parties, and the trial court may consider it.",
       line: "The petition continues. Prepare for arguments on",
     },
+    // The quashing can't be recalled for a breach of the compromise (s.403 BNSS bars a review): the accused's
+    // promise to pay was an undertaking to the court, and its wilful breach is contempt.
     remedy: {
-      label: "Apply to recall the order",
-      them: "You can apply to this court to recall the order. If it does, the FIR is revived and the prosecution resumes from where it stopped.",
-      you: "The complainants can now apply to recall the order and revive the FIR. Paying now, with interest for the delay, is the best answer to that application.",
-      done: "Recall application filed.",
+      label: "File a contempt petition",
+      them: "The FIR stays quashed: the order can’t be recalled for a breach. You can petition this court for contempt, since the promise to pay was an undertaking to it.",
+      you: "The complainants can petition this court for contempt of the undertaking to pay. Paying now, with interest for the delay, is the best answer to it.",
+      done: "Contempt petition filed.",
       filed:
-        "Recall application filed. The court will hear the accused on why the payment was missed before deciding whether to revive the FIR.",
-      note: "If a payment is missed, the complainants can apply to this court to recall the order and revive the FIR.",
+        "Contempt petition filed. The court will ask whether the breach was wilful, and usually gives a last chance to pay before it punishes.",
+      note: "If a payment is missed and stays unpaid after notice, the complainants can petition this court for contempt. The FIR stays quashed.",
     },
   },
   compound: {
@@ -264,6 +266,37 @@ export const HEARING_COPY: Record<OpenRoute, HearingCopy> = {
       filed: "Recovery application filed. The court can attach the accused’s property to recover the amount.",
       note: "The compensation is part of the sentence. If a payment is missed, the court recovers it as it would a fine.",
     },
+  },
+};
+
+/** A default left unpaid after notice, by route: what the complainants file, the button that files it,
+ * what it means for the accused, and the court's orders on it. Compounding is an acquittal, so its
+ * default goes to a civil court and this case never reopens. */
+export const DEFAULT_COPY: Record<OpenRoute, { kind: string; file: string; them: string; you: string; orders: Record<string, string> }> = {
+  quash: {
+    kind: "Contempt petition",
+    file: "File a contempt petition",
+    them: "The FIR stays quashed, but the promise to pay was an undertaking to the High Court. You can petition it for contempt.",
+    you: "The complainants have petitioned the High Court for contempt of your client’s undertaking to pay. Show the court the breach wasn’t wilful, or that your client will pay.",
+    orders: {
+      time: "Not wilful: time to pay",
+      last_chance: "Last chance to purge the contempt",
+      relegated: "Left to a civil suit",
+    },
+  },
+  plea: {
+    kind: "Recovery application",
+    file: "Ask the court to recover it",
+    them: "The compensation is part of the sentence. You can ask the court to recover it as it would a fine.",
+    you: "The complainants have asked the court to recover the compensation as a fine, by attaching your client’s property.",
+    orders: { time: "Time to pay", warrant: "Warrant to levy by attachment" },
+  },
+  compound: {
+    kind: "Suit on the deed",
+    file: "Sue on the deed",
+    them: "The acquittal stands, so this case can’t reopen. You can sue on the deed in a civil court for what is unpaid.",
+    you: "The acquittal stands. The complainants will sue on the deed in a civil court for what is unpaid.",
+    orders: {},
   },
 };
 

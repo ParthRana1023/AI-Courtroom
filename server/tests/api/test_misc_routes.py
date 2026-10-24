@@ -9,6 +9,7 @@ from app.config import settings
 from app.models.case import (
     ArgumentItem,
     Case,
+    CaseOutcome,
     CaseStatus,
     CourtroomProceedingsEvent,
     CourtroomProceedingsEventType,
@@ -16,6 +17,7 @@ from app.models.case import (
     EvidenceMediaStatus,
     ExaminationItem,
     Roles,
+    Settlement,
     WitnessTestimony,
 )
 from app.models.client_log import ClientLog
@@ -41,6 +43,14 @@ def prep_case(courtroom_case, witness_party, other_party):
         return await courtroom_case(side, status=CaseStatus.NOT_STARTED, **overrides)
 
     return _make
+
+
+# The analysis is for a case the court has decided.
+DECIDED = {
+    "status": CaseStatus.RESOLVED,
+    "verdict": "The petition is allowed.",
+    "outcome": CaseOutcome.WON,
+}
 
 
 def test_can_user_chat_with_party_rules():
@@ -113,6 +123,67 @@ async def test_party_details_existing_bio_and_missing_party(
 
     assert ok.json()["can_chat"] is True and fake_llm.calls == []
     assert missing.status_code == 404
+
+
+async def test_party_details_save_reliability_and_hide_it(
+    client, auth_headers, prep_case, fake_llm
+):
+    fake_llm.responses.append(
+        "## Role\n**NON-APPLICANT**\nA landlord.\n## Payment Reliability\n0.64"
+    )
+    no_bio = PartyInvolved(name="New Person", role=PartyRole.NON_APPLICANT)
+    case = await prep_case(parties_involved=[no_bio])
+
+    body = (
+        await client.get(f"/cases/{case.cnr}/parties/{no_bio.id}", headers=auth_headers)
+    ).json()
+    listed = (
+        await client.get(f"/cases/{case.cnr}/parties", headers=auth_headers)
+    ).json()
+
+    saved = (await reload(case)).parties_involved[0]
+    assert saved.reliability == 0.64 and "0.64" not in saved.bio
+    assert body["reliability"] is None and listed["parties"][0]["reliability"] is None
+    assert "0.64" not in body["bio"]
+
+
+async def test_developers_see_party_reliability(
+    client, user, auth_headers, prep_case, monkeypatch
+):
+    monkeypatch.setattr(settings, "dev_mode_emails", user.email)
+    party = PartyInvolved(
+        name="Ravi", role=PartyRole.APPLICANT, bio="Teacher.", reliability=0.9
+    )
+    case = await prep_case(parties_involved=[party])
+
+    body = (
+        await client.get(f"/cases/{case.cnr}/parties/{party.id}", headers=auth_headers)
+    ).json()
+
+    assert body["reliability"] == 0.9
+
+
+async def test_ensure_reliability_rates_an_old_bio_once(prep_case, fake_llm):
+    party = PartyInvolved(name="Ravi", role=PartyRole.APPLICANT, bio="Teacher.")
+    case = await prep_case(parties_involved=[party])
+    fake_llm.responses.append("0.77")
+
+    first = await parties_routes.ensure_reliability(case, party)
+    again = await parties_routes.ensure_reliability(case, party)
+
+    assert first == again == 0.77 and len(fake_llm.calls) == 1
+    assert (await reload(case)).parties_involved[0].reliability == 0.77
+
+
+async def test_case_view_hides_simulation_values(client, auth_headers, prep_case):
+    party = PartyInvolved(name="Ravi", role=PartyRole.APPLICANT, reliability=0.3)
+    case = await prep_case(
+        parties_involved=[party], settlements=[Settlement(defaults_on=1)]
+    )
+
+    body = (await client.get(f"/cases/{case.cnr}", headers=auth_headers)).json()
+
+    assert body["settlements"] and "defaults_on" not in body["settlements"][0]
 
 
 @pytest.mark.parametrize("target", ["generate_party_details", "upsert_memory_item"])
@@ -742,6 +813,13 @@ async def test_location_routes(client, fake_locations):
     assert (await client.get("/location/phone-code/IN")).json() == {"phone_code": "91"}
     assert (await client.get("/location/phone-code/XX")).status_code == 404
     assert (await client.get("/location/search?q=P")).status_code == 422
+    for path in (
+        "/location/states/IND",
+        "/location/states/I1",
+        "/location/cities/IN/GA%0Ax",
+        "/location/phone-code/../x",
+    ):
+        assert (await client.get(path)).status_code in (404, 422), path
     states = (await client.get("/location/indian-states")).json()
     assert any(s["state_iso2"] == "MH" for s in states)
 
@@ -866,6 +944,8 @@ async def test_analysis_uses_role_from_user_arguments(
     fake_llm.responses.append("### Outcome\nYou won.")
     case = await make_case(
         user,
+        status=CaseStatus.RESOLVED,
+        outcome=CaseOutcome.WON,
         ai_role=Roles.PLAINTIFF,
         verdict="Suit dismissed",
         plaintiff_arguments=[
@@ -882,7 +962,7 @@ async def test_analysis_uses_role_from_user_arguments(
         f"/cases/{case.cnr}/analyze-case", headers=auth_headers
     )
 
-    assert response.json() == {"analysis": "### Outcome\nYou won.", "outcome": None}
+    assert response.json() == {"analysis": "### Outcome\nYou won.", "outcome": "won"}
     assert "USER'S ROLE: DEFENDANT" in fake_llm.prompts[0]
     assert (await reload(case)).analysis == "### Outcome\nYou won."
 
@@ -892,6 +972,7 @@ async def test_analysis_role_from_plaintiff_arguments_or_case(
 ):
     by_argument = await make_case(
         user,
+        **DECIDED,
         plaintiff_arguments=[
             ArgumentItem(
                 type="user", content="P", role=Roles.PLAINTIFF, user_id=user.id
@@ -900,6 +981,7 @@ async def test_analysis_role_from_plaintiff_arguments_or_case(
     )
     by_case = await make_case(
         user,
+        **DECIDED,
         user_role=Roles.DEFENDANT,
         defendant_arguments=[ArgumentItem(type="counter", content="x")],
     )
@@ -917,6 +999,8 @@ async def test_analysis_reviews_conferences_and_witness_examinations(
     fake_llm.responses.append("### Outcome\nYou lost.")
     case = await make_case(
         user,
+        status=CaseStatus.RESOLVED,
+        outcome=CaseOutcome.LOST,
         user_role=Roles.PLAINTIFF,
         ai_role=Roles.DEFENDANT,
         verdict="Suit dismissed",
@@ -993,11 +1077,26 @@ async def test_analysis_rejections(client, user, auth_headers, make_case, make_u
     ).status_code == 403
 
 
+async def test_a_case_is_analysed_only_once_it_is_decided(
+    client, user, auth_headers, make_case, fake_llm
+):
+    case = await make_case(user, user_role=Roles.PLAINTIFF, status=CaseStatus.ACTIVE)
+
+    response = await client.post(
+        f"/cases/{case.cnr}/analyze-case", headers=auth_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == messages.ANALYSIS_NOT_READY
+    assert fake_llm.calls == []
+
+
 async def test_analysis_failures(
     client, user, auth_headers, make_case, fake_llm, monkeypatch
 ):
     case = await make_case(
         user,
+        **DECIDED,
         user_role=Roles.PLAINTIFF,
         plaintiff_arguments=[ArgumentItem(type="user", content="P")],
     )

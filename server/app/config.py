@@ -159,6 +159,10 @@ class Settings(BaseSettings):
     argument_rate_window: int = 86400  # Window in seconds (86400 = 24 hours)
     otp_send_limit: int = 3  # OTP emails allowed per address per window
     otp_send_window: int = 600  # Window in seconds (10 minutes)
+    # Codes sent before sign-in from one IP, to any address. Generous: mobile
+    # carriers put many users behind one address.
+    otp_ip_limit: int = 15
+    otp_ip_window: int = 3600
     otp_max_attempts: int = 5  # Wrong guesses before an OTP is discarded
     otp_expire_minutes: int = 10  # How long an emailed code stays valid
     login_failure_limit: int = 5  # Wrong passwords per email per window
@@ -210,6 +214,11 @@ class Settings(BaseSettings):
     # reasoning models); used for every other Cloudflare task.
     cloudflare_max_tokens: int = 4096
     drafter_temperature: float = 0.8
+    # Per model call. The SDK defaults (10 minutes, two retries) let one hung
+    # provider hold a hearing for half an hour before the next model is tried.
+    # Long enough for a free reasoning model to write a whole petition.
+    llm_timeout_seconds: float = 180
+    llm_max_retries: int = 1
 
     # Highest establishment code (CNR positions 5-6) used for generated cases
     cnr_max_establishment_code: int = 20

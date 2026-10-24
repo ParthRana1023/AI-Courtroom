@@ -13,7 +13,8 @@ async def send_sms(to: str, body: str) -> bool:
     plugs in here without touching callers.
     """
     if settings.sms_provider == "log":
-        logger.info(f"SMS to {to}: {body}")
+        # Not the number: logs keep no phone numbers.
+        logger.info(f"SMS (log provider): {body}")
         return True
     raise NotImplementedError(
         f"SMS provider {settings.sms_provider!r}"

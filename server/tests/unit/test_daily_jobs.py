@@ -457,6 +457,37 @@ async def test_a_held_lock_skips_the_run():
     assert await JobRun.find_all().count() == 0
 
 
+async def test_a_run_that_overran_its_lock_doesnt_free_the_next_runs():
+    stale = await daily_jobs._acquire_lock(NOW - timedelta(hours=2))
+    current = await daily_jobs._acquire_lock(NOW)
+    assert stale and current and stale != current
+
+    await daily_jobs._release_lock(stale)  # the old run finishing late
+
+    assert await daily_jobs._acquire_lock(NOW) is None  # still held by current
+
+
+async def test_a_long_run_keeps_its_lock(monkeypatch):
+    clock = [NOW]
+    seen = []
+
+    async def slow(now, dry_run):
+        clock[0] += timedelta(minutes=50)
+        return {}
+
+    async def next_run_tries(now, dry_run):
+        # 70 minutes in: past the first hour, so free unless the lock was renewed.
+        seen.append(await daily_jobs._acquire_lock(clock[0] + timedelta(minutes=20)))
+        return {}
+
+    monkeypatch.setattr(daily_jobs, "get_current_datetime", lambda: clock[0])
+    monkeypatch.setattr(daily_jobs, "STEPS", (("a", slow), ("b", next_run_tries)))
+
+    await daily_jobs.run_daily_jobs()
+
+    assert seen == [None]
+
+
 async def test_an_expired_lock_is_taken_over():
     assert await daily_jobs._acquire_lock(NOW - timedelta(hours=2))
     assert await daily_jobs._acquire_lock(NOW)

@@ -186,14 +186,12 @@ THE CASE
 {case_context}
 
 THE RECORD SO FAR
-<history>
 {record}
-</history>
 
 THE OBJECTION
-Objected to: <user_argument>{target_text}</user_argument>
+Objected to: {target_text}
 Grounds: {grounds}
-Counsel's reason: <user_argument>{details}</user_argument>
+Counsel's reason: {details}
 
 Reply with ONLY this JSON object and nothing else:
 {{"sustained": true | false, "ruling": "<one or two sentences from the bench, starting with Sustained. or Overruled., saying why and, if sustained, what follows (for example: counsel will rephrase, or the remark is struck from the record, or leave is refused)>"}}"""
@@ -209,10 +207,10 @@ Reply with ONLY this JSON object and nothing else:
                 "kind_text": OBJECTION_KINDS[kind],
                 "grounds_rules": OBJECTION_GROUNDS_RULES,
                 "case_context": case_context,
-                "record": record or "Nothing yet.",
-                "target_text": target_text,
+                "record": tagged(record or "Nothing yet.", "history"),
+                "target_text": tagged(target_text, "user_argument"),
                 "grounds": grounds,
-                "details": details or "None given.",
+                "details": tagged(details or "None given.", "user_argument"),
                 "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
                 "current_law_rule": CURRENT_LAW_RULE,
             }
@@ -221,7 +219,8 @@ Reply with ONLY this JSON object and nothing else:
         if not match:
             raise ValueError("no JSON object in the ruling")
         data = json.loads(match.group(0))
-        sustained = data["sustained"] is True
+        # Some models write the boolean as a string.
+        sustained = str(data["sustained"]).strip().lower() == "true"
         ruling = str(data["ruling"]).strip()
         prefix = "Sustained." if sustained else "Overruled."
         if not ruling.startswith(prefix):

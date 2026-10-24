@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { HEARING_COPY, inr, longDate, type Next } from "@/lib/settlement";
 import { cn } from "@/lib/utils";
 import type { SettlementPayment, SettlementProfile, SettlementTerms } from "@/types";
@@ -22,6 +23,8 @@ const PAY = {
   due: ["Due", "#7a4a0c"],
   upcoming: ["Upcoming", "#6b5d4b"],
   missed: ["Missed", "#8e1f19"],
+  defaulted: ["Defaulted", "#8e1f19"],
+  held: ["Held up", "#6b5d4b"],
 } as const;
 const short = (iso: string) => longDate(iso).replace(/ (\w{3})\w* /, " $1 ");
 const LABEL = "text-[10.5px] font-bold uppercase tracking-[0.18em]";
@@ -38,6 +41,7 @@ export default function HearingRail({
   next,
   payments,
   userPays,
+  paymentsSlot,
   busy,
   onPay,
   cnr,
@@ -54,6 +58,8 @@ export default function HearingRail({
   next: Next | null; // once the order is passed
   payments: SettlementPayment[];
   userPays: boolean;
+  /** Simulated orders: the accused pays on their own, so this replaces the deposit and remedy list. */
+  paymentsSlot?: ReactNode;
   busy: number | null; // the instalment being acted on
   onPay: (index: number) => void;
   cnr: string;
@@ -139,7 +145,8 @@ export default function HearingRail({
                   </span>
                 </div>
                 <p className="m-0 text-[13.5px] leading-[1.55] text-pretty text-[#2a2018]">{next.body}</p>
-                {payments.length > 0 && (
+                {paymentsSlot}
+                {!paymentsSlot && payments.length > 0 && (
                   <>
                     <ol className="m-0 flex list-none flex-col border-t border-ink/15 p-0">
                       {payments.map((p, i) => {

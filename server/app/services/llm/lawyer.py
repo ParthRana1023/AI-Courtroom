@@ -37,9 +37,7 @@ async def choose_testimony_to_log(
 Case context: {case_context}
 {untrusted_text_rule}
 A witness has given these answers in court:
-<history>
 {answers}
-</history>
 You may log one answer as an exhibit, so the court can rely on it later. Log one only if it is specific and clearly helps your client's case; otherwise log none.
 Reply with ONLY this JSON object: {{"log": <the answer's number, or null>}}"""
     try:
@@ -53,7 +51,7 @@ Reply with ONLY this JSON object: {{"log": <the answer's number, or null>}}"""
                 "ai_role": ai_role,
                 "case_context": case_context,
                 "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
-                "answers": numbered,
+                "answers": tagged(numbered, "history"),
             }
         )
         match = _JSON_OBJECT.search(strip_thinking(reply))
@@ -100,12 +98,10 @@ THE CASE
 {case_context}
 
 THE RECORD SO FAR
-<history>
 {record}
-</history>
 
 WHAT OPPOSING COUNSEL SAID
-<user_argument>{target_text}</user_argument>
+{target_text}
 
 Reply with ONLY this JSON object and nothing else:
 {{"object": false}}
@@ -125,8 +121,8 @@ or
                 "grounds_rules": OBJECTION_GROUNDS_RULES,
                 "untrusted_text_rule": UNTRUSTED_TEXT_RULE,
                 "case_context": case_context,
-                "record": record or "Nothing yet.",
-                "target_text": target_text,
+                "record": tagged(record or "Nothing yet.", "history"),
+                "target_text": tagged(target_text, "user_argument"),
             }
         )
         match = _JSON_OBJECT.search(strip_thinking(reply))

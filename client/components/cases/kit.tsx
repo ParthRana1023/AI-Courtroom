@@ -7,6 +7,7 @@ import CourtModelLoader from "@/components/court/court-model-loader";
 import Scroller from "@/components/court/scroller";
 import Select from "@/components/court/select";
 import { cn } from "@/lib/utils";
+import type { PaymentStage } from "@/types";
 
 export interface CaseRow {
   cnr: string;
@@ -15,6 +16,7 @@ export interface CaseRow {
   outcome?: "won" | "lost" | "partial" | "settled" | null;
   settlement_result?: "quashed" | "compounded" | "plea" | null;
   negotiation_score?: number | null;
+  payments_stage?: PaymentStage | null; // a settled case whose payments are simulated
   user_role?: string | null;
   created_at: string;
   deleted_at?: string | null;
@@ -41,6 +43,16 @@ const OUTCOMES = {
   settled: ["Settled", "#6b5d4b"],
 } as const;
 export const SETTLED_AS = { quashed: "FIR quashed", compounded: "Compounded", plea: "Plea bargain" } as const;
+// How the payments under a settled case stand, beside its outcome; nothing while they run on schedule.
+const PAYMENTS: Record<PaymentStage, readonly [string, string] | null> = {
+  paying: null,
+  notice: ["Instalment missed", "#9a5b12"],
+  defaulted: ["Defaulted", "#8e1f19"],
+  enforcement: ["Back in court", "#8e1f19"],
+  punished: ["Contempt punished", "#8e1f19"],
+  suit: ["Civil suit", "#6b5d4b"],
+  closed: ["Paid in full", "#2f6b3a"],
+};
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function formatDate(iso?: string | null) {
@@ -293,9 +305,16 @@ function Outcome({ row }: { row: CaseRow }) {
   if (row.status !== "resolved" || !row.outcome) return null;
   const [label, color] =
     row.outcome === "settled" && row.settlement_result ? [SETTLED_AS[row.settlement_result], OUTCOMES.settled[1]] : OUTCOMES[row.outcome];
+  const pay = row.payments_stage ? PAYMENTS[row.payments_stage] : null;
   return (
     <span style={{ color }} className="font-bold">
       {label}
+      {pay && (
+        <span className="font-normal" style={{ color: pay[1] }}>
+          {" "}
+          · {pay[0]}
+        </span>
+      )}
     </span>
   );
 }

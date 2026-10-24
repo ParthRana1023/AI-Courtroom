@@ -20,12 +20,20 @@ from app.logging_config import get_logger
 from app.services import health
 from app.utils.llm_trace import record_llm_call
 
-_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_THINK_END = re.compile(r"^.*</think>", re.DOTALL | re.IGNORECASE)
+_THINK_START = re.compile(r"<think>.*$", re.DOTALL | re.IGNORECASE)
 
 
 def strip_thinking(text: str) -> str:
-    """Drop reasoning models' <think>...</think> blocks and surrounding whitespace."""
-    return _THINK_BLOCK.sub("", text).strip()
+    """Drop reasoning models' <think>...</think> blocks and surrounding whitespace.
+
+    Some models leave the opening tag out (reasoning, then </think>, then the
+    answer) or are cut off mid-thought; neither reasoning reaches the court.
+    """
+    text = _THINK_BLOCK.sub("", text)
+    text = _THINK_END.sub("", text)
+    return _THINK_START.sub("", text).strip()
 
 
 def pick_case_context(rag_context: str | None, case_details: str | None) -> str:
@@ -86,7 +94,8 @@ CURRENT_LAW_RULE = (
 
 def tagged(text: str, tag: str) -> str:
     """Wrap participant text in <tag>...</tag>, removing any tag it tries to close."""
-    cleaned = text.replace(f"</{tag}>", "").replace(f"<{tag}>", "")
+    # Any case and spacing: models read </ History > as a closing tag too.
+    cleaned = re.sub(rf"<\s*/?\s*{re.escape(tag)}\s*>", "", text, flags=re.IGNORECASE)
     return f"<{tag}>\n{cleaned}\n</{tag}>"
 
 
@@ -186,6 +195,8 @@ def _create_llm_instance(
             api_key=settings.groq_api_key or "not_set",
             temperature=temperature,
             max_tokens=max_tokens,
+            timeout=settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
         )
     elif provider == "openrouter":
         ChatOpenAI = import_module("langchain_openai").ChatOpenAI
@@ -197,6 +208,8 @@ def _create_llm_instance(
             # No cap: OpenRouter models' own limits work, and with reasoning
             # enabled a cap would also have to cover the hidden reasoning.
             extra_body={"reasoning": {"enabled": True}},
+            timeout=settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
         )
     elif provider == "cloudflare":
         # Workers AI's OpenAI-compatible endpoint. Shares the account's 10,000
@@ -213,6 +226,8 @@ def _create_llm_instance(
             # Workers AI stops at 256 tokens by default, which a reasoning
             # model spends before writing anything, so always send a budget.
             max_completion_tokens=max_tokens or settings.cloudflare_max_tokens,
+            timeout=settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
         )
     else:
         raise ValueError(f"Unknown LLM provider '{provider}'.")

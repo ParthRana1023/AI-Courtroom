@@ -190,4 +190,36 @@ test.describe("case details", () => {
     await expect(banner.getByRole("link", { name: "The deed" })).toHaveAttribute("href", `/cases/${CNR}/settlement`);
     await expect(page.getByText("Settled · FIR quashed").first()).toBeVisible();
   });
+
+  test("a settled case with simulated payments says where they stand", async ({ page, signIn }) => {
+    const deal = attempt(agreedTalks, {
+      status: "recorded",
+      agreed: T2,
+      ended_at: "2026-11-04T11:00:00Z",
+      pace: "days",
+      stage: "enforcement",
+      payments: [
+        { amount: 1400000, due: "2026-11-05", paid_at: null, remedy: null, remedy_at: null, status: "defaulted" },
+        { amount: 1400000, due: "2026-11-06", paid_at: null, remedy: null, remedy_at: null, status: "held" },
+      ],
+    });
+    await signIn(USERS.email, {
+      [`GET /cases/${CNR}`]: caseOf({
+        user_role: "plaintiff",
+        ai_role: "defendant",
+        status: "resolved",
+        outcome: "settled",
+        settlement_result: "quashed",
+        settlement_profile: PROFILE,
+        settlements: [deal],
+      }),
+    });
+    await page.goto(`/cases/${CNR}`);
+
+    const banner = page.getByRole("region", { name: "Settled on 4 November 2026" });
+    await expect(
+      banner.getByText("The complainants have taken the default back to the court; see the courtroom.", { exact: false }),
+    ).toBeVisible();
+    await expect(banner.getByText("Payments are tracked until", { exact: false })).toHaveCount(0);
+  });
 });

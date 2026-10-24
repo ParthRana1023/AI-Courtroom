@@ -147,6 +147,25 @@ test.describe("case prep", () => {
     await expect(page.getByRole("dialog").getByText("Exhibit 1 of 2")).toBeVisible();
   });
 
+  test("a party's payment reliability is shown only in developer mode", async ({ page, signIn }, info) => {
+    // The server sends it to developer accounts only; the chip also needs developer mode on.
+    const parties = [{ ...PARTIES[0], reliability: 0.72 }, PARTIES[1]];
+    const list = { parties, user_role: "plaintiff", can_access_courtroom: false, is_in_courtroom: false, case_status: "not started" };
+    const open = async () => {
+      await page.goto(`${base}/case-prep`);
+      if (info.project.name !== "desktop") await page.getByRole("button", { name: /Raghav Menon/ }).click();
+      await expect(page.getByRole("heading", { name: "Raghav Menon" })).toBeVisible();
+    };
+
+    await signIn({ ...USERS.email, is_developer: true } as typeof USERS.email, routes({ [`GET ${base}/parties`]: list }));
+    await open();
+    await expect(page.getByText(/pays on time/)).toHaveCount(0); // developer mode is off
+
+    await page.evaluate(() => localStorage.setItem("aiCourtroom-settings", JSON.stringify({ devMode: true })));
+    await open();
+    await expect(page.getByText("pays on time 0.72")).toBeVisible();
+  });
+
   test("the other side can be read but not interviewed", async ({ page, signIn }, info) => {
     await signIn(USERS.email, routes());
     await page.goto(`${base}/case-prep`);

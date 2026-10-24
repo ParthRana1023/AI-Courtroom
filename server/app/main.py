@@ -127,10 +127,12 @@ async def lifespan(app: FastAPI):
         {"$set": {"is_ai_examining": False}}
     )
 
-    # Preload location cache in background (don't block startup)
+    # Preload location cache in background (don't block startup). Kept in a
+    # variable: the event loop holds tasks only weakly, so an unreferenced one can
+    # be collected mid-run.
     import asyncio
 
-    asyncio.create_task(preload_location_cache())
+    preload = asyncio.create_task(preload_location_cache())
     logger.debug("🌍 Location cache preload task started")
 
     logger.info(f"✅ AI Courtroom API started successfully on port {settings.port}")
@@ -138,6 +140,7 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("🛑 Shutting down AI Courtroom API...")
+    preload.cancel()  # a no-op once it has finished
     await db_client.close()
     logger.info("✅ Database connection closed")
 

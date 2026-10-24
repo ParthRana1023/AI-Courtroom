@@ -1,16 +1,22 @@
 """Tests for settlement talks held out of court."""
 
+import base64
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from typing import Literal
 
 import pytest
 
 from app import messages
+from app.config import settings
 from app.models.case import (
     ArgumentItem,
     CaseOutcome,
     CaseStatus,
+    Enforcement,
     Payment,
+    PaymentDraw,
+    PaymentPlan,
     Roles,
     RouteItem,
     Settlement,
@@ -26,8 +32,10 @@ from app.models.case import (
 from app.models.case_outcome import CaseOutcomeRecord
 from app.routes import cases as cases_routes
 from app.routes import settlement
+from app.services import settlement_payments as payments
+from app.services import settlement_progress as progress
 from app.utils.datetime import get_current_datetime
-from tests.helpers import reload
+from tests.helpers import boom, reload
 
 CONDITIONS = [
     SettlementCondition(
@@ -614,11 +622,13 @@ async def test_agreed_terms_are_drawn_up_as_a_deed(client, auth_headers, adjourn
     assert deed["parties"] == (
         "Made between Ravi Kumar (the accused) and Asha Rao (the complainant)."
     )
-    money, deposit, quash = deed["clauses"]
+    money, default, deposit, quash = deed["clauses"]
     assert money == (
         "The accused shall pay the complainant ₹1,00,000 in 2 equal instalments "
         "within 6 months of signing, without interest."
     )
+    assert "within fifteen days of the notice" in default
+    assert default.endswith("undertakes to the High Court to pay as agreed.")
     assert deposit == "The first instalment shall be deposited in court."
     assert "section 528 BNSS" in quash
     assert deed["signatories"] == [
@@ -771,10 +781,16 @@ async def test_the_court_grants_the_compromise_and_the_case_ends(
     assert attempt["hearing"]["outcome"] == "granted"
     assert attempt["hearing"]["submission"] == SUBMISSION
     assert attempt["hearing"]["lines"][0]["tag"] == "No objection"
-    assert "defaults_on" not in attempt
+    assert "defaults_on" not in attempt and "plan" not in attempt
     assert attempt["user_pays"] is True
+    assert attempt["pace"] == "days" and attempt["stage"] == "paying"
     assert [p["amount"] for p in attempt["payments"]] == [50000, 50000]
     assert [p["status"] for p in attempt["payments"]] == ["upcoming", "upcoming"]
+    today = get_current_datetime().date()
+    assert [p["due"] for p in attempt["payments"]] == [
+        (today + timedelta(days=1)).isoformat(),
+        (today + timedelta(days=2)).isoformat(),
+    ]
 
     saved = await reload(case)
     assert saved.status == CaseStatus.RESOLVED
@@ -804,7 +820,17 @@ async def test_the_court_grants_the_compromise_and_the_case_ends(
     assert "Every complainant agreed freely" in prompt
     assert "₹1,00,000 in 2 equal instalments" in prompt
     assert "THE HEARING SO FAR" in prompt
-    assert len(fake_llm.calls) == 1  # the negotiation is analysed later, on request
+    # One more call: the accused's background predates payment reliability, so it is
+    # rated now. The negotiation is analysed later, on request.
+    assert len(fake_llm.calls) == 2 and "Payment" not in prompt
+    assert "Ravi Kumar" in fake_llm.prompts[1] and "0.82" in fake_llm.prompts[1]
+    plan = saved.settlements[-1].plan
+    assert plan and plan.reliability == payments.DEFAULT_RELIABILITY
+    assert len(plan.draws) == 2
+    assert (saved.verdict or "").endswith(
+        "In the event of a wilful default, the complainant shall be at liberty to "
+        "move this Court.\n\n**R. K. Mehta, J.**"
+    )
 
 
 async def test_the_court_refuses_and_the_case_goes_on(
@@ -935,6 +961,653 @@ async def pay(client, headers, case, index, action):
         headers=headers,
         json={"action": action},
     )
+
+
+async def test_the_order_draws_payments_against_the_accused_background(
+    client, auth_headers, adjourned, fake_llm, witness_party
+):
+    """Ravi Kumar, the accused, already has a reliability: no rating call."""
+    fake_llm.responses.append(hearing())
+    witness_party.reliability = 0.0
+    case = await adjourned(
+        status=CaseStatus.ACTIVE,
+        settlements=[filed_attempt()],
+        parties_involved=[witness_party],
+    )
+
+    await hear(client, auth_headers, case)
+
+    plan = (await reload(case)).settlements[-1].plan
+    assert plan and plan.reliability == 0.0
+    assert not any(d.on_time for d in plan.draws) and len(fake_llm.calls) == 1
+
+
+async def test_no_background_means_the_usual_reliability(
+    adjourned, witness_party, monkeypatch
+):
+    monkeypatch.setattr(settlement, "ensure_reliability", boom)
+    case = await adjourned(parties_involved=[witness_party])
+
+    assert (
+        await settlement.payer_reliability(case, PROFILE)
+        == payments.DEFAULT_RELIABILITY
+    )
+    nobody = PROFILE.model_copy(update={"accused": "Someone Else"})
+    assert await settlement.payer_reliability(case, nobody) == 0.85
+
+
+def simulated_attempt(ordered, *draws):
+    attempt = filed_attempt()
+    attempt.status = SettlementStatus.RECORDED
+    assert attempt.agreed
+    attempt.payments = payments.day_schedule(attempt.agreed, ordered)
+    attempt.plan = PaymentPlan(
+        reliability=0.5,
+        draws=[PaymentDraw(on_time=o, cures=c) for o, c in draws],
+        complies=True,
+    )
+    return attempt
+
+
+async def test_the_accused_pays_on_their_own_as_the_days_pass(
+    client, auth_headers, adjourned
+):
+    ordered = get_current_datetime().date() - timedelta(days=2)
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(ordered, (True, True), (False, True))],
+    )
+
+    attempt = (
+        await client.get(f"/cases/{case.cnr}/settlement", headers=auth_headers)
+    ).json()["attempt"]
+    deposit = await pay(client, auth_headers, case, 1, "pay")
+    case_view = (await client.get(f"/cases/{case.cnr}", headers=auth_headers)).json()
+
+    assert attempt["stage"] == "paying" and "plan" not in attempt
+    assert [p["status"] for p in attempt["payments"]] == ["paid", "due"]
+    assert deposit.status_code == 409  # nothing for counsel to deposit
+    assert "plan" not in case_view["settlements"][0]
+
+
+def text(mail):
+    """An email's HTML: non-ASCII bodies (the rupee sign) go out base64-encoded."""
+    body = mail["body"]
+    return body if "<" in body else base64.b64decode(body).decode()
+
+
+def days_ago(n):
+    return get_current_datetime().date() - timedelta(days=n)
+
+
+async def desk(client, headers, case):
+    response = await client.get(f"/cases/{case.cnr}/settlement", headers=headers)
+    return response.json()["attempt"]
+
+
+async def test_a_missed_instalment_is_in_notice_and_told_once(
+    client, auth_headers, adjourned, outbox
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(2), (False, False), (True, True))],
+    )
+
+    first = await desk(client, auth_headers, case)
+    await desk(client, auth_headers, case)
+
+    assert first["stage"] == "notice"
+    assert first["payments"][0]["notice_until"] == days_ago(0).isoformat()
+    assert [m["subject"] for m in outbox] == [
+        f"An instalment was missed: {case.title} - AI Courtroom"
+    ]
+    assert "Your client missed instalment 1 (₹50,000" in text(outbox[0])
+    assert (await reload(case)).settlements[-1].notified == ["missed:0"]
+
+
+async def test_paid_within_notice_then_every_instalment_closes_it(
+    client, auth_headers, adjourned, outbox
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, True), (True, True))],
+    )
+
+    attempt = await desk(client, auth_headers, case)
+    listed = (await client.get("/cases", headers=auth_headers)).json()
+
+    assert attempt["stage"] == "closed"
+    assert attempt["closed_on"] == days_ago(1).isoformat()
+    assert [p["status"] for p in attempt["payments"]] == ["late", "paid"]
+    assert [m["subject"].split(":")[0] for m in outbox] == [
+        "A missed instalment was paid",
+        "Every instalment paid",
+    ]
+    assert listed[0]["payments_stage"] == "closed"
+    saved = (await reload(case)).settlements[-1]
+    assert saved.payments_done and saved.notified == ["cured:0", "closed"]
+
+
+async def test_a_default_after_notice_takes_the_ai_complainants_to_court(
+    client, auth_headers, adjourned, outbox
+):
+    """Quashing can't be recalled for a breach, so the complainants file for contempt
+    of the undertaking given to the court; the case comes back to be heard."""
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, False), (True, True))],
+    )
+
+    attempt = await desk(client, auth_headers, case)
+    case_view = (await client.get(f"/cases/{case.cnr}", headers=auth_headers)).json()
+
+    listed = (days_ago(0) + timedelta(days=2)).isoformat()
+    assert attempt["stage"] == "enforcement"
+    # The second was paid on the day the default took effect, so it stays paid.
+    assert [p["status"] for p in attempt["payments"]] == ["defaulted", "paid"]
+    assert attempt["enforcement"] == {
+        "kind": "contempt",
+        "by": "ai",
+        "instalment": 0,
+        "filed_on": days_ago(0).isoformat(),
+        "listed_for": listed,
+        "hearing": None,
+        "pay_by": None,
+        "result": None,
+    }
+    assert case_view["settlements"][-1]["stage"] == "enforcement"
+    assert case_view["status"] == "resolved"  # the trial does not reopen
+    saved = await reload(case)
+    assert saved.courtroom_proceedings[-1].content.startswith(
+        "Contempt petition filed by the complainants"
+    )
+    assert not saved.settlements[-1].payments_done
+    assert [m["subject"].split(":")[0] for m in outbox] == ["Back in court"]
+    assert "listed for <strong>" in text(outbox[0])
+
+
+async def test_on_compounding_a_default_goes_to_a_civil_suit(
+    client, auth_headers, adjourned, outbox
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlement_profile=PROFILE.model_copy(update={"route": "compound"}),
+        settlements=[simulated_attempt(days_ago(3), (False, False), (True, True))],
+    )
+
+    attempt = await desk(client, auth_headers, case)
+
+    assert attempt["stage"] == "suit" and attempt["enforcement"]["kind"] == "suit"
+    assert attempt["enforcement"]["listed_for"] is None
+    saved = await reload(case)
+    assert saved.settlements[-1].payments_done
+    assert not any("filed" in e.content for e in saved.courtroom_proceedings)
+    assert "can't be reopened" in text(outbox[0])
+
+
+async def test_counsel_for_the_complainants_decides_what_to_do_with_a_default(
+    client, auth_headers, adjourned, outbox
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlement_profile=PROFILE.model_copy(update={"accused_side": "defendant"}),
+        settlements=[simulated_attempt(days_ago(3), (False, False), (True, True))],
+    )
+
+    attempt = await desk(client, auth_headers, case)
+
+    assert attempt["stage"] == "defaulted" and attempt["enforcement"] is None
+    assert outbox[0]["subject"].startswith("The accused has defaulted")
+    assert "Ravi Kumar didn" in text(outbox[0])
+    assert "file a contempt petition" in text(outbox[0])
+
+
+async def test_the_daily_job_catches_orders_up(user, adjourned, outbox):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, True), (True, True))],
+    )
+    now = get_current_datetime()
+
+    dry = await progress.progress_settlements(now, dry_run=True)
+    wet = await progress.progress_settlements(now)
+    again = await progress.progress_settlements(now)
+
+    assert dry == {
+        "settlement_updates_due": 2,
+        "settlement_updates": 0,
+        "settlement_emails": 0,
+    }
+    assert wet["settlement_updates"] == 2 and wet["settlement_emails"] == 2
+    assert again == {
+        "settlement_updates_due": 0,
+        "settlement_updates": 0,
+        "settlement_emails": 0,
+    }
+    assert len(outbox) == 2 and (await reload(case)).settlements[-1].payments_done
+
+
+async def test_two_readers_act_on_a_default_once(adjourned):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, False), (True, True))],
+    )
+    stale = await reload(case)
+
+    first = await progress.catch_up(case)
+    second = await progress.catch_up(stale)
+
+    assert [n.key for n in first] == ["defaulted"] and second == []
+    saved = await reload(case)
+    assert saved.settlements[-1].notified == ["defaulted"]
+    filed = [e for e in saved.courtroom_proceedings if "Contempt" in e.content]
+    assert len(filed) == 1
+
+
+async def test_developers_can_play_the_payments_a_day_forward(
+    client, user, auth_headers, adjourned, monkeypatch
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(0), (True, True), (True, True))],
+    )
+    url = f"/cases/{case.cnr}/settlement/next-day"
+
+    hidden = await client.post(url, headers=auth_headers)
+    monkeypatch.setattr(settings, "dev_mode_emails", user.email)
+    one = (await client.post(url, headers=auth_headers)).json()["attempt"]
+    two = (await client.post(url, headers=auth_headers)).json()["attempt"]
+    three = (await client.post(url, headers=auth_headers)).json()["attempt"]
+    done = await client.post(url, headers=auth_headers)
+
+    assert hidden.status_code == 404
+    assert [p["status"] for p in one["payments"]] == ["due", "upcoming"]
+    assert [p["status"] for p in two["payments"]] == ["paid", "due"]
+    assert three["stage"] == "closed"
+    assert done.status_code == 409  # nothing left to play out
+
+
+async def test_next_day_brings_the_day_the_court_gave(
+    client, user, auth_headers, adjourned, fake_llm, monkeypatch
+):
+    monkeypatch.setattr(settings, "dev_mode_emails", user.email)
+    fake_llm.responses.append(on_default("last_chance"))
+    case = await adjourned(
+        status=CaseStatus.RESOLVED, settlements=[defaulted_attempt()]
+    )
+    await answer(client, auth_headers, case)  # the balance is due tomorrow
+
+    moved = (
+        await client.post(
+            f"/cases/{case.cnr}/settlement/next-day", headers=auth_headers
+        )
+    ).json()["attempt"]
+
+    assert moved["stage"] == "closed" and moved["enforcement"]["result"] == "paid"
+    assert moved["enforcement"]["pay_by"] == days_ago(0).isoformat()
+
+
+async def test_terms_without_money_leave_no_payments_to_follow(
+    client, auth_headers, adjourned, fake_llm, outbox
+):
+    fake_llm.responses.append(hearing())
+    attempt = filed_attempt()
+    assert attempt.agreed
+    attempt.agreed.amount = 0
+    case = await adjourned(status=CaseStatus.ACTIVE, settlements=[attempt])
+
+    await hear(client, auth_headers, case)
+    desk_view = await desk(client, auth_headers, case)
+
+    assert desk_view["payments"] == [] and desk_view["pace"] == "months"
+    assert (await reload(case)).settlements[-1].plan is None
+    assert outbox == []  # no "every instalment paid" for what was never owed
+
+
+async def test_the_daily_job_finds_an_order_after_an_earlier_attempt(user, adjourned):
+    """The first attempt failed (no plan); the second was granted."""
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[
+            Settlement(status=SettlementStatus.REJECTED),
+            simulated_attempt(days_ago(3), (False, True), (True, True)),
+        ],
+    )
+
+    counts = await progress.progress_settlements(get_current_datetime())
+
+    assert counts["settlement_updates"] == 2
+    assert (await reload(case)).settlements[-1].payments_done
+
+
+async def test_one_case_failing_doesnt_stop_the_daily_job(user, adjourned, monkeypatch):
+    bad = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, True), (True, True))],
+    )
+    good = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(3), (False, True), (True, True))],
+    )
+    real = progress.catch_up
+
+    async def flaky(case, now=None):
+        if case.cnr == bad.cnr:
+            raise RuntimeError("boom")
+        return await real(case, now)
+
+    monkeypatch.setattr(progress, "catch_up", flaky)
+
+    counts = await progress.progress_settlements(get_current_datetime())
+
+    assert counts["settlement_updates"] == 2
+    assert (await reload(good)).settlements[-1].payments_done
+
+
+# ---------------------------------------------------------------------------
+# a default before the court
+# ---------------------------------------------------------------------------
+
+
+def on_default(outcome):
+    return json.dumps(
+        {
+            "judge": "S. Iyer",
+            "lines": [
+                {
+                    "kind": "speech",
+                    "role": "other",
+                    "who": "Counsel for the complainants",
+                    "text": "The accused could pay and chose not to.",
+                },
+                {
+                    "kind": "question",
+                    "role": "court",
+                    "who": "The Court to Ravi Kumar",
+                    "text": "Why was it not paid?",
+                },
+            ],
+            "outcome": outcome,
+            "ruling": "The breach calls for an answer in money.",
+            "order": ["The balance shall be paid within a week."],
+        }
+    )
+
+
+def defaulted_attempt(
+    kind: Literal["contempt", "recovery", "suit"] = "contempt",
+    by: Literal["user", "ai"] = "ai",
+    listed=0,
+    complies=True,
+):
+    """Instalment 1 left unpaid after notice; the complainants have moved the court,
+    listed `listed` days from today."""
+    attempt = simulated_attempt(days_ago(4), (False, False), (True, True))
+    assert attempt.plan
+    attempt.plan.complies = complies
+    attempt.notified = ["defaulted"]
+    attempt.enforcement = Enforcement(
+        kind=kind,
+        by=by,
+        instalment=0,
+        filed_on=days_ago(1),
+        listed_for=days_ago(-listed),
+    )
+    return attempt
+
+
+async def answer(client, headers, case, submission=SUBMISSION):
+    return await client.post(
+        f"/cases/{case.cnr}/settlement/enforcement",
+        headers=headers,
+        json={"submission": submission},
+    )
+
+
+async def test_the_court_hears_the_default_on_the_day_listed(
+    client, auth_headers, adjourned, fake_llm
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED, settlements=[defaulted_attempt(listed=1)]
+    )
+
+    early = await answer(client, auth_headers, case)
+
+    assert early.status_code == 409
+    assert early.json()["detail"].startswith("The court takes the application up on")
+    assert fake_llm.calls == []
+
+
+async def test_a_last_chance_to_purge_the_contempt_by_paying(
+    client, auth_headers, adjourned, fake_llm, outbox
+):
+    fake_llm.responses.append(on_default("last_chance"))
+    case = await adjourned(
+        status=CaseStatus.RESOLVED, settlements=[defaulted_attempt()]
+    )
+
+    attempt = (await answer(client, auth_headers, case)).json()["attempt"]
+    again = await answer(client, auth_headers, case)
+
+    assert attempt["stage"] == "enforcement"
+    assert attempt["enforcement"]["hearing"]["outcome"] == "last_chance"
+    assert attempt["enforcement"]["pay_by"] == days_ago(-1).isoformat()
+    assert again.status_code == 409  # heard once
+    prompt = fake_llm.prompts[0]
+    assert prompt.startswith("ENFORCEMENT HEARING")
+    assert "civil contempt under Section 2(b)" in prompt
+    assert "answers it for the accused" in prompt and SUBMISSION in prompt
+    assert "Instalment 1: Rs. 50,000" in prompt and "unpaid even after notice" in prompt
+    saved = await reload(case)
+    said = [e for e in saved.courtroom_proceedings if e.type == EventType.SETTLEMENT]
+    assert said[0].content == SUBMISSION
+    assert said[-1].tag == "Last chance to pay"
+    assert saved.status == CaseStatus.RESOLVED
+
+    # The day the court gave comes: the accused pays (drawn) and the order closes.
+    saved.settlements[-1].enforcement.pay_by = days_ago(0)
+    await saved.save()
+    closed = await desk(client, auth_headers, case)
+
+    assert closed["stage"] == "closed" and closed["enforcement"]["result"] == "paid"
+    assert [p["status"] for p in closed["payments"]] == ["late", "paid"]
+    assert closed["closed_on"] == days_ago(0).isoformat()
+    assert "paid the balance as the court directed" in text(outbox[-1])
+    final = await reload(case)
+    assert final.settlements[-1].payments_done
+    assert "paid the balance of ₹50,000" in final.courtroom_proceedings[-1].content
+
+
+async def test_unpaid_after_a_last_chance_the_contempt_is_punished(
+    client, auth_headers, adjourned, fake_llm, outbox
+):
+    fake_llm.responses.append(on_default("last_chance"))
+    case = await adjourned(
+        status=CaseStatus.RESOLVED, settlements=[defaulted_attempt(complies=False)]
+    )
+    await answer(client, auth_headers, case)
+    saved = await reload(case)
+    saved.settlements[-1].enforcement.pay_by = days_ago(0)
+    await saved.save()
+
+    attempt = await desk(client, auth_headers, case)
+
+    assert attempt["stage"] == "punished"
+    assert attempt["enforcement"]["result"] == "punished"
+    final = await reload(case)
+    assert final.settlements[-1].payments_done
+    assert "Section 12 of the Contempt of Courts Act" in (
+        final.courtroom_proceedings[-1].content
+    )
+    assert outbox[-1]["subject"].startswith("Sentenced for contempt")
+
+
+async def test_a_warrant_recovers_the_plea_compensation(
+    client, auth_headers, adjourned, fake_llm, outbox
+):
+    fake_llm.responses.append(on_default("warrant"))
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlement_profile=PROFILE.model_copy(update={"route": "plea"}),
+        settlements=[defaulted_attempt("recovery")],
+    )
+
+    heard = (await answer(client, auth_headers, case)).json()["attempt"]
+    saved = await reload(case)
+    saved.settlements[-1].enforcement.pay_by = days_ago(0)
+    await saved.save()
+    attempt = await desk(client, auth_headers, case)
+
+    assert heard["enforcement"]["hearing"]["outcome"] == "warrant"
+    assert "Section 461 BNSS" in fake_llm.prompts[0]
+    assert attempt["stage"] == "closed"
+    assert attempt["enforcement"]["result"] == "recovered"
+    assert "recovered under the court's warrant" in text(outbox[-1])
+
+
+async def test_the_court_may_leave_the_complainants_to_a_civil_suit(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.append(on_default("relegated"))
+    case = await adjourned(
+        status=CaseStatus.RESOLVED, settlements=[defaulted_attempt()]
+    )
+
+    attempt = (await answer(client, auth_headers, case)).json()["attempt"]
+
+    assert attempt["stage"] == "suit" and attempt["enforcement"]["result"] == "civil"
+    assert attempt["enforcement"]["pay_by"] is None
+    assert (await reload(case)).settlements[-1].payments_done
+
+
+async def test_an_order_the_law_doesnt_give_is_read_as_the_nearest(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.append(on_default("warrant"))  # not on a contempt petition
+    case = await adjourned(
+        status=CaseStatus.RESOLVED, settlements=[defaulted_attempt()]
+    )
+
+    attempt = (await answer(client, auth_headers, case)).json()["attempt"]
+
+    assert attempt["enforcement"]["hearing"]["outcome"] == "last_chance"
+
+
+async def test_a_failed_enforcement_hearing_changes_nothing(
+    client, auth_headers, adjourned, fake_llm
+):
+    fake_llm.responses.append("not json")
+    case = await adjourned(
+        status=CaseStatus.RESOLVED, settlements=[defaulted_attempt()]
+    )
+
+    response = await answer(client, auth_headers, case)
+
+    assert response.status_code == 500
+    assert (await reload(case)).settlements[-1].enforcement.hearing is None
+
+
+COMPLAINANTS = PROFILE.model_copy(update={"accused_side": "defendant"})
+
+
+async def test_counsel_for_the_complainants_moves_the_court_then_argues_it(
+    client, auth_headers, adjourned, fake_llm
+):
+    attempt = simulated_attempt(days_ago(3), (False, False), (True, True))
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlement_profile=COMPLAINANTS,
+        settlements=[attempt],
+    )
+    url = f"/cases/{case.cnr}/settlement/enforcement/file"
+
+    filed = (await client.post(url, headers=auth_headers)).json()["attempt"]
+    twice = await client.post(url, headers=auth_headers)
+
+    assert filed["enforcement"]["by"] == "user"
+    assert filed["enforcement"]["kind"] == "contempt"
+    assert filed["enforcement"]["listed_for"] == days_ago(-2).isoformat()
+    assert twice.status_code == 409
+    saved = await reload(case)
+    assert saved.courtroom_proceedings[-1].content.startswith("Contempt petition filed")
+
+    saved.settlements[-1].enforcement.listed_for = days_ago(0)
+    await saved.save()
+    fake_llm.responses.append(on_default("time"))
+    heard = (await answer(client, auth_headers, case)).json()["attempt"]
+
+    assert heard["enforcement"]["hearing"]["outcome"] == "time"
+    assert "moves the application for the complainants" in fake_llm.prompts[0]
+
+
+async def test_on_compounding_counsel_for_the_complainants_sues_on_the_deed(
+    client, auth_headers, adjourned
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlement_profile=COMPLAINANTS.model_copy(update={"route": "compound"}),
+        settlements=[simulated_attempt(days_ago(3), (False, False), (True, True))],
+    )
+
+    attempt = (
+        await client.post(
+            f"/cases/{case.cnr}/settlement/enforcement/file", headers=auth_headers
+        )
+    ).json()["attempt"]
+
+    assert attempt["stage"] == "suit" and attempt["enforcement"]["listed_for"] is None
+    assert (await reload(case)).settlements[-1].payments_done
+
+
+@pytest.mark.parametrize(
+    ("profile", "draws"),
+    [
+        (COMPLAINANTS, ((True, True), (True, True))),  # nothing defaulted
+        (PROFILE, ((False, False), (True, True))),  # the user defends
+    ],
+)
+async def test_only_a_default_can_be_taken_further_by_the_complainants(
+    client, auth_headers, adjourned, profile, draws
+):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlement_profile=profile,
+        settlements=[simulated_attempt(days_ago(1), *draws)],
+    )
+
+    response = await client.post(
+        f"/cases/{case.cnr}/settlement/enforcement/file", headers=auth_headers
+    )
+
+    assert response.status_code == 409
+
+
+async def test_nothing_to_hear_without_an_application(client, auth_headers, adjourned):
+    case = await adjourned(
+        status=CaseStatus.RESOLVED,
+        settlements=[simulated_attempt(days_ago(1), (True, True), (True, True))],
+    )
+
+    assert (await answer(client, auth_headers, case)).status_code == 409
+
+
+async def test_next_day_moves_the_application_too(
+    client, user, auth_headers, adjourned, monkeypatch
+):
+    monkeypatch.setattr(settings, "dev_mode_emails", user.email)
+    attempt = defaulted_attempt(listed=1)
+    attempt.payments[1].paid_at = datetime.combine(days_ago(1), datetime.min.time())
+    case = await adjourned(status=CaseStatus.RESOLVED, settlements=[attempt])
+
+    moved = (
+        await client.post(
+            f"/cases/{case.cnr}/settlement/next-day", headers=auth_headers
+        )
+    ).json()["attempt"]
+
+    assert moved["enforcement"]["listed_for"] == days_ago(0).isoformat()
+    assert moved["enforcement"]["filed_on"] == days_ago(2).isoformat()
+    assert moved["payments"][1]["paid_at"].startswith(days_ago(2).isoformat())
 
 
 async def test_counsel_for_the_accused_pays_each_instalment(

@@ -59,7 +59,10 @@ from app.services.llm import judge, lawyer, witness_service
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
 from app.utils.llm import LLMGenerationError, pick_case_context
-from app.utils.rate_limiter import witness_question_limiter_for
+from app.utils.rate_limiter import (
+    witness_question_limiter_for,
+    witness_question_rate_limiter,
+)
 
 logger = get_logger(__name__)
 MIN_ARGUMENTS_BETWEEN_AI_WITNESS_CHECKS = 2
@@ -176,7 +179,8 @@ async def call_witness(
 async def examine_witness(
     case_cnr: str,
     request: ExamineWitnessRequest,
-    current_user: User = Depends(get_current_user),
+    # Both question limiters share one counter, so one lock covers developers too.
+    current_user: User = Depends(witness_question_rate_limiter.hold, scope="function"),
 ) -> WitnessExaminationResponse:
     """Examine the current witness with a question"""
     logger.info(f"Examining witness for case {case_cnr}")

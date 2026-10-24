@@ -118,6 +118,7 @@ def make_record(msg, args=(), level=logging.INFO, name="app.test"):
     "raw, expected_fragment, secret",
     [
         ("login for john.doe@example.com", "j***@example.com", "john.doe@"),
+        ("code sent to +919876543210", "+91***10", "9876543210"),
         ("token eyJabc.eyJdef.sig123", "[REDACTED_TOKEN]", "eyJabc"),
         ('password="hunter22"', "[REDACTED]", "hunter22"),
         ("api_key=abcdefghijklmnopqrstuvwxyz", "[REDACTED_KEY]", "abcdefghijklmnop"),

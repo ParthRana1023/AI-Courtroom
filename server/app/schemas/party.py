@@ -17,6 +17,7 @@ class PartyOut(BaseModel):
     address: str | None = None
     bio: str | None = None
     can_chat: bool = False  # Whether user can chat with this party based on their role
+    reliability: float | None = None  # developers only; None for everyone else
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,7 +37,7 @@ class ChatMessageOut(BaseModel):
 class ChatRequest(BaseModel):
     """Request schema for sending a chat message"""
 
-    message: str
+    message: str = Field(min_length=1, max_length=4000)
     exhibit_refs: list[str] = Field(default_factory=list, max_length=10)
 
 

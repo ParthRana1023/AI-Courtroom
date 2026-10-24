@@ -1,6 +1,8 @@
 # app/services/cloudinary_service.py
 """Cloudinary integration service for profile and evidence image uploads."""
 
+import asyncio
+
 import cloudinary
 import cloudinary.api
 import cloudinary.uploader
@@ -108,7 +110,9 @@ async def upload_profile_photo(
     file_bytes: bytes, user_id: str, existing_public_id: str | None = None
 ) -> tuple[str, str]:
     """Upload a square, face-cropped profile photo; returns (secure_url, public_id)."""
-    return _replace_image(
+    # The SDK blocks on HTTP; in a thread so other requests keep being served.
+    return await asyncio.to_thread(
+        _replace_image,
         file_bytes,
         folder="ai-courtroom/profile-photos",
         public_id=f"user_{user_id}",
@@ -127,7 +131,8 @@ async def upload_evidence_image(
     existing_public_id: str | None = None,
 ) -> tuple[str, str]:
     """Upload an evidence image under the case's folder; returns (secure_url, public_id)."""
-    return _replace_image(
+    return await asyncio.to_thread(
+        _replace_image,
         file_bytes,
         folder=evidence_folder(cnr),
         public_id=f"evidence_{_safe(evidence_id)}",
@@ -156,7 +161,7 @@ async def delete_profile_photo(public_id: str) -> bool:
         raise RuntimeError("Cloudinary is not configured.")
 
     try:
-        result = cloudinary.uploader.destroy(public_id)
+        result = await asyncio.to_thread(cloudinary.uploader.destroy, public_id)
         success = result.get("result") == "ok"
         if success:
             logger.info(

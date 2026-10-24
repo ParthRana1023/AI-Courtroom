@@ -1,6 +1,8 @@
 # app/routes/cases.py
+import asyncio
 import random
 import time
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
 from beanie import PydanticObjectId
@@ -28,6 +30,7 @@ from app.models.report import Report
 from app.models.user import User
 from app.schemas.case import CaseCreate, CaseOut
 from app.services import purge
+from app.services import settlement_progress as progress
 from app.services.counsel_conferences import run_counsel_conferences
 from app.services.evidence_service import (
     extract_evidence_items,
@@ -46,6 +49,7 @@ from app.services.rag import (
     upsert_memory_item,
 )
 from app.services.settlement_deed import call_the_matter
+from app.services.settlement_payments import describe
 from app.utils.datetime import get_current_datetime
 from app.utils.locks import case_lock
 from app.utils.rate_limiter import (
@@ -67,7 +71,9 @@ ADJOURN_NOTES = {
 
 
 @router.get("", response_model=list[dict])
-async def list_cases(current_user: User = Depends(get_current_user)):
+async def list_cases(
+    background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user)
+):
     """List all cases for the current user (excluding soft-deleted cases)"""
     logger.debug(f"Listing cases for user: {current_user.email}")
 
@@ -75,6 +81,8 @@ async def list_cases(current_user: User = Depends(get_current_user)):
     cases = await Case.find(
         Case.user_id == current_user.id, {"is_deleted": {"$ne": True}}
     ).to_list()
+    for case in cases:
+        await progress.catch_up_and_tell(case, background_tasks)
 
     logger.debug(f"Found {len(cases)} cases for user: {current_user.email}")
 
@@ -88,6 +96,7 @@ async def list_cases(current_user: User = Depends(get_current_user)):
             "outcome": case.outcome,
             "settlement_result": case.settlement_result,
             "negotiation_score": case.negotiation.score if case.negotiation else None,
+            "payments_stage": progress.stage_of(case),
             "user_role": case.user_role,
         }
         for case in cases
@@ -97,6 +106,7 @@ async def list_cases(current_user: User = Depends(get_current_user)):
 @router.get("/{cnr}")
 async def get_case(
     cnr: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -104,9 +114,14 @@ async def get_case(
     logger.debug(f"Fetching case {cnr} for user: {current_user.email}")
 
     case = await get_owned_case(cnr, current_user)
+    await progress.catch_up_and_tell(case, background_tasks)
 
     # Use model_dump(mode='json') to handle serialization of ObjectIds
-    case_dict = case.model_dump(mode="json")
+    case_dict = case.model_dump(mode="json", exclude=Case.HIDDEN)
+    today = get_current_datetime().date()
+    for attempt, out in zip(case.settlements, case_dict["settlements"], strict=True):
+        if attempt.plan:  # the payments as of today, as the settlement desk shows them
+            out |= describe(attempt, today)
 
     # Return case data with fields directly in the response
     return {
@@ -169,6 +184,12 @@ async def update_case_status(
     # Validate the new status against allowed CaseStatus values
     # Assuming CaseStatus enum is imported or defined elsewhere
     if new_status not in [e.value for e in CaseStatus]:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
+    # Counsel only opens or adjourns the court: a case is decided by its judgment or
+    # an order on a compromise, and a decided case is never reopened.
+    if case.status == CaseStatus.RESOLVED:
+        raise HTTPException(status_code=409, detail=messages.CASE_DECIDED)
+    if new_status not in (CaseStatus.ACTIVE.value, CaseStatus.ADJOURNED.value):
         raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
 
     # Ensure role is selected before activating
@@ -318,6 +339,11 @@ async def update_case_roles(
                 status_code=400,
                 detail=f"Invalid ai_role: {new_ai_role}. Must be 'plaintiff', 'defendant', or 'not_started'",
             )
+    # Two sides, one each: the AI argues whichever the user didn't take.
+    sides = {Roles.PLAINTIFF, Roles.DEFENDANT}
+    if case.user_role not in sides or case.ai_role not in sides | {Roles.NOT_STARTED}:
+        raise HTTPException(status_code=400, detail=messages.ROLES_INVALID)
+    case.ai_role = (sides - {case.user_role}).pop()
 
     try:
         await case.save()
@@ -414,6 +440,7 @@ async def generate_plaintiff_opening(
             type="opening",
             content=plaintiff_opening_statement,
             user_id=None,  # LLM-generated
+            role=Roles.PLAINTIFF,
             timestamp=get_current_datetime(),
         )
     )
@@ -603,12 +630,22 @@ async def get_case_history(
     return history
 
 
+# One case drafted at a time per user. The limit is checked before drafting and
+# used up after it, so parallel requests would otherwise all pass the check.
+_generating: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+async def drafting_alone(user: User = Depends(get_current_user)):
+    async with _generating[str(user.id)]:
+        yield await case_generation_rate_limiter.check_only(user)
+
+
 @router.post("/generate", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
 async def generate_new_case(
     case_data: CaseCreate,
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(case_generation_rate_limiter.check_only),
+    current_user: User = Depends(drafting_alone, scope="function"),
 ):
     logger.info(
         f"Case generation requested by user: {current_user.email} with {case_data.sections_involved} sections"

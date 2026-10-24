@@ -5,11 +5,11 @@ const isMobile = (name: string) => name.startsWith("mobile");
 // [path, h1, article label, footer name of this page, sections, last updated]
 const DOCS: [string, string, string, string, number, string | null][] = [
   ["/about", "ABOUT AI COURTROOM", "About", "About", 5, null],
-  ["/privacy", "PRIVACY POLICY", "Privacy Policy", "Privacy Policy", 8, "18 October 2026"],
-  ["/terms", "TERMS OF SERVICE", "Terms of Service", "Terms of Service", 12, "6 October 2026"],
+  ["/privacy", "PRIVACY POLICY", "Privacy Policy", "Privacy Policy", 8, "24 October 2026"],
+  ["/terms", "TERMS OF SERVICE", "Terms of Service", "Terms of Service", 12, "24 October 2026"],
   ["/cookies", "COOKIE POLICY", "Cookie Policy", "Cookie Policy", 7, "18 October 2026"],
-  ["/help", "HELP & FAQ", "Help and FAQ", "Help & FAQ", 6, "6 October 2026"],
-  ["/changelog", "CHANGELOG", "Changelog", "Changelog", 12, "24 October 2026"],
+  ["/help", "HELP & FAQ", "Help and FAQ", "Help & FAQ", 7, "24 October 2026"],
+  ["/changelog", "CHANGELOG", "Changelog", "Changelog", 14, "24 October 2026"],
   ["/accessibility", "ACCESSIBILITY", "Accessibility", "Accessibility", 4, "4 October 2026"],
 ];
 const FOOTER = [

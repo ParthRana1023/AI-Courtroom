@@ -1,5 +1,8 @@
 # app/utils/rate_limiter.py
+import asyncio
+import contextlib
 import math
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException
@@ -44,6 +47,34 @@ def format_wait(seconds: float) -> str:
     if minutes:
         parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
     return " and ".join(parts)
+
+
+# One lock per (limit, user): see RateLimiter.hold.
+_held: defaultdict[tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+class _KeyLocks:
+    """One asyncio lock per key, dropped once nobody holds or awaits it: the keys
+    of limits before sign-in (emails, IPs) come from anyone, so they mustn't pile up."""
+
+    def __init__(self) -> None:
+        self._locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._users: dict[tuple[str, str], int] = {}
+
+    @contextlib.asynccontextmanager
+    async def hold(self, key: tuple[str, str]):
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        self._users[key] = self._users.get(key, 0) + 1
+        try:
+            async with lock:
+                yield
+        finally:
+            self._users[key] -= 1
+            if not self._users[key]:
+                del self._users[key], self._locks[key]
+
+
+_reserving = _KeyLocks()
 
 
 class RateLimiter:
@@ -92,8 +123,52 @@ class RateLimiter:
         if remaining or seconds is None:
             return
         minutes = max(1, math.ceil(seconds / 60))
-        logger.warning(f"Rate limit reached for {key} ({self.rate_limiter_type})")
+        # Not the key: it can be an email, a phone number or an IP.
+        logger.warning(f"Rate limit reached ({self.rate_limiter_type})")
         raise HTTPException(status_code=429, detail=message.format(minutes=minutes))
+
+    async def reserve(self, key: str, message: str) -> RateLimitEntry:
+        """Take an attempt before the work rather than after: checking first and
+        recording later lets parallel requests all pass the check. Checked and
+        recorded under a lock for (limit, key), so of parallel attempts exactly
+        the limit get through; the rest are refused (429). ``release`` it if the
+        attempt shouldn't count. The lock is per process, like hold: one worker
+        serves the API. (Ordering by insert instead isn't exact on a real server:
+        an earlier insert can still be in flight when a later one counts.)"""
+        async with _reserving.hold((self.rate_limiter_type, key)):
+            remaining, seconds = await self.get_remaining_attempts(key)
+            if not remaining and seconds is not None:
+                logger.warning(f"Rate limit reached ({self.rate_limiter_type})")
+                minutes = max(1, math.ceil(seconds / 60))
+                raise HTTPException(
+                    status_code=429, detail=message.format(minutes=minutes)
+                )
+            return await RateLimitEntry(
+                user_id=key,
+                rate_limiter_type=self.rate_limiter_type,
+                expiration_time=get_current_datetime() + timedelta(seconds=self.window),
+            ).insert()
+
+    @staticmethod
+    async def release(entry: RateLimitEntry) -> None:
+        """Take back a reserved attempt that turned out not to count."""
+        await entry.delete()
+
+    async def hold(self, user: User = Depends(get_current_user)):
+        """FastAPI dependency (with scope="function"): the current user, holding
+        their lock for this limit until the route returns.
+
+        Limits here are checked before the work and used up after it, so without
+        the lock parallel requests (one per case, say) would all pass the check.
+        One worker serves the API, so a process lock is enough.
+        """
+        async with _held[(self.rate_limiter_type, str(user.id))]:
+            yield user
+
+    async def check_alone(self, user: User = Depends(get_current_user)):
+        """check_only while holding the user's lock for this limit (see hold)."""
+        async with _held[(self.rate_limiter_type, str(user.id))]:
+            yield await self.check_only(user)
 
     async def check_only(self, user: User = Depends(get_current_user)) -> User:
         """FastAPI dependency: 429 if the limit is reached, else the current user.
@@ -120,9 +195,7 @@ class RateLimiter:
             rate_limiter_type=self.rate_limiter_type,
             expiration_time=now + timedelta(seconds=self.window),
         ).insert()
-        logger.debug(
-            f"Rate limit usage registered for user {user_id} ({self.rate_limiter_type})"
-        )
+        logger.debug(f"Rate limit usage registered ({self.rate_limiter_type})")
 
 
 argument_rate_limiter = RateLimiter(
@@ -139,6 +212,11 @@ case_generation_rate_limiter = RateLimiter(
 # The limiters below run before login, so they are keyed by email or IP, not user id.
 otp_send_rate_limiter = RateLimiter(
     settings.otp_send_limit, settings.otp_send_window, "otp_send_rate_limiter"
+)
+# Per address alone, one client could mail every address it likes and spend the
+# day's email quota, which every sign-in needs.
+otp_ip_rate_limiter = RateLimiter(
+    settings.otp_ip_limit, settings.otp_ip_window, "otp_ip"
 )
 
 # Only wrong passwords are recorded. Per email stops guessing one account; per IP

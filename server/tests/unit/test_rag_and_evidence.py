@@ -1,5 +1,6 @@
 """Tests for RAG memory (chunking, embedding, indexing, retrieval) and evidence services."""
 
+import asyncio
 from datetime import timedelta
 from types import SimpleNamespace
 
@@ -133,6 +134,41 @@ async def test_embed_query_empty_result(monkeypatch):
     monkeypatch.setattr(embedding, "embed_texts", no_embeddings)
 
     assert await embedding.embed_query("x") == []
+
+
+def test_parallel_first_requests_load_the_model_once(monkeypatch):
+    import threading
+    import time as clock
+
+    created = []
+
+    class SlowFastEmbed:
+        def __init__(self, name):
+            clock.sleep(0.05)  # loading takes a while: long enough to overlap
+            created.append(name)
+
+        def embed(self, texts):
+            return [[1.0, 0.0] for _ in texts]
+
+    monkeypatch.setattr(
+        embedding,
+        "import_module",
+        lambda name: SimpleNamespace(TextEmbedding=SlowFastEmbed),
+    )
+    embedding._load_model.cache_clear()
+    try:
+        threads = [
+            threading.Thread(target=embedding.embed_texts_sync, args=(["x"],))
+            for _ in range(4)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    finally:
+        embedding._load_model.cache_clear()
+
+    assert created == [settings.embedding_model_name]
 
 
 def test_load_model_builds_text_embedding_once(monkeypatch):
@@ -669,6 +705,40 @@ async def test_extract_evidence_items_parses_fenced_json(fake_llm):
     )
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        'Here are the exhibits:\n[{"title": "CCTV"}, {"title": "Lease"}] Hope it helps.',
+        '{"evidence": [{"title": "CCTV"}, {"title": "Lease"}]}',
+        '[{"title": "CCTV"}, "stray text", {"title": "Lease"}]',
+    ],
+)
+async def test_evidence_survives_a_chatty_or_wrapped_reply(fake_llm, reply):
+    fake_llm.responses.append(reply)
+
+    items = await es.extract_evidence_items("case text")
+
+    assert [(i.exhibit_ref, i.title) for i in items] == [
+        ("EX-01", "CCTV"),
+        ("EX-02", "Lease"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        '[{"title": "Bank receipt", "ipc_sections": ["s.318"]}]',
+        'Sure: {"title": "Bank receipt", "ipc_sections": ["s.318"]}',
+    ],
+)
+async def test_one_item_from_text_is_read_however_its_wrapped(fake_llm, reply):
+    fake_llm.responses.append(reply)
+
+    item = await es.extract_evidence_from_text("I paid 5000", source="Ravi")
+
+    assert item.title == "Bank receipt"
+
+
 async def test_extract_evidence_items_edge_cases(fake_llm):
     assert await es.extract_evidence_items(None) == []
 
@@ -904,6 +974,72 @@ async def test_saving_an_image_keeps_what_changed_meanwhile(user, make_case):
     saved = await reload(case)
     assert saved.evidence[0].media_status == EvidenceMediaStatus.GENERATED
     assert saved.party_chats == {"p1": [{"sender": "user", "content": "Hi"}]}
+
+
+async def test_saving_an_image_keeps_a_tender_made_meanwhile(user, make_case):
+    case = await make_case(user, evidence=[evidence()])
+    await Case.find_one(Case.cnr == case.cnr).update_one(
+        {"$set": {"evidence.0.exhibit_ref": "EX-07", "evidence.0.private": True}}
+    )
+    item = case.evidence[0]
+    item.media_status = EvidenceMediaStatus.GENERATED
+    item.image_url = "https://img/new.png"
+
+    await es._save_item(case, 0, item)  # `item` predates the tender
+
+    saved = (await reload(case)).evidence[0]
+    assert (saved.exhibit_ref, saved.private) == ("EX-07", True)
+    assert (saved.media_status, saved.image_url) == (
+        EvidenceMediaStatus.GENERATED,
+        "https://img/new.png",
+    )
+
+
+async def test_two_runs_at_once_make_each_image_once(user, make_case, image_pipeline):
+    case = await make_case(
+        user, evidence=[evidence(media_status=EvidenceMediaStatus.PENDING)]
+    )
+
+    await asyncio.gather(
+        es.generate_queued_images(case.cnr), es.generate_queued_images(case.cnr)
+    )
+
+    assert image_pipeline["uploads"] == [case.evidence[0].id]
+
+
+async def test_struck_lines_arent_retrieved(user, make_case, monkeypatch):
+    monkeypatch.setattr(settings, "rag_min_score", 0.0)
+    struck_argument = "The deposit was spent on the landlord's own repairs, My Lord."
+    case = await make_case(
+        user,
+        plaintiff_arguments=[
+            ArgumentItem(type="user", content=struck_argument, role=Roles.PLAINTIFF),
+            ArgumentItem(type="user", content="No.", role=Roles.PLAINTIFF),
+            ArgumentItem(
+                type="user", content="No. The deposit is owed.", role=Roles.PLAINTIFF
+            ),
+        ],
+        courtroom_proceedings=[
+            CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.ARGUMENT,
+                content=struck_argument,
+                struck="struck",
+            ),
+            CourtroomProceedingsEvent(
+                type=CourtroomProceedingsEventType.ARGUMENT,
+                content="No.",
+                struck="struck",
+            ),
+        ],
+    )
+    await rag.index_case_memory(case)
+
+    context = await rag.retrieve_case_context(
+        case, "deposit", source_types=["argument"], top_k=10
+    )
+
+    assert "own repairs" not in context
+    assert "No. The deposit is owed." in context  # a short struck line isn't "in" it
 
 
 async def test_index_includes_verdict_analysis_and_party_chats(rich_case):

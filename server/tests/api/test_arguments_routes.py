@@ -684,6 +684,59 @@ async def test_closing_statement_failures_return_500(
     assert response.status_code == 500
 
 
+async def test_a_retried_closing_is_recorded_once(
+    client, auth_headers, in_progress, user, fake_llm
+):
+    """The verdict failed after the user's closing was saved; the retry goes on
+    from there instead of closing twice."""
+    judge_down = {"on": True}
+
+    def respond(prompt):
+        if "impartial Indian Court judge" in prompt:
+            if judge_down["on"]:
+                raise RuntimeError("judge model down")
+            return "**FACTS**\n1. Suit decreed."
+        return "AI closing statement text"
+
+    fake_llm.responder = respond
+    case = await in_progress()
+
+    failed = await close(client, auth_headers, case)
+    judge_down["on"] = False
+    retried = await close(client, auth_headers, case)
+
+    assert failed.status_code >= 500 and retried.status_code == 200
+    saved = await reload(case)
+    mine = [a for a in saved.plaintiff_arguments if a.type == "closing"]
+    assert len(mine) == 1 and saved.status == CaseStatus.RESOLVED
+
+
+async def test_the_judge_weighs_neither_struck_arguments_nor_misses_an_opening(
+    client, auth_headers, in_progress, user, fake_llm
+):
+    """An opening prepared before the hearing has no role on the item; an argument
+    the court struck stays in the side's list but not in the verdict."""
+    fake_llm.responses.extend(["AI closing", "**FACTS**\n1. Decided."])
+    case = await in_progress(
+        "defendant",
+        plaintiff_arguments=[
+            ArgumentItem(type="opening", content="prepared opening"),
+            arg("struck point", "plaintiff", type_="counter"),
+        ],
+        courtroom_proceedings=[
+            event(EventType.AI_ARGUMENT, "struck point", "plaintiff", struck="struck")
+        ],
+    )
+
+    await close(client, auth_headers, case, role="defendant")
+
+    judge_prompt = next(
+        p for p in fake_llm.prompts if "impartial Indian Court judge" in p
+    )
+    assert "prepared opening" in judge_prompt
+    assert "struck point" not in judge_prompt
+
+
 async def test_verdict_failure_does_not_resolve_case(
     client, auth_headers, in_progress, fake_llm
 ):

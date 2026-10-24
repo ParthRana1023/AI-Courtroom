@@ -3,7 +3,9 @@
 Location API routes for fetching countries, states, cities and search.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.logging_config import get_logger
 from app.services.high_court_mapping import get_all_indian_states
@@ -18,6 +20,12 @@ from app.services.location_service import (
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+# Codes go into the upstream API's URL, so only codes: a country's two letters, a
+# state's few letters or digits ("MH", "01").
+Country = Annotated[str, Path(pattern=r"^[A-Za-z]{2}$")]
+State = Annotated[str, Path(pattern=r"^[A-Za-z0-9]{1,4}$")]
 
 
 @router.get("/countries")
@@ -39,7 +47,7 @@ async def list_countries():
 
 
 @router.get("/states/{country_iso2}")
-async def list_states(country_iso2: str):
+async def list_states(country_iso2: Country):
     """
     Get all states for a specific country.
 
@@ -60,7 +68,7 @@ async def list_states(country_iso2: str):
 
 
 @router.get("/cities/{country_iso2}/{state_iso2}")
-async def list_cities(country_iso2: str, state_iso2: str):
+async def list_cities(country_iso2: Country, state_iso2: State):
     """
     Get all cities for a specific state.
 
@@ -108,7 +116,7 @@ async def search(
 
 
 @router.get("/phone-code/{country_iso2}")
-async def get_country_phone_code(country_iso2: str):
+async def get_country_phone_code(country_iso2: Country):
     """
     Get the phone code for a specific country.
 

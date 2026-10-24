@@ -1,5 +1,6 @@
 """Tests for /auth routes: registration, login OTP, profile and Google sign-in."""
 
+import asyncio
 from datetime import timedelta
 
 import jwt
@@ -9,9 +10,12 @@ from fastapi import HTTPException
 from app.config import settings
 from app.models.case import CaseStatus
 from app.models.otp import OTP
+from app.models.rate_limit import RateLimitEntry
 from app.models.user import User
 from app.routes import auth as auth_routes
 from app.services import google_auth
+from app.services.auth import create_password_reset_token
+from app.services.notifications import unsubscribe_token
 from app.utils.datetime import get_current_datetime
 from tests.helpers import boom, reload
 
@@ -121,6 +125,29 @@ async def test_register_verify_creates_user_and_consumes_otp(client):
     assert user.phone_number == "9876543210"
     assert user.password_hash and user.password_hash != VALID_PASSWORD
     assert await OTP.find(OTP.email == "asha@example.com").count() == 0
+
+
+@pytest.mark.asyncio
+async def test_register_verify_ignores_google_fields_it_never_checked(client):
+    await client.post("/auth/register/initiate", json=registration_payload())
+    otp = await stored_otp("asha@example.com")
+    forged = registration_payload(
+        google_id="someone-elses-google-id",
+        profile_photo_url="https://evil.example/tracker.png",
+    )
+
+    response = await client.post(
+        "/auth/register/verify", json={"user_data": forged, "otp": otp.otp}
+    )
+
+    assert response.status_code == 201
+    user = await User.find_one(User.email == "asha@example.com")
+    assert user is not None
+    assert (user.google_id, user.profile_photo_url, user.auth_method) == (
+        None,
+        None,
+        "email",
+    )
 
 
 @pytest.mark.asyncio
@@ -249,6 +276,41 @@ async def test_login_locks_email_after_repeated_wrong_passwords(client, user, ou
     assert locked.status_code == 429
     assert "minute" in locked.json()["detail"]
     assert outbox == []
+
+
+@pytest.mark.asyncio
+async def test_parallel_wrong_passwords_cant_pass_the_limit(client, user):
+    wrong = {"email": user.email, "password": "Wrong123!"}
+
+    responses = await asyncio.gather(
+        *(
+            client.post("/auth/login/initiate", json=wrong)
+            for _ in range(settings.login_failure_limit + 3)
+        )
+    )
+
+    codes = [r.status_code for r in responses]
+    assert codes.count(401) == settings.login_failure_limit
+    assert codes.count(429) == 3
+
+
+@pytest.mark.asyncio
+async def test_signing_in_uses_up_no_attempts(client, user, outbox, monkeypatch):
+    from app.utils.rate_limiter import otp_send_rate_limiter
+
+    monkeypatch.setattr(otp_send_rate_limiter, "requests", 100)  # not under test
+    right = {"email": user.email, "password": VALID_PASSWORD}
+    for _ in range(settings.login_failure_limit + 1):
+        assert (
+            await client.post("/auth/login/initiate", json=right)
+        ).status_code == 200
+
+    failures = RateLimitEntry.find(
+        RateLimitEntry.user_id == user.email,
+        RateLimitEntry.rate_limiter_type
+        == auth_routes.login_failure_email_limiter.rate_limiter_type,
+    )
+    assert await failures.count() == 0
 
 
 @pytest.mark.asyncio
@@ -531,7 +593,9 @@ async def test_token_for_deleted_user_is_rejected(client, user, auth_headers):
 @pytest.mark.asyncio
 async def test_token_with_user_id_subject_is_accepted(client, user):
     token = jwt.encode(
-        {"sub": str(user.id)}, settings.secret_key, algorithm=settings.algorithm
+        {"sub": str(user.id), "sid": "s1"},
+        settings.secret_key,
+        algorithm=settings.algorithm,
     )
 
     response = await client.get(
@@ -542,10 +606,31 @@ async def test_token_with_user_id_subject_is_accepted(client, user):
     assert response.json()["email"] == user.email
 
 
+@pytest.mark.parametrize("make", ["reset", "unsubscribe", "no session"])
+async def test_only_sign_in_tokens_sign_in(client, user, make):
+    """A reset link or an unsubscribe link (in every optional email) is signed with
+    the same key for the same user; neither may be used as a bearer token."""
+    token = {
+        "reset": lambda: create_password_reset_token(user),
+        "unsubscribe": lambda: unsubscribe_token(user, "hearing_reminders"),
+        "no session": lambda: jwt.encode(
+            {"sub": user.email}, settings.secret_key, algorithm=settings.algorithm
+        ),
+    }[make]()
+
+    response = await client.get(
+        "/auth/profile", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 401
+
+
 @pytest.mark.asyncio
 async def test_token_with_malformed_id_subject_is_rejected(client):
     token = jwt.encode(
-        {"sub": "not-an-object-id"}, settings.secret_key, algorithm=settings.algorithm
+        {"sub": "not-an-object-id", "sid": "s1"},
+        settings.secret_key,
+        algorithm=settings.algorithm,
     )
 
     response = await client.get(

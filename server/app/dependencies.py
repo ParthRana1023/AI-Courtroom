@@ -40,6 +40,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         if user_id is None:
             logger.warning("Token validation failed - no user_id in payload")
             raise credentials_exception
+        # Only sign-in tokens carry a session id. Reset and unsubscribe links are
+        # signed with the same key and name the same user, but have a purpose and
+        # no session: taken as a bearer token, they would sign their holder in.
+        if payload.get("purpose") or not payload.get("sid"):
+            logger.warning("Token validation failed - not a sign-in token")
+            raise credentials_exception
     except jwt.InvalidTokenError as e:
         logger.warning(f"Token validation failed - JWT error: {e!s}")
         raise credentials_exception
@@ -63,7 +69,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 
     # A revoked session (signed out remotely, password reset) ends here. Tokens
     # issued before sessions were recorded have no record and stay valid until expiry.
-    sid = payload.get("sid")
+    sid = payload["sid"]
     if sid:
         session = await UserSession.find_one(UserSession.sid == sid)
         if session is not None:

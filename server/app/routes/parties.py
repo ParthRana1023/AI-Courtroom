@@ -24,10 +24,12 @@ from app.services.llm.parties_service import (
     can_lawyer_confer_with_party,
     chat_with_party,
     generate_party_details,
+    rate_reliability,
 )
 from app.services.rag import retrieve_case_context, upsert_memory_item
 from app.utils.datetime import get_current_datetime
 from app.utils.llm import LLMGenerationError
+from app.utils.llm_trace import is_developer
 from app.utils.rate_limiter import party_chat_rate_limiter
 
 logger = get_logger(__name__)
@@ -58,6 +60,7 @@ async def ensure_party_bio(case: Case, party: PartyInvolved):
             party.name, case.details, rag_context=rag_context
         )
         party.bio = details.bio
+        party.reliability = details.reliability
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Party bio generated for {party.name} in {duration_ms:.2f}ms")
     except Exception:
@@ -71,7 +74,14 @@ async def ensure_party_bio(case: Case, party: PartyInvolved):
         index = case.parties_involved.index(party)
         await Case.find_one(
             {"cnr": case.cnr, f"parties_involved.{index}.id": party.id}
-        ).update_one({"$set": {f"parties_involved.{index}.bio": party.bio}})
+        ).update_one(
+            {
+                "$set": {
+                    f"parties_involved.{index}.bio": party.bio,
+                    f"parties_involved.{index}.reliability": party.reliability,
+                }
+            }
+        )
         await upsert_memory_item(
             case,
             "party_bio",
@@ -84,6 +94,38 @@ async def ensure_party_bio(case: Case, party: PartyInvolved):
         raise HTTPException(
             status_code=500, detail="Failed to save party details. Please try again."
         )
+
+
+async def ensure_reliability(case: Case, party: PartyInvolved) -> float | None:
+    """The party's payment reliability, rated from the bio when the bio predates it.
+    None when it can't be had; the caller picks the fallback."""
+    await ensure_party_bio(case, party)
+    if party.reliability is None and party.bio:
+        party.reliability = await rate_reliability(party.name, party.bio)
+        if party.reliability is not None:
+            index = case.parties_involved.index(party)
+            await Case.find_one(
+                {"cnr": case.cnr, f"parties_involved.{index}.id": party.id}
+            ).update_one(
+                {"$set": {f"parties_involved.{index}.reliability": party.reliability}}
+            )
+    return party.reliability
+
+
+def party_out(party: PartyInvolved, can_chat: bool, user: User) -> PartyOut:
+    """A party for the client. The payment reliability is only for developers: anyone
+    else judges it, as the model did, from the background."""
+    return PartyOut(
+        id=party.id,
+        name=party.name,
+        role=party.role,
+        occupation=party.occupation,
+        age=party.age,
+        address=party.address,
+        bio=party.bio,
+        can_chat=can_chat,
+        reliability=party.reliability if is_developer(user.email) else None,
+    )
 
 
 @router.get("/{cnr}/parties", response_model=PartiesListOut)
@@ -102,18 +144,7 @@ async def get_case_parties(cnr: str, current_user: User = Depends(get_current_us
             can_lawyer_confer_with_party(user_role, party.role) and not is_in_courtroom
         )
 
-        parties_out.append(
-            PartyOut(
-                id=party.id,
-                name=party.name,
-                role=party.role,
-                occupation=party.occupation,
-                age=party.age,
-                address=party.address,
-                bio=party.bio,
-                can_chat=can_chat,
-            )
-        )
+        parties_out.append(party_out(party, can_chat, current_user))
 
     can_access_courtroom = has_user_chatted(case)
     logger.debug(f"Returned {len(parties_out)} parties for case {cnr}")
@@ -147,16 +178,7 @@ async def get_party_details_route(
         can_lawyer_confer_with_party(case.user_role, party.role) and not is_in_courtroom
     )
 
-    return PartyOut(
-        id=party.id,
-        name=party.name,
-        role=party.role,
-        occupation=party.occupation,
-        age=party.age,
-        address=party.address,
-        bio=party.bio,
-        can_chat=can_chat,
-    )
+    return party_out(party, can_chat, current_user)
 
 
 @router.post("/{cnr}/parties/{party_id}/chat", response_model=ChatResponse)
@@ -164,7 +186,7 @@ async def chat_with_case_party(
     cnr: str,
     party_id: str,
     chat_request: ChatRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(party_chat_rate_limiter.hold, scope="function"),
 ):
     """Chat with a party involved in the case (role-based access control)"""
     logger.info(f"Chat request for party {party_id} in case {cnr}")

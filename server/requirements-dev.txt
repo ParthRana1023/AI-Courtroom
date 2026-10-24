@@ -9,5 +9,5 @@ mongomock-motor==0.0.36
 
 # Lint, format and type check (same versions as CI)
 ruff==0.16.0
-black==26.5.1
+black==26.10.1
 pyrefly==1.1.1
