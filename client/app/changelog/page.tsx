@@ -18,7 +18,7 @@ const TAG_CLASS: Record<Tag, string> = { New: K.tagNew, Changed: K.tagFix, Fixed
 const RELEASES: Release[] = [
   {
     id: "v5-5",
-    title: "5.5.1–5.6.1 · 24 October 2026",
+    title: "5.5.1–5.6.2 · 24 October 2026",
     lede: "A security review of the whole app, every fix tested against the problem it closes.",
     items: [
       [

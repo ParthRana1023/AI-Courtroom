@@ -1,5 +1,6 @@
 # app/utils/rate_limiter.py
 import asyncio
+import contextlib
 import math
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
@@ -50,6 +51,30 @@ def format_wait(seconds: float) -> str:
 
 # One lock per (limit, user): see RateLimiter.hold.
 _held: defaultdict[tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+class _KeyLocks:
+    """One asyncio lock per key, dropped once nobody holds or awaits it: the keys
+    of limits before sign-in (emails, IPs) come from anyone, so they mustn't pile up."""
+
+    def __init__(self) -> None:
+        self._locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._users: dict[tuple[str, str], int] = {}
+
+    @contextlib.asynccontextmanager
+    async def hold(self, key: tuple[str, str]):
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        self._users[key] = self._users.get(key, 0) + 1
+        try:
+            async with lock:
+                yield
+        finally:
+            self._users[key] -= 1
+            if not self._users[key]:
+                del self._users[key], self._locks[key]
+
+
+_reserving = _KeyLocks()
 
 
 class RateLimiter:
@@ -104,30 +129,25 @@ class RateLimiter:
 
     async def reserve(self, key: str, message: str) -> RateLimitEntry:
         """Take an attempt before the work rather than after: checking first and
-        recording later lets parallel requests all pass the check. The attempt is
-        recorded, then admitted only if fewer than the limit were recorded before
-        it; one past the limit is taken back and refused (429). ``release`` it if
-        the attempt shouldn't count."""
-        entry = await RateLimitEntry(
-            user_id=key,
-            rate_limiter_type=self.rate_limiter_type,
-            expiration_time=get_current_datetime() + timedelta(seconds=self.window),
-        ).insert()
-        _, seconds = await self.get_remaining_attempts(key)  # clears expired ones
-        # First come, first served, by insertion order (ObjectIds increase). A
-        # plain count fails parallel requests on a real server: each one inserts
-        # before any counts, so all of them see too many and refuse themselves.
-        place = await RateLimitEntry.find(
-            RateLimitEntry.user_id == key,
-            RateLimitEntry.rate_limiter_type == self.rate_limiter_type,
-            RateLimitEntry.id <= entry.id,
-        ).count()
-        if place <= self.requests:
-            return entry
-        await entry.delete()
-        logger.warning(f"Rate limit reached ({self.rate_limiter_type})")
-        minutes = max(1, math.ceil((seconds or self.window) / 60))
-        raise HTTPException(status_code=429, detail=message.format(minutes=minutes))
+        recording later lets parallel requests all pass the check. Checked and
+        recorded under a lock for (limit, key), so of parallel attempts exactly
+        the limit get through; the rest are refused (429). ``release`` it if the
+        attempt shouldn't count. The lock is per process, like hold: one worker
+        serves the API. (Ordering by insert instead isn't exact on a real server:
+        an earlier insert can still be in flight when a later one counts.)"""
+        async with _reserving.hold((self.rate_limiter_type, key)):
+            remaining, seconds = await self.get_remaining_attempts(key)
+            if not remaining and seconds is not None:
+                logger.warning(f"Rate limit reached ({self.rate_limiter_type})")
+                minutes = max(1, math.ceil(seconds / 60))
+                raise HTTPException(
+                    status_code=429, detail=message.format(minutes=minutes)
+                )
+            return await RateLimitEntry(
+                user_id=key,
+                rate_limiter_type=self.rate_limiter_type,
+                expiration_time=get_current_datetime() + timedelta(seconds=self.window),
+            ).insert()
 
     @staticmethod
     async def release(entry: RateLimitEntry) -> None:

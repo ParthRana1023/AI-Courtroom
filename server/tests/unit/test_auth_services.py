@@ -570,3 +570,39 @@ def test_only_google_profile_pictures_are_taken(url, kept):
     from app.routes.auth import google_photo
 
     assert google_photo(url) == (url if kept else None)
+
+
+async def test_reserve_locks_dont_pile_up(limiter):
+    for i in range(20):
+        await rl.RateLimiter.release(await limiter.reserve(f"k{i}", "{minutes}"))
+
+    assert rl._reserving._locks == {} and rl._reserving._users == {}
+
+
+async def test_reserve_is_exact_even_when_the_database_is_slow(limiter, monkeypatch):
+    # On a real server an insert can have its id but not have landed yet when a
+    # later one counts (what CI's mongodb leg hit). Simulated: ids first, then
+    # uneven pauses before each write. Only the lock keeps this exact.
+    from beanie import PydanticObjectId
+
+    real_insert = RateLimitEntry.insert
+    pauses = iter([0.03, 0.0, 0.02, 0.0, 0.01, 0.0])
+
+    async def in_flight(self, *args, **kwargs):
+        if self.id is None:
+            self.id = PydanticObjectId()
+        await asyncio.sleep(next(pauses, 0.0))
+        return await real_insert(self, *args, **kwargs)
+
+    monkeypatch.setattr(RateLimitEntry, "insert", in_flight)
+
+    async def attempt():
+        try:
+            return await limiter.reserve("slow", "{minutes}")
+        except HTTPException as e:
+            return e.status_code
+
+    results = await asyncio.gather(*(attempt() for _ in range(6)))
+
+    assert results.count(429) == 4
+    assert await RateLimitEntry.find(RateLimitEntry.user_id == "slow").count() == 2
